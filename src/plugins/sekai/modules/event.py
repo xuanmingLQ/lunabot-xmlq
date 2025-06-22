@@ -323,6 +323,8 @@ async def get_ban_events_id_set(ctx: SekaiHandlerContext) -> Set[int]:
                 bonus_unit.add((await ctx.md.game_character_units.find_by_id(cuid))['unit'])
         if len(bonus_unit) == 1:
             ret.add(cur_event['id'])
+    # 特判sdl3
+    ret.add(74)
     return ret
 
 # 判断是否是箱活

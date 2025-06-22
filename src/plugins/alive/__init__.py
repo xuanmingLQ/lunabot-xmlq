@@ -113,7 +113,7 @@ async def _(ctx: HandlerContext):
     return await ctx.asend_msg(get_status_image_cq())
 
 
-STATUS_NOTIFY_TIME = [18, 0, 0]
+STATUS_NOTIFY_TIME = [23, 50, 0]
 
 # 订阅状态
 status_notify_gwl = get_group_white_list(file_db, logger, "status_notify", is_service=False)
