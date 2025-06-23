@@ -243,3 +243,76 @@ async def _(ctx: HandlerContext):
         msg += f"{context.trigger_cmd} {context.arg_text}"
         msg += "\n\n"
     return await ctx.asend_fold_msg_adaptive(msg.strip(), 100, True)
+
+
+# 聊天记录转文本
+forward_to_text = CmdHandler(["/转文本", "/to_text"], logger)
+forward_to_text.check_wblist(gbl).check_cdrate(cd)
+@forward_to_text.handle()
+async def _(ctx: HandlerContext):
+    # json消息段转换为纯文本
+    def json_msg_to_readable_text(mdata: dict):
+        try:
+            data = loads_json(mdata['data'])
+            title = data["meta"]["detail_1"]["title"]
+            desc = truncate(data["meta"]["detail_1"]["desc"], 32)
+            url = data["meta"]["detail_1"]["qqdocurl"]
+            return f"[{title}分享:{desc}]"
+        except:
+            try:
+                return f"[转发消息:{data['prompt']}]"
+            except:
+                return "[转发消息(加载失败)]"
+
+    # 转发聊天记录转换到文本
+    async def get_forward_msg_text(forward_seg, indent: int = 0) -> str:
+        forward_id = forward_seg['data']['id']
+        forward_content = forward_seg['data'].get("content")
+        if not forward_content:
+            forward_msg = await get_forward_msg(get_bot(), forward_id)
+            if not forward_msg:
+                return "[转发消息(加载失败)]"
+            forward_content = forward_msg['messages']
+
+        text = " " * indent + f"=== 折叠消息 ===\n"
+        for msg_obj in forward_content:
+            sender_name = msg_obj['sender']['nickname']
+            segs = msg_obj['message']
+            text += " " * indent + f"{sender_name}: "
+            for seg in segs:
+                mtype, mdata = seg['type'], seg['data']
+                if mtype == "text":
+                    text += f"{mdata['text']}"
+                elif mtype == "face":
+                    text += f"[表情]"
+                elif mtype == "image":
+                    text += f"[图片]" if seg['data'].get('sub_type', 0) == 0 else "[表情]"
+                elif mtype == "video":
+                    text += f"[视频]"
+                elif mtype == "audio":
+                    text += f"[音频]"
+                elif mtype == "file":
+                    text += f"[文件]"
+                elif mtype == "at":
+                    text += f"[@{mdata['qq']}]"
+                elif mtype == "reply":
+                    text += f"[reply={mdata['id']}]"
+                elif mtype == "forward":
+                    text += await get_forward_msg_text(seg, indent + 4)
+                elif mtype == "json":
+                    text += json_msg_to_readable_text(mdata)
+            text += "\n"
+        text += " " * indent + "============\n"
+        return text
+
+    reply_msg = await ctx.aget_reply_msg()
+    assert_and_reply(reply_msg, "请回复一条聊天记录")
+    forward_seg = None
+    for seg in reply_msg:
+        if seg['type'] == 'forward':
+            forward_seg = seg
+            break
+    assert_and_reply(forward_seg, "回复的消息不是聊天记录")
+    text = await get_forward_msg_text(forward_seg)
+
+    return await ctx.asend_fold_msg_adaptive(text)

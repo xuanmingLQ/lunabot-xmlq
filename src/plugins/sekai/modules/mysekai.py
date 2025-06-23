@@ -429,12 +429,11 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
 
         # 绘制资源
         for res_id, res_img, res_img_size, offsetx, offsetz, res_quantity, draw_order, small_icon, outline in res_draw_calls:
-            with Frame().set_offset((offsetx, offsetz)):
+            with Frame().set_offset((offsetx, offsetz)).set_content_align('c'):
                 ImageBox(res_img, size=(res_img_size, res_img_size), use_alphablend=True, alpha_adjust=0.8)
                 if outline:
-                    Frame().set_bg(FillBg(stroke=outline[0], stroke_width=outline[1], fill=TRANSPARENT)).set_size((res_img_size, res_img_size))
+                    Frame().set_bg(FillBg(stroke=outline[0], stroke_width=outline[1], fill=TRANSPARENT)).set_size((res_img_size+2, res_img_size+2))
 
-        
         for res_id, res_img, res_img_size, offsetx, offsetz, res_quantity, draw_order, small_icon, outline in res_draw_calls:
             if not small_icon:
                 style = TextStyle(font=DEFAULT_BOLD_FONT, size=int(11 * scale), color=(50, 50, 50, 200))
