@@ -200,13 +200,14 @@ def extract_fixed_cards(args: str, options: DeckRecommendOptions) -> str:
         options.fixed_cards = fixed_cards
     return args.strip()
 
-# 从args中提取是否满技能、剧情已读、满突破
+# 从args中提取是否满技能、剧情已读、满突破、满画布
 def extract_card_config(args: str, options: DeckRecommendOptions) -> str:
     options.rarity_1_config = DEFAULT_CARD_CONFIG_12
     options.rarity_2_config = DEFAULT_CARD_CONFIG_12
     options.rarity_3_config = DEFAULT_CARD_CONFIG_34bd
     options.rarity_4_config = DEFAULT_CARD_CONFIG_34bd
     options.rarity_birthday_config = DEFAULT_CARD_CONFIG_34bd
+    options.force_canvas_bonus = False
 
     for keyword in ("满技能", "满技", "skillmax", "技能满级"):
         if keyword in args:
@@ -233,6 +234,11 @@ def extract_card_config(args: str, options: DeckRecommendOptions) -> str:
             options.rarity_3_config.episode_read = True
             options.rarity_4_config.episode_read = True
             options.rarity_birthday_config.episode_read = True
+            args = args.replace(keyword, "").strip()
+            break
+    for keyword in ("满画布", "全画布"):
+        if keyword in args:
+            options.force_canvas_bonus = True
             args = args.replace(keyword, "").strip()
             break
     return args
@@ -913,6 +919,9 @@ async def compose_deck_recommend_image(
                                             else:
                                                 TextBox(str(card_id), TextStyle(font=DEFAULT_FONT, size=10, color=(75, 75, 75))) \
                                                     .set_bg(roundrect_bg(radius=2)).set_offset((-2, 2))
+                                            if card.has_canvas_bonus:
+                                                ImageBox(ctx.static_imgs.get(f"mysekai/icon_canvas.png"), size=(11, 11)) \
+                                                        .set_offset((-32, 65))
 
                                         with HSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(0):
                                             r = 2
