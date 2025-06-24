@@ -73,8 +73,7 @@ async def get_character_name_by_id(ctx: SekaiHandlerContext, cid: int, space_fir
     return f"{character.get('firstName', '')}{character.get('givenName', '')}"
 
 # 判断某个卡牌id的限定类型
-async def get_card_supply_type(cid: int) -> str:
-    ctx = SekaiHandlerContext.from_region('jp')
+async def get_card_supply_type(ctx: SekaiHandlerContext, cid: int) -> str:
     card = await ctx.md.cards.find_by_id(cid)
     if not card or 'cardSupplyId' not in card:
         return "normal"
@@ -561,7 +560,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
     title = card['prefix']
     chara_name = await get_character_name_by_id(ctx, card['characterId'])
     release_time = datetime.fromtimestamp(card['releaseAt'] / 1000)
-    supply_type = CARD_SUPPLIES_SHOW_NAMES.get(await get_card_supply_type(card_id), "非限定")
+    supply_type = CARD_SUPPLIES_SHOW_NAMES.get(await get_card_supply_type(ctx, card_id), "非限定")
 
     # 缩略图
     thumbs = []
@@ -852,7 +851,7 @@ async def _(ctx: SekaiHandlerContext):
         if rare and card["cardRarityType"] != rare: continue
         if attr and card["attr"] != attr: continue
 
-        supply_type = await get_card_supply_type(card["id"])
+        supply_type = await get_card_supply_type(ctx, card["id"])
         card["supply_show_name"] = CARD_SUPPLIES_SHOW_NAMES.get(supply_type, None)
         
         if supply:
@@ -963,7 +962,7 @@ async def _(ctx: SekaiHandlerContext):
         if rare and card["cardRarityType"] != rare: continue
         if attr and card["attr"] != attr: continue
 
-        supply_type = await get_card_supply_type(card["id"])
+        supply_type = await get_card_supply_type(ctx, card["id"])
         card["supply_show_name"] = CARD_SUPPLIES_SHOW_NAMES.get(supply_type, None)
 
         if supply:
