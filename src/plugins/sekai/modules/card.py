@@ -392,6 +392,26 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
     for i in range(len(chara_cards)):
         chara_cards[i][1].sort(key=lambda x: (x['releaseAt'], x['id']))
 
+    # 计算最佳高度限制
+    max_card_num = max([len(cards) for _, cards in chara_cards]) if chara_cards else 0
+    best_height, best_value = None, 1e9
+    for i in range(1, max_card_num + 1):
+        # 计算优化目标：max(h,w)越小越好，空白越少越好
+        max_height = 0
+        total_width = 0
+        for _, cards in chara_cards:
+            max_height = max(max_height, min(len(cards), i))
+        total, space = 0, 0
+        for _, cards in chara_cards:
+            width = math.ceil(len(cards) / i)
+            total_width += width
+            total += max_height * width
+            space += max_height * width - len(cards)
+        value = max(total_width, max_height) * total / (total - space)
+        if value < best_value:
+            best_height, best_value = i, value
+
+    # 绘制单张卡
     sz = 48
     def draw_card(card):
         with Frame().set_content_align('rt'):
@@ -406,29 +426,20 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
         if show_id:
             TextBox(f"{card['id']}", TextStyle(font=DEFAULT_FONT, size=12, color=BLACK)).set_w(sz)
 
-    sorted_card_nums = sorted([len(cards) for _, cards in chara_cards])
-
     with Canvas(bg=random_unit_bg(bg_unit)).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
             if qid:
                 await get_detailed_profile_card(ctx, profile, pmsg)
             with HSplit().set_bg(roundrect_bg()).set_content_align('lt').set_item_align('lt').set_padding(16).set_sep(4):
                 for chara_id, cards in chara_cards:
-                    part1, part2 = cards, None
-                    mid_num = sorted_card_nums[int(len(sorted_card_nums) * 0.8)]
-                    # 超过80%的110%的卡牌数，分两部分显示
-                    if len(cards) > mid_num * 1.1:
-                        part1, part2 = cards[:mid_num], cards[mid_num:]
-                    with HSplit().set_content_align('lt').set_item_align('lt').set_padding(0).set_sep(4):
-                        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
-                            ImageBox(get_chara_icon_by_chara_id(chara_id), size=(sz, sz))
-                            Spacer(w=sz, h=8)
-                            for card in part1: draw_card(card)
-                        if part2:
-                            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
-                                Spacer(w=sz, h=sz)
-                                Spacer(w=sz, h=6)
-                                for card in part2: draw_card(card)
+                    with VSplit().set_content_align('t').set_item_align('t').set_sep(4):
+                        ImageBox(get_chara_icon_by_chara_id(chara_id), size=(sz, sz))
+                        Spacer(w=sz, h=8)
+                        with HSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
+                            for i in range(0, len(cards), best_height):
+                                with VSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
+                                    for card in cards[i:i + best_height]: 
+                                        draw_card(card)      
             
     add_watermark(canvas)
     return await run_in_pool(canvas.get_img)
@@ -932,7 +943,7 @@ async def _(ctx: SekaiHandlerContext):
     return await ctx.asend_multiple_fold_msg(await get_card_story_summary(ctx, card, refresh, model, save))
 
 
-# 查询box
+# 查询卡牌一览
 pjsk_box = SekaiCmdHandler([
     "/pjsk box", "/pjsk_box", "/pjskbox",
     "/卡牌一览",
@@ -952,14 +963,20 @@ async def _(ctx: SekaiHandlerContext):
     use_after_training = True
     if 'before' in args:
         use_after_training = False
-    rare, args = extract_card_rare(args)
+        
     attr, args = extract_card_attr(args)
     supply, args = extract_card_supply(args)
     skill, args = extract_card_skill(args)
     year, args = extract_year(args)
+    unit, args = extract_unit(args)
+    rare, args = extract_card_rare(args)
+    chara_id = get_cid_by_nickname(args)
 
     res_cards = []
     for card in cards:
+        card_cid = card["characterId"]
+        if unit and CID_UNIT_MAP.get(card_cid) != unit: continue
+        if chara_id and card_cid != int(chara_id): continue
         if rare and card["cardRarityType"] != rare: continue
         if attr and card["attr"] != attr: continue
 
