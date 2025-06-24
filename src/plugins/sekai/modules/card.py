@@ -74,6 +74,7 @@ async def get_character_name_by_id(ctx: SekaiHandlerContext, cid: int, space_fir
 
 # 判断某个卡牌id的限定类型
 async def get_card_supply_type(ctx: SekaiHandlerContext, cid: int) -> str:
+    ctx = SekaiHandlerContext.from_region("jp")
     card = await ctx.md.cards.find_by_id(cid)
     if not card or 'cardSupplyId' not in card:
         return "normal"
@@ -398,7 +399,7 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
             supply_name = card['supply_show_name']
             if supply_name in ['期间限定', 'WL限定', '联动限定']:
                 ImageBox(ctx.static_imgs.get(f"card/term_limited.png"), size=(int(sz*0.75), None))
-            elif supply_name in ['Fes限定', '新Fes限定']:
+            elif supply_name in ['Fes限定', 'BFes限定']:
                 ImageBox(ctx.static_imgs.get(f"card/fes_limited.png"), size=(int(sz*0.75), None))
             if not card['has'] and profile:
                 Spacer(w=sz, h=sz).set_bg(RoundRectBg(fill=(0,0,0,120), radius=2))
