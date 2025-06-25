@@ -974,6 +974,10 @@ async def _(ctx: SekaiHandlerContext):
 
     res_cards = []
     for card in cards:
+        release_time = datetime.fromtimestamp(card['releaseAt'] / 1000)
+        if release_time > datetime.now():
+            continue
+
         card_cid = card["characterId"]
         if unit and CID_UNIT_MAP.get(card_cid) != unit: continue
         if chara_id and card_cid != int(chara_id): continue
