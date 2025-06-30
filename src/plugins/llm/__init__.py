@@ -449,8 +449,10 @@ async def tts(text):
 # -------------------------------- 文本翻译相关 -------------------------------- #
 
 async def translate_text(text, additional_info=None, dst_lang="中文", timeout=20, default=None, model='gemini-2-flash', cache=True):
-    text_translations = file_db.get("text_translations", {}) if cache else {}
-    if text not in text_translations:
+    text_translation_db = get_file_db("data/llm/text_translations.json", logger)
+    translations = text_translation_db.get("translations", {}) if cache else {}
+    key = get_md5(text)
+    if not cache or key not in translations:
         logger.info(f"翻译文本: {truncate(text, 64)} 额外信息: {truncate(additional_info, 64)} 目标语言: {dst_lang}")
         try:
             session = ChatSession()
@@ -463,11 +465,11 @@ async def translate_text(text, additional_info=None, dst_lang="中文", timeout=
             response = await asyncio.wait_for(session.get_response(model), timeout=timeout)
             result = response.result.strip()
             logger.info(f"翻译结果: {truncate(result, 64)}")
-            text_translations[text] = result
+            translations[key] = result
         except Exception as e:
             logger.print_exc(f"翻译失败: {e}")
             return default
     if cache:
-        file_db.set("text_translations", text_translations)
-    return text_translations[text]
+        text_translation_db.set("translations", translations)
+    return translations[key]
     
