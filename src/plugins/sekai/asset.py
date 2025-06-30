@@ -501,9 +501,10 @@ def convert_compact_data(data: Dict[str, Any]) -> List[Dict[str, Any]]:
             ret = [{} for _ in range(len(val))]
         use_enum = key in enums
         for x, item in zip(val, ret):
-            if use_enum:
-                x = enums[key][x]
-            item[key] = x
+            if x is not None:
+                if use_enum:
+                    x = enums[key][x]
+                item[key] = x
     return ret
             
 @MasterDataManager.download_function("resourceBoxes", regions=COMPACT_DATA_REGIONS)

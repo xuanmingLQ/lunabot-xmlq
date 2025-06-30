@@ -482,6 +482,11 @@ async def get_skill_info(ctx: SekaiHandlerContext, sid: int, card: dict):
                 return [lst[0]]
             return lst
 
+        def choose_values2_if_exists(e: SkillEffectInfo) -> List[int]:
+            if e.values2 and e.values2[0] is not None:
+                return e.values2
+            return e.values
+
         def do_format(s: str) -> str:
             # 按顺序匹配所有的 {{...}}
             while True:
@@ -536,7 +541,7 @@ async def get_skill_info(ctx: SekaiHandlerContext, sid: int, card: dict):
                                 replace = "..."
                             # o: 满编的时候的最大编成增强 + 正常加成值
                             case 'o': 
-                                values = [xv + yv for xv, yv in zip(effects[x].values, effects[y].values)]
+                                values = [xv + yv for xv, yv in zip(choose_values2_if_exists(effects[x]), choose_values2_if_exists(effects[y]))]
                                 values = keep_one_if_all_same(values)
                                 replace = "/".join([str(v) for v in values])
                             # u: 满编的时候的最大编成增强
@@ -565,7 +570,7 @@ async def get_skill_info(ctx: SekaiHandlerContext, sid: int, card: dict):
 async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
     card = await ctx.md.cards.find_by_id(card_id)
     assert_and_reply(card, f"卡牌ID={card_id}不存在")
-    need_trans = (ctx.region != 'cn')
+    need_trans = (ctx.region not in ['cn', 'tw'])
 
     # ----------------------- 数据收集 ----------------------- #
     # 基础信息
