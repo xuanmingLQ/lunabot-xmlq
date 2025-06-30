@@ -114,12 +114,11 @@ def get_text_offset(font: Font, text: str) -> Position:
     bbox = font.getbbox(text)
     return bbox[0], bbox[1]
 
-def resize_keep_ratio(img: Image.Image, max_size: int, mode='long', scale=None) -> Image.Image:
+def resize_keep_ratio(img: Image.Image, max_size: Union[int, float], mode='long', scale=None) -> Image.Image:
     """
     Resize image to keep the aspect ratio, with a maximum size.  
-    mode in ['long', 'short', 'w', 'h', 'wxh']
+    mode in ['long', 'short', 'w', 'h', 'wxh', 'scale']
     """
-    assert mode in ['long', 'short', 'w', 'h', 'wxh']
     w, h = img.size
     if mode == 'long':
         if w > h:
@@ -135,8 +134,12 @@ def resize_keep_ratio(img: Image.Image, max_size: int, mode='long', scale=None) 
         ratio = max_size / w
     elif mode == 'h':
         ratio = max_size / h
-    else:
+    elif mode == 'wxh':
         ratio = math.sqrt(max_size / (w * h))
+    elif mode == 'scale':
+        ratio = max_size
+    else:
+        raise ValueError(f"Invalid mode: {mode}")
     if scale:
         ratio *= scale
     return img.resize((int(w * ratio), int(h * ratio)), Image.Resampling.BILINEAR)

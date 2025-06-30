@@ -19,6 +19,13 @@ HONOR_DIFF_SCORE_MAP = {
 
 # ======================= 处理逻辑 ======================= #
 
+# 获取某个vs对应团的cuid
+async def get_vs_cuid(ctx: SekaiHandlerContext, cid: int, unit: str):
+    for item in await ctx.md.game_character_units.get():
+        if item['gameCharacterId'] == cid and item['unit'] == unit:
+            return item['id']
+    raise ValueError(f"未找到vs {cid} 在组合 {unit} 的cuid")
+
 # 合成完整头衔图片
 async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict, is_main: bool, profile=None):
     logger.info(f"合成头衔 profile_honor={profile_honor}, is_main={is_main}")
@@ -128,20 +135,49 @@ async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict
         cid1 = bhonor['gameCharacterUnitId1']
         cid2 = bhonor['gameCharacterUnitId2']
         rarity = bhonor['honorRarity']
-        rev = profile_honor['bondsHonorViewType'] == 'reverse'
+        view_type = profile_honor['bondsHonorViewType'] 
+        rev = 'reverse' in view_type
 
         img = get_bond_bg(cid1, cid2, is_main, rev)
-        c1_img = ctx.static_imgs.get(f"honor/chara/chr_sd_{cid1:02d}_01/chr_sd_{cid1:02d}_01.png")
-        c2_img = ctx.static_imgs.get(f"honor/chara/chr_sd_{cid2:02d}_01/chr_sd_{cid2:02d}_01.png")
+
+        if 'unit_virtual_singer' in view_type:
+            # 先将vs的id换到第一个
+            swapped = False
+            if cid2 > 20:
+                cid1, cid2 = cid2, cid1
+                swapped = True
+            # 找到vs对应的cuid
+            cid1 = await get_vs_cuid(ctx, cid1, CID_UNIT_MAP[cid2])
+            # 换回去
+            if swapped:
+                cid1, cid2 = cid2, cid1
+
+        c1_img = await ctx.rip.img(f"bonds_honor/character/chr_sd_{cid1:02d}_01.png")
+        c2_img = await ctx.rip.img(f"bonds_honor/character/chr_sd_{cid2:02d}_01.png")
+
         if rev: c1_img, c2_img = c2_img, c1_img
+
+        w, h = img.size
+        scale = 0.8
+        c1_img = resize_keep_ratio(c1_img, scale, mode='scale')
+        c2_img = resize_keep_ratio(c2_img, scale, mode='scale')
+        c1w, c1h = c1_img.size
+        c2w, c2h = c2_img.size
+
         if not is_main:
-            c1_img = c1_img.resize((120, 102))
-            c2_img = c2_img.resize((120, 102))
-            img.paste(c1_img, (-5, -20), c1_img)
-            img.paste(c2_img, (65, -20), c2_img)
+            offset = 20
+            # 非主honor需要裁剪
+            mid = w // 2
+            target_w = mid - offset
+            c1_img = c1_img.crop((0, 0, target_w, c1h))
+            c2_img = c2_img.crop((c2w - target_w, 0, c2w, c2h))
+            c1w, c2w = target_w, target_w
+            img.paste(c1_img, (offset,           h - c1h), c1_img)
+            img.paste(c2_img, (w - c2w - offset, h - c2h), c2_img)
         else:
-            img.paste(c1_img, (0, -40), c1_img)
-            img.paste(c2_img, (220, -40), c2_img)
+            offset = 25
+            img.paste(c1_img, (offset,           h - c1h), c1_img)
+            img.paste(c2_img, (w - c2w - offset, h - c2h), c2_img)
         _, _, _, mask = ctx.static_imgs.get(f"honor/mask_degree_{ms}.png").split()
         img.putalpha(mask)
 
