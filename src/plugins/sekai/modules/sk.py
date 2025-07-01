@@ -726,7 +726,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
 
     # 时速计算
     speeds = []
-    min_period = timedelta(minutes=20)
+    min_period = timedelta(minutes=5)
     max_period = timedelta(minutes=60)
     left = 0
     for right in range(0, len(ranks)):
@@ -783,7 +783,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
 
         # 绘制时速
         ax2 = ax.twinx()
-        ax2.plot(times, speeds, 'o', label='换算时速', color='green', markersize=0.5, linewidth=0.5)
+        ax2.plot(times, speeds, 'o', label='时速', color='green', markersize=0.5, linewidth=0.5)
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(int(x)) + "/h"))
         ax2.set_ylim(0, max(speeds) * 1.05)
         ax2.legend(loc='upper left')

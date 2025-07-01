@@ -117,6 +117,9 @@ async def _(ctx: HandlerContext):
             await ctx.asend_reply_msg("正在下载视频...")
             await adownload_video(args.url, tmp_save_path, DOWNLOAD_MAXSIZE, args.low_quality)
 
+            if not os.path.exists(tmp_save_path):
+                return await ctx.asend_reply_msg("视频下载失败，可能是超过大小限制(10MB)或其他原因")
+
             if os.path.getsize(tmp_save_path) > DOWNLOAD_MAXSIZE:
                 return await ctx.asend_reply_msg(f"视频大小超过限制")
 
