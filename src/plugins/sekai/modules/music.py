@@ -817,7 +817,10 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
     return await run_in_pool(canvas.get_img)    
 
 # 合成歌曲列表图片
-async def compose_music_list_image(ctx: SekaiHandlerContext, diff: str, lv_musics: List[Tuple[int, List[Dict]]], qid: int, show_id: bool, show_leak: bool) -> Image.Image:
+async def compose_music_list_image(
+    ctx: SekaiHandlerContext, diff: str, lv_musics: List[Tuple[int, List[Dict]]], qid: int, 
+    show_id: bool, show_leak: bool, play_result_filter: List[str] = None,
+) -> Image.Image:
     for i in range(len(lv_musics)):
         lv, musics = lv_musics[i]
         covers = await batch_gather(*[get_music_cover_thumb(ctx, m['id']) for m in musics])
@@ -827,6 +830,11 @@ async def compose_music_list_image(ctx: SekaiHandlerContext, diff: str, lv_music
     profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=False)
     bg_unit = (await get_player_avatar_info_by_detailed_profile(ctx, profile)).unit if profile else None
 
+    if not profile:
+        play_result_filter = None
+    if play_result_filter is None:
+        play_result_filter = ['clear', 'not_clear', 'fc', 'ap']
+
     with Canvas(bg=random_unit_bg(bg_unit)).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
             if profile:
@@ -835,46 +843,57 @@ async def compose_music_list_image(ctx: SekaiHandlerContext, diff: str, lv_music
             with VSplit().set_bg(roundrect_bg()).set_padding(16).set_sep(16):
                 lv_musics.sort(key=lambda x: x[0], reverse=False)
                 for lv, musics in lv_musics:
-                    if not musics: continue
                     musics.sort(key=lambda x: x['publishedAt'], reverse=False)
+
+                    # 获取游玩结果并过滤
+                    filtered_musics = []
+                    for music in musics:
+                        # 过滤剧透
+                        is_leak = datetime.fromtimestamp(music['publishedAt'] / 1000) > datetime.now()
+                        if is_leak and not show_leak:
+                            continue
+                        # 获取游玩结果
+                        result_type = None
+                        if profile:
+                            mid = music['id'] 
+                            all_diff_result = find_by(profile['userMusics'], "musicId", mid)
+                            if all_diff_result:
+                                all_diff_result = all_diff_result.get('userMusicDifficultyStatuses', [])
+                                diff_result = find_by(all_diff_result, "musicDifficulty", diff)
+                                if diff_result and diff_result['musicDifficultyStatus'] == "available":
+                                    has_clear, full_combo, all_prefect = False, False, False
+                                    for item in diff_result["userMusicResults"]:
+                                        has_clear = has_clear or item["playResult"] != 'not_clear'
+                                        full_combo = full_combo or item["fullComboFlg"]
+                                        all_prefect = all_prefect or item["fullPerfectFlg"]
+                                    result_type = "clear" if has_clear else "not_clear"
+                                    if full_combo: result_type = "fc"
+                                    if all_prefect: result_type = "ap"
+                            # 过滤游玩结果(无结果视为not_clear)
+                            if (result_type or "not_clear") not in play_result_filter:
+                                continue
+                        music['play_result'] = result_type
+                        filtered_musics.append(music)
+
+                    if not filtered_musics: continue
 
                     with VSplit().set_bg(roundrect_bg()).set_padding(8).set_item_align('lt').set_sep(8):
                         lv_text = TextBox(f"{diff.upper()} {lv}", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=WHITE))
                         lv_text.set_padding((10, 5)).set_bg(RoundRectBg(fill=DIFF_COLORS[diff], radius=5))
                         
                         with Grid(col_count=10).set_sep(5):
-                            for i in range(len(musics)):
-                                is_leak = datetime.fromtimestamp(musics[i]['publishedAt'] / 1000) > datetime.now()
-                                if is_leak and not show_leak:
-                                    continue
-
+                            for music in filtered_musics:
                                 with VSplit().set_sep(2):
                                     with Frame():
-                                        ImageBox(musics[i]['cover_img'], size=(64, 64), image_size_mode='fill')
-
+                                        ImageBox(music['cover_img'], size=(64, 64), image_size_mode='fill')
                                         if is_leak:
                                             TextBox("LEAK", TextStyle(font=DEFAULT_BOLD_FONT, size=12, color=RED)) \
                                                 .set_bg(roundrect_bg(radius=4)).set_offset((64, 64)).set_offset_anchor('rb')
-
-                                        if profile:
-                                            mid = musics[i]['id'] 
-                                            all_diff_result = find_by(profile['userMusics'], "musicId", mid)
-                                            if all_diff_result:
-                                                all_diff_result = all_diff_result.get('userMusicDifficultyStatuses', [])
-                                                diff_result = find_by(all_diff_result, "musicDifficulty", diff)
-                                                if diff_result and diff_result['musicDifficultyStatus'] == "available":
-                                                    has_clear, full_combo, all_prefect = False, False, False
-                                                    for item in diff_result["userMusicResults"]:
-                                                        has_clear = has_clear or item["playResult"] != 'not_clear'
-                                                        full_combo = full_combo or item["fullComboFlg"]
-                                                        all_prefect = all_prefect or item["fullPerfectFlg"]
-                                                    result_type = "clear" if has_clear else "not_clear"
-                                                    if full_combo: result_type = "fc"
-                                                    if all_prefect: result_type = "ap"
-                                                    result_img = ctx.static_imgs.get(f"icon_{result_type}.png")
-                                                    ImageBox(result_img, size=(16, 16), image_size_mode='fill').set_offset((64 - 10, 64 - 10))
+                                        if music['play_result']:
+                                            result_img = ctx.static_imgs.get(f"icon_{music['play_result']}.png")
+                                            ImageBox(result_img, size=(16, 16), image_size_mode='fill').set_offset((64 - 10, 64 - 10))
                                     if show_id:
-                                        TextBox(f"{musics[i]['id']}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK)).set_w(64)
+                                        TextBox(f"{music['id']}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK)).set_w(64)
                                 
     add_watermark(canvas)
     return await run_in_pool(canvas.get_img)
@@ -1184,25 +1203,51 @@ pjsk_music_list = SekaiCmdHandler([
 pjsk_music_list.check_cdrate(cd).check_wblist(gbl)
 @pjsk_music_list.handle()
 async def _(ctx: SekaiHandlerContext):
+    help_msg = """
+使用方式: 
+所有歌曲: /歌曲列表 ma 
+某个等级歌曲: /歌曲列表 ma 32 
+某个范围歌曲: /歌曲列表 ma 24 32
+显示歌曲ID: /歌曲列表 ma 32 id
+过滤游玩结果: /歌曲列表 ma 32 fc                        
+""".strip()
+
     args = ctx.get_args().strip()
     show_id = False
     show_leak = False
+    play_result_filter=None
     try:
+        diff, args = extract_diff(args)
+
         if 'id' in args:
             args = args.replace('id', '')
             show_id = True
         if 'leak' in args:
             args = args.replace('leak', '')
             show_leak = True
-        diff, args = extract_diff(args)
-        assert diff
+
+        if '未clear' in args:
+            args = args.replace('未clear', '')
+            play_result_filter = ['not_clear']
+        elif '未fc' in args:
+            args = args.replace('未fc', '')
+            play_result_filter = ['not_clear', 'clear']
+        elif '未ap' in args:
+            args = args.replace('未ap', '')
+            play_result_filter = ['not_clear', 'clear', 'fc']
+        elif any(x in args for x in ['clear', 'fc', 'ap']):
+            play_result_filter = []
+            if 'clear' in args:
+                args = args.replace('clear', '')
+                play_result_filter.append('clear')
+            if 'fc' in args:
+                args = args.replace('fc', '')
+                play_result_filter.append('fc')
+            if 'ap' in args:
+                args = args.replace('ap', '')
+                play_result_filter.append('ap')
     except:
-        return await ctx.asend_reply_msg("""
-使用方式: 
-1. 查询难度所有歌曲: /歌曲列表 ma 
-2. 查询难度某个等级歌曲: /歌曲列表 ma 32 
-3. 查询难度某个等级范围歌曲: /歌曲列表 ma 24 32"
-""".strip())
+        return await ctx.asend_reply_msg(help_msg)
     
     lv, ma_lv, mi_lv = None, None, None
     try: 
@@ -1213,8 +1258,12 @@ async def _(ctx: SekaiHandlerContext):
         mi_lv = min(lvs)
     except:
         ma_lv = mi_lv = None
-        try: lv = int(args)
-        except: pass
+        try: 
+            lv = int(args)
+        except: 
+            # 只有空参数允许解析失败
+            if args:
+                return await ctx.asend_reply_msg(help_msg)
 
     musics = await ctx.md.musics.get()
 
@@ -1237,7 +1286,10 @@ async def _(ctx: SekaiHandlerContext):
     lv_musics = sorted(lv_musics.items(), key=lambda x: x[0], reverse=True)
 
     return await ctx.asend_reply_msg(await get_image_cq(
-        await compose_music_list_image(ctx, diff, lv_musics, ctx.user_id, show_id, show_leak),
+        await compose_music_list_image(
+            ctx, diff, lv_musics, ctx.user_id, 
+            show_id, show_leak, play_result_filter,
+        ),
         low_quality=True,
     ))
 

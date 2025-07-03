@@ -726,7 +726,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
 
     # 时速计算
     speeds = []
-    min_period = timedelta(minutes=5)
+    min_period = timedelta(minutes=30)
     max_period = timedelta(minutes=60)
     left = 0
     for right in range(0, len(ranks)):
