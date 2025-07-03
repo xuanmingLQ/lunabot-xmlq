@@ -827,11 +827,9 @@ async def compose_music_list_image(
         for m, cover in zip(musics, covers):
             m['cover_img'] = cover
         
-    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=False)
+    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=play_result_filter is not None)
     bg_unit = (await get_player_avatar_info_by_detailed_profile(ctx, profile)).unit if profile else None
 
-    if not profile:
-        play_result_filter = None
     if play_result_filter is None:
         play_result_filter = ['clear', 'not_clear', 'fc', 'ap']
 
@@ -850,6 +848,7 @@ async def compose_music_list_image(
                     for music in musics:
                         # 过滤剧透
                         is_leak = datetime.fromtimestamp(music['publishedAt'] / 1000) > datetime.now()
+                        music['is_leak'] = is_leak
                         if is_leak and not show_leak:
                             continue
                         # 获取游玩结果
@@ -886,7 +885,7 @@ async def compose_music_list_image(
                                 with VSplit().set_sep(2):
                                     with Frame():
                                         ImageBox(music['cover_img'], size=(64, 64), image_size_mode='fill')
-                                        if is_leak:
+                                        if music['is_leak']:
                                             TextBox("LEAK", TextStyle(font=DEFAULT_BOLD_FONT, size=12, color=RED)) \
                                                 .set_bg(roundrect_bg(radius=4)).set_offset((64, 64)).set_offset_anchor('rb')
                                         if music['play_result']:
