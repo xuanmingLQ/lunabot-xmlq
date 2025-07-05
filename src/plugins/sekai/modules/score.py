@@ -152,8 +152,12 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
     valid_scores = await run_in_pool(get_valid_scores, target_point, music_basic_score)
     valid_scores.sort(key=lambda x: (x.event_bonus, x.boost))
     valid_scores = valid_scores[:MAX_SHOW_NUM]
+
     if len(valid_scores) == 0:
-        raise ReplyException("找不到符合条件的分数范围")
+        msg = "找不到符合条件的分数范围"
+        if target_point % 5 != 0 and target_point > 500:
+            msg += f"\n不能整除5的PT仅0火可打出，难以打出较高的PT，推荐分多次控分"
+        raise ReplyException(msg)
 
     music = await ctx.md.musics.find_by_id(music_id)
     music_title = music['title']
@@ -182,6 +186,7 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
                     TextBox(f"歌曲基础分 {music_basic_score}   目标活动点数", style1)
                     TextBox(f" {target_point} PT", style3)
                 TextBox(f"友情提醒：控分前请核对加成和体力设置", style3)
+                TextBox(f"特别注意核对加成是否多了0.5", style3)
             
             # 数据
             with HSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_omit_parent_bg(True).set_item_bg(roundrect_bg()):
