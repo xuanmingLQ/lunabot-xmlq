@@ -415,8 +415,11 @@ async def get_event_by_ban_name(ctx: SekaiHandlerContext, ban_name: str) -> Opti
     idx = None
     for nickname, cid in get_all_nicknames():
         if nickname in ban_name:
-            idx = int(ban_name.replace(nickname, ""))
-            break
+            try:
+                idx = int(ban_name.replace(nickname, ""))
+                break
+            except: 
+                pass
     if not idx: return None
     assert_and_reply(idx >= 1, "箱数必须大于等于1")
     chara_ban_stories = await ctx.md.event_stories.find_by('bannerGameCharacterUnitId', cid, mode="all")

@@ -100,11 +100,11 @@ async def get_vlive_widget(ctx: SekaiHandlerContext, vlive: dict) -> Frame:
 
     return f
 
-async def compose_vlive_list_image(ctx: SekaiCmdHandler, vlives, title=None, title_style=None) -> Image.Image: 
+async def compose_vlive_list_image(ctx: SekaiCmdHandler, vlives, title=None, title_style=None, bg=DEFAULT_BLUE_GRADIENT_BG) -> Image.Image: 
     """
     从给定的多个vlive生成一个vlive列表图片
     """
-    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=bg).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
             if title and title_style:
                 TextBox(title, title_style)
@@ -215,7 +215,8 @@ async def vlive_notify():
             img = await compose_vlive_list_image(
                 ctx, end_vlives, 
                 f"Virtual Live ({region_name}) 结束提醒", 
-                TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(60, 20, 20))
+                TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(60, 20, 20)),
+                bg=DEFAULT_RED_GRADIENT_BG,
             )
             msg = await get_image_cq(img)
 

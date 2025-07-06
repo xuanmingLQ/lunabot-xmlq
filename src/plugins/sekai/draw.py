@@ -57,6 +57,11 @@ DEFAULT_BLUE_GRADIENT_BG = FillBg(LinearGradient(
     c2=(220, 240, 255, 255), 
     p1=(0, 0), p2=(1, 1)
 ))
+DEFAULT_RED_GRADIENT_BG = FillBg(LinearGradient(
+    c1=(255, 220, 220, 255), 
+    c2=(255, 240, 220, 255), 
+    p1=(0, 0), p2=(1, 1)
+))
 
 BG_PADDING = 20
 WIDGET_BG_COLOR = (255, 255, 255, 150)
