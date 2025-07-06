@@ -78,8 +78,8 @@ SITE_ID_ORDER = (
 
 # 从角色UnitId获取角色图标
 async def get_chara_icon_by_chara_unit_id(ctx: SekaiHandlerContext, cuid: int) -> Image.Image:
-    cid = (await ctx.md.game_character_units.find_by_id(cuid))['gameCharacterId']
-    return get_chara_icon_by_chara_id(cid)
+    cu = await ctx.md.game_character_units.find_by_id(cuid)
+    return get_chara_icon_by_chara_id(cid=cu['gameCharacterId'], unit=cu['unit'])
 
 # 获取玩家mysekai抓包数据 返回 (mysekai_info, err_msg)
 async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, mode=None) -> Tuple[dict, str]:

@@ -89,8 +89,8 @@ async def get_vlive_widget(ctx: SekaiHandlerContext, vlive: dict) -> Frame:
                     cuid = item.get('gameCharacterUnitId')
                     scid = item.get('subGameCharacter2dId')
                     if cuid:
-                        cid = (await ctx.md.game_character_units.find_by_id(cuid))['gameCharacterId']
-                        chara_icons.append(get_chara_icon_by_chara_id(cid))
+                        cu = await ctx.md.game_character_units.find_by_id(cuid)
+                        chara_icons.append(get_chara_icon_by_chara_id(cid=cu['gameCharacterId'], unit=cu['unit']))
                 if chara_icons:
                     with VSplit().set_content_align('l').set_item_align('l').set_sep(8):
                         TextBox("出演角色", TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=(50, 50, 50)))

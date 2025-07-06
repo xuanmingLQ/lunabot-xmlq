@@ -4,7 +4,7 @@ from .handler import SekaiHandlerContext
 
 
 # 通过角色ID获取角色头像
-def get_chara_icon_by_chara_id(cid: int, size: int = None, raise_exc=True, default=None):
+def get_chara_icon_by_chara_id(cid: int, size: int = None, raise_exc=True, default=None, unit=None):
     """
     通过角色ID获取角色头像
     """
@@ -12,13 +12,17 @@ def get_chara_icon_by_chara_id(cid: int, size: int = None, raise_exc=True, defau
     if not nickname:
         if raise_exc: raise Exception(f"要获取的icon的角色ID={cid}错误")
         else: return default
-    img = SekaiHandlerContext.from_region('jp').static_imgs.get(f"chara_icon/{nickname}.png")
+    path = f"chara_icon/{nickname}"
+    if unit is not None and unit != "piapro" and nickname == "miku":
+        path += f"_{unit}"
+    path += ".png"
+    img = SekaiHandlerContext.from_region('jp').static_imgs.get(path)
     if size is not None:
         img = img.resize((size, size))
     return img
     
 # 通过角色昵称获取角色头像
-def get_chara_icon_by_nickname(nickname: str, size: int = None, raise_exc=True, default=None):
+def get_chara_icon_by_nickname(nickname: str, size: int = None, raise_exc=True, default=None, unit=None):
     """
     通过角色昵称获取角色头像
     """
@@ -26,8 +30,7 @@ def get_chara_icon_by_nickname(nickname: str, size: int = None, raise_exc=True, 
     if not cid:
         if raise_exc: raise Exception(f"要获取的icon的角色昵称错误")
         else: return default
-    return get_chara_icon_by_chara_id(cid, size)
-
+    return get_chara_icon_by_chara_id(cid, size, raise_exc, default, unit)
 
 # 获取团logo
 def get_unit_logo(unit: str, size: int = None):
