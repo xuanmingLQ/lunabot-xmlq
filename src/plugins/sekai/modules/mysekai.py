@@ -251,8 +251,29 @@ async def get_mysekai_res_icon(ctx: SekaiHandlerContext, key: str) -> Image.Imag
         return UNKNOWN_IMG
     return img
 
+# 获取mysekai天气颜色数据
+async def get_mysekai_phenomena_color_info(ctx: SekaiHandlerContext, phenomena_id: int) -> dict:
+    try:
+        phenomena = await ctx.md.mysekai_phenomenas.find_by_id(phenomena_id)
+        phenomena_color = await ctx.md.mysekai_phenomena_background_colors.find_by_id(phenomena['mysekaiPhenomenaBackgroundColorId'])
+        base_color = color_code_to_rgb(phenomena_color['baseColor'])
+        ground_color = color_code_to_rgb(phenomena_color['groundColor'])
+        env_color = lerp_color(base_color, ground_color, 0.8)
+        bg_color1 = color_code_to_rgb(phenomena_color['gradationColor'])
+        bg_color2 = color_code_to_rgb(phenomena_color['cornerColor'])
+    except Exception as e:
+        logger.warning(f"获取MySekai天气颜色数据失败: {get_exc_desc(e)}")
+        env_color = (255, 255, 255)
+        bg_color1 = DEFAULT_BLUE_GRADIENT_BG.fill.c1
+        bg_color2 = DEFAULT_BLUE_GRADIENT_BG.fill.c2
+    return {
+        'env': env_color,
+        'bg1': bg_color1,
+        'bg2': bg_color2,
+    }
+
 # 合成mysekai资源位置地图图片
-async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_map: dict, show_harvested: bool) -> Image.Image:
+async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_map: dict, show_harvested: bool, phenomena_color_info: dict) -> Image.Image:
     site_id = harvest_map['mysekaiSiteId']
     site_image_info = load_json(f"{SEKAI_DATA_DIR}/mysekai_site_map_image_info.json")[str(site_id)]
     site_image = ctx.static_imgs.get(site_image_info['image'])
@@ -273,6 +294,9 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
         draw_h = int(crop_bbox[3] * scale)
         offset_x -= crop_bbox[0] * scale
         offset_z -= crop_bbox[1] * scale
+
+    # 根据天气调整地图颜色
+    site_image = multiply_image_by_color(site_image, phenomena_color_info['env'])
 
     # 游戏资源位置映射到绘图位置
     def game_pos_to_draw_pos(x, z) -> Tuple[int, int]:
@@ -471,6 +495,9 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         phenom_ids.append(phenom_id)
     current_hour = datetime.now().hour
     phenom_idx = 1 if current_hour < 4 or current_hour >= 16 else 0
+    cur_phenom_id = phenom_ids[phenom_idx]
+    phenom_color_info = await get_mysekai_phenomena_color_info(ctx, cur_phenom_id)
+    phenom_bg = FillBg(LinearGradient(c1=phenom_color_info['bg1'], c2=phenom_color_info['bg2'], p1=(1, 0), p2=(0, 1)))
 
     # 获取到访角色和对话记录
     chara_visit_data = mysekai_info['userMysekaiGateCharacterVisit']
@@ -547,12 +574,12 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         site_id, res_num = site_res_num[i]
         site_harvest_map = find_by(harvest_maps, "mysekaiSiteId", site_id)
         if site_harvest_map:
-            site_harvest_map_imgs.append(compose_mysekai_harvest_map_image(ctx, site_harvest_map, show_harvested))
+            site_harvest_map_imgs.append(compose_mysekai_harvest_map_image(ctx, site_harvest_map, show_harvested, phenom_color_info))
     site_harvest_map_imgs = await asyncio.gather(*site_harvest_map_imgs)
     logger.info(f"合成资源位置图耗时: {datetime.now() - t}")
     
     try: 
-        phenom_bg_img = ctx.static_imgs.get(f"mysekai/phenom_bg/{phenom_ids[phenom_idx]}.png")
+        phenom_bg_img = ctx.static_imgs.get(f"mysekai/phenom_bg/{cur_phenom_id}.png")
         bg = ImageBg(phenom_bg_img)
     except: 
         bg = DEFAULT_BLUE_GRADIENT_BG
@@ -624,7 +651,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                                     TextBox(f"{res_quantity}", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=text_color)).set_w(80).set_content_align('l')
 
     # 绘制位置图
-    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas2:
+    with Canvas(bg=phenom_bg).set_padding(BG_PADDING) as canvas2:
         with Grid(col_count=2, vertical=True).set_sep(16, 16).set_padding(0):
             for img in site_harvest_map_imgs:
                 ImageBox(img)
