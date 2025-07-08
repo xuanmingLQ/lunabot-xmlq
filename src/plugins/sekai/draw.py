@@ -58,12 +58,12 @@ def get_attr_icon(attr: str, size: int = None):
 DEFAULT_BLUE_GRADIENT_BG = FillBg(LinearGradient(
     c1=(220, 220, 255, 255), 
     c2=(220, 240, 255, 255), 
-    p1=(0, 0), p2=(1, 1)
+    p1=(1, 1), p2=(0, 0)
 ))
 DEFAULT_RED_GRADIENT_BG = FillBg(LinearGradient(
     c1=(255, 220, 220, 255), 
     c2=(255, 240, 220, 255), 
-    p1=(0, 0), p2=(1, 1)
+    p1=(1, 1), p2=(0, 0)
 ))
 
 BG_PADDING = 20
@@ -147,7 +147,7 @@ DIFF_COLORS = {
     "hard": (255, 170, 0, 255),
     "expert": (238, 68, 102, 255),
     "master": (187, 51, 238, 255),
-    "append": LinearGradient((182, 144, 247, 255), (243, 132, 220, 255), (1.0, 1.0), (0.0, 0.0)),
+    "append": LinearGradient((182, 144, 247, 255), (243, 132, 220, 255), (0.25, 0), (0.75, 1)),
 }
 PLAY_RESULT_COLORS = {
     'not_clear': (69, 67, 104, 255),

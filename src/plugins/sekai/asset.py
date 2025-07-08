@@ -612,7 +612,7 @@ def ng_words_map_fn(ng_words):
 DEFAULT_RIP_ASSET_DIR = f"{SEKAI_ASSET_DIR}/rip"
 DEFAULT_GET_RIP_ASSET_TIMEOUT = 5
 
-ONDEMAND_PREFIXES = ['event', 'gacha', 'music/long', 'mysekai']
+ONDEMAND_PREFIXES = ['event', 'gacha', 'music/long', 'mysekai', 'virtual_live']
 STARTAPP_PREFIXES = ['bonds_honor', 'honor', 'thumbnail', 'character', 'music', 'rank_live', 'stamp', 'home/banner']
 
 def sekai_best_url_map(url: str) -> str:

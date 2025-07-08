@@ -497,7 +497,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     phenom_idx = 1 if current_hour < 4 or current_hour >= 16 else 0
     cur_phenom_id = phenom_ids[phenom_idx]
     phenom_color_info = await get_mysekai_phenomena_color_info(ctx, cur_phenom_id)
-    phenom_bg = FillBg(LinearGradient(c1=phenom_color_info['bg1'], c2=phenom_color_info['bg2'], p1=(1, 0), p2=(0, 1)))
+    phenom_bg = FillBg(LinearGradient(c1=phenom_color_info['bg1'], c2=phenom_color_info['bg2'], p1=(0.5, 0.5), p2=(0.75, 0)))
 
     # 获取到访角色和对话记录
     chara_visit_data = mysekai_info['userMysekaiGateCharacterVisit']

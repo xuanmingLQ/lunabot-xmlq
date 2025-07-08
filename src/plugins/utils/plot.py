@@ -171,14 +171,19 @@ class LinearGradient(Gradient):
 
     def get_colors(self, size: Size) -> np.ndarray:
         w, h = size
-        p1 = np.array(self.p1) * np.array((w, h))
-        p2 = np.array(self.p2) * np.array((w, h))
+        pixel_p1 = self.p1 * np.array([w, h])
+        pixel_p2 = self.p2 * np.array([w, h])
         y_indices, x_indices = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
-        coords = np.stack((x_indices, y_indices), axis=-1)
-        dist = np.linalg.norm(coords - p1, axis=-1) / np.linalg.norm(p2 - p1)
-        dist = np.clip(dist, 0, 1)
-        colors = dist[:, :, np.newaxis] * np.array(self.c1) + (1 - dist)[:, :, np.newaxis] * np.array(self.c2)
-        return colors.astype(np.uint8)
+        coords = np.stack((x_indices, y_indices), axis=-1) # (H, W, 2)
+        gradient_vector = pixel_p2 - pixel_p1
+        length_sq = np.sum(gradient_vector**2)
+        vector_p1_to_pixel = coords - pixel_p1 # (H, W, 2)
+        dot_product = np.sum(vector_p1_to_pixel * gradient_vector, axis=-1) # (H, W)
+        t = dot_product / length_sq
+        t_clamped = np.clip(t, 0, 1) 
+        colors = (1 - t_clamped[:, :, np.newaxis]) * self.c1 + t_clamped[:, :, np.newaxis] * self.c2
+        colors = np.clip(colors, 0, 255).astype(np.uint8)
+        return colors
 
 class RadialGradient(Gradient):
     def __init__(self, c1: Color, c2: Color, center: Position, radius: float):
