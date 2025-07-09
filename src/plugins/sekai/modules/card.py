@@ -963,12 +963,17 @@ async def _(ctx: SekaiHandlerContext):
     show_id = False
     if 'id' in args:
         show_id = True
+        args = args.replace('id', '').strip()
+        
     show_box = False
     if 'box' in args:
         show_box = True
+        args = args.replace('box', '').strip()
+
     use_after_training = True
     if 'before' in args:
         use_after_training = False
+        args = args.replace('before', '').strip()
         
     attr, args = extract_card_attr(args)
     supply, args = extract_card_supply(args)
