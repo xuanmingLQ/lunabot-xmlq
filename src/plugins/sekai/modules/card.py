@@ -394,7 +394,7 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
 
     # 计算最佳高度限制
     max_card_num = max([len(cards) for _, cards in chara_cards]) if chara_cards else 0
-    best_height, best_value = None, 1e9
+    best_height, best_value = 10000, 1e9
     for i in range(1, max_card_num + 1):
         # 计算优化目标：max(h,w)越小越好，空白越少越好
         max_height = 0
@@ -407,7 +407,8 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
             total_width += width
             total += max_height * width
             space += max_height * width - len(cards)
-        value = max(total_width, max_height) * total / (total - space)
+        # value = max(total_width, max_height) * total / (total - space)
+        value = max(total_width, max_height * 0.5)
         if value < best_value:
             best_height, best_value = i, value
 
