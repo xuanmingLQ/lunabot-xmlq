@@ -896,7 +896,7 @@ async def compose_deck_recommend_image(
                                     if recommend_type in ['challenge', 'challenge_all']:
                                         dlt = challenge_score_dlt[i]
                                         color = (50, 150, 50) if dlt > 0 else (150, 50, 50)
-                                        TextBox(f"{dlt:+d}", TextStyle(font=DEFAULT_FONT, size=12, color=color)).set_offset((0, -16-voffset))
+                                        TextBox(f"{dlt:+d}", TextStyle(font=DEFAULT_FONT, size=12, color=color)).set_offset((0, -10-voffset*2))
                                     with Frame().set_content_align('c'):
                                         TextBox(str(deck.score), tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
 
@@ -982,7 +982,7 @@ async def compose_deck_recommend_image(
                             Spacer(h=6)
                             for deck, alg in zip(result_decks, result_algs):
                                 with Frame().set_content_align('rb'):
-                                    TextBox(alg.upper(), TextStyle(font=DEFAULT_FONT, size=10, color=(150, 150, 150))).set_offset((0, -26-voffset))
+                                    TextBox(alg.upper(), TextStyle(font=DEFAULT_FONT, size=10, color=(150, 150, 150))).set_offset((0, -10-voffset*2))
                                     with Frame().set_content_align('c'):
                                         TextBox(str(deck.total_power), tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
         
