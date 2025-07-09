@@ -258,9 +258,13 @@ async def get_mysekai_phenomena_color_info(ctx: SekaiHandlerContext, phenomena_i
         phenomena_color = await ctx.md.mysekai_phenomena_background_colors.find_by_id(phenomena['mysekaiPhenomenaBackgroundColorId'])
         base_color = color_code_to_rgb(phenomena_color['baseColor'])
         ground_color = color_code_to_rgb(phenomena_color['groundColor'])
+        gradiation_color = color_code_to_rgb(phenomena_color['gradationColor'])
+        corner_color = color_code_to_rgb(phenomena_color['cornerColor'])
+
         env_color = lerp_color(base_color, ground_color, 0.8)
-        bg_color1 = color_code_to_rgb(phenomena_color['gradationColor'])
-        bg_color2 = color_code_to_rgb(phenomena_color['cornerColor'])
+        bg_color1 = lerp_color(base_color, gradiation_color, 0.8)
+        bg_color2 = lerp_color(base_color, corner_color, 0.8)
+
     except Exception as e:
         logger.warning(f"获取MySekai天气颜色数据失败: {get_exc_desc(e)}")
         env_color = (255, 255, 255)
@@ -493,7 +497,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         asset_name = (await ctx.md.mysekai_phenomenas.find_by_id(phenom_id))['iconAssetbundleName']
         phenom_imgs.append(await ctx.rip.img(f"mysekai/thumbnail/phenomena/{asset_name}_rip/{asset_name}.png"))
         phenom_ids.append(phenom_id)
-    current_hour = datetime.now().hour
+    current_hour = upload_time.hour
     phenom_idx = 1 if current_hour < 4 or current_hour >= 16 else 0
     cur_phenom_id = phenom_ids[phenom_idx]
     phenom_color_info = await get_mysekai_phenomena_color_info(ctx, cur_phenom_id)

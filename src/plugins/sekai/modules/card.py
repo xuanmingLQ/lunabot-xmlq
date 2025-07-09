@@ -357,7 +357,7 @@ async def get_card_story_summary(ctx: SekaiHandlerContext, card: dict, refresh: 
 async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, show_id: bool, show_box: bool, use_after_training=True):
     pcards, bg_unit = [], None
     if qid:
-        profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=False)
+        profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=show_box)
         if profile:
             pcards = profile['userCards']
             avatar_info = await get_player_avatar_info_by_detailed_profile(ctx, profile)
