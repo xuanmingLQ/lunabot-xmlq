@@ -68,6 +68,16 @@ class EventListFilter:
 
 # ======================= 处理逻辑 ======================= #
 
+# 判断某个卡牌id的限定类型
+async def get_card_supply_type(ctx: SekaiHandlerContext, cid: int) -> str:
+    ctx = SekaiHandlerContext.from_region("jp")
+    card = await ctx.md.cards.find_by_id(cid)
+    if not card or 'cardSupplyId' not in card:
+        return "normal"
+    if card_supply := await ctx.md.card_supplies.find_by_id(card["cardSupplyId"]):
+        return card_supply["cardSupplyType"]
+    return "normal"
+
 # 获取某个活动详情
 async def get_event_detail(ctx: SekaiHandlerContext, event_or_event_id: Union[int, Dict], require_assets: List[str]) -> EventDetail:
     if isinstance(event_or_event_id, int):
@@ -338,7 +348,10 @@ async def get_event_banner_chara_id(ctx: SekaiHandlerContext, event: dict) -> in
     if not await is_ban_event(ctx, event):
         return None
     event_cards = await ctx.md.event_cards.find_by('eventId', event['id'], mode="all")
-    banner_card_id = min([ec['cardId'] for ec in event_cards])
+    banner_card_id = min([
+        ec['cardId'] for ec in event_cards
+        if "festival_limited" not in await get_card_supply_type(ctx, ec['cardId'])
+    ])
     banner_card = await ctx.md.cards.find_by_id(banner_card_id)
     return banner_card['characterId']
 

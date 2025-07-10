@@ -18,6 +18,7 @@ from .event import (
     get_event_detail, 
     get_event_banner_img, 
     extract_ban_event,
+    get_card_supply_type,
 )
 
 DEFAULT_CARD_STORY_SUMMARY_MODEL = [
@@ -71,16 +72,6 @@ async def get_character_name_by_id(ctx: SekaiHandlerContext, cid: int, space_fir
     if space_first_last:
         return f"{character.get('firstName', '')} {character.get('givenName', '')}"
     return f"{character.get('firstName', '')}{character.get('givenName', '')}"
-
-# 判断某个卡牌id的限定类型
-async def get_card_supply_type(ctx: SekaiHandlerContext, cid: int) -> str:
-    ctx = SekaiHandlerContext.from_region("jp")
-    card = await ctx.md.cards.find_by_id(cid)
-    if not card or 'cardSupplyId' not in card:
-        return "normal"
-    if card_supply := await ctx.md.card_supplies.find_by_id(card["cardSupplyId"]):
-        return card_supply["cardSupplyType"]
-    return "normal"
 
 # 获取某个活动的卡牌
 async def get_cards_of_event(ctx: SekaiHandlerContext, event_id: int) -> List[dict]:
