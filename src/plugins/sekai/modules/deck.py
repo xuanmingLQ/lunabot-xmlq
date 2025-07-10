@@ -291,6 +291,9 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> DeckReco
     # 组卡限制
     options.limit = DEFAULT_LIMIT
 
+    # bfes技能计算策略
+    options.skill_reference_choose_strategy = "average"
+
     # 模拟退火设置
     options.sa_options = DeckRecommendSaOptions()
     options.sa_options.max_no_improve_iter = 10000
@@ -337,6 +340,9 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Deck
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
+
+    # bfes技能计算策略
+    options.skill_reference_choose_strategy = "max"
 
     # 模拟退火设置
     options.sa_options = DeckRecommendSaOptions()
@@ -389,6 +395,9 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> DeckR
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
+
+    # bfes技能计算策略
+    options.skill_reference_choose_strategy = "max"
 
     # 模拟退火设置
     options.sa_options = DeckRecommendSaOptions()
@@ -450,6 +459,9 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
+
+    # bfes技能计算策略
+    options.skill_reference_choose_strategy = "average"
 
     # 模拟退火设置
     options.sa_options = DeckRecommendSaOptions()
@@ -841,7 +853,10 @@ async def compose_deck_recommend_image(
                         elif options.live_type == "auto":
                             title += "(AUTO)"
                     
-                    score_name = "分数" if recommend_type in ["challenge", "challenge_all"] else "PT"
+                    score_name = "PT"
+                    if recommend_type in ["challenge", "challenge_all", "no_event"]:
+                        score_name = "分数"  
+
                     target = score_name
                     if options.target == "power":
                         target = "综合力"
@@ -897,8 +912,9 @@ async def compose_deck_recommend_image(
                                         dlt = challenge_score_dlt[i]
                                         color = (50, 150, 50) if dlt > 0 else (150, 50, 50)
                                         TextBox(f"{dlt:+d}", TextStyle(font=DEFAULT_FONT, size=12, color=color)).set_offset((0, -10-voffset*2))
+                                    score = deck.live_score if recommend_type == "no_event" else deck.score
                                     with Frame().set_content_align('c'):
-                                        TextBox(str(deck.score), tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
+                                        TextBox(str(score), tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
 
                     # 卡片
                     with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
@@ -991,6 +1007,7 @@ async def compose_deck_recommend_image(
                     tip_style = TextStyle(font=DEFAULT_FONT, size=16, color=(20, 20, 20))
                     if recommend_type not in ["bonus", "wl_bonus"]:
                         TextBox(f"12星卡固定最大等级+最大突破+最大技能+剧情已读，34星及生日卡固定最大等级", tip_style)
+                        TextBox(f"oc的bfes花前技能倍率，活动组卡采用期望值，挑战组卡采用最大值", tip_style)
                     TextBox(f"组卡代码来自 https://github.com/NeuraXmy/sekai-deck-recommend-cpp", tip_style)
                     alg_and_cost_text = "本次组卡使用算法: "
                     for alg, cost in cost_times.items():
