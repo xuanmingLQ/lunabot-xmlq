@@ -243,8 +243,13 @@ def save_apng(images: List[Image.Image], save_path: str, duration=50, loop=0):
 
 # 图像乘颜色
 def multiply_image_by_color(img: Image.Image, color: tuple):
-    img_np = np.array(img.convert("RGB"), dtype=np.float32)
-    color_np = np.array(color[:3], dtype=np.float32)
+    if img.mode.upper() not in ['RGB', 'RGBA']:
+        img = img.convert('RGBA')
+    channel = 4 if img.mode.upper() == 'RGBA' else 3
+    img_np = np.array(img, dtype=np.float32)
+    if len(color) == 3:
+        color = (*color, 255)
+    color_np = np.array(color[:channel], dtype=np.float32)
     img_np = img_np * color_np / 255
     img_np = np.clip(img_np, 0, 255).astype(np.uint8)
-    return Image.fromarray(img_np)
+    return Image.fromarray(img_np, mode=img.mode)

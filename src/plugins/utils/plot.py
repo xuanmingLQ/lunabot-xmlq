@@ -81,7 +81,7 @@ def rgb_to_color_code(rgb: Color) -> str:
 def lerp_color(c1, c2, t):
     ret = []
     for i in range(len(c1)):
-        ret.append(int(c1[i] * (1 - t) + c2[i] * t))
+        ret.append(max(0, min(255, int(c1[i] * (1 - t) + c2[i] * t))))
     return tuple(ret)
 
 def adjust_color(c, r=None, g=None, b=None, a=None):

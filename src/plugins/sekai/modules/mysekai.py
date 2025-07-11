@@ -252,29 +252,28 @@ async def get_mysekai_res_icon(ctx: SekaiHandlerContext, key: str) -> Image.Imag
     return img
 
 # 获取mysekai天气颜色数据
-async def get_mysekai_phenomena_color_info(ctx: SekaiHandlerContext, phenomena_id: int) -> dict:
+def get_mysekai_phenomena_color_info(phenomena_id: int) -> dict:
     try:
-        phenomena = await ctx.md.mysekai_phenomenas.find_by_id(phenomena_id)
-        phenomena_color = await ctx.md.mysekai_phenomena_background_colors.find_by_id(phenomena['mysekaiPhenomenaBackgroundColorId'])
-        base_color = color_code_to_rgb(phenomena_color['baseColor'])
-        ground_color = color_code_to_rgb(phenomena_color['groundColor'])
-        gradiation_color = color_code_to_rgb(phenomena_color['gradationColor'])
-        corner_color = color_code_to_rgb(phenomena_color['cornerColor'])
+        with open(f"{SEKAI_DATA_DIR}/mysekai_phenomena_colors.yaml", "r") as f:
+            phenomena_colors = yaml.safe_load(f)
+        ground = color_code_to_rgb(phenomena_colors[phenomena_id]['ground'])
+        sky1 = color_code_to_rgb(phenomena_colors[phenomena_id]['sky1'])
+        sky2 = color_code_to_rgb(phenomena_colors[phenomena_id]['sky2'])
 
-        env_color = lerp_color(base_color, ground_color, 0.8)
-        bg_color1 = lerp_color(base_color, gradiation_color, 0.8)
-        bg_color2 = lerp_color(base_color, corner_color, 0.8)
+        ground_bright_factor = 0.2
+        ground = lerp_color(ground, WHITE, ground_bright_factor)
 
+        return {
+            'ground': ground,
+            'sky1': sky1,
+            'sky2': sky2,
+        }
     except Exception as e:
-        logger.warning(f"获取MySekai天气颜色数据失败: {get_exc_desc(e)}")
-        env_color = (255, 255, 255)
-        bg_color1 = DEFAULT_BLUE_GRADIENT_BG.fill.c1
-        bg_color2 = DEFAULT_BLUE_GRADIENT_BG.fill.c2
-    return {
-        'env': env_color,
-        'bg1': bg_color1,
-        'bg2': bg_color2,
-    }
+        return {
+            'ground': (255, 255, 255, 255),
+            'sky1': DEFAULT_BLUE_GRADIENT_BG.fill.c1,
+            'sky2': DEFAULT_BLUE_GRADIENT_BG.fill.c2,
+        }
 
 # 合成mysekai资源位置地图图片
 async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_map: dict, show_harvested: bool, phenomena_color_info: dict) -> Image.Image:
@@ -300,7 +299,7 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
         offset_z -= crop_bbox[1] * scale
 
     # 根据天气调整地图颜色
-    site_image = multiply_image_by_color(site_image, phenomena_color_info['env'])
+    site_image = multiply_image_by_color(site_image, phenomena_color_info['ground'])
 
     # 游戏资源位置映射到绘图位置
     def game_pos_to_draw_pos(x, z) -> Tuple[int, int]:
@@ -500,8 +499,8 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     current_hour = upload_time.hour
     phenom_idx = 1 if current_hour < 4 or current_hour >= 16 else 0
     cur_phenom_id = phenom_ids[phenom_idx]
-    phenom_color_info = await get_mysekai_phenomena_color_info(ctx, cur_phenom_id)
-    phenom_bg = FillBg(LinearGradient(c1=phenom_color_info['bg1'], c2=phenom_color_info['bg2'], p1=(0.5, 0.5), p2=(0.75, 0)))
+    phenom_color_info = get_mysekai_phenomena_color_info(cur_phenom_id)
+    phenom_bg = FillBg(LinearGradient(c1=phenom_color_info['sky1'], c2=phenom_color_info['sky2'], p1=(0.25, 1.0), p2=(0.75, 0.0)))
 
     # 获取到访角色和对话记录
     chara_visit_data = mysekai_info['userMysekaiGateCharacterVisit']

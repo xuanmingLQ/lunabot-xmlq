@@ -34,6 +34,8 @@ class EventDetail:
     event_banner: Image.Image
     event_logo: Image.Image
     event_bg: Image.Image
+    event_story_bg: Image.Image
+    event_ban_chara_img: Image.Image
     event_card_thumbs: List[Image.Image]
 
     
@@ -115,7 +117,7 @@ async def get_event_detail(ctx: SekaiHandlerContext, event_or_event_id: Union[in
     elif event['eventType'] == 'world_bloom':
         unit = get_unit_by_chara_id(event_cards[0]['characterId'])
     
-    assert not require_assets or all(a in ['banner', 'logo', 'bg', 'card_thumbs'] for a in require_assets)
+    assert not require_assets or all(a in ['banner', 'logo', 'bg', 'story_bg', 'ban_chara', 'card_thumbs'] for a in require_assets)
 
     event_banner = None
     if 'banner' in require_assets:
@@ -128,6 +130,14 @@ async def get_event_detail(ctx: SekaiHandlerContext, event_or_event_id: Union[in
     event_bg = None
     if 'bg' in require_assets:
         event_bg = await ctx.rip.img(f"event/{asset_name}/screen/bg.png", default=None)
+
+    event_story_bg = None
+    if 'story_bg' in require_assets and etype != 'world_bloom':
+        event_story_bg = await ctx.rip.img(f"event_story/{asset_name}/screen_image/story_bg.png", default=None)
+
+    event_ban_chara_img = None
+    if 'ban_chara' in require_assets and etype != 'world_bloom':
+        event_ban_chara_img = await ctx.rip.img(f"event/{asset_name}/screen/character.png", default=None)
 
     event_card_thumbs = []
     if 'card_thumbs' in require_assets:
@@ -153,6 +163,8 @@ async def get_event_detail(ctx: SekaiHandlerContext, event_or_event_id: Union[in
         event_banner=event_banner,
         event_logo=event_logo,
         event_bg=event_bg,
+        event_story_bg=event_story_bg,
+        event_ban_chara_img=event_ban_chara_img,
         event_card_thumbs=event_card_thumbs,
     )
 
@@ -713,7 +725,7 @@ async def send_boost(ctx: SekaiHandlerContext, qid: int) -> str:
 
 # 合成活动详情图片
 async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> Image.Image:
-    detail = await get_event_detail(ctx, event, ['logo', 'bg', 'card_thumbs'])
+    detail = await get_event_detail(ctx, event, ['logo', 'bg', 'story_bg', 'ban_chara', 'card_thumbs'])
     now = datetime.now()
 
     if detail.banner_cid:
@@ -727,12 +739,18 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
         chapter['start_time'] = datetime.fromtimestamp(chapter['startAt'] / 1000)
         chapter['end_time'] = datetime.fromtimestamp(chapter['aggregateAt'] / 1000 + 1)
 
-    w = 1400
-    h = detail.event_bg.size[1] * w // detail.event_bg.size[0] if detail.event_bg else None
-    bg = ImageBg(detail.event_bg, blur=False) if detail.event_bg else DEFAULT_BLUE_GRADIENT_BG
+    use_story_bg = detail.event_story_bg and detail.event_ban_chara_img and detail.etype != "world_bloom"
+    event_bg = detail.event_story_bg if use_story_bg else detail.event_bg
+    h = 1024
+    w = min(int(h * 1.6), event_bg.size[0] * h // event_bg.size[1] if event_bg else int(h * 1.6))
+    bg = ImageBg(event_bg, blur=False) if event_bg else DEFAULT_BLUE_GRADIENT_BG
     
     async def draw(w, h):
         with Canvas(bg=bg, w=w, h=h).set_padding(BG_PADDING).set_content_align('r') as canvas:
+            with Frame().set_size((w-BG_PADDING*2, h-BG_PADDING*2)).set_content_align('lb').set_padding((64, 0)):
+                if use_story_bg:
+                    ImageBox(detail.event_ban_chara_img, size=(None, int(h * 0.9)), use_alphablend=True).set_offset((0, BG_PADDING))
+
             with VSplit().set_padding(16).set_sep(16).set_item_align('t').set_content_align('t').set_item_bg(roundrect_bg()):
                 # logo
                 ImageBox(detail.event_logo, size=(None, 150)).set_omit_parent_bg(True)
@@ -826,10 +844,7 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
         add_watermark(canvas)
         return await run_in_pool(canvas.get_img)
 
-    try: 
-        return await draw(w, h)
-    except:
-        return await draw(w, None)
+    return await draw(w, h)
 
 # 合成活动记录图片
 async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
