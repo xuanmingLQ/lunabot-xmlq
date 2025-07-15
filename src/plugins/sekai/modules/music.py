@@ -670,8 +670,8 @@ async def get_event_of_music(ctx: SekaiHandlerContext, mid: int) -> Dict:
         return None
     return await ctx.md.events.find_by_id(em['eventId'])
 
-# 获取歌曲详细图片
-async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: str=None, title_style: TextStyle=None) -> Frame:
+# 获取歌曲详情图片
+async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: str=None, title_style: TextStyle=None, title_shadow=False):
     music = await ctx.md.musics.find_by_id(mid)
     assert_and_reply(music, f"歌曲{mid}不存在")
     asset_name = music['assetbundleName']
@@ -721,7 +721,10 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
     with Canvas(bg=ImageBg(ctx.static_imgs.get("bg/bg_area_7.png"))).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
             if title and title_style:
-                TextBox(title, title_style).set_padding(16)
+                if title_shadow:
+                    draw_shadowed_text(title, title_style.font, title_style.size, title_style.color, padding=16)
+                else:
+                    TextBox(title, title_style).set_padding(16)
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_item_bg(roundrect_bg()):
                 # 标题
@@ -1032,6 +1035,59 @@ async def get_music_chart_length(ctx: SekaiHandlerContext, music_id: int, diffic
     score = pjsekai.scores.Score.open(sus_path, encoding='UTF-8')
     return timedelta(seconds=float(score.timed_events[-1][0]))
 
+# 合成简要歌曲列表图片
+async def compose_music_brief_list_image(
+    ctx: SekaiHandlerContext, musics_or_mids: List[Union[int, Dict]],
+    title: str=None, title_style: TextStyle=None, title_shadow=False
+):
+    MAX_NUM = 50
+    hide_num = len(musics_or_mids) - MAX_NUM
+    musics_or_mids = musics_or_mids[:MAX_NUM]
+
+    for i in range(len(musics_or_mids)):
+        if isinstance(musics_or_mids[i], int):
+            music = await ctx.md.musics.find_by_id(musics_or_mids[i])
+            assert_and_reply(music, f"曲目 {musics_or_mids[i]} 不存在")
+            musics_or_mids[i] = music
+    covers = await batch_gather(*[get_music_cover_thumb(ctx, m['id']) for m in musics_or_mids])
+    diff_infos = [await get_music_diff_info(ctx, m['id']) for m in musics_or_mids]
+
+    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
+            if title and title_style:
+                if title_shadow:
+                    draw_shadowed_text(title, title_style.font, title_style.size, title_style.color, padding=8)
+                else:
+                    TextBox(title, title_style).set_padding(8)
+
+            for m, cover, diff_info in zip(musics_or_mids, covers, diff_infos):
+                mid, music_name = m['id'], m['title']
+                publish_time = datetime.fromtimestamp(m['publishedAt'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+                diffs    = ['easy', 'normal', 'hard', 'expert', 'master', 'append']
+                diff_lvs = [diff_info.level.get(diff, None) for diff in diffs]
+
+                style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(50, 50, 50))
+                style2 = TextStyle(font=DEFAULT_FONT, size=16, color=(70, 70, 70))
+                style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=WHITE)
+
+                with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(16):
+                    ImageBox(cover, size=(80, 80))
+                    with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
+                        TextBox(f"【{mid}】{music_name}", style1).set_w(250)
+                        TextBox(f"  {publish_time}", style2)
+                        with HSplit().set_content_align('c').set_item_align('c').set_sep(4):
+                            Spacer(w=2)
+                            for diff, level in zip(diffs, diff_lvs):
+                                if level is not None:
+                                    TextBox(str(level), style3, overflow='clip').set_bg(RoundRectBg(fill=DIFF_COLORS[diff], radius=8)) \
+                                        .set_content_align('c').set_size((28, 28))
+                                    
+            if hide_num:
+                TextBox(f"{hide_num}首歌曲未显示", TextStyle(font=DEFAULT_FONT, size=20, color=(20, 20, 20))).set_padding(8)
+
+    add_watermark(canvas)
+    return await run_in_pool(canvas.get_img)
+
 
 # ======================= 指令处理 ======================= #
 
@@ -1163,6 +1219,33 @@ async def _(ctx: SekaiHandlerContext):
     query = ctx.get_args().strip()
     if not query:
         return await ctx.asend_reply_msg("请输入要查询的歌曲名或ID")
+    
+    # 查询泄漏曲
+    if query.lower() == "leak":
+        leak_musics = [
+            m for m in await ctx.md.musics.get() 
+            if datetime.fromtimestamp(m['publishedAt'] / 1000) > datetime.now()
+        ]
+        assert_and_reply(leak_musics, f"当前{get_region_name(ctx.region)}没有leak曲目")
+        leak_musics = sorted(leak_musics, key=lambda x: (x['publishedAt'], x['id']))
+        return await ctx.asend_reply_msg(await get_image_cq(
+            await compose_music_brief_list_image(ctx, leak_musics),
+            low_quality=True,
+        ))
+    
+    # 查询多曲
+    try:
+        mids = list(map(int, query.split()))
+        assert len(mids) > 1
+    except:
+        mids = None
+    if mids:
+        return await ctx.asend_reply_msg(await get_image_cq(
+            await compose_music_brief_list_image(ctx, mids),
+            low_quality=True,
+        ))
+
+    # 查询单曲
     ret = await search_music(ctx, query, MusicSearchOptions())
     msg = await get_image_cq(await compose_music_detail_image(ctx, ret.music['id']))
     msg += ret.candidate_msg
@@ -1332,29 +1415,60 @@ async def new_music_notify():
     notified_musics = file_db.get("notified_new_musics", {})
     updated = False
 
-    SEND_LIMIT = 5
-    total_send = 0
-
     for region in ALL_SERVER_REGIONS:
         region_name = get_region_name(region)
         ctx = SekaiHandlerContext.from_region(region)
         musics = await ctx.md.musics.get()
         now = datetime.now()
 
+        need_send_musics = []
         for music in musics:
             mid = music["id"]
             publish_time = datetime.fromtimestamp(music["publishedAt"] / 1000)
             if mid in notified_musics.get(region, []): continue
             if now - publish_time > timedelta(hours=6): continue
             if publish_time - now > timedelta(minutes=1): continue
-            logger.info(f"发送新曲上线提醒: {region} {music['id']} {music['title']}")
+            need_send_musics.append(music)
 
-            total_send += 1
+        BATCH_SEND_THRESHOLD = 4
+        if len(need_send_musics) >= BATCH_SEND_THRESHOLD:
+            # 批量发送
+            logger.info(f"发送批量新曲上线提醒: {region} {len(need_send_musics)}首新曲")
 
-            if total_send <= SEND_LIMIT:
+            img = await compose_music_brief_list_image(
+                ctx, need_send_musics, title=f"{region_name}新曲上线-{len(need_send_musics)}首", 
+                title_style=TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(20, 20, 20, 255)),
+            )
+            msg = await get_image_cq(img)
+
+            for group_id in music_group_sub.get_all(region):
+                if not gbl.check_id(group_id): continue
+                try:
+                    group_msg = msg
+                    for uid in music_user_sub.get_all(region, group_id):
+                        group_msg += f"[CQ:at,qq={uid}]"
+                    await send_group_msg_by_bot(bot, group_id, group_msg.strip())
+                except:
+                    logger.print_exc(f"发送新曲上线提醒: {region} 到群 {group_id} 失败")
+                    continue
+
+            if region not in notified_musics:
+                notified_musics[region] = []
+            notified_musics[region].extend(m["id"] for m in need_send_musics)
+            updated = True
+        
+        else:
+            # 分别发送
+            for music in need_send_musics:
+                mid = music["id"]
+                publish_time = datetime.fromtimestamp(music["publishedAt"] / 1000)
+                logger.info(f"发送新曲上线提醒: {region} {music['id']} {music['title']}")
+
                 img = await compose_music_detail_image(
                     ctx, mid, title=f"{region_name}新曲上线", 
-                    title_style=TextStyle(font=DEFAULT_BOLD_FONT, size=35, color=DIFF_COLORS['master']),
+                    title_style=TextStyle(font=DEFAULT_BOLD_FONT, size=35, color=LinearGradient(
+                        c1=(200, 150, 255, 255), c2=(150, 200, 220, 255), p1=(0, 0), p2=(1, 1),
+                    )), title_shadow=True,
                 )
                 msg = await get_image_cq(img)
 
@@ -1368,11 +1482,11 @@ async def new_music_notify():
                     except:
                         logger.print_exc(f"发送新曲新曲上线提醒: {region} {music['id']} 到群 {group_id} 失败")
                         continue
-            
-            if region not in notified_musics:
-                notified_musics[region] = []
-            notified_musics[region].append(mid)
-            updated = True
+                
+                if region not in notified_musics:
+                    notified_musics[region] = []
+                notified_musics[region].append(mid)
+                updated = True
 
     if updated:
         file_db.set("notified_new_musics", notified_musics)
@@ -1426,6 +1540,7 @@ async def new_apd_notify():
                 img = await compose_music_detail_image(
                     ctx, mid, title=f"新{region_name}APPEND谱面上线", 
                     title_style=TextStyle(font=DEFAULT_BOLD_FONT, size=35, color=DIFF_COLORS['append']),
+                    title_shadow=True,
                 )
                 msg = await get_image_cq(img)
 

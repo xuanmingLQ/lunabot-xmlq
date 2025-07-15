@@ -52,6 +52,7 @@ RED = (255, 0, 0, 255)
 GREEN = (0, 255, 0, 255)
 BLUE = (0, 0, 255, 255)
 TRANSPARENT = (0, 0, 0, 0)
+SHADOW = (0, 0, 0, 150)
 
 ROUNDRECT_ANTIALIASING_TARGET_RADIUS = 32
 
@@ -1370,7 +1371,7 @@ class Canvas(Frame):
 # =========================== 控件函数 =========================== #
 
 # 由带颜色代码的字符串获取彩色文本组件
-def colored_text_box(s: str, style: TextStyle, padding=2, use_shadow=False, shadow_color=(150, 150, 150, 255), **text_box_kargs) -> HSplit:
+def colored_text_box(s: str, style: TextStyle, padding=2, use_shadow=False, shadow_color=SHADOW, **text_box_kargs) -> HSplit:
     try:
         segs = [{ 'text': None, 'color': None }]
         while True:
@@ -1418,7 +1419,7 @@ def draw_shadowed_text(
     font: str,
     font_size: int, 
     c1: Color, 
-    c2: Color, 
+    c2: Color = SHADOW,
     offset: Union[int, Tuple[int, int]] = 2, 
     w: int = None, 
     h: int = None,
