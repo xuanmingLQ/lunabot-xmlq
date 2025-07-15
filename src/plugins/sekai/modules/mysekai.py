@@ -394,12 +394,25 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
         spawn_size = int(20 * scale)
         ImageBox(spawn_img, size=(spawn_size, spawn_size)).set_offset((spawn_x, spawn_z)).set_offset_anchor('c')
 
+        @dataclass
+        class ResDrawCall:
+            res_id: int = None
+            image: Image.Image = None
+            quantity: int = None
+            small_icon: bool = None
+            size: int = None
+            x: int = None
+            z: int = None
+            draw_order: int = None
+            outline: Optional[Tuple[Tuple[int, int, int, int], int]] = None
+            light_size: int = None
+
         # 获取所有资源掉落绘制
-        res_draw_calls = []
+        res_draw_calls: List[ResDrawCall] = []
         for pkey in all_res:
             pres = sorted(list(all_res[pkey].values()), key=lambda x: (-x['quantity'], x['id']))
 
-            # 统计两种数量
+            # 统计小图标和大图标的数量
             small_total, large_total = 0, 0
             for item in pres:
                 if item['del']: continue
@@ -409,66 +422,90 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
 
             for item in pres:
                 if item['del']: continue
-                outline = None
+                if not item['image']: continue
 
-                # 大小和位置
+                res_key = f"{item['type']}_{item['id']}"
+                call = ResDrawCall(
+                    res_id=item['id'],
+                    image=item['image'],
+                    quantity=item['quantity'],
+                    small_icon=item['small_icon'],
+                )
+
+                # 计算大小和位置
                 large_size, small_size = 35 * scale, 17 * scale
-
                 if item['type'] == 'mysekai_material' and item['id'] == 24:
                     large_size *= 1.5
                 if item['type'] == 'mysekai_music_record':
                     large_size *= 1.5
-
                 if item['small_icon']:
-                    res_img_size = small_size
-                    offsetx = int(item['x'] + 0.5 * large_size * large_total - 0.6 * small_size)
-                    offsetz = int(item['z'] - 0.45 * large_size + 1.0 * small_size * small_idx + global_zoffset)
+                    call.size = small_size
+                    call.x = int(item['x'] + 0.5 * large_size * large_total - 0.6 * small_size)
+                    call.z = int(item['z'] - 0.45 * large_size + 1.0 * small_size * small_idx + global_zoffset)
                     small_idx += 1
                 else:
-                    res_img_size = large_size
-                    offsetx = int(item['x'] - 0.5 * large_size * large_total + large_size * large_idx)
-                    offsetz = int(item['z'] - 0.5 * large_size + global_zoffset)
+                    call.size = large_size
+                    call.x = int(item['x'] - 0.5 * large_size * large_total + large_size * large_idx)
+                    call.z = int(item['z'] - 0.5 * large_size + global_zoffset)
                     large_idx += 1
 
                 # 对于高度可能超过的情况
-                if offsetz <= 0:
-                    offsetz += int(0.5 * large_size)
+                if call.z <= 0:
+                    call.z += int(0.5 * large_size)
 
-                # 绘制顺序 小图标>稀有资源>其他
+                # 绘制顺序 先从上到下再从左到右，小图标>稀有资源>其他
                 if item['small_icon']:
-                    draw_order = item['z'] * 100 + item['x'] + 1000000
-                elif f"{item['type']}_{item['id']}" in MOST_RARE_MYSEKAI_RES:
-                    draw_order = item['z'] * 100 + item['x'] + 100000
+                    call.draw_order = item['z'] * 100 + item['x'] + 1000000
+                elif res_key in MOST_RARE_MYSEKAI_RES:
+                    call.draw_order = item['z'] * 100 + item['x'] + 100000
                 else:
-                    draw_order = item['z'] * 100 + item['x']
+                    call.draw_order = item['z'] * 100 + item['x']
 
                 # 小图标和稀有资源添加边框
-                if f"{item['type']}_{item['id']}" in MOST_RARE_MYSEKAI_RES:
-                    outline = ((255, 50, 50, 150), 2)
+                if res_key in MOST_RARE_MYSEKAI_RES:
+                    call.outline = ((255, 50, 50, 150), 2)
                 elif item['small_icon']:
-                    outline = ((50, 50, 255, 100), 1)
+                    call.outline = ((50, 50, 255, 100), 1)
 
-                if item['image']:
-                    res_draw_calls.append((res_id, item['image'], res_img_size, offsetx, offsetz, item['quantity'], draw_order, item['small_icon'], outline))
-        
+                # 稀有资源添加发光
+                if res_key in MOST_RARE_MYSEKAI_RES:
+                    if item['small_icon']:
+                        call.light_size = int(45 * scale * 3)
+                    else:
+                        call.light_size = int(45 * scale * 6)
+
+                res_draw_calls.append(call)
+                    
         # 排序资源掉落
-        res_draw_calls.sort(key=lambda x: x[6])
+        res_draw_calls.sort(key=lambda x: x.draw_order)
+
+        # 绘制稀有资源发光
+        light_strength = (phenomena_color_info['ground'][0] 
+                        + phenomena_color_info['ground'][1] 
+                        + phenomena_color_info['ground'][2]) / (3 * 255) * 0.4
+        for call in res_draw_calls:
+            if call.light_size:
+                ImageBox(ctx.static_imgs.get("mysekai/light.png"), size=(call.light_size, call.light_size), 
+                         use_alphablend=True, alpha_adjust=light_strength) \
+                    .set_offset((int(call.x + call.size / 2), int(call.z + call.size / 2))).set_offset_anchor('c')
 
         # 绘制资源
-        for res_id, res_img, res_img_size, offsetx, offsetz, res_quantity, draw_order, small_icon, outline in res_draw_calls:
-            with Frame().set_offset((offsetx, offsetz)).set_content_align('c'):
-                ImageBox(res_img, size=(res_img_size, res_img_size), use_alphablend=True, alpha_adjust=0.8)
-                if outline:
-                    Frame().set_bg(FillBg(stroke=outline[0], stroke_width=outline[1], fill=TRANSPARENT)).set_size((res_img_size+2, res_img_size+2))
+        for call in res_draw_calls:
+            with Frame().set_offset((call.x, call.z)).set_content_align('c'):
+                ImageBox(call.image, size=(call.size, call.size), use_alphablend=True, alpha_adjust=0.8)
+                if call.outline:
+                    Frame().set_bg(FillBg(stroke=call.outline[0], stroke_width=call.outline[1], fill=TRANSPARENT)) \
+                        .set_size((call.size+2, call.size+2))
 
-        for res_id, res_img, res_img_size, offsetx, offsetz, res_quantity, draw_order, small_icon, outline in res_draw_calls:
-            if not small_icon:
+        # 绘制资源数量
+        for call in res_draw_calls:
+            if not call.small_icon:
                 style = TextStyle(font=DEFAULT_BOLD_FONT, size=int(11 * scale), color=(50, 50, 50, 255))
-                if res_quantity == 2:
+                if call.quantity == 2:
                     style = TextStyle(font=DEFAULT_HEAVY_FONT, size=int(13 * scale), color=(200, 20, 0, 255))
-                elif res_quantity > 2:
+                elif call.quantity > 2:
                     style = TextStyle(font=DEFAULT_HEAVY_FONT, size=int(13 * scale), color=(200, 20, 200, 255))
-                TextBox(f"{res_quantity}", style).set_offset((offsetx - 1, offsetz - 1))
+                TextBox(f"{call.quantity}", style).set_offset((call.x - 1, call.z - 1))
 
     return await run_in_pool(canvas.get_img)
 
