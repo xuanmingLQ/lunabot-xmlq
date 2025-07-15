@@ -260,7 +260,7 @@ def get_mysekai_phenomena_color_info(phenomena_id: int) -> dict:
         sky1 = color_code_to_rgb(phenomena_colors[phenomena_id]['sky1'])
         sky2 = color_code_to_rgb(phenomena_colors[phenomena_id]['sky2'])
 
-        ground_bright_factor = 0.2
+        ground_bright_factor = 0.5
         ground = lerp_color(ground, WHITE, ground_bright_factor)
 
         return {
@@ -463,11 +463,11 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
 
         for res_id, res_img, res_img_size, offsetx, offsetz, res_quantity, draw_order, small_icon, outline in res_draw_calls:
             if not small_icon:
-                style = TextStyle(font=DEFAULT_BOLD_FONT, size=int(11 * scale), color=(50, 50, 50, 200))
+                style = TextStyle(font=DEFAULT_BOLD_FONT, size=int(11 * scale), color=(50, 50, 50, 255))
                 if res_quantity == 2:
-                    style = TextStyle(font=DEFAULT_HEAVY_FONT, size=int(13 * scale), color=(200, 20, 0, 200))
+                    style = TextStyle(font=DEFAULT_HEAVY_FONT, size=int(13 * scale), color=(200, 20, 0, 255))
                 elif res_quantity > 2:
-                    style = TextStyle(font=DEFAULT_HEAVY_FONT, size=int(13 * scale), color=(200, 20, 200, 200))
+                    style = TextStyle(font=DEFAULT_HEAVY_FONT, size=int(13 * scale), color=(200, 20, 200, 255))
                 TextBox(f"{res_quantity}", style).set_offset((offsetx - 1, offsetz - 1))
 
     return await run_in_pool(canvas.get_img)

@@ -257,7 +257,7 @@ class Painter:
     def get(self) -> Image.Image:
         return self.img
 
-    def text(
+    def _text(
         self, 
         text: str, 
         pos: Position, 
@@ -277,6 +277,38 @@ class Painter:
                 text_offset = (0, -std_size[1])
                 pos = (pos[0] - text_offset[0] + self.offset[0], pos[1] - text_offset[1] + self.offset[1])
                 pilmoji.text(pos, text, font=font, fill=fill, align=align, emoji_position_offset=(0, -std_size[1]), anchor='ls')
+        return self
+    
+    def text(
+        self, 
+        text: str, 
+        pos: Position, 
+        font: Font,
+        fill: Union[Color, LinearGradient] = BLACK,
+        align: str = "left"
+    ):
+        if isinstance(fill, LinearGradient):
+            gradient = fill
+            fill = BLACK
+        else:
+            gradient = None
+
+        if (len(fill) == 3 or fill[3] == 255) and not gradient:
+            self._text(text, pos, font, fill, align)
+        else:
+            text_size = get_text_size(font, text)
+            overlay_size = (text_size[0] + 1, text_size[1] + 1)
+            overlay = Image.new('RGBA', overlay_size, (0, 0, 0, 0))
+            p = Painter(overlay)
+            p._text(text, (0, 0), font, fill=fill, align=align)
+            if gradient:
+                gradient_img = gradient.get_img(overlay_size, overlay)
+                overlay = gradient_img
+            elif fill[3] < 255:
+                overlay_alpha = overlay.split()[3]
+                overlay_alpha = Image.eval(overlay_alpha, lambda a: int(a * fill[3] / 255))
+                overlay.putalpha(overlay_alpha)
+            self.img.alpha_composite(overlay, (pos[0] + self.offset[0], pos[1] + self.offset[1]))
         return self
         
     def paste(
@@ -339,7 +371,7 @@ class Painter:
             draw.rectangle((0, 0, size[0], size[1]), fill=fill, outline=stroke, width=stroke_width)
             if gradient:
                 gradient_img = gradient.get_img(overlay_size, overlay)
-                overlay.paste(gradient_img, (0, 0), gradient_img)
+                overlay = gradient_img
             self.img.alpha_composite(overlay, (pos[0], pos[1]))
 
         return self
@@ -362,9 +394,9 @@ class Painter:
 
         pos = (pos[0] + self.offset[0], pos[1] + self.offset[1])
 
-        aa_scale = max(radius, ROUNDRECT_ANTIALIASING_TARGET_RADIUS) / radius
+        aa_scale = max(radius, ROUNDRECT_ANTIALIASING_TARGET_RADIUS) / radius if radius > 0 else 1.0
         aa_size = (int(size[0] * aa_scale), int(size[1] * aa_scale))
-        aa_radius = radius * aa_size[0] / size[0]
+        aa_radius = radius * aa_size[0] / size[0] if size[0] > 0 else radius
 
         overlay_size = (aa_size[0] + 1, aa_size[1] + 1)
         overlay = Image.new('RGBA', overlay_size, (0, 0, 0, 0))
@@ -372,7 +404,7 @@ class Painter:
         draw.rounded_rectangle((0, 0, aa_size[0], aa_size[1]), fill=fill, radius=aa_radius, outline=stroke, width=stroke_width, corners=corners)
         if gradient:
             gradient_img = gradient.get_img(overlay_size, overlay)
-            overlay.paste(gradient_img, (0, 0), gradient_img)
+            overlay = gradient_img
 
         overlay = overlay.resize((size[0] + 1, size[1] + 1), Image.Resampling.BICUBIC)
         self.img.alpha_composite(overlay, (pos[0], pos[1]))
@@ -408,7 +440,7 @@ class Painter:
             draw.pieslice((0, 0, size[0], size[1]), start_angle, end_angle, fill=fill, width=stroke_width, outline=stroke)
             if gradient:
                 gradient_img = gradient.get_img(overlay_size, overlay)
-                overlay.paste(gradient_img, (0, 0), gradient_img)
+                overlay = gradient_img
             self.img.alpha_composite(overlay, (pos[0], pos[1]))
         
         return self

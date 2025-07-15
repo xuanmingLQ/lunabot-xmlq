@@ -1354,7 +1354,7 @@ async def new_music_notify():
             if total_send <= SEND_LIMIT:
                 img = await compose_music_detail_image(
                     ctx, mid, title=f"{region_name}新曲上线", 
-                    title_style=TextStyle(font=DEFAULT_BOLD_FONT, size=35, color=(60, 20, 20))
+                    title_style=TextStyle(font=DEFAULT_BOLD_FONT, size=35, color=DIFF_COLORS['master']),
                 )
                 msg = await get_image_cq(img)
 
@@ -1425,7 +1425,7 @@ async def new_apd_notify():
             if total_send <= SEND_LIMIT:
                 img = await compose_music_detail_image(
                     ctx, mid, title=f"新{region_name}APPEND谱面上线", 
-                    title_style=TextStyle(font=DEFAULT_BOLD_FONT, size=35, color=(60, 20, 20))
+                    title_style=TextStyle(font=DEFAULT_BOLD_FONT, size=35, color=DIFF_COLORS['append']),
                 )
                 msg = await get_image_cq(img)
 
