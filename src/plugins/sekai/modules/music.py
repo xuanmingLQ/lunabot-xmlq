@@ -5,8 +5,17 @@ from ..handler import *
 from ..asset import *
 from ..draw import *
 from ..sub import SekaiUserSubHelper, SekaiGroupSubHelper
-from .profile import get_detailed_profile, get_detailed_profile_card, get_player_avatar_info_by_detailed_profile
+from .profile import (
+    get_detailed_profile, 
+    get_detailed_profile_card, 
+    get_player_avatar_info_by_detailed_profile,
+    get_player_avatar_info_by_basic_profile,
+    get_basic_profile,
+    get_basic_profile_card,
+    get_player_bind_id,
+)
 from .event import extract_ban_event
+from .resbox import get_res_icon
 import rapidfuzz
 
 
@@ -36,7 +45,6 @@ class MusicDiffInfo:
     note_count: Dict[str, int] = field(default_factory=dict)
     has_append: bool = False
 
-
 VOCAL_CAPTION_MAP_DICT = {
     "エイプリルフールver.": "April Fool",
     "コネクトライブver.": "Connect Live",
@@ -48,7 +56,6 @@ VOCAL_CAPTION_MAP_DICT = {
     "「劇場版プロジェクトセカイ」ver.": "Movie",
 }
 
-
 @dataclass
 class PlayProgressCount:
     total: int = 0
@@ -56,6 +63,57 @@ class PlayProgressCount:
     clear: int = 0
     fc: int = 0
     ap: int = 0
+
+@dataclass
+class MusicAchievementReward:
+    coin: int = 0
+    jewel: int = 0
+    shard: int = 0
+
+MUSIC_RANK_REWARDS: Dict[int, MusicAchievementReward] = {
+    1: MusicAchievementReward(0, 10, 0), # C
+    2: MusicAchievementReward(0, 20, 0), # B
+    3: MusicAchievementReward(0, 30, 0), # A
+    4: MusicAchievementReward(0, 50, 0), # S
+}
+MUSIC_COMBO_REWARDS: Dict[str, Dict[int, MusicAchievementReward]] = {
+    'easy': {
+        5: MusicAchievementReward(500, 0, 0), 
+        6: MusicAchievementReward(1000, 0, 0),
+        7: MusicAchievementReward(2000, 0, 0),
+        8: MusicAchievementReward(5000, 0, 0),
+    },
+    'normal': {
+        9: MusicAchievementReward(1000, 0, 0), 
+        10: MusicAchievementReward(2000, 0, 0),
+        11: MusicAchievementReward(4000, 0, 0), 
+        12: MusicAchievementReward(10000, 0, 0), 
+    },
+    'hard': {
+        13: MusicAchievementReward(1500, 0, 0),
+        14: MusicAchievementReward(3000, 0, 0),
+        15: MusicAchievementReward(6000, 0, 0),
+        16: MusicAchievementReward(0, 50, 0),
+    },
+    'expert': {
+        17: MusicAchievementReward(2000, 0, 0),
+        18: MusicAchievementReward(4000, 0, 0),
+        19: MusicAchievementReward(0, 20, 0),
+        20: MusicAchievementReward(0, 50, 0),
+    },
+    'master': {
+        21: MusicAchievementReward(3000, 0, 0),
+        22: MusicAchievementReward(6000, 0, 0),
+        23: MusicAchievementReward(0, 20, 0),
+        24: MusicAchievementReward(0, 50, 0),
+    },
+    'append': {
+        25: MusicAchievementReward(3000, 0, 0),
+        26: MusicAchievementReward(6000, 0, 0),
+        27: MusicAchievementReward(0, 0, 5),
+        28: MusicAchievementReward(0, 0, 10),
+    },
+}
 
 
 # ======================= 别名处理 ======================= #
@@ -728,7 +786,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_item_bg(roundrect_bg()):
                 # 标题
-                name_text = f"【{mid}】{name}"
+                name_text = f"【{ctx.region.upper()}-{mid}】{name}"
                 if cn_name: name_text += f"  ({cn_name})"
                 TextBox(name_text, TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(20, 20, 20)), use_real_line_count=True).set_padding(16).set_w(800)
 
@@ -914,6 +972,8 @@ async def compose_play_progress_image(ctx: SekaiHandlerContext, diff: str, qid: 
             continue
         if datetime.fromtimestamp(music['publishedAt'] / 1000) > datetime.now():
             continue
+        if music['isFullLength']:
+            continue
         count[level].total += 1
 
         result_type = 0
@@ -1084,6 +1144,144 @@ async def compose_music_brief_list_image(
                                     
             if hide_num:
                 TextBox(f"{hide_num}首歌曲未显示", TextStyle(font=DEFAULT_FONT, size=20, color=(20, 20, 20))).set_padding(8)
+
+    add_watermark(canvas)
+    return await run_in_pool(canvas.get_img)
+
+# 合成歌曲奖励图片
+async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
+    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=False)
+    # 获取有效歌曲id
+    mids = [
+        m['id'] for m in await ctx.md.musics.get() 
+        if not m.get('isFullLength', False) and datetime.fromtimestamp(m['publishedAt'] / 1000) <= datetime.now()
+    ]
+
+    gw, gh = 80, 40
+    style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)) # 表头
+    style2 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(75, 75, 75)) # 表项
+    jewel_icon = ctx.static_imgs.get("jewel.png")
+    shard_icon = ctx.static_imgs.get("shard.png")
+    def draw_text_icon(text: str, icon: Image, style: TextStyle) -> HSplit:
+        with HSplit().set_content_align('c').set_item_align('c').set_sep(4) as hs:
+            if text is not None:
+                TextBox(str(text), style, overflow='clip')
+            ImageBox(icon, size=(None, gh))
+        return hs
+
+    # 有抓包的模式
+    if profile:
+        avatar_info = await get_player_avatar_info_by_detailed_profile(ctx, profile)
+        # 按照歌曲分组
+        umas: Dict[int, List[int]] = { mid: [] for mid in mids }
+        # 按照歌曲id分组
+        for item in profile['userMusicAchievements']:
+            if item['musicId'] in umas:
+                umas[item['musicId']].append(item['musicAchievementId'])
+        # 乐曲评级奖励
+        rank_rewards = 0
+        for mid in mids:
+            for i in MUSIC_RANK_REWARDS:
+                if i not in umas[mid]:
+                    rank_rewards += MUSIC_RANK_REWARDS[i].jewel
+        # 不同难度不同等级连击奖励
+        combo_rewards: Dict[str, Dict[int, int]] = { 'hard': {}, 'expert': {}, 'master': {}, 'append': {} }
+        for mid in mids:
+            diff_info = await get_music_diff_info(ctx, mid)
+            for diff in combo_rewards:
+                if diff not in diff_info.level: continue
+                lv = diff_info.level[diff]
+                combo_rewards[diff].setdefault(lv, 0)
+                for i in MUSIC_COMBO_REWARDS[diff]:
+                    if i not in umas[mid]:
+                        combo_rewards[diff][lv] += MUSIC_COMBO_REWARDS[diff][i].jewel \
+                            if diff != 'append' else MUSIC_COMBO_REWARDS[diff][i].shard
+        # 绘图
+        with Canvas(bg=random_unit_bg(avatar_info.unit)).set_padding(BG_PADDING) as canvas:
+            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
+                await get_detailed_profile_card(ctx, profile, err_msg)
+                with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16).set_bg(roundrect_bg()):
+                    # 乐曲评级奖励
+                    with HSplit().set_content_align('lt').set_item_align('lt').set_sep(24).set_padding(16).set_bg(roundrect_bg()):
+                        TextBox("歌曲评级奖励(S)", style1).set_size((None, gh)).set_content_align('c')
+                        draw_text_icon(rank_rewards, jewel_icon, style2).set_size((None, gh))
+                    # 连击奖励
+                    with HSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
+                        for diff in combo_rewards:
+                            with HSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16):
+                                # 难度
+                                with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
+                                    Spacer(w=gw, h=gh)
+                                    for lv in sorted(combo_rewards[diff].keys()):
+                                        TextBox(str(lv), TextStyle(DEFAULT_BOLD_FONT, 24, WHITE), overflow='clip').set_size((gh, gh)) \
+                                            .set_content_align('c').set_bg(RoundRectBg(fill=DIFF_COLORS[diff], radius=8))
+                                # 奖励
+                                with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
+                                    ImageBox(jewel_icon if diff != 'append' else shard_icon, size=(None, gh))
+                                    for lv in sorted(combo_rewards[diff].keys()):
+                                        reward = combo_rewards[diff][lv]
+                                        TextBox(str(reward), style2, overflow='clip').set_size((gw, gh)).set_content_align('l')
+                                # 累计奖励
+                                with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
+                                    TextBox("累计", style1).set_size((gw, gh)).set_content_align('l') 
+                                    acc = 0
+                                    for lv in sorted(combo_rewards[diff].keys()):
+                                        acc += combo_rewards[diff][lv]
+                                        TextBox(str(acc), style2, overflow='clip').set_size((gw, gh)).set_content_align('l')           
+        
+    # 无抓包的模式
+    else:
+        profile = await get_basic_profile(ctx, get_player_bind_id(ctx, qid))
+        avatar_info = await get_player_avatar_info_by_basic_profile(ctx, profile)
+
+        music_num = len(mids)
+        append_music_num = 0
+        for mid in mids:
+            diff_info = await get_music_diff_info(ctx, mid)
+            if 'append' in diff_info.level:
+                append_music_num += 1
+
+        clear_count, fc_count = {}, {}
+        for item in profile.get('userMusicDifficultyClearCount', {}):
+            clear_count[item['musicDifficultyType']] = item['liveClear']
+            fc_count[item['musicDifficultyType']] = item['fullCombo']
+
+        # 假设clear最多的难度的数量就是打过歌的数量，并假设打过的就是S
+        rank_s_num = max(clear_count.values(), default=0)
+        rank_rewards = (sum(r.jewel for r in MUSIC_RANK_REWARDS.values()), music_num - rank_s_num)
+
+        # 假设没fc的歌都没有连击奖励
+        combo_rewards: Dict[str, Tuple[int, int]] = {}
+        for diff in ['hard', 'expert', 'master', 'append']:
+            single_reward = sum(r.jewel for r in MUSIC_COMBO_REWARDS[diff].values()) \
+                if diff != 'append' else sum(r.shard for r in MUSIC_COMBO_REWARDS[diff].values())
+            combo_rewards[diff] = (single_reward, (music_num if diff != 'append' else append_music_num) - fc_count.get(diff, 0))
+
+        def get_mul_text(x):
+            return f"{x[0]*x[1]} ({x[0]}×{x[1]}首)"
+
+        # 绘图
+        with Canvas(bg=random_unit_bg(avatar_info.unit)).set_padding(BG_PADDING) as canvas:
+            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
+                await get_basic_profile_card(ctx, profile)
+                with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16).set_bg(roundrect_bg()):
+                    # 说明
+                    TextBox(f"{err_msg}\n" \
+                            f"仅显示简略估计数据（假设Clear的歌曲都是S评级，未FC的歌曲都没拿到连击奖励）",
+                            TextStyle(DEFAULT_FONT, 20, (200, 75, 75)), use_real_line_count=True).set_w(480)
+                    # 乐曲评级奖励
+                    with HSplit().set_content_align('lt').set_item_align('lt').set_sep(24).set_padding(16).set_bg(roundrect_bg()):
+                        TextBox("歌曲评级奖励(S)", style1).set_size((None, gh)).set_content_align('c')
+                        draw_text_icon(get_mul_text(rank_rewards), jewel_icon, style2).set_size((None, gh))
+                    # 连击奖励
+                    with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_bg(roundrect_bg()):
+                        for diff in combo_rewards:
+                            with HSplit().set_content_align('lt').set_item_align('lt').set_sep(24):
+                                TextBox(f"{diff.upper()}", TextStyle(DEFAULT_BOLD_FONT, 24, WHITE), overflow='clip') \
+                                    .set_bg(RoundRectBg(fill=DIFF_COLORS[diff], radius=8)).set_size((120, gh)).set_content_align('c')
+                                TextBox("连击奖励", style1).set_size((None, gh)).set_content_align('l')
+                                draw_text_icon(get_mul_text(combo_rewards[diff]), jewel_icon if diff != 'append' else shard_icon, style2) \
+                                    .set_size((None, gh))
 
     add_watermark(canvas)
     return await run_in_pool(canvas.get_img)
@@ -1354,6 +1552,7 @@ async def _(ctx: SekaiHandlerContext):
 
     for music in musics:
         mid = music["id"]
+        if music['isFullLength']: continue
         diff_info = await get_music_diff_info(ctx, mid)
         if diff not in diff_info.level: continue
         music_lv = diff_info.level[diff]
@@ -1404,6 +1603,20 @@ async def _(ctx: HandlerContext):
     await ctx.asend_reply_msg("开始同步歌曲别名...")
     await sync_music_alias()
     await ctx.asend_reply_msg("同步完成")
+
+
+# 歌曲奖励
+pjsk_music_rewards = SekaiCmdHandler([
+    "/pjsk music rewards", "/pjsk_music_rewards", 
+    "/歌曲奖励", "/打歌奖励", "/歌曲挖矿", "/打歌挖矿",
+])  
+pjsk_music_rewards.check_cdrate(cd).check_wblist(gbl)
+@pjsk_music_rewards.handle()
+async def _(ctx: SekaiHandlerContext):
+    return await ctx.asend_reply_msg(await get_image_cq(
+        await compose_music_rewards_image(ctx, ctx.user_id),
+        low_quality=True,
+    ))
 
 
 # ======================= 定时任务 ======================= #
@@ -1467,8 +1680,8 @@ async def new_music_notify():
                 img = await compose_music_detail_image(
                     ctx, mid, title=f"{region_name}新曲上线", 
                     title_style=TextStyle(font=DEFAULT_BOLD_FONT, size=35, color=LinearGradient(
-                        c1=(200, 150, 255, 255), c2=(150, 200, 220, 255), p1=(0, 0), p2=(1, 1),
-                    )), title_shadow=True,
+                        c1=(0, 0, 0, 255), c2=(0, 0, 0, 255), p1=(0, 0), p2=(1, 1),
+                    )), title_shadow=False,
                 )
                 msg = await get_image_cq(img)
 

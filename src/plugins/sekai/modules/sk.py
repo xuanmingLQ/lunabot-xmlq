@@ -6,7 +6,7 @@ from ..asset import *
 from ..draw import *
 from .profile import (
     get_gameapi_config,
-    get_uid_from_qid,
+    get_player_bind_id,
 )
 from .event import (
     get_current_event, 
@@ -402,12 +402,12 @@ async def get_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str,
     msg = await ctx.aget_msg()
     ats = extract_at_qq(msg)
     if ats:
-        uid = get_uid_from_qid(ctx, ats[0], check_bind=False)
+        uid = get_player_bind_id(ctx, ats[0], check_bind=False)
         assert_and_reply(uid, "@的用户未绑定游戏ID")
         return 'uid', uid
     args = args.strip()
     if not args:
-        if uid := get_uid_from_qid(ctx, ctx.user_id, check_bind=False):
+        if uid := get_player_bind_id(ctx, ctx.user_id, check_bind=False):
             return 'self', uid
     else:
         segs = [s for s in args.split() if s]

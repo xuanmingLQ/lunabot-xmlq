@@ -487,6 +487,7 @@ MasterDataManager.set_index_keys("mysekaiMusicRecords", ['id', 'externalId'])
 MasterDataManager.set_index_keys("musicTags", ['id', 'musicId'])
 MasterDataManager.set_index_keys("eventDeckBonuses", ['id', 'eventId'])
 MasterDataManager.set_index_keys("eventCards", ['id', 'eventId'])
+MasterDataManager.set_index_keys("musicDifficulties", ['id', 'musicId'])
 
 
 # ================================ MasterData自定义下载 ================================ #
@@ -494,7 +495,7 @@ MasterDataManager.set_index_keys("eventCards", ['id', 'eventId'])
 COMPACT_DATA_REGIONS = ['kr', 'cn', 'tw']
 
 def convert_compact_data(data: Dict[str, Any]) -> List[Dict[str, Any]]:
-    enums = data['__ENUM__']
+    enums = data.get('__ENUM__', {})
     ret = []
     for key, val in data.items():
         if key.startswith("__"): continue
@@ -964,7 +965,7 @@ class StaticImageRes:
                 img, time = self.images.get(path, (None, None))
                 mtime = int(os.path.getmtime(fullpath) * 1000)
                 if mtime != time:
-                    self.images[path] = (open_image(fullpath), mtime)
+                    self.images[path] = (open_image(fullpath).convert('RGBA'), mtime)
                 return self.images[path][0]
         except:
             raise FileNotFoundError(f"读取静态图片资源 {fullpath} 失败")

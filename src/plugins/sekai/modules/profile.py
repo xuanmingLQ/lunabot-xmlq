@@ -180,7 +180,7 @@ def get_gameapi_config(ctx: SekaiHandlerContext) -> GameApiConfig:
     return GameApiConfig(**(config.get(ctx.region) or {}))
 
 # 获取qq用户绑定的游戏id
-def get_uid_from_qid(ctx: SekaiHandlerContext, qid: int, check_bind=True) -> str:
+def get_player_bind_id(ctx: SekaiHandlerContext, qid: int, check_bind=True) -> str:
     qid = str(qid)
     bind_list: Dict[str, str] = profile_db.get("bind_list", {}).get(ctx.region, {})
     if check_bind and not bind_list.get(qid, None):
@@ -210,7 +210,24 @@ async def get_basic_profile(ctx: SekaiHandlerContext, uid: int, use_cache=True, 
             profile = load_json(cache_path)
             return profile
         raise e
-    
+
+# 获取玩家基本信息的简单卡片控件，返回Frame
+async def get_basic_profile_card(ctx: SekaiHandlerContext, profile: dict) -> Frame:
+    with Frame().set_bg(roundrect_bg()).set_padding(16) as f:
+        with HSplit().set_content_align('c').set_item_align('c').set_sep(16):
+            avatar_info = await get_player_avatar_info_by_basic_profile(ctx, profile)
+            ImageBox(avatar_info.img, size=(80, 80), image_size_mode='fill')
+            with VSplit().set_content_align('c').set_item_align('l').set_sep(5):
+                game_data = profile['user']
+                user_id = process_hide_uid(ctx, game_data['userId'])
+                colored_text_box(
+                    truncate(game_data['name'], 64),
+                    TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK),
+                    use_shadow=True,
+                )
+                TextBox(f"{ctx.region.upper()}: {user_id}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
+    return f
+
 # 从玩家基本信息获取该玩家头像PlayerAvatarInfo
 async def get_player_avatar_info_by_basic_profile(ctx: SekaiHandlerContext, basic_profile: dict) -> PlayerAvatarInfo:
     decks = basic_profile['userDeck']
@@ -246,7 +263,7 @@ async def get_detailed_profile(ctx: SekaiHandlerContext, qid: int, raise_exc=Fal
     try:
         # 获取绑定的游戏id
         try:
-            uid = get_uid_from_qid(ctx, qid, check_bind=True)
+            uid = get_player_bind_id(ctx, qid, check_bind=True)
         except Exception as e:
             logger.info(f"获取 {qid} 抓包数据失败: 未绑定游戏账号")
             raise e
@@ -254,7 +271,7 @@ async def get_detailed_profile(ctx: SekaiHandlerContext, qid: int, raise_exc=Fal
         # 检测是否隐藏抓包信息
         if not ignore_hide and is_user_hide_suite(ctx, qid):
             logger.info(f"获取 {qid} 抓包数据失败: 用户已隐藏抓包信息")
-            raise ReplyException("已隐藏抓包信息")
+            raise ReplyException("你已隐藏抓包信息")
         
         # 服务器不支持
         url = get_gameapi_config(ctx).suite_api_url
@@ -345,7 +362,7 @@ async def get_detailed_profile_card(ctx: SekaiHandlerContext, profile: dict, err
             if err_msg:
                 TextBox(f"获取数据失败: {err_msg}", TextStyle(font=DEFAULT_FONT, size=20, color=RED), line_count=3).set_w(300)
     return f
-       
+
 # 获取注册时间，无效uid返回None
 def get_register_time(region: str, uid: str) -> datetime:
     try:
@@ -554,9 +571,9 @@ async def compose_challenge_live_detail_image(ctx: SekaiHandlerContext, qid: int
                     TextBox("分数", header_style).set_w(w3).set_content_align('c')
                     TextBox(f"进度(上限{max_score//10000}w)", header_style).set_w(w4).set_content_align('c')
                     with Frame().set_w(w5).set_content_align('c'):
-                        ImageBox(await get_res_icon(ctx, 'jewel'), size=(None, 40))
+                        ImageBox(ctx.static_imgs.get("jewel.png"), size=(None, 40))
                     with Frame().set_w(w6).set_content_align('c'):
-                        ImageBox(await get_res_icon(ctx, 'material', 15), size=(None, 40))
+                        ImageBox(ctx.static_imgs.get("shard.png"), size=(None, 40))
 
                 # 项目
                 for cid in range(1, 27):
@@ -722,7 +739,7 @@ async def _(ctx: SekaiHandlerContext):
         uids: List[str] = []
         for region in ALL_SERVER_REGIONS:
             region_ctx = SekaiHandlerContext.from_region(region)
-            uid = get_uid_from_qid(region_ctx, ctx.user_id, check_bind=False)
+            uid = get_player_bind_id(region_ctx, ctx.user_id, check_bind=False)
             if uid:
                 uids.append(f"[{region.upper()}] {uid}")
         if not uids:
@@ -879,7 +896,7 @@ async def _(ctx: SekaiHandlerContext):
     try:
         uid = int(args)
     except:
-        uid = get_uid_from_qid(ctx, ctx.user_id)
+        uid = get_player_bind_id(ctx, ctx.user_id)
     res_profile = await get_basic_profile(ctx, uid)
     logger.info(f"绘制名片 region={ctx.region} uid={uid}")
     return await ctx.asend_reply_msg(await get_image_cq(
@@ -896,7 +913,7 @@ pjsk_reg_time = SekaiCmdHandler([
 pjsk_reg_time.check_cdrate(cd).check_wblist(gbl)
 @pjsk_reg_time.handle()
 async def _(ctx: SekaiHandlerContext):
-    uid = get_uid_from_qid(ctx, ctx.user_id)
+    uid = get_player_bind_id(ctx, ctx.user_id)
     reg_time = get_register_time(ctx.region, uid)
     elapsed = datetime.now() - reg_time
     return await ctx.asend_reply_msg(f"注册时间: {reg_time.strftime('%Y-%m-%d')} ({elapsed.days}天前)")

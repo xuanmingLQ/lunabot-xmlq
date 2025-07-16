@@ -7,7 +7,7 @@ from ..draw import *
 from .profile import (
     get_card_full_thumbnail, 
     get_gameapi_config, 
-    get_uid_from_qid,
+    get_player_bind_id,
     get_detailed_profile,
     get_detailed_profile_card,
     get_player_avatar_info_by_detailed_profile,
@@ -704,7 +704,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
 
 # 5v5自动送火
 async def send_boost(ctx: SekaiHandlerContext, qid: int) -> str:
-    uid = get_uid_from_qid(ctx, qid)
+    uid = get_player_bind_id(ctx, qid)
     event = await get_current_event(ctx, mode='running')
     assert_and_reply(event and event['eventType'] == 'cheerful_carnival', "当前没有进行中的5v5活动")
     url = get_gameapi_config(ctx).send_boost_api_url

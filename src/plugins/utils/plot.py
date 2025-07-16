@@ -320,6 +320,8 @@ class Painter:
     ) -> Image.Image:
         if size and size != sub_img.size:
             sub_img = sub_img.resize(size)
+        if sub_img.mode not in ('RGB', 'RGBA'):
+            sub_img = sub_img.convert('RGBA')
         if sub_img.mode == 'RGBA':
             self.img.paste(sub_img, (pos[0] + self.offset[0], pos[1] + self.offset[1]), sub_img)
         else:

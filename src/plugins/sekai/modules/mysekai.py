@@ -7,7 +7,7 @@ from ..draw import *
 from ..sub import SekaiUserSubHelper
 from .profile import (
     get_gameapi_config, 
-    get_uid_from_qid, 
+    get_player_bind_id, 
     SEKAI_PROFILE_DIR,
     get_basic_profile,
     get_player_avatar_info_by_basic_profile,
@@ -87,7 +87,7 @@ async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, 
     try:
         # 获取绑定的玩家id
         try:
-            uid = get_uid_from_qid(ctx, qid)
+            uid = get_player_bind_id(ctx, qid)
         except Exception as e:
             logger.info(f"获取 {qid} mysekai抓包数据失败: 未绑定游戏账号")
             raise e
@@ -511,7 +511,7 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
 
 # 合成mysekai资源图片 返回图片列表
 async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_harvested: bool, check_time: bool) -> List[Image.Image]:
-    uid = get_uid_from_qid(ctx, qid)
+    uid = get_player_bind_id(ctx, qid)
     basic_profile = await get_basic_profile(ctx, uid)
     mysekai_info, pmsg = await get_mysekai_info(ctx, qid, raise_exc=True)
 
@@ -723,7 +723,7 @@ async def compose_mysekai_fixture_list_image(
     # 获取玩家已获得的蓝图对应的家具ID
     obtained_fids = None
     if qid:
-        uid = get_uid_from_qid(ctx, qid)
+        uid = get_player_bind_id(ctx, qid)
         basic_profile = await get_basic_profile(ctx, uid)
         mysekai_info, mimsg = await get_mysekai_info(ctx, qid, raise_exc=True)
 
@@ -1394,7 +1394,7 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
 # 合成mysekai唱片列表
 async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, show_id: bool = False) -> Image.Image:
     mysekai_info, pmsg = await get_mysekai_info(ctx, qid, raise_exc=True)
-    uid = get_uid_from_qid(ctx, qid, check_bind=True)
+    uid = get_player_bind_id(ctx, qid, check_bind=True)
     basic_profile = await get_basic_profile(ctx, uid)
     user_records = mysekai_info['updatedResources'].get('userMysekaiMusicRecords', [])
 
@@ -1693,7 +1693,7 @@ async def msr_auto_push():
         qids = list(set([qid for qid, gid in msr_sub.get_all_gid_uid(region)]))
         uid_modes = {}
         for qid in qids:
-            if uid := get_uid_from_qid(ctx, qid, check_bind=False):
+            if uid := get_player_bind_id(ctx, qid, check_bind=False):
                 uid_modes[uid] = get_user_data_mode(ctx, qid)
         if not uid_modes: continue
 
@@ -1734,7 +1734,7 @@ async def msr_auto_push():
 
             msr_last_push_time = file_db.get(f"{region}_msr_last_push_time", {})
 
-            uid = get_uid_from_qid(ctx, qid, check_bind=False)
+            uid = get_player_bind_id(ctx, qid, check_bind=False)
             if uid and int(uid) not in need_push_uids:
                 continue
 
