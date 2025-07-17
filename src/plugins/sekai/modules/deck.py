@@ -13,9 +13,9 @@ from .profile import (
 )
 from .music import DIFF_NAMES, search_music, MusicSearchOptions, extract_diff
 from sekai_deck_recommend import (
-    SekaiDeckRecommend, 
     DeckRecommendOptions, 
     DeckRecommendCardConfig, 
+    DeckRecommendSingleCardConfig,
     DeckRecommendResult,
     DeckRecommendSaOptions,
     RecommendDeck,
@@ -65,12 +65,19 @@ DEFAULT_CHANLLENGE_DECK_RECOMMEND_DIFF = {
     "other": "master"
 }
 
+SKILL_MAX_KEYWORDS = ("满技能", "满技", "skillmax", "技能满级")
+MASTER_MAX_KEYWORDS = ("满突破", "满破", "rankmax", "mastermax")
+EPISODE_READ_KEYWORDS = ("剧情已读", "满剧情", "已读")
+CANVAS_KEYWORDS = ("满画布", "全画布", "画布")
+DISABLE_KEYWORDS = ("禁用", "disable")
+
 DEFAULT_CARD_CONFIG_12 = DeckRecommendCardConfig()
 DEFAULT_CARD_CONFIG_12.disable = False
 DEFAULT_CARD_CONFIG_12.level_max = True
 DEFAULT_CARD_CONFIG_12.episode_read = True
 DEFAULT_CARD_CONFIG_12.master_max = True
 DEFAULT_CARD_CONFIG_12.skill_max = True
+DEFAULT_CARD_CONFIG_12.canvas = False
 
 DEFAULT_CARD_CONFIG_34bd = DeckRecommendCardConfig()
 DEFAULT_CARD_CONFIG_34bd.disable = False
@@ -78,6 +85,7 @@ DEFAULT_CARD_CONFIG_34bd.level_max = True
 DEFAULT_CARD_CONFIG_34bd.episode_read = False
 DEFAULT_CARD_CONFIG_34bd.master_max = False
 DEFAULT_CARD_CONFIG_34bd.skill_max = False
+DEFAULT_CARD_CONFIG_34bd.canvas = False
 
 NOCHANGE_CARD_CONFIG = DeckRecommendCardConfig()
 NOCHANGE_CARD_CONFIG.disable = False
@@ -85,6 +93,7 @@ NOCHANGE_CARD_CONFIG.level_max = False
 NOCHANGE_CARD_CONFIG.episode_read = False
 NOCHANGE_CARD_CONFIG.master_max = False
 NOCHANGE_CARD_CONFIG.skill_max = False
+NOCHANGE_CARD_CONFIG.canvas = False
 
 DEFAULT_LIMIT = 8
 BONUS_TARGET_LIMIT = 1
@@ -200,52 +209,104 @@ def extract_fixed_cards(args: str, options: DeckRecommendOptions) -> str:
         options.fixed_cards = fixed_cards
     return args.strip()
 
-# 从args中提取是否满技能、剧情已读、满突破、满画布
+# 从args中提取卡牌设置
 def extract_card_config(args: str, options: DeckRecommendOptions) -> str:
+    def get_prefix_digit(s: str) -> Optional[int]:
+        d = ""
+        for c in s:
+            if c.isdigit():
+                d += c
+            else:
+                break
+        return int(d) if d else None
+
+    def has_config_keyword(s: str):
+        return any(
+            keyword in s for keyword 
+            in DISABLE_KEYWORDS + SKILL_MAX_KEYWORDS + MASTER_MAX_KEYWORDS + EPISODE_READ_KEYWORDS + CANVAS_KEYWORDS
+        )
+
+    def apply_card_config(args: str, cfgs: List[DeckRecommendCardConfig]) -> str:
+        for keyword in DISABLE_KEYWORDS:
+            if keyword in args:
+                for cfg in cfgs:
+                    cfg.disable = True
+                args = args.replace(keyword, "").strip()
+                break
+        for keyword in SKILL_MAX_KEYWORDS:
+            if keyword in args:
+                for cfg in cfgs:
+                    cfg.skill_max = True
+                args = args.replace(keyword, "").strip()
+                break
+        for keyword in MASTER_MAX_KEYWORDS:
+            if keyword in args:
+                for cfg in cfgs:
+                    cfg.master_max = True
+                args = args.replace(keyword, "").strip()
+                break
+        for keyword in EPISODE_READ_KEYWORDS:
+            if keyword in args:
+                for cfg in cfgs:
+                    cfg.episode_read = True
+                args = args.replace(keyword, "").strip()
+                break
+        for keyword in CANVAS_KEYWORDS:
+            if keyword in args:
+                for cfg in cfgs:
+                    cfg.canvas = True
+                args = args.replace(keyword, "").strip()
+                break
+        return args.strip()
+
     options.rarity_1_config = DEFAULT_CARD_CONFIG_12
     options.rarity_2_config = DEFAULT_CARD_CONFIG_12
     options.rarity_3_config = DEFAULT_CARD_CONFIG_34bd
     options.rarity_4_config = DEFAULT_CARD_CONFIG_34bd
     options.rarity_birthday_config = DEFAULT_CARD_CONFIG_34bd
-    options.force_canvas_bonus = False
 
-    for keyword in ("满技能", "满技", "skillmax", "技能满级"):
-        if keyword in args:
-            options.rarity_1_config.skill_max = True
-            options.rarity_2_config.skill_max = True
-            options.rarity_3_config.skill_max = True
-            options.rarity_4_config.skill_max = True
-            options.rarity_birthday_config.skill_max = True
-            args = args.replace(keyword, "").strip()
-            break
-    for keyword in ("满突破", "满破", "rankmax", "mastermax"):
-        if keyword in args:
-            options.rarity_1_config.master_max = True
-            options.rarity_2_config.master_max = True
-            options.rarity_3_config.master_max = True
-            options.rarity_4_config.master_max = True
-            options.rarity_birthday_config.master_max = True
-            args = args.replace(keyword, "").strip()
-            break
-    for keyword in ("剧情已读", "已读"):
-        if keyword in args:
-            options.rarity_1_config.episode_read = True
-            options.rarity_2_config.episode_read = True
-            options.rarity_3_config.episode_read = True
-            options.rarity_4_config.episode_read = True
-            options.rarity_birthday_config.episode_read = True
-            args = args.replace(keyword, "").strip()
-            break
-    for keyword in ("满画布", "全画布"):
-        if keyword in args:
-            options.force_canvas_bonus = True
-            args = args.replace(keyword, "").strip()
-            break
+    segs = args.split()
+
+    # 稀有度单独设置
+    for rarity, cfg in [
+        ('一星', options.rarity_1_config),
+        ('二星', options.rarity_2_config),
+        ('三星', options.rarity_3_config),
+        ('四星', options.rarity_4_config),
+        ('生日', options.rarity_birthday_config),
+    ]:
+        for seg in segs:
+            if seg.startswith(rarity) and has_config_keyword(seg):
+                apply_card_config(seg, [cfg])
+                args = args.replace(seg, "").strip()
+    
+    # 卡牌单独设置
+    single_card_configs = []
+    for seg in segs:
+        card_id = get_prefix_digit(seg)
+        if card_id is not None and has_config_keyword(seg):
+            cfg = DeckRecommendSingleCardConfig()
+            cfg.card_id = card_id
+            cfg.level_max = True
+            apply_card_config(seg, [cfg])
+            single_card_configs.append(cfg)
+            args = args.replace(seg, "").strip()
+    options.single_card_configs = single_card_configs
+
+    # 全体设置
+    args = apply_card_config(args, [
+        options.rarity_1_config,
+        options.rarity_2_config,
+        options.rarity_3_config,
+        options.rarity_4_config,
+        options.rarity_birthday_config,
+    ])
+
     return args
 
 
 # 从args中提取活动组卡参数
-async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> DeckRecommendOptions:
+async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
 
@@ -298,10 +359,13 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> DeckReco
     options.sa_options = DeckRecommendSaOptions()
     options.sa_options.max_no_improve_iter = 10000
 
-    return options
+    return {
+        'options': options,
+        'last_args': args.strip(),
+    }
 
 # 从args中提取挑战组卡参数
-async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> DeckRecommendOptions:
+async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
 
@@ -349,10 +413,13 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Deck
     if options.challenge_live_character_id is None:
         options.sa_options.run_num = 5  # 不指定角色情况下适当减少模拟退火次数
 
-    return options
+    return {
+        'options': options,
+        'last_args': args.strip(),
+    }
 
 # 从args中提取长草组卡参数
-async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> DeckRecommendOptions:
+async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
 
@@ -403,10 +470,13 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> DeckR
     options.sa_options = DeckRecommendSaOptions()
     options.sa_options.max_no_improve_iter = 50000
 
-    return options
+    return {
+        'options': options,
+        'last_args': args.strip(),
+    }
 
 # 从args中提取组卡参数
-async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) -> DeckRecommendOptions:
+async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
 
@@ -467,10 +537,13 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
     options.sa_options = DeckRecommendSaOptions()
     options.sa_options.max_no_improve_iter = 10000
 
-    return options
+    return {
+        'options': options,
+        'last_args': args.strip(),
+    }
 
 # 从args中提取加成组卡参数
-async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> DeckRecommendOptions:
+async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
 
@@ -505,7 +578,10 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> DeckReco
     except:
         raise ReplyException("使用方式: /加成组卡 其他参数 100 200 300 ...")
 
-    return options
+    return {
+        'options': options,
+        'last_args': '',
+    }
 
 
 # ======================= 处理逻辑 ======================= #
@@ -688,6 +764,7 @@ async def compose_deck_recommend_image(
     ctx: SekaiHandlerContext, 
     qid: int,
     options: DeckRecommendOptions,
+    last_args: str,
 ) -> Image.Image:
     # 是哪种组卡类型
     if options.target == "bonus":
@@ -885,6 +962,8 @@ async def compose_deck_recommend_image(
                         TextBox(f"友情提醒：控分前请核对加成和体力设置", TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(255, 50, 50)))
                     else:
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(16):
+                            if last_args:
+                                TextBox(f"{last_args} → ", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(70, 70, 70)))
                             with Frame().set_size((50, 50)):
                                 Spacer(w=50, h=50).set_bg(FillBg(fill=DIFF_COLORS[options.music_diff])).set_offset((6, 6))
                                 ImageBox(music_cover, size=(50, 50))
@@ -1006,8 +1085,7 @@ async def compose_deck_recommend_image(
                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
                     tip_style = TextStyle(font=DEFAULT_FONT, size=16, color=(20, 20, 20))
                     if recommend_type not in ["bonus", "wl_bonus"]:
-                        TextBox(f"12星卡固定最大等级+最大突破+最大技能+剧情已读，34星及生日卡固定最大等级", tip_style)
-                        TextBox(f"oc的bfes花前技能倍率，活动组卡采用期望值，挑战组卡采用最大值", tip_style)
+                        TextBox(f"12星卡默认全满，34星及生日卡默认满级，oc的bfes花前技能活动组卡为平均值，挑战组卡为最大值", tip_style)
                     TextBox(f"组卡代码来自 https://github.com/NeuraXmy/sekai-deck-recommend-cpp", tip_style)
                     alg_and_cost_text = "本次组卡使用算法: "
                     for alg, cost in cost_times.items():
@@ -1017,6 +1095,7 @@ async def compose_deck_recommend_image(
                         alg_and_cost_text += f"{alg_name} (等待{wait_time}/耗时{cost_time}) + "
                     alg_and_cost_text = alg_and_cost_text[:-3]
                     TextBox(alg_and_cost_text, tip_style)
+                    TextBox(f"发送\"{ctx.trigger_cmd}help\"获取组卡详细帮助", tip_style)
 
     add_watermark(canvas)
     return await run_in_pool(canvas.get_img)
@@ -1035,7 +1114,7 @@ async def _(ctx: SekaiHandlerContext):
     return await ctx.asend_reply_msg(await get_image_cq(
         await compose_deck_recommend_image(
             ctx, ctx.user_id, 
-            await extract_event_options(ctx, ctx.get_args())
+            **(await extract_event_options(ctx, ctx.get_args()))
         ),
         low_quality=True,
     ))
@@ -1052,7 +1131,7 @@ async def _(ctx: SekaiHandlerContext):
     return await ctx.asend_reply_msg(await get_image_cq(
         await compose_deck_recommend_image(
             ctx, ctx.user_id,
-            await extract_challenge_options(ctx, ctx.get_args())
+            **(await extract_challenge_options(ctx, ctx.get_args()))
         ),
         low_quality=True,
     ))
@@ -1069,7 +1148,7 @@ async def _(ctx: SekaiHandlerContext):
     return await ctx.asend_reply_msg(await get_image_cq(
         await compose_deck_recommend_image(
             ctx, ctx.user_id,
-            await extract_no_event_options(ctx, ctx.get_args())
+            **(await extract_no_event_options(ctx, ctx.get_args()))
         ),
         low_quality=True,
     ))
@@ -1086,7 +1165,7 @@ async def _(ctx: SekaiHandlerContext):
     return await ctx.asend_reply_msg(await get_image_cq(
         await compose_deck_recommend_image(
             ctx, ctx.user_id,
-            await extract_unit_attr_spec_options(ctx, ctx.get_args())
+            **(await extract_unit_attr_spec_options(ctx, ctx.get_args()))
         ),
         low_quality=True,
     ))
@@ -1103,7 +1182,7 @@ async def _(ctx: SekaiHandlerContext):
     return await ctx.asend_reply_msg(await get_image_cq(
         await compose_deck_recommend_image(
             ctx, ctx.user_id,
-            await extract_bonus_options(ctx, ctx.get_args())
+            **(await extract_bonus_options(ctx, ctx.get_args()))
         ),
         low_quality=True,
     ))

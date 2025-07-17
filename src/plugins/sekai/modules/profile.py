@@ -819,7 +819,7 @@ async def _(ctx: SekaiHandlerContext):
 # 隐藏抓包信息
 pjsk_hide_suite = SekaiCmdHandler([
     "/pjsk hide suite", "/pjsk_hide_suite", 
-    "/pjsk隐藏抓包",
+    "/pjsk隐藏抓包", "/隐藏抓包",
 ])
 pjsk_hide_suite.check_cdrate(cd).check_wblist(gbl)
 @pjsk_hide_suite.handle()
@@ -836,7 +836,7 @@ async def _(ctx: SekaiHandlerContext):
 # 展示抓包信息
 pjsk_show_suite = SekaiCmdHandler([
     "/pjsk show suite", "/pjsk_show_suite",
-    "/pjsk显示抓包", "/pjsk展示抓包",
+    "/pjsk显示抓包", "/pjsk展示抓包", "/展示抓包",
 ])
 pjsk_show_suite.check_cdrate(cd).check_wblist(gbl)
 @pjsk_show_suite.handle()
@@ -853,7 +853,7 @@ async def _(ctx: SekaiHandlerContext):
 # 隐藏id信息
 pjsk_hide_id = SekaiCmdHandler([
     "/pjsk hide id", "/pjsk_hide_id",
-    "/pjsk隐藏id", "/pjsk隐藏ID",
+    "/pjsk隐藏id", "/pjsk隐藏ID", "/隐藏id", "/隐藏ID",
 ])
 pjsk_hide_id.check_cdrate(cd).check_wblist(gbl)
 @pjsk_hide_id.handle()
@@ -871,6 +871,7 @@ async def _(ctx: SekaiHandlerContext):
 pjsk_show_id = SekaiCmdHandler([
     "/pjsk show id", "/pjsk_show_id",
     "/pjsk显示id", "/pjsk显示ID", "/pjsk展示id", "/pjsk展示ID",
+    "/展示id", "/展示ID", "/显示id", "/显示ID",
 ])
 pjsk_show_id.check_cdrate(cd).check_wblist(gbl)
 @pjsk_show_id.handle()
@@ -1067,7 +1068,7 @@ async def _(ctx: HandlerContext):
 # 挑战信息
 pjsk_challenge_info = SekaiCmdHandler([
     "/pjsk challenge info", "/pjsk_challenge_info",
-    "/挑战信息", "/挑战详情", "/挑战进度",
+    "/挑战信息", "/挑战详情", "/挑战进度", "/挑战一览",
 ])
 pjsk_challenge_info.check_cdrate(cd).check_wblist(gbl)
 @pjsk_challenge_info.handle()
@@ -1081,7 +1082,7 @@ async def _(ctx: SekaiHandlerContext):
 # 加成信息
 pjsk_power_bonus_info = SekaiCmdHandler([
     "/pjsk power bonus info", "/pjsk_power_bonus_info",
-    "/加成信息", "/加成详情",
+    "/加成信息", "/加成详情", "/加成进度", "/加成一览",
 ])
 pjsk_power_bonus_info.check_cdrate(cd).check_wblist(gbl)
 @pjsk_power_bonus_info.handle()

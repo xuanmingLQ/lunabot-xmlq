@@ -15,9 +15,8 @@ from sekai_deck_recommend import (
     SekaiDeckRecommend, 
     DeckRecommendOptions, 
     DeckRecommendCardConfig, 
+    DeckRecommendSingleCardConfig,
     DeckRecommendResult,
-    DeckRecommendSaOptions,
-    RecommendDeck,
 )
 
 
@@ -58,7 +57,7 @@ def log(*args, **kwargs):
     print(time_str, pname, *args, **kwargs, flush=True)
 
 def error(*args, **kwargs):
-    log(*args, **kwargs, flush=True)
+    log(*args, **kwargs)
     import traceback
     print(traceback.format_exc(), flush=True)
 
@@ -74,8 +73,14 @@ def create_parent_folder(path: str) -> str:
     return path
 
 def options_to_str(options: DeckRecommendOptions) -> str:
+    def fmtbool(b: bool):
+        return int(bool(b))
     def cardconfig2str(cfg: DeckRecommendCardConfig):
-        return f"{(int)(cfg.disable)}{(int)(cfg.level_max)}{(int)(cfg.episode_read)}{(int)(cfg.master_max)}{(int)(cfg.skill_max)}"
+        return f"{fmtbool(cfg.disable)}{fmtbool(cfg.level_max)}{fmtbool(cfg.episode_read)}{fmtbool(cfg.master_max)}{fmtbool(cfg.skill_max)}"
+    def singlecardcfg2str(cfg: List[DeckRecommendSingleCardConfig]):
+        if not cfg:
+            return "[]"
+        return "[" + ", ".join(f"{c.card_id}:{cardconfig2str(c)}" for c in cfg) + "]"
     log = "Options=("
     log += f"type={options.live_type}, "
     log += f"mid={options.music_id}, "
@@ -90,6 +95,7 @@ def options_to_str(options: DeckRecommendOptions) -> str:
     log += f"rarity3={cardconfig2str(options.rarity_3_config)}, "
     log += f"rarity4={cardconfig2str(options.rarity_4_config)}, "
     log += f"rarity_bd={cardconfig2str(options.rarity_birthday_config)}, "
+    log += f"single_card_cfg={singlecardcfg2str(options.single_card_configs)}, "
     log += f"fixed_cards={options.fixed_cards})"
     return log
 

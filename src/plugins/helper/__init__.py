@@ -19,7 +19,7 @@ HELP_IMG_SCALE = 0.8
 HELP_IMG_WIDTH = 600
 HELP_IMG_INTERSECT = 20
 
-help = CmdHandler(['/help', '/帮助', 'help', '帮助'], logger, block=True, only_to_me=True, priority=99999)
+help = CmdHandler(['/help', '/帮助'], logger, block=True, priority=99999)
 help.check_wblist(gbl).check_cdrate(cd)
 @help.handle()
 async def _(ctx: HandlerContext):
@@ -39,8 +39,8 @@ async def _(ctx: HandlerContext):
             pass
 
     if not args or args not in help_names:
-        msg = "@我 并发送 \"/help 英文服务名\" 查看各服务的详细帮助\n"
-        msg += f"例如发送 \"@{BOT_NAME} /help alive\" 查看\"连接检测服务\"的帮助\n"
+        msg = "发送 \"/help 英文服务名\" 查看各服务的详细帮助\n"
+        msg += f"例如发送 \"/help alive\" 查看\"连接检测服务\"的帮助\n"
         msg += "\n可查询的服务列表:\n"
         for name, desc in zip(help_names, help_decs):
             msg += f"【{name}】{desc}\n"

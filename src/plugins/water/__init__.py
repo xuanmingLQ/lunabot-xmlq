@@ -23,6 +23,7 @@ autowater_type_desc = {
 }
 autowater_levels = {
     'none': [],
+    'off': [],
     'all': ['text', 'image', 'stamp', 'json', 'video', 'forward'],
     'low': ['forward', 'json'],
     'med': ['video', 'forward', 'json'],

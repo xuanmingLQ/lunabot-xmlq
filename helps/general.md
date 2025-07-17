@@ -22,9 +22,9 @@
 ```
 - **示例**
 
-    `@bot /help` 获取帮助
+    `/help` 获取帮助
 
-    `@bot /help alive` 获取alive服务的帮助
+    `/help alive` 获取alive服务的帮助
 
 
 --- 
