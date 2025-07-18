@@ -114,10 +114,10 @@ class SekaiCmdHandler(CmdHandler):
         HELP_TRIGGER_WORDS = ['help', '帮助']
         if any(word in context.arg_text for word in HELP_TRIGGER_WORDS):
             if help_doc := await self.get_help_doc_part():
-                help_doc += f"\n>使用`@{BOT_NAME} /help sekai`查看完整帮助"
+                help_doc += f"\n>发送`/help sekai`查看完整帮助"
                 msg = await get_image_cq(await markdown_to_image(help_doc), low_quality=True)
             else:
-                msg = f"没有找到该指令的帮助\n使用\"@{BOT_NAME} /help sekai\"查看完整帮助"
+                msg = f"没有找到该指令的帮助\n发送\"/help sekai\"查看完整帮助"
             raise ReplyException(msg)
 
         # 构造新的上下文

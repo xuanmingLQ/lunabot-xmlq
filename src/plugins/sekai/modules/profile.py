@@ -271,7 +271,7 @@ async def get_detailed_profile(ctx: SekaiHandlerContext, qid: int, raise_exc=Fal
         # 检测是否隐藏抓包信息
         if not ignore_hide and is_user_hide_suite(ctx, qid):
             logger.info(f"获取 {qid} 抓包数据失败: 用户已隐藏抓包信息")
-            raise ReplyException("你已隐藏抓包信息")
+            raise ReplyException("你已隐藏抓包信息，发送\"/展示抓包\"可重新展示")
         
         # 服务器不支持
         url = get_gameapi_config(ctx).suite_api_url

@@ -298,7 +298,7 @@ class Painter:
             self._text(text, pos, font, fill, align)
         else:
             text_size = get_text_size(font, text)
-            overlay_size = (text_size[0] + 1, text_size[1] + 1)
+            overlay_size = (text_size[0] + 10, text_size[1] + 10)
             overlay = Image.new('RGBA', overlay_size, (0, 0, 0, 0))
             p = Painter(overlay)
             p._text(text, (0, 0), font, fill=fill, align=align)
