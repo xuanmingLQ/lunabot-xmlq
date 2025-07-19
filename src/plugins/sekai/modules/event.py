@@ -758,7 +758,7 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
                 # 活动ID和类型和箱活
                 with VSplit().set_padding(16).set_sep(12).set_item_align('l').set_content_align('l'):
                     with HSplit().set_padding(0).set_sep(8).set_item_align('l').set_content_align('l'):
-                        TextBox(f"ID", label_style)
+                        TextBox(ctx.region.upper(), label_style)
                         TextBox(f"{detail.eid}", text_style)
                         Spacer(w=8)
                         TextBox(f"类型", label_style)

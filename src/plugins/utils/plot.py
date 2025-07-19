@@ -203,7 +203,7 @@ class RadialGradient(Gradient):
         colors = dist[:, :, np.newaxis] * np.array(self.c1) + (1 - dist)[:, :, np.newaxis] * np.array(self.c2)
         return colors.astype(np.uint8)
     
-        
+
 
 class Painter:
     def __init__(self, img: Image.Image):

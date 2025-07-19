@@ -778,14 +778,15 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
         
     with Canvas(bg=ImageBg(ctx.static_imgs.get("bg/bg_area_7.png"))).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
-            if title and title_style:
-                if title_shadow:
-                    draw_shadowed_text(title, title_style.font, title_style.size, title_style.color, padding=16)
-                else:
-                    TextBox(title, title_style).set_padding(16)
-
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_item_bg(roundrect_bg()):
-                # 标题
+                # 附加标题
+                if title and title_style:
+                    if title_shadow:
+                        draw_shadowed_text(title, title_style.font, title_style.size, title_style.color, padding=16)
+                    else:
+                        TextBox(title, title_style).set_padding(16)
+
+                # 歌曲标题
                 name_text = f"【{ctx.region.upper()}-{mid}】{name}"
                 if cn_name: name_text += f"  ({cn_name})"
                 TextBox(name_text, TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(20, 20, 20)), use_real_line_count=True).set_padding(16).set_w(800)
