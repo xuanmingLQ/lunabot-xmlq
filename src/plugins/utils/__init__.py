@@ -870,7 +870,7 @@ def get_send_msg_daily_count() -> int:
     return count
 
 
-self_reply_msg_ids = set()
+bot_reply_msg_ids = set()
 MSG_RATE_LIMIT_PER_SECOND = get_config()['msg_rate_limit_per_second']
 current_msg_count = 0
 current_msg_second = -1
@@ -904,8 +904,8 @@ def send_msg_func(func):
         # 记录自身对指令的回复消息id集合
         try:
             if ret:
-                global self_reply_msg_ids
-                self_reply_msg_ids.add(int(ret["message_id"]))
+                global bot_reply_msg_ids
+                bot_reply_msg_ids.add(int(ret["message_id"]))
         except Exception as e:
             utils_logger.print_exc(f'记录发送消息的id失败')
 
@@ -1238,7 +1238,7 @@ def check_superuser(event, superuser=SUPERUSER):
 
 # 自身对指令的回复
 def check_self_reply(event):
-    return int(event.message_id) in self_reply_msg_ids
+    return int(event.message_id) in bot_reply_msg_ids
 
 
 # 冷却时间
@@ -1914,7 +1914,8 @@ class CmdHandler:
             only_to_me=False, 
             disabled=False, 
             banned_cmds: List[str] = None, 
-            check_group_enabled=True
+            check_group_enabled=True,
+            allow_bot_reply_msg=False,
         ):
         if isinstance(commands, str):
             commands = [commands]
@@ -1934,6 +1935,7 @@ class CmdHandler:
         if isinstance(self.banned_cmds, str):
             self.banned_cmds = [self.banned_cmds]
         self.block_set = set()
+        self.allow_bot_reply_msg = allow_bot_reply_msg
         # utils_logger.info(f'注册指令 {commands[0]}')
 
     def check_group(self):
@@ -1971,6 +1973,10 @@ class CmdHandler:
                 # 禁止私聊自己的指令生效
                 if not is_group_msg(event) and event.user_id == event.self_id:
                     self.logger.warning(f'取消私聊自己的指令处理')
+                    return
+                
+                # 禁止bot回复自己的消息重复触发
+                if not self.allow_bot_reply_msg and event.message_id in bot_reply_msg_ids:
                     return
                 
                 # 检测群聊是否启用
