@@ -70,14 +70,28 @@ BG_PADDING = 20
 WIDGET_BG_COLOR = (255, 255, 255, 150)
 WIDGET_BG_RADIUS = 10
 
+
+blurglass_enabled = True
+
+def set_blurglass_enabled(enabled: bool):
+    global blurglass_enabled
+    blurglass_enabled = enabled
+
+def get_blurglass_enabled() -> bool:
+    global blurglass_enabled
+    return blurglass_enabled
+
 # 统一的半透明白色圆角矩形背景
-def roundrect_bg(fill=WIDGET_BG_COLOR, radius=WIDGET_BG_RADIUS, alpha=None):
+def roundrect_bg(fill=WIDGET_BG_COLOR, radius=WIDGET_BG_RADIUS, alpha=None, blurglass=None):
     """
     统一的半透明白色圆角矩形背景
     """
+    global blurglass_enabled
+    if blurglass is None:
+        blurglass = blurglass_enabled
     if alpha is not None:
         fill = (*fill[:3], alpha)
-    return RoundRectBg(fill, radius)
+    return RoundRectBg(fill, radius, blurglass=blurglass)
 
 
 COMMON_BG_NAMES = [

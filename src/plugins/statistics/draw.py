@@ -157,12 +157,12 @@ def draw_pie(gid, date_str, recs, topk_user, topk_name):
                         ImageBox(download_avatar(topk_user[i], circle=True), size=(None, 40))
                     except:
                         logger.print_exc(f"获取{topk_user[i]}头像失败")
-                with Frame().set_bg(RoundRectBg(fill=(240, 240, 240, 170), radius=4)).set_padding(5).set_content_align('l'):
+                with Frame().set_bg(RoundRectBg(fill=(255, 255, 255, 255), radius=4)).set_padding(5).set_content_align('l'):
                     color = cmap[i]
                     h, l, s = colorsys.rgb_to_hls(*color)
                     r, g, b = colorsys.hls_to_rgb(h, l * 0.7, s)
                     color = (int(r * 255), int(g * 255), int(b * 255), 255)
-                    TextBox(f"{truncate(topk_name[i], 16)}", style=TextStyle(size=20, font=DEFAULT_BOLD_FONT, color=color)).set_offset((0, -2))
+                    draw_shadowed_text(f"{truncate(topk_name[i], 16)}", font=DEFAULT_BOLD_FONT, font_size=20, c1=color, c2=(0, 0, 0, 50)).set_offset((0, -2))
                 if offset_anchor == 'rb':
                     hs.items.reverse()
 
@@ -357,7 +357,7 @@ def draw_all(gid, recs, interval, topk1, topk2, user, name, path, date_str):
     bg_color = LinearGradient(c1=c1, c2=c2, p1=(1, 1), p2=(0, 0))
     with Canvas(bg=FillBg(bg_color)).set_padding(10) as canvas:
         with VSplit().set_sep(10).set_padding(10):
-            bg = RoundRectBg(fill=(255, 255, 255, 200), radius=10)
+            bg = RoundRectBg(fill=(255, 255, 255, 200), radius=10, blurglass=True)
 
             title = TextBox(f"{date_str} 群聊消息统计 总消息数: {len(recs)}条")
             title.set_bg(bg).set_padding(10).set_w(850)
@@ -491,7 +491,7 @@ def draw_all_long(gid, recs, interval, topk1, topk2, user, name, path, date_str)
     bg_color = LinearGradient(c1=c1, c2=c2, p1=(1, 1), p2=(0, 0))
     with Canvas(bg=FillBg(bg_color)).set_padding(10) as canvas:
         with VSplit().set_sep(10).set_padding(10):
-            bg = RoundRectBg(fill=(255, 255, 255, 200), radius=10)
+            bg = RoundRectBg(fill=(255, 255, 255, 200), radius=10, blurglass=True)
 
             title = TextBox(f"{date_str} 群聊消息统计 总消息数: {len(recs)}条")
             title.set_bg(bg).set_padding(10).set_w(850 + 850 + 10)

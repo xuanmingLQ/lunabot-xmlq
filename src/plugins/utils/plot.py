@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 from typing import Union, Tuple, List, Optional
-from PIL import Image, ImageFont, ImageDraw, ImageFilter, ImageEnhance
+from PIL import Image, ImageFont, ImageDraw, ImageFilter, ImageEnhance, ImageChops
 from PIL.ImageFont import ImageFont as Font
 import threading
 import contextvars
@@ -14,6 +14,8 @@ from pilmoji import Pilmoji
 from pilmoji import getsize as getsize_emoji
 from pilmoji.source import GoogleEmojiSource
 import emoji
+from .img_utils import mix_image_by_color, adjust_image_alpha_inplace
+from datetime import datetime, timedelta
 
 DEBUG_MODE = False
 
@@ -54,7 +56,7 @@ BLUE = (0, 0, 255, 255)
 TRANSPARENT = (0, 0, 0, 0)
 SHADOW = (0, 0, 0, 150)
 
-ROUNDRECT_ANTIALIASING_TARGET_RADIUS = 32
+ROUNDRECT_ANTIALIASING_TARGET_RADIUS = 16
 
 FONT_DIR = "data/utils/fonts/"
 DEFAULT_FONT = "SourceHanSansCN-Regular"
@@ -448,6 +450,66 @@ class Painter:
         
         return self
 
+    def blurglass_roundrect(
+        self, 
+        pos: Position, 
+        size: Size, 
+        fill: Color,
+        radius: int, 
+        blur: float=4,
+        shadow_width: int=6,
+        shadow_alpha: float=0.3,
+        corners = (True, True, True, True),
+    ):
+        pos = (pos[0] + self.offset[0], pos[1] + self.offset[1])
+        draw_pos = (pos[0] - shadow_width, pos[1] - shadow_width)
+        draw_size = (size[0] + shadow_width * 2, size[1] + shadow_width * 2)
+
+        aa_scale = max(radius, ROUNDRECT_ANTIALIASING_TARGET_RADIUS) / radius if radius > 0 else 1.0
+        aa_size = (int(draw_size[0] * aa_scale), int(draw_size[1] * aa_scale))
+        aa_sw = int(shadow_width * aa_scale)
+        aa_r = radius * aa_size[0] / draw_size[0] if draw_size[0] > 0 else radius
+
+        bg_region = (pos[0], pos[1], pos[0] + int(draw_size[0] * 0.9), pos[1] + int(draw_size[1] * 0.9))
+        if isinstance(fill, Gradient):
+            # 填充渐变色
+            bg = fill.get_img((bg_region[2] - bg_region[0], bg_region[3] - bg_region[1]))
+        elif len(fill) == 3 or fill[3] == 255:
+            # 填充纯色
+            if len(fill) == 3: fill = (*fill, 255)
+            bg = Image.new('RGBA', (bg_region[2] - bg_region[0], bg_region[3] - bg_region[1]), fill)
+        else:
+            # 复制pos位置的size大小的原图模糊并混合颜色
+            bg = self.img.crop(bg_region)
+            bg = bg.filter(ImageFilter.GaussianBlur(radius=blur))
+            bg = mix_image_by_color(bg, fill)
+
+        # 裁剪
+        overlay = Image.new('RGBA', (aa_size[0], aa_size[1]), (0, 0, 0, 0))
+
+        # 超分绘制圆角矩形，缩放到目标大小
+        draw = ImageDraw.Draw(overlay)
+        draw.rounded_rectangle((aa_sw, aa_sw, aa_size[0] - aa_sw - 1, aa_size[1] - aa_sw - 1), fill=BLACK, radius=aa_r, corners=corners)
+        overlay = overlay.resize((draw_size[0], draw_size[1]), Image.Resampling.BICUBIC)
+
+        # 取得mask
+        inner_mask = overlay.copy()
+        bg_mask = overlay.crop((shadow_width, shadow_width, shadow_width + size[0], shadow_width + size[1]))
+
+        # 通过模糊底图获取阴影，然后删除内部阴影
+        adjust_image_alpha_inplace(overlay, shadow_alpha, method='multiply')
+        overlay = overlay.filter(ImageFilter.GaussianBlur(radius=int(shadow_width * 0.5)))
+        overlay = ImageChops.multiply(overlay, ImageChops.invert(inner_mask))
+
+        # 用圆角矩形mask裁剪并粘贴背景
+        bg = bg.resize(size, Image.Resampling.BILINEAR)
+        bg.putalpha(bg_mask.split()[3]) 
+        overlay.alpha_composite(bg, (shadow_width, shadow_width))
+
+        # 贴回原图
+        self.img.alpha_composite(overlay, (draw_pos[0], draw_pos[1]))
+        return self
+
 # =========================== 布局类型 =========================== #
 
 DEFAULT_PADDING = 0
@@ -469,18 +531,22 @@ class FillBg(WidgetBg):
         p.rect((0, 0), p.size, self.fill, self.stroke, self.stroke_width)
 
 class RoundRectBg(WidgetBg):
-    def __init__(self, fill: Color, radius: int, stroke: Color=None, stroke_width: int=1, corners = (True, True, True, True)):
+    def __init__(self, fill: Color, radius: int, stroke: Color=None, stroke_width: int=1, corners = (True, True, True, True), blurglass=False):
         self.fill = fill
         self.radius = radius
         self.stroke = stroke
         self.stroke_width = stroke_width
         self.corners = corners
+        self.blurglass = blurglass
     
     def draw(self, p: Painter):
-        p.roundrect((0, 0), p.size, self.fill, self.radius, self.stroke, self.stroke_width, self.corners)
+        if self.blurglass:
+            p.blurglass_roundrect((0, 0), p.size, self.fill, self.radius, corners=self.corners)
+        else:
+            p.roundrect((0, 0), p.size, self.fill, self.radius, self.stroke, self.stroke_width, self.corners)
 
 class ImageBg(WidgetBg):
-    def __init__(self, img: Union[str, Image.Image], align: str='c', mode='fit', blur=True, fade=0.1):
+    def __init__(self, img: Union[str, Image.Image], align: str='c', mode='fit', blur=False, fade=0.1):
         if isinstance(img, str):
             self.img = Image.open(img)
         else:
@@ -1352,6 +1418,8 @@ class Spacer(Widget):
 
 
 class Canvas(Frame):
+    log_draw_time: bool = False
+
     def __init__(self, w=None, h=None, bg: WidgetBg=None):
         super().__init__()
         self.set_size((w, h))
@@ -1359,6 +1427,7 @@ class Canvas(Frame):
         self.set_margin(0)
 
     def get_img(self, scale: float = None) -> Image.Image:
+        t = datetime.now()
         size = self._get_self_size()
         assert size[0] * size[1] < 4096 * 4096, f'Canvas size is too large ({size[0]} x {size[1]})'
         img = Image.new('RGBA', size, TRANSPARENT)
@@ -1367,9 +1436,10 @@ class Canvas(Frame):
         img = p.get()
         if scale:
             img = img.resize((int(size[0] * scale), int(size[1] * scale)), Image.Resampling.BILINEAR)
+        if Canvas.log_draw_time:
+            print(f"Canvas drawn in {(datetime.now() - t).total_seconds():.3f}s, size={size}")
         return img
-
-
+    
 # =========================== 控件函数 =========================== #
 
 # 由带颜色代码的字符串获取彩色文本组件

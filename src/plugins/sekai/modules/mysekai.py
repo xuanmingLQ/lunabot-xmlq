@@ -991,7 +991,7 @@ async def compose_mysekai_fixture_list_image(
                                                     # 绘制包含多个家具组合以及已读情况
                                                     with Frame().set_content_align('rb'):
                                                         with HSplit().set_content_align('c').set_item_align('c').set_sep(2) \
-                                                            .set_bg(roundrect_bg(fill=(220, 220, 220, 255), radius=4)).set_padding(4):
+                                                            .set_bg(roundrect_bg(radius=4)).set_padding(4):
                                                             for fid, obtained in zip(fids, obtaineds):
                                                                 draw_single_fid(fid, obtained)
                                                         read_info = fids_reads[" ".join([str(fid) for fid in fids])]

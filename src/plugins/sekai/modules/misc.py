@@ -56,6 +56,21 @@ async def _(ctx: SekaiHandlerContext):
     return await ctx.asend_msg(text.strip())
 
 
+blurglass = CmdHandler([
+    "/毛玻璃",
+], logger=logger)
+blurglass.check_cdrate(cd).check_wblist(gbl).check_superuser()
+@blurglass.handle()
+async def _(ctx: HandlerContext):
+    if get_blurglass_enabled():
+        set_blurglass_enabled(False)
+        msg = "已关闭毛玻璃效果"
+    else:
+        set_blurglass_enabled(True)
+        msg = "已开启毛玻璃效果"
+    return await ctx.asend_msg(msg)
+
+
 # ======================= 定时通知 ======================= #
 
 # masterdata更新通知

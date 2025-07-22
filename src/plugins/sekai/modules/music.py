@@ -830,7 +830,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                         for i, (diff, color) in enumerate(DIFF_COLORS.items()):
                             if diff_lvs[i] is not None:
                                 t = TextBox(f"{diff.upper()} {diff_lvs[i]}", TextStyle(font=DEFAULT_BOLD_FONT, size=22, color=WHITE))
-                                t.set_bg(RoundRectBg(fill=color, radius=3)).set_size((gw, 40)).set_content_align('c').set_overflow('clip')
+                                t.set_bg(roundrect_bg(fill=color, radius=3)).set_size((gw, 40)).set_content_align('c').set_overflow('clip')
                             if not isinstance(color, LinearGradient):
                                 light_diff_color.append(adjust_color(lerp_color(color, WHITE, 0.5), a=100))
                             else:
@@ -839,7 +839,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                         for i, count in enumerate(diff_counts):
                             if count is None: continue
                             t = TextBox(f"{count} combo", TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=(80, 80, 80, 255)), line_count=1)
-                            t.set_size((gw, 40)).set_content_align('c').set_bg(RoundRectBg(fill=light_diff_color[i], radius=3))        
+                            t.set_size((gw, 40)).set_content_align('c').set_bg(roundrect_bg(fill=light_diff_color[i], radius=3))        
 
                 # 别名
                 aliases = MusicAliasDB.get_instance().get_aliases(mid)
@@ -859,7 +859,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                                 TextBox(caption + "  ver.", TextStyle(font=DEFAULT_HEAVY_FONT, size=24, color=(50, 50, 50)))
                                 Spacer(w=16)
                                 for vocal in vocals:
-                                    with HSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(4).set_bg(RoundRectBg(fill=(255, 255, 255, 150), radius=8)):
+                                    with HSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(4).set_bg(roundrect_bg(fill=(255, 255, 255, 150), radius=8)):
                                         if vocal['vocal_name']:
                                             TextBox(vocal['vocal_name'], TextStyle(font=DEFAULT_FONT, size=24, color=(70, 70, 70)))
                                         else:
@@ -940,7 +940,7 @@ async def compose_music_list_image(
 
                     with VSplit().set_bg(roundrect_bg()).set_padding(8).set_item_align('lt').set_sep(8):
                         lv_text = TextBox(f"{diff.upper()} {lv}", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=WHITE))
-                        lv_text.set_padding((10, 5)).set_bg(RoundRectBg(fill=DIFF_COLORS[diff], radius=5))
+                        lv_text.set_padding((10, 5)).set_bg(roundrect_bg(fill=DIFF_COLORS[diff], radius=5))
                         
                         with Grid(col_count=10).set_sep(5):
                             for music in filtered_musics:
@@ -1028,16 +1028,16 @@ async def compose_play_progress_image(ctx: SekaiHandlerContext, diff: str, qid: 
                 for lv, c in count:
                     with VSplit().set_content_align('c').set_item_align('c').set_sep(8):
                         # 进度条
-                        def draw_bar(color, h):
-                            return Frame().set_size((w, h)).set_bg(RoundRectBg(fill=color, radius=4))
-                        with draw_bar(PLAY_RESULT_COLORS['not_clear'], bar_h).set_content_align('b') as f:
+                        def draw_bar(color, h, blurglass=False):
+                            return Frame().set_size((w, h)).set_bg(RoundRectBg(fill=color, radius=4, blurglass=blurglass))
+                        with draw_bar(PLAY_RESULT_COLORS['not_clear'], bar_h, blurglass=True).set_content_align('b') as f:
                             if c.clear: draw_bar(PLAY_RESULT_COLORS['clear'], int(bar_h * c.clear / c.total))
                             if c.fc:    draw_bar(PLAY_RESULT_COLORS['fc'],    int(bar_h * c.fc / c.total))
                             if c.ap:    draw_bar(PLAY_RESULT_COLORS['ap'],    int(bar_h * c.ap / c.total))
 
                         # 难度
                         TextBox(f"{lv}", TextStyle(font=DEFAULT_BOLD_FONT, size=font_sz, color=WHITE), overflow='clip') \
-                            .set_bg(RoundRectBg(fill=DIFF_COLORS[diff], radius=16)) \
+                            .set_bg(roundrect_bg(fill=DIFF_COLORS[diff], radius=16)) \
                             .set_size((w, item_h)).set_content_align('c')
                         # 数量 (第一行虽然图标是not_clear但是实际上是total)
                         color = PLAY_RESULT_COLORS['not_clear']
@@ -1102,7 +1102,7 @@ async def compose_music_brief_list_image(
     title: str=None, title_style: TextStyle=None, title_shadow=False
 ):
     MAX_NUM = 50
-    hide_num = len(musics_or_mids) - MAX_NUM
+    hide_num = max(0, len(musics_or_mids) - MAX_NUM)
     musics_or_mids = musics_or_mids[:MAX_NUM]
 
     for i in range(len(musics_or_mids)):
@@ -1140,7 +1140,7 @@ async def compose_music_brief_list_image(
                             Spacer(w=2)
                             for diff, level in zip(diffs, diff_lvs):
                                 if level is not None:
-                                    TextBox(str(level), style3, overflow='clip').set_bg(RoundRectBg(fill=DIFF_COLORS[diff], radius=8)) \
+                                    TextBox(str(level), style3, overflow='clip').set_bg(roundrect_bg(fill=DIFF_COLORS[diff], radius=8)) \
                                         .set_content_align('c').set_size((28, 28))
                                     
             if hide_num:
@@ -1215,7 +1215,7 @@ async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Ima
                                     Spacer(w=gw, h=gh)
                                     for lv in sorted(combo_rewards[diff].keys()):
                                         TextBox(str(lv), TextStyle(DEFAULT_BOLD_FONT, 24, WHITE), overflow='clip').set_size((gh, gh)) \
-                                            .set_content_align('c').set_bg(RoundRectBg(fill=DIFF_COLORS[diff], radius=8))
+                                            .set_content_align('c').set_bg(roundrect_bg(fill=DIFF_COLORS[diff], radius=8))
                                 # 奖励
                                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
                                     ImageBox(jewel_icon if diff != 'append' else shard_icon, size=(None, gh))
@@ -1279,7 +1279,7 @@ async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Ima
                         for diff in combo_rewards:
                             with HSplit().set_content_align('lt').set_item_align('lt').set_sep(24):
                                 TextBox(f"{diff.upper()}", TextStyle(DEFAULT_BOLD_FONT, 24, WHITE), overflow='clip') \
-                                    .set_bg(RoundRectBg(fill=DIFF_COLORS[diff], radius=8)).set_size((120, gh)).set_content_align('c')
+                                    .set_bg(roundrect_bg(fill=DIFF_COLORS[diff], radius=8)).set_size((120, gh)).set_content_align('c')
                                 TextBox("连击奖励", style1).set_size((None, gh)).set_content_align('l')
                                 draw_text_icon(get_mul_text(combo_rewards[diff]), jewel_icon if diff != 'append' else shard_icon, style2) \
                                     .set_size((None, gh))

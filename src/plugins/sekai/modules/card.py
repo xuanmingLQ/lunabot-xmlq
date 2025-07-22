@@ -137,7 +137,7 @@ async def compose_card_list_image(ctx: SekaiHandlerContext, bg_unit: str, cards:
                     if box_card_ids and int(card['id']) not in box_card_ids: 
                         continue
 
-                    bg = RoundRectBg(fill=(255, 255, 255, 150), radius=WIDGET_BG_RADIUS)
+                    bg = roundrect_bg(fill=(255, 255, 255, 150), radius=WIDGET_BG_RADIUS)
                     if card["supply_show_name"]: 
                         bg.fill = (255, 250, 220, 200)
                     

@@ -253,3 +253,30 @@ def multiply_image_by_color(img: Image.Image, color: tuple):
     img_np = img_np * color_np / 255
     img_np = np.clip(img_np, 0, 255).astype(np.uint8)
     return Image.fromarray(img_np, mode=img.mode)
+
+# 图像混合颜色
+def mix_image_by_color(img: Image.Image, color: tuple):
+    if img.mode.upper() not in ['RGB', 'RGBA']:
+        img = img.convert('RGBA')
+    assert len(color) == 4, "Color must be a tuple of 4 elements (R, G, B, A)"
+    # 仅混合 RGB 部分，用 A 作为混合因子
+    factor = color[3] / 255.0
+    color_np = np.array(color[:3], dtype=np.float32)
+    img_np = np.array(img, dtype=np.float32)
+    img_np[..., :3] = img_np[..., :3] * (1 - factor) + color_np * factor
+    img_np = np.clip(img_np, 0, 255).astype(np.uint8)
+    return Image.fromarray(img_np, mode=img.mode)
+
+# 图像调整透明度（原地）
+def adjust_image_alpha_inplace(img: Image.Image, value: Union[int, float], method: str):
+    assert method in ('set', 'multiply')
+    if isinstance(value, float):
+        value = int(value * 255)
+    if img.mode.upper() not in ['RGBA']:
+        img = img.convert('RGBA')
+    alpha_channel = img.split()[-1]
+    if method == 'set':
+        alpha_channel = Image.new('L', img.size, value)
+    elif method == 'multiply':
+        alpha_channel = Image.eval(alpha_channel, lambda a: int(a * value / 255))
+    img.putalpha(alpha_channel)

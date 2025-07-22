@@ -2250,3 +2250,15 @@ daily_send_count.check_superuser()
 async def _(ctx: HandlerContext):
     count = get_send_msg_daily_count()
     return await ctx.asend_reply_msg(f'今日已发送消息数量: {count}')
+
+# 画图调试
+set_log_draw_time = CmdHandler(['/画图时间'], utils_logger)
+set_log_draw_time.check_superuser()
+@set_log_draw_time.handle()
+async def _(ctx: HandlerContext):
+    if Canvas.log_draw_time:
+        Canvas.log_draw_time = False
+        return await ctx.asend_reply_msg("已关闭画图时间日志")
+    else:
+        Canvas.log_draw_time = True
+        return await ctx.asend_reply_msg("已开启画图时间日志")
