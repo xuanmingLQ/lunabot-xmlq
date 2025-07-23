@@ -514,7 +514,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -
                             t.set_bg(roundrect_bg(radius=6)).set_padding((10, 7))
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img, 1.5)
+    return await canvas.get_img(1.5)
 
 # 检测游戏id是否在黑名单中
 def check_uid_in_blacklist(uid: str) -> bool:
@@ -607,7 +607,7 @@ async def compose_challenge_live_detail_image(ctx: SekaiHandlerContext, qid: int
                         TextBox(fragment, text_style).set_w(w6).set_content_align('c')
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 获取玩家加成信息
 async def get_user_power_bonus(ctx: SekaiHandlerContext, profile: dict) -> Dict[str, int]:
@@ -719,7 +719,7 @@ async def compose_power_bonus_detail_image(ctx: SekaiHandlerContext, qid: int) -
                             # TextBox(detail, text_style)
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 
 # ======================= 指令处理 ======================= #

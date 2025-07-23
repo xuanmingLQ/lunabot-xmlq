@@ -48,7 +48,7 @@ async def compose_character_all_stamp_image(ctx: SekaiHandlerContext, cid):
                         ImageBox(img, size=(128, None), use_alphablend=True)
                         TextBox(str(sid), style=TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=text_color))
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 制作表情并返回cq码
 async def make_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, text: str, format: str) -> str:

@@ -118,7 +118,7 @@ async def search_image(
         results = [saucenao_result, await search_googlelens(img_url)]
     
     bg = FillBg(LinearGradient(c1=(220, 220, 255, 255), c2=(220, 240, 255, 255), p1=(0, 0), p2=(1, 1)))
-    item_bg = RoundRectBg((255, 255, 255, 125), 10)
+    item_bg = RoundRectBg((255, 255, 255, 125), 10, blurglass=True)
     text_color1 = (50, 50, 50, 255)
     text_color2 = (75, 75, 75, 255)
     w = 800
@@ -156,4 +156,4 @@ async def search_image(
                                             if item.url:
                                                 TextBox(item.url, style=TextStyle(font=DEFAULT_FONT, size=24, color=text_color2)).set_w(w)
 
-    return await run_in_pool(canvas.get_img), results
+    return await canvas.get_img(), results

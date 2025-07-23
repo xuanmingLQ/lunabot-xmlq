@@ -433,7 +433,7 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
                             if d.banner_cid: ImageBox(get_chara_icon_by_chara_id(d.banner_cid), size=(None, 24))
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 根据"昵称箱数"（比如saki1）获取活动，不存在返回None
 async def get_event_by_ban_name(ctx: SekaiHandlerContext, ban_name: str) -> Optional[dict]:
@@ -664,7 +664,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
 
         msg_lists.append(f"""
 【第{i}章】{summary.get(f'ep_{i}_title', ep['title'])}
-{await get_image_cq(await run_in_pool(canvas.get_img))}
+{await get_image_cq(await canvas.get_img())}
 {summary.get(f'ep_{i}_summary', '')}
 """.strip())
         
@@ -681,7 +681,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
 
         msg_lists.append(f"""
 【第{i + len(eps)}章】{ep['title']}
-{await get_image_cq(await run_in_pool(canvas.get_img))}
+{await get_image_cq(await canvas.get_img())}
 (章节剧情未实装)
 """.strip())
         
@@ -842,7 +842,7 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
                                     ImageBox(get_chara_icon_by_chara_id(cid), size=(None, 40))
 
         add_watermark(canvas)
-        return await run_in_pool(canvas.get_img)
+        return await canvas.get_img()
 
     return await draw(w, h)
 
@@ -924,7 +924,7 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
 
     
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 
 # ======================= 指令处理 ======================= #

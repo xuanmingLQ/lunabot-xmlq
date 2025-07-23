@@ -110,7 +110,7 @@ status = CmdHandler(["status", "状态"], logger, only_to_me=True, block=True, p
 status.check_cdrate(cd)
 @status.handle()
 async def _(ctx: HandlerContext):
-    return await ctx.asend_msg(get_status_image_cq())
+    return await ctx.asend_msg(await get_status_image_cq())
 
 
 STATUS_NOTIFY_TIME = [23, 50, 0]

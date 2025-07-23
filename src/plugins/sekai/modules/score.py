@@ -212,7 +212,7 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
                                 TextBox(f"{score_max}",         style2).set_bg(bg).set_size((gw4, gh)).set_content_align('r')
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
     
 
 

@@ -876,7 +876,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
 
                
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)    
+    return await canvas.get_img()    
 
 # 合成歌曲列表图片
 async def compose_music_list_image(
@@ -957,7 +957,7 @@ async def compose_music_list_image(
                                         TextBox(f"{music['id']}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK)).set_w(64)
                                 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 合成打歌进度图片
 async def compose_play_progress_image(ctx: SekaiHandlerContext, diff: str, qid: int) -> Image.Image:
@@ -1051,7 +1051,7 @@ async def compose_play_progress_image(ctx: SekaiHandlerContext, diff: str, qid: 
                         draw_shadowed_text(f"{ap}",    DEFAULT_BOLD_FONT, font_sz, color, PLAY_RESULT_COLORS['ap'],    w = w, h = item_h).set_bg(roundrect_bg())
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 获取任意一个歌曲音频mp3地址
 async def get_music_audio_mp3_path(ctx: SekaiHandlerContext, mid: int) -> Optional[str]:
@@ -1147,7 +1147,7 @@ async def compose_music_brief_list_image(
                 TextBox(f"{hide_num}首歌曲未显示", TextStyle(font=DEFAULT_FONT, size=20, color=(20, 20, 20))).set_padding(8)
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 合成歌曲奖励图片
 async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
@@ -1285,7 +1285,7 @@ async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Ima
                                     .set_size((None, gh))
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 
 # ======================= 指令处理 ======================= #

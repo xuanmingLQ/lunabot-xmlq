@@ -1098,7 +1098,7 @@ async def compose_deck_recommend_image(
                     TextBox(f"发送\"{ctx.trigger_cmd}help\"获取组卡详细帮助", tip_style)
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 
 # ======================= 指令处理 ======================= #

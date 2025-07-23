@@ -111,7 +111,7 @@ async def compose_vlive_list_image(ctx: SekaiCmdHandler, vlives, title=None, tit
             for vlive in vlives:
                 await get_vlive_widget(ctx, vlive)
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 
 # ======================= 指令处理 ======================= #

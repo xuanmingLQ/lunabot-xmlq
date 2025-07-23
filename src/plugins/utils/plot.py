@@ -1,4 +1,4 @@
-from __future__ import annotations
+from .painter import *
 from enum import Enum
 from typing import Union, Tuple, List, Optional
 from PIL import Image, ImageFont, ImageDraw, ImageFilter, ImageEnhance, ImageChops
@@ -14,508 +14,17 @@ from pilmoji import Pilmoji
 from pilmoji import getsize as getsize_emoji
 from pilmoji.source import GoogleEmojiSource
 import emoji
-from .img_utils import mix_image_by_color, adjust_image_alpha_inplace
 from datetime import datetime, timedelta
 
+
 DEBUG_MODE = False
-
-# =========================== 绘图 =========================== #
-
-ALIGN_MAP = {
-    'c': ('c', 'c'), 'l': ('l', 'c'), 'r': ('r', 'c'), 't': ('c', 't'), 'b': ('c', 'b'),
-    'tl': ('l', 't'), 'tr': ('r', 't'), 'bl': ('l', 'b'), 'br': ('r', 'b'),
-    'lt': ('l', 't'), 'lb': ('l', 'b'), 'rt': ('r', 't'), 'rb': ('r', 'b'), 
-}
-
-def crop_by_align(original_size, crop_size, align):
-    w, h = original_size
-    cw, ch = crop_size
-    assert cw <= w and ch <= h, "Crop size must be smaller than original size"
-    x, y = 0, 0
-    xa, ya = ALIGN_MAP[align]
-    if xa == 'l':
-        x = 0
-    elif xa == 'r':
-        x = w - cw
-    elif xa == 'c':
-        x = (w - cw) // 2
-    if ya == 't':
-        y = 0
-    elif ya == 'b':
-        y = h - ch
-    elif ya == 'c':
-        y = (h - ch) // 2
-    return x, y, x + cw, y + ch
-
-
-BLACK = (0, 0, 0, 255)
-WHITE = (255, 255, 255, 255)
-RED = (255, 0, 0, 255)
-GREEN = (0, 255, 0, 255)
-BLUE = (0, 0, 255, 255)
-TRANSPARENT = (0, 0, 0, 0)
-SHADOW = (0, 0, 0, 150)
-
-ROUNDRECT_ANTIALIASING_TARGET_RADIUS = 16
-
-FONT_DIR = "data/utils/fonts/"
-DEFAULT_FONT = "SourceHanSansCN-Regular"
-DEFAULT_BOLD_FONT = "SourceHanSansCN-Bold"
-DEFAULT_HEAVY_FONT = "SourceHanSansCN-Heavy"
-DEFAULT_EMOJI_FONT = "EmojiOneColor-SVGinOT"
-
-Color = Tuple[int, int, int, int]
-Position = Tuple[int, int]
-Size = Tuple[int, int]
-
-def color_code_to_rgb(code: str) -> Color:
-    if code.startswith("#"):
-        code = code[1:]
-    if len(code) == 3:
-        return int(code[0], 16) * 16, int(code[1], 16) * 16, int(code[2], 16) * 16, 255
-    elif len(code) == 6:
-        return int(code[0:2], 16), int(code[2:4], 16), int(code[4:6], 16), 255
-    raise ValueError("Invalid color code")
-
-def rgb_to_color_code(rgb: Color) -> str:
-    r, g, b = rgb[:3]
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-def lerp_color(c1, c2, t):
-    ret = []
-    for i in range(len(c1)):
-        ret.append(max(0, min(255, int(c1[i] * (1 - t) + c2[i] * t))))
-    return tuple(ret)
-
-def adjust_color(c, r=None, g=None, b=None, a=None):
-    c = list(c)
-    if len(c) == 3: c.append(255)
-    if r is not None: c[0] = r
-    if g is not None: c[1] = g
-    if b is not None: c[2] = b
-    if a is not None: c[3] = a
-    return tuple(c)
-
-def get_font(path: str, size: int) -> Font:
-    paths = [path]
-    paths.append(os.path.join(FONT_DIR, path))
-    paths.append(os.path.join(FONT_DIR, path + ".ttf"))
-    paths.append(os.path.join(FONT_DIR, path + ".otf"))
-    for path in paths:
-        if os.path.exists(path):
-            return ImageFont.truetype(path, size)
-    raise FileNotFoundError(f"Font file not found: {path}")
-
-def get_text_size(font: Font, text: str) -> Size:
-    if emoji.emoji_count(text) > 0:
-        return getsize_emoji(text, font=font)
-    else:
-        bbox = font.getbbox(text)
-        return bbox[2] - bbox[0], bbox[3] - bbox[1]
-
-def get_text_offset(font: Font, text: str) -> Position:
-    bbox = font.getbbox(text)
-    return bbox[0], bbox[1]
-
-def resize_keep_ratio(img: Image.Image, max_size: Union[int, float], mode='long', scale=None) -> Image.Image:
-    """
-    Resize image to keep the aspect ratio, with a maximum size.  
-    mode in ['long', 'short', 'w', 'h', 'wxh', 'scale']
-    """
-    w, h = img.size
-    if mode == 'long':
-        if w > h:
-            ratio = max_size / w
-        else:
-            ratio = max_size / h
-    elif mode == 'short':
-        if w > h:
-            ratio = max_size / h
-        else:
-            ratio = max_size / w
-    elif mode == 'w':
-        ratio = max_size / w
-    elif mode == 'h':
-        ratio = max_size / h
-    elif mode == 'wxh':
-        ratio = math.sqrt(max_size / (w * h))
-    elif mode == 'scale':
-        ratio = max_size
-    else:
-        raise ValueError(f"Invalid mode: {mode}")
-    if scale:
-        ratio *= scale
-    return img.resize((int(w * ratio), int(h * ratio)), Image.Resampling.BILINEAR)
-
-
-class Gradient:
-    def get_colors(self, size: Size) -> np.ndarray: 
-        # [W, H, 4]
-        raise NotImplementedError()
-
-    def get_img(self, size: Size, mask: Image.Image=None) -> Image.Image:
-        img = Image.fromarray(self.get_colors(size), 'RGBA')
-        if mask:
-            assert mask.size == size, "Mask size must match image size"
-            if mask.mode == 'RGBA':
-                mask = mask.split()[3]
-            else:
-                mask = mask.convert('L')
-            img.putalpha(mask)
-        return img
-
-class LinearGradient(Gradient):
-    def __init__(self, c1: Color, c2: Color, p1: Position, p2: Position):
-        self.c1 = c1
-        self.c2 = c2
-        self.p1 = p1
-        self.p2 = p2
-        assert p1 != p2, "p1 and p2 cannot be the same point"
-
-    def get_colors(self, size: Size) -> np.ndarray:
-        w, h = size
-        pixel_p1 = self.p1 * np.array([w, h])
-        pixel_p2 = self.p2 * np.array([w, h])
-        y_indices, x_indices = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
-        coords = np.stack((x_indices, y_indices), axis=-1) # (H, W, 2)
-        gradient_vector = pixel_p2 - pixel_p1
-        length_sq = np.sum(gradient_vector**2)
-        vector_p1_to_pixel = coords - pixel_p1 # (H, W, 2)
-        dot_product = np.sum(vector_p1_to_pixel * gradient_vector, axis=-1) # (H, W)
-        t = dot_product / length_sq
-        t_clamped = np.clip(t, 0, 1) 
-        colors = (1 - t_clamped[:, :, np.newaxis]) * self.c1 + t_clamped[:, :, np.newaxis] * self.c2
-        colors = np.clip(colors, 0, 255).astype(np.uint8)
-        return colors
-
-class RadialGradient(Gradient):
-    def __init__(self, c1: Color, c2: Color, center: Position, radius: float):
-        self.c1 = c1
-        self.c2 = c2
-        self.center = center
-        self.radius = radius
-
-    def get_colors(self, size: Size) -> np.ndarray:
-        w, h = size
-        center = np.array(self.center) * np.array((w, h))
-        y_indices, x_indices = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
-        coords = np.stack((x_indices, y_indices), axis=-1)
-        dist = np.linalg.norm(coords - center, axis=-1) / self.radius
-        dist = np.clip(dist, 0, 1)
-        colors = dist[:, :, np.newaxis] * np.array(self.c1) + (1 - dist)[:, :, np.newaxis] * np.array(self.c2)
-        return colors.astype(np.uint8)
-    
-
-
-class Painter:
-    def __init__(self, img: Image.Image):
-        self.img = img
-        self.offset = (0, 0)
-        self.size = img.size
-        self.w = img.size[0]
-        self.h = img.size[1]
-        self.region_stack = []
-
-    def set_region(self, pos: Position, size: Size):
-        assert isinstance(pos[0], int) and isinstance(pos[1], int), "Position must be integer"
-        assert isinstance(size[0], int) and isinstance(size[1], int), "Size must be integer"
-        self.region_stack.append((self.offset, self.size))
-        self.offset = pos
-        self.size = size
-        self.w = size[0]
-        self.h = size[1]
-        if DEBUG_MODE:
-            print(f"set region {pos} size={size}")
-        return self
-
-    def shrink_region(self, dlt: Position):
-        pos = (self.offset[0] + dlt[0], self.offset[1] + dlt[1])
-        size = (self.size[0] - dlt[0] * 2, self.size[1] - dlt[1] * 2)
-        return self.set_region(pos, size)
-
-    def expand_region(self, dlt: Position):
-        pos = (self.offset[0] - dlt[0], self.offset[1] - dlt[1])
-        size = (self.size[0] + dlt[0] * 2, self.size[1] + dlt[1] * 2)
-        return self.set_region(pos, size)
-
-    def move_region(self, dlt: Position, size: Size = None):
-        offset = (self.offset[0] + dlt[0], self.offset[1] + dlt[1])
-        size = size or self.size
-        return self.set_region(offset, size)
-
-    def restore_region(self, depth=1):
-        if not self.region_stack:
-            self.offset = (0, 0)
-            self.size = self.img.size
-            self.w = self.img.size[0]
-            self.h = self.img.size[1]
-        else:
-            self.offset, self.size = self.region_stack.pop()
-            self.w = self.size[0]
-            self.h = self.size[1]
-        if depth > 1:
-            return self.restore_region(depth - 1)
-        return self
-
-    def get(self) -> Image.Image:
-        return self.img
-
-    def _text(
-        self, 
-        text: str, 
-        pos: Position, 
-        font: Font,
-        fill: Color = BLACK,
-        align: str = "left"
-    ):
-        std_size = get_text_size(font, "哇")
-        has_emoji = emoji.emoji_count(text) > 0
-        if not has_emoji:
-            draw = ImageDraw.Draw(self.img)
-            text_offset = (0, -std_size[1])
-            pos = (pos[0] - text_offset[0] + self.offset[0], pos[1] - text_offset[1] + self.offset[1])
-            draw.text(pos, text, font=font, fill=fill, align=align, anchor='ls')
-        else:
-            with Pilmoji(self.img, source=GoogleEmojiSource) as pilmoji:
-                text_offset = (0, -std_size[1])
-                pos = (pos[0] - text_offset[0] + self.offset[0], pos[1] - text_offset[1] + self.offset[1])
-                pilmoji.text(pos, text, font=font, fill=fill, align=align, emoji_position_offset=(0, -std_size[1]), anchor='ls')
-        return self
-    
-    def text(
-        self, 
-        text: str, 
-        pos: Position, 
-        font: Font,
-        fill: Union[Color, LinearGradient] = BLACK,
-        align: str = "left"
-    ):
-        if isinstance(fill, LinearGradient):
-            gradient = fill
-            fill = BLACK
-        else:
-            gradient = None
-
-        if (len(fill) == 3 or fill[3] == 255) and not gradient:
-            self._text(text, pos, font, fill, align)
-        else:
-            text_size = get_text_size(font, text)
-            overlay_size = (text_size[0] + 10, text_size[1] + 10)
-            overlay = Image.new('RGBA', overlay_size, (0, 0, 0, 0))
-            p = Painter(overlay)
-            p._text(text, (0, 0), font, fill=fill, align=align)
-            if gradient:
-                gradient_img = gradient.get_img(overlay_size, overlay)
-                overlay = gradient_img
-            elif fill[3] < 255:
-                overlay_alpha = overlay.split()[3]
-                overlay_alpha = Image.eval(overlay_alpha, lambda a: int(a * fill[3] / 255))
-                overlay.putalpha(overlay_alpha)
-            self.img.alpha_composite(overlay, (pos[0] + self.offset[0], pos[1] + self.offset[1]))
-        return self
-        
-    def paste(
-        self, 
-        sub_img: Image.Image,
-        pos: Position, 
-        size: Size = None
-    ) -> Image.Image:
-        if size and size != sub_img.size:
-            sub_img = sub_img.resize(size)
-        if sub_img.mode not in ('RGB', 'RGBA'):
-            sub_img = sub_img.convert('RGBA')
-        if sub_img.mode == 'RGBA':
-            self.img.paste(sub_img, (pos[0] + self.offset[0], pos[1] + self.offset[1]), sub_img)
-        else:
-            self.img.paste(sub_img, (pos[0] + self.offset[0], pos[1] + self.offset[1]))
-        return self
-
-    def paste_with_alphablend(
-        self, 
-        sub_img: Image.Image,
-        pos: Position, 
-        size: Size = None,
-        alpha: float = None
-    ) -> Image.Image:
-        if size and size != sub_img.size:
-            sub_img = sub_img.resize(size)
-        pos = (pos[0] + self.offset[0], pos[1] + self.offset[1])
-        overlay = Image.new('RGBA', sub_img.size, (0, 0, 0, 0))
-        overlay.paste(sub_img, (0, 0))
-        if alpha is not None:
-            overlay_alpha = overlay.split()[3]
-            overlay_alpha = Image.eval(overlay_alpha, lambda a: int(a * alpha))
-            overlay.putalpha(overlay_alpha)
-        self.img.alpha_composite(overlay, pos)
-        return self
-
-    def rect(
-        self, 
-        pos: Position, 
-        size: Size, 
-        fill: Union[Color, Gradient], 
-        stroke: Color=None, 
-        stroke_width: int=1,
-    ):
-        if isinstance(fill, Gradient):
-            gradient = fill
-            fill = BLACK
-        else:
-            gradient = None
-
-        pos = (pos[0] + self.offset[0], pos[1] + self.offset[1])
-        bbox = pos + (pos[0] + size[0], pos[1] + size[1])
-
-        if fill[3] == 255 and not gradient:
-            draw = ImageDraw.Draw(self.img)
-            draw.rectangle(bbox, fill=fill, outline=stroke, width=stroke_width)
-        else:
-            overlay_size = (size[0] + 1, size[1] + 1)
-            overlay = Image.new('RGBA', overlay_size, (0, 0, 0, 0))
-            draw = ImageDraw.Draw(overlay)
-            draw.rectangle((0, 0, size[0], size[1]), fill=fill, outline=stroke, width=stroke_width)
-            if gradient:
-                gradient_img = gradient.get_img(overlay_size, overlay)
-                overlay = gradient_img
-            self.img.alpha_composite(overlay, (pos[0], pos[1]))
-
-        return self
-        
-    def roundrect(
-        self, 
-        pos: Position, 
-        size: Size, 
-        fill: Union[Color, Gradient],
-        radius: int, 
-        stroke: Color=None, 
-        stroke_width: int=1,
-        corners = (True, True, True, True),
-    ):
-        if isinstance(fill, Gradient):
-            gradient = fill
-            fill = BLACK
-        else:
-            gradient = None
-
-        pos = (pos[0] + self.offset[0], pos[1] + self.offset[1])
-
-        aa_scale = max(radius, ROUNDRECT_ANTIALIASING_TARGET_RADIUS) / radius if radius > 0 else 1.0
-        aa_size = (int(size[0] * aa_scale), int(size[1] * aa_scale))
-        aa_radius = radius * aa_size[0] / size[0] if size[0] > 0 else radius
-
-        overlay_size = (aa_size[0] + 1, aa_size[1] + 1)
-        overlay = Image.new('RGBA', overlay_size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
-        draw.rounded_rectangle((0, 0, aa_size[0], aa_size[1]), fill=fill, radius=aa_radius, outline=stroke, width=stroke_width, corners=corners)
-        if gradient:
-            gradient_img = gradient.get_img(overlay_size, overlay)
-            overlay = gradient_img
-
-        overlay = overlay.resize((size[0] + 1, size[1] + 1), Image.Resampling.BICUBIC)
-        self.img.alpha_composite(overlay, (pos[0], pos[1]))
-        
-        return self
-
-    def pieslice(
-        self,
-        pos: Position,
-        size: Size,
-        start_angle: float,
-        end_angle: float,
-        fill: Color,
-        stroke: Color=None,
-        stroke_width: int=1,
-    ):
-        if isinstance(fill, Gradient):
-            gradient = fill
-            fill = BLACK
-        else:
-            gradient = None
-
-        pos = (pos[0] + self.offset[0], pos[1] + self.offset[1])
-        bbox = pos + (pos[0] + size[0], pos[1] + size[1])
-
-        if fill[3] == 255 and not gradient:
-            draw = ImageDraw.Draw(self.img)
-            draw.pieslice(bbox, start_angle, end_angle, fill=fill, width=stroke_width, outline=stroke)
-        else:
-            overlay_size = (size[0] + 1, size[1] + 1)
-            overlay = Image.new('RGBA', overlay_size, (0, 0, 0, 0))
-            draw = ImageDraw.Draw(overlay)
-            draw.pieslice((0, 0, size[0], size[1]), start_angle, end_angle, fill=fill, width=stroke_width, outline=stroke)
-            if gradient:
-                gradient_img = gradient.get_img(overlay_size, overlay)
-                overlay = gradient_img
-            self.img.alpha_composite(overlay, (pos[0], pos[1]))
-        
-        return self
-
-    def blurglass_roundrect(
-        self, 
-        pos: Position, 
-        size: Size, 
-        fill: Color,
-        radius: int, 
-        blur: float=4,
-        shadow_width: int=6,
-        shadow_alpha: float=0.3,
-        corners = (True, True, True, True),
-    ):
-        pos = (pos[0] + self.offset[0], pos[1] + self.offset[1])
-        draw_pos = (pos[0] - shadow_width, pos[1] - shadow_width)
-        draw_size = (size[0] + shadow_width * 2, size[1] + shadow_width * 2)
-
-        aa_scale = max(radius, ROUNDRECT_ANTIALIASING_TARGET_RADIUS) / radius if radius > 0 else 1.0
-        aa_size = (int(draw_size[0] * aa_scale), int(draw_size[1] * aa_scale))
-        aa_sw = int(shadow_width * aa_scale)
-        aa_r = radius * aa_size[0] / draw_size[0] if draw_size[0] > 0 else radius
-
-        bg_region = (pos[0], pos[1], pos[0] + int(draw_size[0] * 0.9), pos[1] + int(draw_size[1] * 0.9))
-        if isinstance(fill, Gradient):
-            # 填充渐变色
-            bg = fill.get_img((bg_region[2] - bg_region[0], bg_region[3] - bg_region[1]))
-        elif len(fill) == 3 or fill[3] == 255:
-            # 填充纯色
-            if len(fill) == 3: fill = (*fill, 255)
-            bg = Image.new('RGBA', (bg_region[2] - bg_region[0], bg_region[3] - bg_region[1]), fill)
-        else:
-            # 复制pos位置的size大小的原图模糊并混合颜色
-            bg = self.img.crop(bg_region)
-            bg = bg.filter(ImageFilter.GaussianBlur(radius=blur))
-            bg = mix_image_by_color(bg, fill)
-
-        # 裁剪
-        overlay = Image.new('RGBA', (aa_size[0], aa_size[1]), (0, 0, 0, 0))
-
-        # 超分绘制圆角矩形，缩放到目标大小
-        draw = ImageDraw.Draw(overlay)
-        draw.rounded_rectangle((aa_sw, aa_sw, aa_size[0] - aa_sw - 1, aa_size[1] - aa_sw - 1), fill=BLACK, radius=aa_r, corners=corners)
-        overlay = overlay.resize((draw_size[0], draw_size[1]), Image.Resampling.BICUBIC)
-
-        # 取得mask
-        inner_mask = overlay.copy()
-        bg_mask = overlay.crop((shadow_width, shadow_width, shadow_width + size[0], shadow_width + size[1]))
-
-        # 通过模糊底图获取阴影，然后删除内部阴影
-        adjust_image_alpha_inplace(overlay, shadow_alpha, method='multiply')
-        overlay = overlay.filter(ImageFilter.GaussianBlur(radius=int(shadow_width * 0.5)))
-        overlay = ImageChops.multiply(overlay, ImageChops.invert(inner_mask))
-
-        # 用圆角矩形mask裁剪并粘贴背景
-        bg = bg.resize(size, Image.Resampling.BILINEAR)
-        bg.putalpha(bg_mask.split()[3]) 
-        overlay.alpha_composite(bg, (shadow_width, shadow_width))
-
-        # 贴回原图
-        self.img.alpha_composite(overlay, (draw_pos[0], draw_pos[1]))
-        return self
-
-# =========================== 布局类型 =========================== #
 
 DEFAULT_PADDING = 0
 DEFAULT_MARGIN = 0
 DEFAULT_SEP = 8
 
+
+# =========================== 背景 =========================== #
 
 class WidgetBg:
     def draw(self, p: Painter):
@@ -602,6 +111,8 @@ class ImageBg(WidgetBg):
                     p.paste(self.img, (x, y))
 
 
+# =========================== 布局类型 =========================== #
+
 class Widget:
     _thread_local = contextvars.ContextVar('local', default=None)
 
@@ -637,13 +148,13 @@ class Widget:
         return None
 
     @classmethod
-    def get_current_widget_stack(cls) -> List[Widget]:
+    def get_current_widget_stack(cls) -> List['Widget']:
         local = cls._thread_local.get()
         if local is None: return None
         return local.wstack
 
     @classmethod
-    def get_current_widget(cls) -> Optional[Widget]:
+    def get_current_widget(cls) -> Optional['Widget']:
         stk = cls.get_current_widget_stack()
         if stk is None: return None
         return stk[-1]
@@ -664,10 +175,10 @@ class Widget:
         if not local.wstack:
             self._thread_local.set(None)
 
-    def add_item(self, item: Widget):
+    def add_item(self, item: 'Widget'):
         raise NotImplementedError()
 
-    def set_parent(self, parent: Widget):
+    def set_parent(self, parent: 'Widget'):
         self.parent = parent
         return self
 
@@ -765,11 +276,10 @@ class Widget:
             import random
             color = (random.randint(0, 200), random.randint(0, 200), random.randint(0, 200), 255)
             p.rect((0, 0), (p.w, p.h), TRANSPARENT, stroke=color, stroke_width=2)
-            font = get_font(DEFAULT_FONT, 16)
             s = f"{self.__class__.__name__}({p.w},{p.h})"
             s += f"self={self._get_self_size()}"
             s += f"content={self._get_content_size()}"
-            p.text(s, (3, 3), font=font, fill=color)
+            p.text(s, (3, 3), font=get_font_desc(DEFAULT_FONT, 16), fill=color)
             print(f"Draw {self.__class__.__name__} at {p.offset} size={p.size}")
         
         if self.bg:
@@ -816,7 +326,6 @@ class Widget:
 
         p.restore_region(4)
   
-        
 
 class Frame(Widget):
     def __init__(self, items: List[Widget]=None):
@@ -1247,6 +756,9 @@ class TextBox(Widget):
 
     def _get_pil_font(self):
         return get_font(self.style.font, self.style.size)
+    
+    def _get_font_desc(self):
+        return get_font_desc(self.style.font, self.style.size)
 
     def _get_clip_text_to_width_idx(self, text: str, width: int, suffix=''):
         font = self._get_pil_font()
@@ -1325,7 +837,7 @@ class TextBox(Widget):
             elif self.content_halign == 'c':
                 x += (p.w - lw) // 2
             p.move_region((x, y), (lw, self.style.size))
-            p.text(line, (0, 0), font=font, fill=self.style.color)
+            p.text(line, (0, 0), font=self._get_font_desc(), fill=self.style.color)
             p.restore_region()
     
 
@@ -1426,20 +938,20 @@ class Canvas(Frame):
         self.set_bg(bg)
         self.set_margin(0)
 
-    def get_img(self, scale: float = None) -> Image.Image:
+    async def get_img(self, scale: float = None):
         t = datetime.now()
         size = self._get_self_size()
         assert size[0] * size[1] < 4096 * 4096, f'Canvas size is too large ({size[0]} x {size[1]})'
-        img = Image.new('RGBA', size, TRANSPARENT)
-        p = Painter(img)
+        p = Painter(size=size)
         self.draw(p)
-        img = p.get()
+        img = await p.get()
         if scale:
             img = img.resize((int(size[0] * scale), int(size[1] * scale)), Image.Resampling.BILINEAR)
         if Canvas.log_draw_time:
             print(f"Canvas drawn in {(datetime.now() - t).total_seconds():.3f}s, size={size}")
         return img
     
+
 # =========================== 控件函数 =========================== #
 
 # 由带颜色代码的字符串获取彩色文本组件

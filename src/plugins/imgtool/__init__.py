@@ -1331,7 +1331,7 @@ async def _(ctx: HandlerContext):
                 TextBox(name_text, TextStyle(DEFAULT_FONT, font_sz, WHITE)).set_w(font_sz * line_len // 2).set_content_align('r')
             Spacer(16, 16)
 
-    return await ctx.asend_reply_msg(await get_image_cq(await run_in_pool(canvas.get_img)))
+    return await ctx.asend_reply_msg(await get_image_cq(await canvas.get_img()))
 
 
 # 渲染markdown
@@ -1418,7 +1418,7 @@ async def _(ctx: HandlerContext):
 
     with Canvas(bg=FillBg(WHITE)) as canvas:
         color_card([r, g, b])
-    img = await run_in_pool(canvas.get_img)
+    img = await canvas.get_img()
     
     return await ctx.asend_reply_msg(await get_image_cq(img))
 
@@ -1458,7 +1458,7 @@ async def _(ctx: HandlerContext):
             for color in colors:
                 color_card(color).set_w(180)
                 
-    return await ctx.asend_reply_msg(await get_image_cq(await run_in_pool(canvas.get_img)))
+    return await ctx.asend_reply_msg(await get_image_cq(await canvas.get_img()))
 
 
 # 视频转gif

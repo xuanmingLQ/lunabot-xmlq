@@ -22,6 +22,7 @@ from .music import get_music_cover_thumb
 msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", ['jp'], only_one_group=True)
 
 MYSEKAI_HARVEST_MAP_IMAGE_SCALE = 0.8
+MYSEKAI_HARVEST_MAP_SITE_BG_IMAGE_DOWNSAMPLE = 0.5
 
 MOST_RARE_MYSEKAI_RES = [
     "mysekai_material_5", "mysekai_material_12", "mysekai_material_20", "mysekai_material_24",
@@ -299,6 +300,7 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
         offset_z -= crop_bbox[1] * scale
 
     # 根据天气调整地图颜色
+    site_image = resize_keep_ratio(site_image, MYSEKAI_HARVEST_MAP_SITE_BG_IMAGE_DOWNSAMPLE, 'scale')
     site_image = multiply_image_by_color(site_image, phenomena_color_info['ground'])
 
     # 游戏资源位置映射到绘图位置
@@ -507,7 +509,7 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                     style = TextStyle(font=DEFAULT_HEAVY_FONT, size=int(13 * scale), color=(200, 20, 200, 255))
                 TextBox(f"{call.quantity}", style).set_offset((call.x - 1, call.z - 1))
 
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 合成mysekai资源图片 返回图片列表
 async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_harvested: bool, check_time: bool) -> List[Image.Image]:
@@ -698,7 +700,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     
     add_watermark(canvas)
     add_watermark(canvas2, text=DEFAULT_WATERMARK + ", map view from MiddleRed")
-    return await asyncio.gather(run_in_pool(canvas.get_img), run_in_pool(canvas2.get_img))
+    return await asyncio.gather(canvas.get_img(), canvas2.get_img())
 
 # 获取mysekai家具类别的名称和图片
 async def get_mysekai_fixture_genre_name_and_image(ctx: SekaiHandlerContext, gid: int, is_main_genre: bool) -> Tuple[str, Image.Image]:
@@ -1006,7 +1008,7 @@ async def compose_mysekai_fixture_list_image(
                                             break                       
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 获取mysekai照片和拍摄时间
 async def get_mysekai_photo_and_time(ctx: SekaiHandlerContext, qid: int, seq: int) -> Tuple[Image.Image, datetime]:
@@ -1265,7 +1267,7 @@ async def compose_mysekai_fixture_detail_image(ctx: SekaiHandlerContext, fids: L
             for fid in fids:
                 await get_mysekai_fixture_detail_image_card(ctx, fid)
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 合成mysekai门升级材料图片
 async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int, spec_gate_id: int = None) -> Image.Image:
@@ -1389,7 +1391,7 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
                                                 .set_offset((sz, sz)).set_offset_anchor('rb')
                                         TextBox(sum_quantity, TextStyle(font=DEFAULT_BOLD_FONT, size=12, color=color))
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 合成mysekai唱片列表
 async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, show_id: bool = False) -> Image.Image:
@@ -1463,7 +1465,7 @@ async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, 
                                             TextBox(f"{mid}", TextStyle(font=DEFAULT_FONT, size=10, color=(50, 50, 50)))
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 
 # ======================= 指令处理 ======================= #

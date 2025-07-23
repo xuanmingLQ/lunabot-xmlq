@@ -166,7 +166,7 @@ async def compose_card_list_image(ctx: SekaiHandlerContext, bg_unit: str, cards:
                                 TextBox(id_text, TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)).set_w(GW).set_content_align('c')
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 获取卡面图片
 async def get_card_image(ctx: SekaiHandlerContext, cid: int, after_training: bool, allow_error: bool = True) -> str:
@@ -321,7 +321,7 @@ async def get_card_story_summary(ctx: SekaiHandlerContext, card: dict, refresh: 
 
         msg_lists.append(f"""
 【{ep['title']}】
-{await get_image_cq(await run_in_pool(canvas.get_img))}
+{await get_image_cq(await canvas.get_img())}
 {summary.get(ep['title'], {}).get('summary', '')}
 """.strip())
 
@@ -434,7 +434,7 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
                                         draw_card(card)      
             
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 获取指定ID的技能信息
 async def get_skill_info(ctx: SekaiHandlerContext, sid: int, card: dict):
@@ -776,7 +776,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
                         TextBox(f"发送\"/查卡面 {card_id}\"获取卡面原图, 发送\"/卡面剧情 {card_id}\"获取AI剧情总结", tip_style)
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 
 # ======================= 指令处理 ======================= #

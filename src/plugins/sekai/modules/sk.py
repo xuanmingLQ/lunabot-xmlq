@@ -260,7 +260,7 @@ async def compose_skp_image(ctx: SekaiHandlerContext) -> Image.Image:
                     TextBox(final_score,   item_style, overflow='clip').set_bg(bg).set_size((160, gh)).set_content_align('r').set_padding((16, 0))
 
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 合成整体榜线图片
 async def compose_skl_image(ctx: SekaiHandlerContext, event: dict = None, full: bool = False) -> Image.Image:
@@ -322,7 +322,7 @@ async def compose_skl_image(ctx: SekaiHandlerContext, event: dict = None, full: 
                 TextBox("暂无榜线数据", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)).set_padding(32)
     
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 合成时速图片
 async def compose_sks_image(ctx: SekaiHandlerContext, event: dict = None, period: timedelta = timedelta(minutes=60)) -> Image.Image:
@@ -395,7 +395,7 @@ async def compose_sks_image(ctx: SekaiHandlerContext, event: dict = None, period
                 TextBox("暂无时速数据", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)).set_padding(32)
     
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
     
 # 从文本获取sk查询参数 (类型，值) 类型: 'name' 'uid' 'rank' 'ranks'
 async def get_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str, Union[str, int, List[int]]]:
@@ -521,7 +521,7 @@ async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
                     TextBox(text, style)
     
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img, 1.5)
+    return await canvas.get_img(1.5)
 
 # 合成查房图片
 async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str, int], event: dict = None) -> Image.Image:
@@ -628,7 +628,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
                     TextBox(text, style)
     
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img, 1.5)
+    return await canvas.get_img(1.5)
 
 # 合成玩家追踪图片
 async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str, int], event: dict = None) -> Image.Image:
@@ -703,7 +703,7 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
                 ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
                 TextBox("单榜", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK))
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 合成排名追踪图片
 async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: dict = None) -> Image.Image:
@@ -803,7 +803,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
                 ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
                 TextBox("单榜", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK))
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img)
+    return await canvas.get_img()
 
 # 获取胜率预测数据
 async def get_winrate_predict_data(ctx: SekaiHandlerContext):
@@ -887,7 +887,7 @@ async def compose_winrate_predict_image(ctx: SekaiHandlerContext) -> Image.Image
                                         TextStyle(font=DEFAULT_FONT, size=28, color=(100, 25, 75, 255)))
                             
     add_watermark(canvas)
-    return await run_in_pool(canvas.get_img, 2.)
+    return await canvas.get_img(2.)
 
 
 # ======================= 指令处理 ======================= #
