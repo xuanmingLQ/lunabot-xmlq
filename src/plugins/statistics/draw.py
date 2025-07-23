@@ -63,7 +63,7 @@ def get_cmap(gid, date, n=10, hue_range=0.2):
     return ret
 
 # 绘制饼图
-def draw_pie(gid, date_str, recs, topk_user, topk_name):
+async def draw_pie(gid, date_str, recs, topk_user, topk_name):
     logger.info(f"开始绘制饼图")
 
     # 统计数量
@@ -117,7 +117,7 @@ def draw_pie(gid, date_str, recs, topk_user, topk_name):
             color = tuple([int(255*c) for c in cmap[i]] + [255])
             p = Painter(Image.new('RGBA', size, TRANSPARENT))
             p.pieslice(pos, size, end_angles[i], start_angles[i], color, stroke=None, stroke_width=0)
-            img = p.get()
+            img = await p.get()
             ImageBox(img).set_offset((cx, cy)).set_offset_anchor('c')
 
         # 添加百分比
@@ -166,7 +166,7 @@ def draw_pie(gid, date_str, recs, topk_user, topk_name):
                 if offset_anchor == 'rb':
                     hs.items.reverse()
 
-    return canvas.get_img()
+    return await canvas.get_img()
 
 
 # 绘制折线图
@@ -340,11 +340,11 @@ def draw_wordcloud(gid, date_str, recs, users, names) -> Tuple[Image.Image, str]
 
 
 # 绘制所有图
-def draw_all(gid, recs, interval, topk1, topk2, user, name, path, date_str):
-    logger.info(f"开始绘制所有图到{path}")
+async def draw_all(gid, recs, interval, topk1, topk2, user, name, date_str):
+    logger.info(f"开始绘制所有sta统计图")
     plt.subplots_adjust(wspace=0.0, hspace=0.0)
 
-    pie_image = draw_pie(gid, date_str, recs, user[:topk1], name[:topk1])
+    pie_image = await draw_pie(gid, date_str, recs, user[:topk1], name[:topk1])
 
     fig, ax = plt.subplots(figsize=(8, 4), nrows=1, ncols=1)
     fig.tight_layout()
@@ -372,8 +372,8 @@ def draw_all(gid, recs, interval, topk1, topk2, user, name, path, date_str):
 
             ImageBox(plot_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(16).set_w(850)
 
-    canvas.get_img().save(path)
     logger.info(f"绘制完成")
+    return await canvas.get_img()
 
 
 # 绘制群总聊天数关于时间的折线图 
@@ -469,11 +469,11 @@ def draw_long_sta_date_count_plot(gid, date_str, ax: plt.Axes, topk_user, topk_n
 
 
 # 绘制所有图（长时间统计版本）
-def draw_all_long(gid, recs, interval, topk1, topk2, user, name, path, date_str):
-    logger.info(f"开始绘制所有图到{path}")
+async def draw_all_long(gid, recs, interval, topk1, topk2, user, name, date_str):
+    logger.info(f"开始绘制所有sta统计图")
     plt.subplots_adjust(wspace=0.0, hspace=0.0)
 
-    pie_image = draw_pie(gid, date_str, recs, user[:topk1], name[:topk1])
+    pie_image = await draw_pie(gid, date_str, recs, user[:topk1], name[:topk1])
 
     fig, ax = plt.subplots(figsize=(8, 4), nrows=1, ncols=1)
     fig.tight_layout()
@@ -510,5 +510,5 @@ def draw_all_long(gid, recs, interval, topk1, topk2, user, name, path, date_str)
                     ImageBox(plot_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(16).set_w(850)
                     ImageBox(date_count_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(16).set_w(850)
 
-    canvas.get_img().save(path)
     logger.info(f"绘制完成")
+    return await canvas.get_img()
