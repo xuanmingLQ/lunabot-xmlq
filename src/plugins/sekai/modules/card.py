@@ -943,7 +943,7 @@ async def _(ctx: SekaiHandlerContext):
 # 查询卡牌一览
 pjsk_box = SekaiCmdHandler([
     "/pjsk box", "/pjsk_box", "/pjskbox",
-    "/卡牌一览",
+    "/卡牌一览", "/卡面一览", "/卡一览",
 ])
 pjsk_box.check_cdrate(cd).check_wblist(gbl)
 @pjsk_box.handle()

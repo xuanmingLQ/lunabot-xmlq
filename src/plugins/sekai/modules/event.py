@@ -856,29 +856,64 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
     user_worldblooms: List[Dict[str, Any]] = profile.get('userWorldBlooms', [])
     for item in user_worldblooms:
         item['eventPoint'] = item['worldBloomChapterPoint']
-    user_events += user_worldblooms
 
-    topk = 20
-    if any('rank' in item for item in user_events):
-        has_rank = True
-        title = f"排名前{topk}的记录"
-        user_events.sort(key=lambda x: (x.get('rank', 1e9), -x['eventPoint']))
-    else:
-        has_rank = False
-        title = f"活动点数前{topk}的记录"
-        user_events.sort(key=lambda x: -x['eventPoint'])
-    user_events = user_events[:topk]
+    async def draw_events(name, user_events):
+        topk = 20
+        if any('rank' in item for item in user_events):
+            has_rank = True
+            title = f"排名前{topk}的{name}记录"
+            user_events.sort(key=lambda x: (x.get('rank', 1e9), -x['eventPoint']))
+        else:
+            has_rank = False
+            title = f"活动点数前{topk}的{name}记录"
+            user_events.sort(key=lambda x: -x['eventPoint'])
+        user_events = user_events[:topk]
 
-    for i, item in enumerate(user_events):
-        item['no'] = i + 1
-        event = await ctx.md.events.find_by_id(item['eventId'])
-        item['banner'] = await get_event_banner_img(ctx, event)
-        item['eventName'] = event['name']
-        item['startAt'] = datetime.fromtimestamp(event['startAt'] / 1000)
-        item['endAt'] = datetime.fromtimestamp(event['aggregateAt'] / 1000 + 1)
-        if 'gameCharacterId' in item:
-            item['charaIcon'] = get_chara_icon_by_chara_id(item['gameCharacterId'])
-        
+        for i, item in enumerate(user_events):
+            item['no'] = i + 1
+            event = await ctx.md.events.find_by_id(item['eventId'])
+            item['banner'] = await get_event_banner_img(ctx, event)
+            item['eventName'] = event['name']
+            item['startAt'] = datetime.fromtimestamp(event['startAt'] / 1000)
+            item['endAt'] = datetime.fromtimestamp(event['aggregateAt'] / 1000 + 1)
+            if 'gameCharacterId' in item:
+                item['charaIcon'] = get_chara_icon_by_chara_id(item['gameCharacterId'])
+
+        with VSplit().set_padding(16).set_sep(16).set_item_align('lt').set_content_align('lt').set_bg(roundrect_bg()):
+            TextBox(title, style1)
+
+            th, sh, gh = 28, 40, 80
+            with HSplit().set_padding(16).set_sep(16).set_item_align('lt').set_content_align('lt').set_bg(roundrect_bg()):
+                # 序号
+                with VSplit().set_padding(0).set_sep(sh).set_item_align('c').set_content_align('c'):
+                    Spacer(h=th)
+                    for item in user_events:
+                        TextBox(f"#{item['no']}", style1, overflow='clip').set_h(gh)
+                # 活动信息
+                with VSplit().set_padding(0).set_sep(sh).set_item_align('c').set_content_align('c'):
+                    TextBox("活动", style1).set_h(th).set_content_align('c')
+                    for item in user_events:
+                        with HSplit().set_padding(0).set_sep(4).set_item_align('l').set_content_align('l').set_h(gh):
+                            with Frame().set_content_align('lb'):
+                                ImageBox(item['banner'], size=(None, gh))
+                                if 'charaIcon' in item:
+                                    ImageBox(item['charaIcon'], size=(48, 48)).set_offset((4, -4))
+                            with VSplit().set_padding(0).set_sep(2).set_item_align('l').set_content_align('l'):
+                                TextBox(f"【{item['eventId']}】{item['eventName']}", style2).set_w(150)
+                                TextBox(f"S {item['startAt'].strftime('%Y-%m-%d %H:%M')}", style2)
+                                TextBox(f"T {item['endAt'].strftime('%Y-%m-%d %H:%M')}", style2)
+                # 排名
+                if has_rank:
+                    with VSplit().set_padding(0).set_sep(sh).set_item_align('c').set_content_align('c'):
+                        TextBox("排名", style1).set_h(th).set_content_align('c')
+                        for item in user_events:
+                            TextBox(f"#{item.get('rank', '-')}", style3, overflow='clip').set_h(gh).set_content_align('c')
+                # 活动点数
+                with VSplit().set_padding(0).set_sep(sh).set_item_align('c').set_content_align('c'):
+                    TextBox("PT", style1).set_h(th).set_content_align('c')
+                    for item in user_events:
+                        TextBox(f"{item['eventPoint']}", style3, overflow='clip').set_h(gh).set_content_align('c')
+          
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50))
     style2 = TextStyle(font=DEFAULT_FONT, size=16, color=(70, 70, 70))
     style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(70, 70, 70))
@@ -887,41 +922,11 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
             await get_detailed_profile_card(ctx, profile, err_msg)
 
-            with VSplit().set_padding(16).set_sep(16).set_item_align('lt').set_content_align('lt').set_bg(roundrect_bg()):
-                TextBox(title, style1)
-
-                th, sh, gh = 28, 40, 80
-                with HSplit().set_padding(16).set_sep(16).set_item_align('lt').set_content_align('lt').set_bg(roundrect_bg()):
-                    # 序号
-                    with VSplit().set_padding(0).set_sep(sh).set_item_align('c').set_content_align('c'):
-                        Spacer(h=th)
-                        for item in user_events:
-                            TextBox(f"#{item['no']}", style1, overflow='clip').set_h(gh)
-                    # 活动信息
-                    with VSplit().set_padding(0).set_sep(sh).set_item_align('c').set_content_align('c'):
-                        TextBox("活动", style1).set_h(th).set_content_align('c')
-                        for item in user_events:
-                            with HSplit().set_padding(0).set_sep(4).set_item_align('l').set_content_align('l').set_h(gh):
-                                with Frame().set_content_align('lb'):
-                                    ImageBox(item['banner'], size=(None, gh))
-                                    if 'charaIcon' in item:
-                                        ImageBox(item['charaIcon'], size=(48, 48)).set_offset((4, -4))
-                                with VSplit().set_padding(0).set_sep(2).set_item_align('l').set_content_align('l'):
-                                    TextBox(f"【{item['eventId']}】{item['eventName']}", style2).set_w(150)
-                                    TextBox(f"S {item['startAt'].strftime('%Y-%m-%d %H:%M')}", style2)
-                                    TextBox(f"T {item['endAt'].strftime('%Y-%m-%d %H:%M')}", style2)
-                    # 排名
-                    if has_rank:
-                        with VSplit().set_padding(0).set_sep(sh).set_item_align('c').set_content_align('c'):
-                            TextBox("排名", style1).set_h(th).set_content_align('c')
-                            for item in user_events:
-                                TextBox(f"#{item.get('rank', '-')}", style3, overflow='clip').set_h(gh).set_content_align('c')
-                    # 活动点数
-                    with VSplit().set_padding(0).set_sep(sh).set_item_align('c').set_content_align('c'):
-                        TextBox("PT", style1).set_h(th).set_content_align('c')
-                        for item in user_events:
-                            TextBox(f"{item['eventPoint']}", style3, overflow='clip').set_h(gh).set_content_align('c')
-
+            with HSplit().set_sep(16).set_item_align('lt').set_content_align('lt'):
+                if user_events:
+                    await draw_events("活动", user_events)
+                if user_worldblooms:
+                    await draw_events("WL单榜", user_worldblooms)
     
     add_watermark(canvas)
     return await canvas.get_img()
