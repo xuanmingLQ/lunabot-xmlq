@@ -327,13 +327,13 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
             harvest_fixture = (await ctx.md.mysekai_site_harvest_fixtures.find_by_id(fid))
             asset_name = harvest_fixture['assetbundleName']
             rarity = harvest_fixture['mysekaiSiteHarvestFixtureRarityType']
-            image = ctx.static_imgs.get(f"mysekai/harvest_fixture_icon/{rarity}/{asset_name}.png")
+            image = ctx.static_imgs.get(f"mysekai/harvest_fixture_icon/{rarity}/{asset_name}.png", (128, None))
         except: 
             image = None
         harvest_points.append({"id": fid, 'image': image, 'x': x, 'z': z})
     harvest_points.sort(key=lambda x: (x['z'], x['x']))
 
-    # 获取高亮资源的位置
+    # 获取资源掉落的位置
     all_res = {}
     for item in harvest_map['userMysekaiSiteHarvestResourceDrops']:
         res_type = item['resourceType']

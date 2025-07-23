@@ -949,13 +949,14 @@ DEFAULT_STATIC_IMAGE_DIR = f"{SEKAI_ASSET_DIR}/static_images"
 class StaticImageRes:
     def __init__(self, dir: str = None):
         self.dir = dir or DEFAULT_STATIC_IMAGE_DIR
-        self.images = {}
+        self.images: Dict[str, Tuple[Image.Image, int]] = {}  # path -> (image, mtime)
         self.lock = threading.Lock()
 
-    def get(self, path: str) -> Image.Image:
+    def get(self, path: str, size: Tuple[int, int] = None) -> Image.Image:
         """
         基于基础目录获取指定路径的图片资源
         当图片在本地更新时，会自动重新加载
+        指定size时会缩放图片到指定大小
         """
         fullpath = pjoin(self.dir, path)
         if not osp.exists(fullpath):
@@ -966,6 +967,10 @@ class StaticImageRes:
                 mtime = int(os.path.getmtime(fullpath) * 1000)
                 if mtime != time:
                     self.images[path] = (open_image(fullpath).convert('RGBA'), mtime)
+                img, time = self.images[path]
+                if size:
+                    img = resize_by_optional_size(img, size)
+                self.images[path] = (img, time) 
                 return self.images[path][0]
         except:
             raise FileNotFoundError(f"读取静态图片资源 {fullpath} 失败")

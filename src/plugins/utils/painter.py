@@ -192,6 +192,21 @@ def resize_keep_ratio(img: Image.Image, max_size: Union[int, float], mode='long'
         ratio *= scale
     return img.resize((int(w * ratio), int(h * ratio)), Image.Resampling.BILINEAR)
 
+def resize_by_optional_size(img: Image.Image, size: Tuple[Optional[int], Optional[int]]) -> Image.Image:
+    if size[0] is None and size[1] is None:
+        return img
+    if size[0] is None:
+        if img.size[1] == size[1]:
+            return img
+        return resize_keep_ratio(img, size[1], mode='h')
+    if size[1] is None:
+        if img.size[0] == size[0]:
+            return img
+        return resize_keep_ratio(img, size[0], mode='w')
+    if img.size[0] == size[0] and img.size[1] == size[1]:
+        return img
+    return img.resize(size, Image.Resampling.BILINEAR)
+
 
 class Gradient:
     def get_colors(self, size: Size) -> np.ndarray: 
@@ -325,12 +340,12 @@ class Painter:
         p = Painter(img, size)
         for op in operations:
             op.id_to_image(image_dict)
-            debug_print(f"Executing: {op}")
+            # debug_print(f"Executing: {op}")
             p.offset = op.offset
             p.size = op.size
             p.w, p.h = op.size
             getattr(p, op.name)(*op.args)
-            debug_print(f"Method {op.name} executed, current memory usage: {get_memo_usage()} MB")
+            # debug_print(f"Method {op.name} executed, current memory usage: {get_memo_usage()} MB")
         debug_print(f"Sub process use time: {datetime.now() - t}")
         return p.img
 
@@ -345,8 +360,8 @@ class Painter:
             total_img_size += img.size[0] * img.size[1] * 4
         debug_print(f"image_dict len: {len(image_dict)}, total size: {total_img_size//1024//1024} MB")
 
-        for op in self.operations:
-            debug_print(f"Operation: {op.name}, args: {op.args}, offset: {op.offset}, size: {op.size}")
+        # for op in self.operations:
+        #     debug_print(f"Operation: {op.name}, args: {op.args}, offset: {op.offset}, size: {op.size}")
 
         t = datetime.now()
         self.img = await _painter_pool.submit(Painter._execute, self.operations, self.img, self.size, image_dict)
@@ -709,5 +724,5 @@ class Painter:
         return self
 
 
-
 _painter_pool: ProcessPool = ProcessPool(PAINTER_PROCESS_NUM)
+
