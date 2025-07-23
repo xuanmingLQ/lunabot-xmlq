@@ -877,7 +877,7 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
             item['startAt'] = datetime.fromtimestamp(event['startAt'] / 1000)
             item['endAt'] = datetime.fromtimestamp(event['aggregateAt'] / 1000 + 1)
             if 'gameCharacterId' in item:
-                item['charaIcon'] = get_chara_icon_by_chara_id(item['gameCharacterId'])
+                item['charaIcon'] = await SekaiHandlerContext.from_region('jp').rip.img(f"character/character_sd_l/chr_sp_{item['gameCharacterId']}.png")
 
         with VSplit().set_padding(16).set_sep(16).set_item_align('lt').set_content_align('lt').set_bg(roundrect_bg()):
             TextBox(title, style1)
@@ -894,10 +894,9 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
                     TextBox("活动", style1).set_h(th).set_content_align('c')
                     for item in user_events:
                         with HSplit().set_padding(0).set_sep(4).set_item_align('l').set_content_align('l').set_h(gh):
-                            with Frame().set_content_align('lb'):
-                                ImageBox(item['banner'], size=(None, gh))
-                                if 'charaIcon' in item:
-                                    ImageBox(item['charaIcon'], size=(48, 48)).set_offset((4, -4))
+                            if 'charaIcon' in item:
+                                ImageBox(item['charaIcon'], size=(None, gh))
+                            ImageBox(item['banner'], size=(None, gh))
                             with VSplit().set_padding(0).set_sep(2).set_item_align('l').set_content_align('l'):
                                 TextBox(f"【{item['eventId']}】{item['eventName']}", style2).set_w(150)
                                 TextBox(f"S {item['startAt'].strftime('%Y-%m-%d %H:%M')}", style2)
