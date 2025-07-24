@@ -845,7 +845,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                         for i, (diff, color) in enumerate(DIFF_COLORS.items()):
                             if diff_lvs[i] is not None:
                                 t = TextBox(f"{diff.upper()} {diff_lvs[i]}", TextStyle(font=DEFAULT_BOLD_FONT, size=22, color=WHITE))
-                                t.set_bg(roundrect_bg(fill=color, radius=3)).set_size((gw, 40)).set_content_align('c').set_overflow('clip')
+                                t.set_bg(roundrect_bg(fill=color, radius=6)).set_size((gw, 40)).set_content_align('c').set_overflow('clip')
                             if not isinstance(color, LinearGradient):
                                 light_diff_color.append(adjust_color(lerp_color(color, WHITE, 0.5), a=100))
                             else:
@@ -854,7 +854,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                         for i, count in enumerate(diff_counts):
                             if count is None: continue
                             t = TextBox(f"{count} combo", TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=(80, 80, 80, 255)), line_count=1)
-                            t.set_size((gw, 40)).set_content_align('c').set_bg(roundrect_bg(fill=light_diff_color[i], radius=3))        
+                            t.set_size((gw, 40)).set_content_align('c').set_bg(roundrect_bg(fill=light_diff_color[i], radius=6))        
 
                 # 别名
                 aliases = MusicAliasDB.get_instance().get_aliases(mid)

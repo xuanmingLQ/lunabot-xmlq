@@ -225,24 +225,31 @@ class Gradient:
         return img
 
 class LinearGradient(Gradient):
-    def __init__(self, c1: Color, c2: Color, p1: Position, p2: Position):
+    def __init__(self, c1: Color, c2: Color, p1: Position, p2: Position, method: str = 'separate'):
         self.c1 = c1
         self.c2 = c2
         self.p1 = p1
         self.p2 = p2
+        self.method = method
         assert p1 != p2, "p1 and p2 cannot be the same point"
+        assert method in ('combine', 'separate')
 
     def get_colors(self, size: Size) -> np.ndarray:
         w, h = size
-        pixel_p1 = self.p1 * np.array([w, h])
-        pixel_p2 = self.p2 * np.array([w, h])
+        pixel_p1 = np.array((self.p1[1] * h, self.p1[0] * w))
+        pixel_p2 = np.array((self.p2[1] * h, self.p2[0] * w))
         y_indices, x_indices = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
-        coords = np.stack((x_indices, y_indices), axis=-1) # (H, W, 2)
-        gradient_vector = pixel_p2 - pixel_p1
-        length_sq = np.sum(gradient_vector**2)
-        vector_p1_to_pixel = coords - pixel_p1 # (H, W, 2)
-        dot_product = np.sum(vector_p1_to_pixel * gradient_vector, axis=-1) # (H, W)
-        t = dot_product / length_sq
+        coords = np.stack((y_indices, x_indices), axis=-1) # (H, W, 2)
+        if self.method == 'combine':
+            gradient_vector = pixel_p2 - pixel_p1
+            length_sq = np.sum(gradient_vector**2)
+            vector_p1_to_pixel = coords - pixel_p1 # (H, W, 2)
+            dot_product = np.sum(vector_p1_to_pixel * gradient_vector, axis=-1) # (H, W)
+            t = dot_product / length_sq
+        elif self.method == 'separate':
+            vector_pixel_to_p1 = coords - pixel_p1
+            vector_p2_to_p1 = pixel_p2 - pixel_p1
+            t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
         t_clamped = np.clip(t, 0, 1) 
         colors = (1 - t_clamped[:, :, np.newaxis]) * self.c1 + t_clamped[:, :, np.newaxis] * self.c2
         colors = np.clip(colors, 0, 255).astype(np.uint8)
@@ -670,18 +677,21 @@ class Painter:
         fill: Color,
         radius: int, 
         blur: float=4,
-        shadow_width: int=6,
+        shaodow_width: int=6,
         shadow_alpha: float=0.3,
         corners = (True, True, True, True),
+        edge_strength: float=0.6,
     ):
+        sw = shaodow_width
         pos = (pos[0] + self.offset[0], pos[1] + self.offset[1])
-        draw_pos = (pos[0] - shadow_width, pos[1] - shadow_width)
-        draw_size = (size[0] + shadow_width * 2, size[1] + shadow_width * 2)
+        draw_pos = (pos[0] - sw, pos[1] - sw)
+        draw_size = (size[0] + sw * 2, size[1] + sw * 2)
 
         aa_scale = max(radius, ROUNDRECT_ANTIALIASING_TARGET_RADIUS) / radius if radius > 0 else 1.0
         aa_size = (int(draw_size[0] * aa_scale), int(draw_size[1] * aa_scale))
-        aa_sw = int(shadow_width * aa_scale)
+        aa_sw = int(sw * aa_scale)
         aa_r = radius * aa_size[0] / draw_size[0] if draw_size[0] > 0 else radius
+        aa_resize_method = Image.Resampling.BILINEAR if aa_scale < 2 else Image.Resampling.BICUBIC
 
         bg_offset = 32
         bg_offset = min(bg_offset, draw_size[0] - bg_offset, draw_size[1] - bg_offset)
@@ -705,27 +715,73 @@ class Painter:
             bg = bg.filter(ImageFilter.GaussianBlur(radius=blur))
             bg = mix_image_by_color(bg, fill)
 
-        # 裁剪
-        overlay = Image.new('RGBA', (aa_size[0], aa_size[1]), (0, 0, 0, 0))
-
         # 超分绘制圆角矩形，缩放到目标大小
+        overlay = Image.new('RGBA', (aa_size[0], aa_size[1]), (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
         draw.rounded_rectangle((aa_sw, aa_sw, aa_size[0] - aa_sw - 1, aa_size[1] - aa_sw - 1), fill=BLACK, radius=aa_r, corners=corners)
-        overlay = overlay.resize((draw_size[0], draw_size[1]), Image.Resampling.BICUBIC)
+        overlay = overlay.resize((draw_size[0], draw_size[1]), aa_resize_method)
 
         # 取得mask
         inner_mask = overlay.copy()
-        bg_mask = overlay.crop((shadow_width, shadow_width, shadow_width + size[0], shadow_width + size[1]))
+        bg_mask = overlay.crop((sw, sw, sw + size[0], sw + size[1]))
 
         # 通过模糊底图获取阴影，然后删除内部阴影
         adjust_image_alpha_inplace(overlay, shadow_alpha, method='multiply')
-        overlay = overlay.filter(ImageFilter.GaussianBlur(radius=int(shadow_width * 0.5)))
+        overlay = overlay.filter(ImageFilter.GaussianBlur(radius=int(sw * 0.5)))
         overlay = ImageChops.multiply(overlay, ImageChops.invert(inner_mask))
 
         # 用圆角矩形mask裁剪并粘贴背景
         bg = bg.resize(size, Image.Resampling.BILINEAR)
         bg.putalpha(bg_mask.split()[3]) 
-        overlay.alpha_composite(bg, (shadow_width, shadow_width))
+        overlay.alpha_composite(bg, (sw, sw))
+
+        # 边缘效果
+        if edge_strength is not None and edge_strength > 0:
+            edge_width = min(4, min(draw_size) // 16, radius // 2)
+            if edge_width > 0:
+                edge_overlay = Image.new('RGBA', (aa_size[0], aa_size[1]), TRANSPARENT)
+                draw = ImageDraw.Draw(edge_overlay)
+                ew, aa_ew = edge_width, int(edge_width * aa_scale)
+                draw.rounded_rectangle(
+                    (aa_sw, aa_sw, aa_size[0] - aa_sw - 1, aa_size[1] - aa_sw - 1), 
+                    outline=WHITE, width=aa_ew, radius=aa_r, corners=corners
+                )
+
+                edge_overlay = edge_overlay.resize(draw_size, aa_resize_method)
+                alpha1, alpha2 = int(255 * edge_strength), int(255 * edge_strength * 0.75)
+                lt_points, rb_points = ((0, 0), (0.8, 0.4)), ((0.6, 0.8), (1.0, 1.0))
+                lt_colors = ((255, 255, 255, alpha1), (255, 255, 255, 0))
+                rb_colors = ((255, 255, 255, 0), (255, 255, 255, alpha2))
+                w, h = draw_size[0], draw_size[1]
+                def get_grad_p(p1, p2, pos, size):
+                    p1, p2 = (p1[0] * w, p1[1] * h), (p2[0] * w, p2[1] * h)
+                    newp1 = ((p1[0] - pos[0]) / size[0], (p1[1] - pos[1]) / size[1])
+                    newp2 = ((p2[0] - pos[0]) / size[0], (p2[1] - pos[1]) / size[1])
+                    return { 'p1': newp1, 'p2': newp2 }
+                
+                edge_color_overlay = Image.new('RGBA', draw_size, TRANSPARENT)
+                t_pos, t_size = (sw, sw), (w - sw * 2, ew)
+                edge_color_t = LinearGradient(*lt_colors, **get_grad_p(*lt_points, t_pos, t_size)).get_img(t_size)
+                edge_color_overlay.paste(edge_color_t, t_pos)
+                l_pos, l_size = (sw, sw), (ew, h - sw * 2)
+                edge_color_l = LinearGradient(*lt_colors, **get_grad_p(*lt_points, l_pos, l_size)).get_img(l_size)
+                edge_color_overlay.paste(edge_color_l, l_pos)
+                lt_pos, lt_size = (sw, sw), (radius, radius)
+                edge_color_lt = LinearGradient(*lt_colors, **get_grad_p(*lt_points, lt_pos, lt_size)).get_img(lt_size)
+                edge_color_overlay.paste(edge_color_lt, lt_pos)
+
+                r_pos, r_size = (w - ew - sw, sw), (ew, h - sw * 2)
+                edge_color_r = LinearGradient(*rb_colors, **get_grad_p(*rb_points, r_pos, r_size)).get_img(r_size)
+                edge_color_overlay.paste(edge_color_r, r_pos)
+                b_pos, b_size = (sw, h - ew - sw), (w - sw * 2, ew)
+                edge_color_b = LinearGradient(*rb_colors, **get_grad_p(*rb_points, b_pos, b_size)).get_img(b_size)
+                edge_color_overlay.paste(edge_color_b, b_pos)
+                rb_pos, rb_size = (w - radius - sw, h - radius - sw), (radius, radius)
+                edge_color_rb = LinearGradient(*rb_colors, **get_grad_p(*rb_points, rb_pos, rb_size)).get_img(rb_size)
+                edge_color_overlay.paste(edge_color_rb, rb_pos)
+                
+                edge_overlay = ImageChops.multiply(edge_overlay, edge_color_overlay)
+                overlay.alpha_composite(edge_overlay)
 
         # 贴回原图
         self.img.alpha_composite(overlay, (draw_pos[0], draw_pos[1]))
