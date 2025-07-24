@@ -999,7 +999,7 @@ async def compose_mysekai_fixture_list_image(
                                                         read_info = fids_reads[" ".join([str(fid) for fid in fids])]
                                                         noread_num = read_info['total'] - read_info['read']
                                                         if noread_num > 1:
-                                                            TextBox(f"{noread_num}", TextStyle(font=DEFAULT_FONT, size=12, color=(255, 0, 0))).set_offset((5, 5))
+                                                            TextBox(f"x{noread_num}", TextStyle(font=DEFAULT_FONT, size=12, color=(255, 0, 0))).set_offset((5, 5))
                                                     cur_x += len(fids)
                                                     cur_idx += 1     
                                                 if cur_idx >= len(fixtures[main_genre_id][sub_genre_id]):
@@ -1371,7 +1371,7 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
                 for gid, lv_materials in gate_materials.items():
                     gate_icon = ctx.static_imgs.get(f'mysekai/gate_icon/gate_{gid}.png')
                     with VSplit().set_content_align('c').set_item_align('c').set_sep(8).set_item_bg(roundrect_bg()).set_padding(8):
-                        ImageBox(gate_icon, size=(None, 40))
+                        ImageBox(gate_icon, size=(None, 40)).set_omit_parent_bg(True)
                         lv_color = (50, 50, 50) if not profile else green_color
                         for level, items in enumerate(lv_materials, spec_lvs.get(gid, 0) + 1):
                             for item in items:
