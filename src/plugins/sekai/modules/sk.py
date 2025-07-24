@@ -15,7 +15,6 @@ from .event import (
     get_wl_chapter_cid,
     get_wl_events,
     get_event_id_and_name_text,
-    extract_wl_event,
 )
 from .sk_sql import (
     Ranking, 
@@ -132,7 +131,7 @@ async def extract_wl_event(ctx: SekaiHandlerContext, args: str) -> Tuple[dict, s
         event['startAt'] = chapter['chapterStartAt']
         event['aggregateAt'] = chapter['aggregateAt']
         event['wl_cid'] = chapter['gameCharacterId']
-        args = args.replace(carg, "")
+        args = args.replace(carg, "").replace("wl", "")
 
         logger.info(f"查询WL活动章节: chapter_arg={carg} wl_id={event['id']}")
         return event, args
