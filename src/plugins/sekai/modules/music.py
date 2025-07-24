@@ -622,6 +622,20 @@ async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearc
 
 # ======================= 处理逻辑 ======================= #
 
+# 获取有效歌曲列表
+async def get_valid_musics(ctx: SekaiHandlerContext, leak=False) -> List[Dict]:
+    musics = await ctx.md.musics.get()
+    ret = []
+    for m in musics:
+        if not leak and datetime.fromtimestamp(m['publishedAt'] / 1000) > datetime.now():
+            continue
+        if m.get('isFullLength'):
+            continue
+        if m['id'] in (241, 290):
+            continue
+        ret.append(m)
+    return ret
+
 # 在所有服务器根据id检索歌曲（优先在ctx.region)
 async def find_music_by_id_all_region(ctx: SekaiHandlerContext, mid: int) -> Optional[Dict]:
     regions = ALL_SERVER_REGIONS.copy()
@@ -782,9 +796,10 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                 # 附加标题
                 if title and title_style:
                     if title_shadow:
-                        draw_shadowed_text(title, title_style.font, title_style.size, title_style.color, padding=16)
+                        draw_shadowed_text(title, title_style.font, title_style.size, title_style.color, padding=16) \
+                            .set_omit_parent_bg(True).set_bg(roundrect_bg())
                     else:
-                        TextBox(title, title_style).set_padding(16)
+                        TextBox(title, title_style).set_padding(16).set_omit_parent_bg(True).set_bg(roundrect_bg())
 
                 # 歌曲标题
                 name_text = f"【{ctx.region.upper()}-{mid}】{name}"
@@ -966,14 +981,10 @@ async def compose_play_progress_image(ctx: SekaiHandlerContext, diff: str, qid: 
 
     count = { lv: PlayProgressCount() for lv in range(1, 40) }
 
-    for music in await ctx.md.musics.get():
+    for music in await get_valid_musics(ctx, leak=False):
         mid = music['id']
         level = (await get_music_diff_info(ctx, mid)).level.get(diff)
         if not level: 
-            continue
-        if datetime.fromtimestamp(music['publishedAt'] / 1000) > datetime.now():
-            continue
-        if music['isFullLength']:
             continue
         count[level].total += 1
 
@@ -1153,10 +1164,7 @@ async def compose_music_brief_list_image(
 async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
     profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=False)
     # 获取有效歌曲id
-    mids = [
-        m['id'] for m in await ctx.md.musics.get() 
-        if not m.get('isFullLength', False) and datetime.fromtimestamp(m['publishedAt'] / 1000) <= datetime.now()
-    ]
+    mids = [m['id'] for m in await get_valid_musics(ctx, leak=False)]
 
     gw, gh = 80, 40
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)) # 表头
@@ -1546,14 +1554,13 @@ async def _(ctx: SekaiHandlerContext):
             if args:
                 return await ctx.asend_reply_msg(help_msg)
 
-    musics = await ctx.md.musics.get()
+    musics = await get_valid_musics(ctx, leak=show_leak)
 
     logger.info(f"查询歌曲列表 diff={diff} lv={lv} ma_lv={ma_lv} mi_lv={mi_lv}")
     lv_musics = {}
 
     for music in musics:
         mid = music["id"]
-        if music['isFullLength']: continue
         diff_info = await get_music_diff_info(ctx, mid)
         if diff not in diff_info.level: continue
         music_lv = diff_info.level[diff]

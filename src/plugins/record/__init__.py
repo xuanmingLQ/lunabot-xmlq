@@ -200,7 +200,7 @@ async def private_forward_hook(bot: Bot, event: MessageEvent):
 
 
 # log各种事件消息
-misc_notice_log = on_notice()
+misc_notice_log = on_notice(block=False)
 @misc_notice_log.handle()
 async def _(bot: Bot, event: NoticeEvent):
     # 群消息撤回

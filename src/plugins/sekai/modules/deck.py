@@ -963,12 +963,12 @@ async def compose_deck_recommend_image(
                     else:
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(16):
                             if last_args:
-                                TextBox(f"{last_args} → ", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(70, 70, 70)))
+                                TextBox(f"{last_args} → ", TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
                             with Frame().set_size((50, 50)):
                                 Spacer(w=50, h=50).set_bg(FillBg(fill=DIFF_COLORS[options.music_diff])).set_offset((6, 6))
                                 ImageBox(music_cover, size=(50, 50))
                             TextBox(f"{music_title} ({options.music_diff.upper()})", 
-                                    TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(70, 70, 70)))
+                                    TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
                 # 表格
                 gh, vsp, voffset = 120, 12, 18
                 with HSplit().set_content_align('c').set_item_align('c').set_sep(16).set_padding(16).set_bg(roundrect_bg()):

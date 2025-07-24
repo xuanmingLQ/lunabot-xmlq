@@ -683,7 +683,15 @@ class Painter:
         aa_sw = int(shadow_width * aa_scale)
         aa_r = radius * aa_size[0] / draw_size[0] if draw_size[0] > 0 else radius
 
-        bg_region = (pos[0], pos[1], pos[0] + int(draw_size[0] * 0.9), pos[1] + int(draw_size[1] * 0.9))
+        bg_offset = 32
+        bg_offset = min(bg_offset, draw_size[0] - bg_offset, draw_size[1] - bg_offset)
+        bg_region = (
+            pos[0],
+            pos[1],
+            pos[0] + draw_size[0] - bg_offset,
+            pos[1] + draw_size[1] - bg_offset,
+        )
+        
         if isinstance(fill, Gradient):
             # 填充渐变色
             bg = fill.get_img((bg_region[2] - bg_region[0], bg_region[3] - bg_region[1]))

@@ -570,7 +570,7 @@ class Timer:
 
 # 是否是群聊消息
 def is_group_msg(event):
-    return hasattr(event, 'group_id')
+    return hasattr(event, 'group_id') and event.group_id is not None
 
 
 # 转换时间点为可读字符串
