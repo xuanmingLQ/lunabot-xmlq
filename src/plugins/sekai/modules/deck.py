@@ -150,12 +150,12 @@ async def extract_target_event(
                 wl_events.sort(key=lambda x: x['startAt'])
                 chapter = wl_events[0]
             else:
-                # 否则寻找 开始时间-半天 <= 当前 <= 结束时间 的最晚的章节
+                # 否则寻找 开始时间-1h <= 当前 <= 结束时间 的最晚的章节
                 ok_chapters = []
                 for chapter in wl_events:
                     start_time = datetime.fromtimestamp(chapter['startAt'] / 1000)
                     end_time = datetime.fromtimestamp(chapter['aggregateAt'] / 1000 + 1)
-                    if start_time - timedelta(hours=12) <= datetime.now() <= end_time:
+                    if start_time - timedelta(hours=1) <= datetime.now() <= end_time:
                         ok_chapters.append(chapter)
                 assert_and_reply(ok_chapters, f"请指定一个要查询的WL章节，例如 event112 wl1 或 event112 miku")
                 ok_chapters.sort(key=lambda x: x['startAt'], reverse=True)

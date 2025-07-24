@@ -73,6 +73,70 @@ class PredictWinrate:
 
 # ======================= 处理逻辑 ======================= #
 
+# 从参数获取带有wl_id的wl_event，返回 (wl_event, args)，未指定章节则默认查询当前章节
+async def extract_wl_event(ctx: SekaiHandlerContext, args: str) -> Tuple[dict, str]:
+    if 'wl' not in args:
+        return None, args
+    else:
+        event = await get_current_event(ctx, mode="prev")
+        chapters = await ctx.md.world_blooms.find_by('eventId', event['id'], mode='all')
+        assert_and_reply(chapters, f"当期活动{ctx.region}_{event['id']}并不是WorldLink活动")
+
+        # 通过"wl序号"查询章节
+        def query_by_seq() -> Tuple[Optional[int], Optional[str]]:
+            for i in range(len(chapters)):
+                carg = f"wl{i+1}"
+                if carg in args:
+                    chapter_id = i + 1
+                    return chapter_id, carg
+            return None, None
+        # 通过"wl角色昵称"查询章节
+        def query_by_nickname() -> Tuple[Optional[int], Optional[str]]:
+            for item in CHARACTER_NICKNAME_DATA:
+                nicknames = item['nicknames']
+                cid = item['id']
+                for nickname in nicknames:
+                    for carg in (f"wl{nickname}", f"-c {nickname}", f"{nickname}"):
+                        if carg in args:
+                            chapter = find_by(chapters, "gameCharacterId", cid)
+                            assert_and_reply(chapter, f"当期活动{ctx.region}_{event['id']}并没有角色{nickname}的章节")
+                            chapter_id = chapter['chapterNo']
+                            return chapter_id, carg
+            return None, None
+        # 查询当前章节
+        def query_current() -> Tuple[Optional[int], Optional[str]]:
+            now = datetime.now()
+            chapters.sort(key=lambda x: x['chapterNo'], reverse=True)
+            for chapter in chapters:
+                start = datetime.fromtimestamp(chapter['chapterStartAt'] / 1000)
+                if start <= now:
+                    chapter_id = chapter['chapterNo']
+                    return chapter_id, "wl"
+            return None, None
+        
+        chapter_id, carg = query_by_seq()
+        if not chapter_id:
+            chapter_id, carg = query_by_nickname()
+        if not chapter_id:
+            chapter_id, carg = query_current()
+        assert_and_reply(chapter_id, f"""
+查询WL活动榜线需要指定章节，可用参数格式:
+1. wl: 查询当前章节
+2. wl2: 查询第二章
+3. wlmiku: 查询miku章节
+""".strip())
+
+        chapter = find_by(chapters, "chapterNo", chapter_id)
+        event = event.copy()
+        event['id'] = chapter_id * 1000 + event['id']
+        event['startAt'] = chapter['chapterStartAt']
+        event['aggregateAt'] = chapter['aggregateAt']
+        event['wl_cid'] = chapter['gameCharacterId']
+        args = args.replace(carg, "")
+
+        logger.info(f"查询WL活动章节: chapter_arg={carg} wl_id={event['id']}")
+        return event, args
+
 # 给图表绘制一个昼夜颜色背景
 def draw_daynight_bg(ax, start_time: datetime, end_time: datetime):
     def get_time_bg_color(time: datetime) -> str:
