@@ -339,7 +339,7 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
 
     style1 = TextStyle(font=DEFAULT_HEAVY_FONT, size=10, color=(50, 50, 50))
     style2 = TextStyle(font=DEFAULT_FONT, size=10, color=(70, 70, 70))
-    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         TextBox("活动按时间顺序从左到右从上到下排列，黄色为当期活动", TextStyle(font=DEFAULT_FONT, size=10, color=(0, 0, 100))) \
             .set_offset((0, 4 - BG_PADDING))
         with Grid(row_count=row_count, vertical=True).set_sep(8, 4).set_item_align('lt').set_content_align('lt'):
@@ -588,7 +588,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
     msg_lists.append(f"【剧情概要】\n{summary.get('outline', '').strip()}")
     
     for i, ep in enumerate(eps, 1):
-        with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(8) as canvas:
+        with Canvas(bg=SEKAI_BLUE_BG).set_padding(8) as canvas:
             with VSplit().set_sep(8):
                 ImageBox(ep['image'], size=(None, 80))
                 with Grid(col_count=5).set_sep(2, 2):
@@ -605,7 +605,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
 """.strip())
         
     for i, ep in enumerate(no_snippet_eps, 1):
-        with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(8) as canvas:
+        with Canvas(bg=SEKAI_BLUE_BG).set_padding(8) as canvas:
             with VSplit().set_sep(8):
                 ImageBox(ep['image'], size=(None, 80))
                 with Grid(col_count=5).set_sep(2, 2):
@@ -679,7 +679,7 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
     event_bg = detail.event_story_bg if use_story_bg else detail.event_bg
     h = 1024
     w = min(int(h * 1.6), event_bg.size[0] * h // event_bg.size[1] if event_bg else int(h * 1.6))
-    bg = ImageBg(event_bg, blur=False) if event_bg else DEFAULT_BLUE_GRADIENT_BG
+    bg = ImageBg(event_bg, blur=False) if event_bg else SEKAI_BLUE_BG
     
     async def draw(w, h):
         with Canvas(bg=bg, w=w, h=h).set_padding(BG_PADDING).set_content_align('r') as canvas:
@@ -853,7 +853,7 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
     style2 = TextStyle(font=DEFAULT_FONT, size=16, color=(70, 70, 70))
     style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(70, 70, 70))
 
-    with Canvas(bg=random_unit_bg(avatar_info.unit)).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
             await get_detailed_profile_card(ctx, profile, err_msg)
 

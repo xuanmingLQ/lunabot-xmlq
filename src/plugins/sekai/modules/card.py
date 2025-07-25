@@ -310,7 +310,7 @@ async def get_card_story_summary(ctx: SekaiHandlerContext, card: dict, refresh: 
 """.strip() + "\n" * 16)
     
     for i, ep in enumerate(eps, 1):
-        with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(8) as canvas:
+        with Canvas(bg=SEKAI_BLUE_BG).set_padding(8) as canvas:
             row_count = int(math.sqrt(len(ep['cids'])))
             with Grid(row_count=row_count).set_sep(2, 2):
                 for cid in ep['cids']:
@@ -418,7 +418,7 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
         if show_id:
             TextBox(f"{card['id']}", TextStyle(font=DEFAULT_FONT, size=12, color=BLACK)).set_w(sz)
 
-    with Canvas(bg=random_unit_bg(bg_unit)).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
             if qid:
                 await get_detailed_profile_card(ctx, profile, pmsg)

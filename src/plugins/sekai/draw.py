@@ -54,17 +54,125 @@ def get_attr_icon(attr: str, size: int = None):
     return img
 
 
+# sekai默认背景
+class SekaiBg(WidgetBg):
+    def __init__(self, time_color, main_hue: float=None, size_fixed_rate: float=0.0):
+        super().__init__()
+        self.time_color = time_color
+        self.main_hue = main_hue
+        self.size_fixed_rate = size_fixed_rate
 
-DEFAULT_BLUE_GRADIENT_BG = FillBg(LinearGradient(
-    c1=(220, 220, 255, 255), 
-    c2=(220, 240, 255, 255), 
-    p1=(1, 1), p2=(0, 0)
-))
-DEFAULT_RED_GRADIENT_BG = FillBg(LinearGradient(
-    c1=(255, 220, 220, 255), 
-    c2=(255, 240, 220, 255), 
-    p1=(1, 1), p2=(0, 0)
-))
+    def draw(self, p: Painter):
+        timecolors = [
+            (0,  0.57, 4.0, 0.15),
+            (5,  0.57, 3.0, 0.2),
+            (9,  0.57, 2.0, 0.8),
+            (12, 0.57, 1.0, 1.0),
+            (15, 0.57, 2.0, 0.8),
+            (19, 0.57, 3.0, 0.2),
+            (24, 0.57, 4.0, 0.15),
+        ]
+        def get_timecolor(t: datetime):
+            if t.hour < timecolors[0][0]:
+                return timecolors[0][1:]
+            elif t.hour >= timecolors[-1][0]:
+                return timecolors[-1][1:]
+            for i in range(0, len(timecolors) - 1):
+                if t.hour >= timecolors[i][0] and t.hour < timecolors[i + 1][0]:
+                    hour1, h1, s1, l1 = timecolors[i]
+                    hour2, h2, s2, l2 = timecolors[i + 1]
+                    t1 = datetime(t.year, t.month, t.day, hour1)
+                    if hour2 == 24: t2 = datetime(t.year, t.month, t.day + 1, 0)
+                    else:           t2 = datetime(t.year, t.month, t.day, hour2)
+                    x = (t - t1) / (t2 - t1)
+                    return (
+                        h1 + (h2 - h1) * x,
+                        s1 + (s2 - s1) * x,
+                        l1 + (l2 - l1) * x,
+                    ) 
+
+        w, h = p.w, p.h
+        if self.time_color:
+            mh, ms, ml = get_timecolor(datetime.now())
+        else:
+            mh = self.main_hue
+            ms = 1.0
+            ml = 1.0
+        size_fixed_rate = self.size_fixed_rate
+
+        def h2c(h, s, l, a=255):
+            h = (h + 1.0) % 1.0 
+            r, g, b = colorsys.hls_to_rgb(h, l * ml, s * ms)
+            return [int(255 * c) for c in (r, g, b)] + [a]
+
+        ofs, s = 0.025, 4
+        bg = LinearGradient(
+            c1=h2c(mh, 0.5, 1.0), c2=h2c(mh + ofs, 0.9, 0.5),
+            p1=(0, 1), p2=(1, 0)
+        ).get_img((w // s, h // s))
+        bg.alpha_composite(LinearGradient(
+            c1=h2c(mh, 0.9, 0.7, 100), c2=h2c(mh - ofs, 0.5, 0.5, 100),
+            p1=(0, 0), p2=(1, 1)
+        ).get_img((w // s, h // s)))
+        bg.alpha_composite(Image.new("RGBA", (w // s, h // s), (255, 255, 255, 100)))
+        bg = bg.resize((w, h), Image.LANCZOS)
+
+        tri1 = Image.new("RGBA", (64, 64), (255, 255, 255, 0))
+        draw = ImageDraw.Draw(tri1)
+        draw.polygon([(0, 0), (64, 32), (32, 64)], fill=WHITE)
+
+        tri2 = Image.new("RGBA", (64, 64), (255, 255, 255, 0))
+        draw = ImageDraw.Draw(tri2)
+        draw.polygon([(0, 0), (64, 32), (32, 64)], outline=WHITE, width=4)
+
+        def draw_tri(x, y, rot, size, color, type):
+            img = tri1 if type == 0 else tri2
+            img = img.resize((size, size), Image.BILINEAR)
+            img = img.rotate(rot, expand=True)
+            img = ImageChops.multiply(img, Image.new("RGBA", img.size, color))
+            bg.alpha_composite(img, (int(x) - img.width // 2, int(y) - img.height // 2))
+
+        preset_colors = [
+            (255, 189, 246),
+            (183, 246, 255),
+            (255, 247, 146),
+        ]
+
+        factor = min(w, h) / 2048 * 1.5
+        size_factor = (1.0 + (factor - 1.0) * (1.0 - size_fixed_rate))
+        dense_factor = 1.0 + (factor * factor - 1.0) * size_fixed_rate
+
+        def rand_tri(num, sz):
+            for i in range(num):
+                x = random.uniform(0, w)
+                y = random.uniform(0, h)
+                if x < 0 or x >= w or y < 0 or y >= h:
+                    continue
+                rot = random.uniform(0, 360)
+                size = max(1, min(1000, int(random.normalvariate(sz[0], sz[1]))))
+                dist = ((x - w // 2) ** 2 + (y - h // 2) ** 2) ** 0.5
+                size = int(size * dist / (w + h) * 5)
+                size_alpha_factor, std_size = 1.0, 32 * size_factor
+                if size < std_size:
+                    size_alpha_factor = size / std_size
+                if size > std_size:
+                    size_alpha_factor = 1.0 - (size - std_size * 1.5) / (std_size * 1.5)
+                alpha = int(random.normalvariate(50, 200) * max(0, min(1.2, size_alpha_factor)))
+                if alpha <= 0:
+                    continue
+                color = random.choice(preset_colors + [(255, 255, 255)] * 0)
+                color = (*color, alpha)
+                type = i % 3 // 2
+                draw_tri(x, y, rot, size, color, type)
+
+        rand_tri(int(50 * dense_factor), (48 * size_factor, 16 * size_factor))
+        rand_tri(int(500 * dense_factor), (16 * size_factor, 16 * size_factor))
+
+        p.paste(bg, (0, 0))
+
+
+SEKAI_BLUE_BG = SekaiBg(True)
+SEKAI_RED_BG = SekaiBg(False, main_hue=0.05)
 
 BG_PADDING = 20
 WIDGET_BG_COLOR = (255, 255, 255, 150)

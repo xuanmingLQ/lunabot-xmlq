@@ -175,7 +175,7 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
     style2 = TextStyle(font=DEFAULT_FONT,      size=16, color=(50, 50, 50))
     style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(255, 50, 50))
     
-    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
             # 标题
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(8):

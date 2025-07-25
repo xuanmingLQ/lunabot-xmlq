@@ -897,7 +897,7 @@ async def compose_deck_recommend_image(
             challenge_score_dlt.append(deck.score - high_score)
         
     # 绘图
-    with Canvas(bg=ImageBg(ctx.static_imgs.get("bg/bg_area_7.png"))).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16):
             await get_detailed_profile_card(ctx, profile, pmsg)
 

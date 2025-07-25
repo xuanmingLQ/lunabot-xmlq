@@ -38,7 +38,7 @@ async def compose_character_all_stamp_image(ctx: SekaiHandlerContext, cid):
     stamp_imgs = await asyncio.gather(*[get_stamp_image(ctx, sid) for sid in stamp_ids])
     stamp_id_imgs = [(sid, img) for sid, img in zip(stamp_ids, stamp_imgs) if img]
 
-    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_sep(8).set_item_align('l'):
             TextBox(f"蓝色ID支持表情制作", style=TextStyle(font=DEFAULT_FONT, size=20, color=(0, 0, 200, 255)))
             with Grid(col_count=5).set_sep(4, 4):

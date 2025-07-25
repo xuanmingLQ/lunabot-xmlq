@@ -790,7 +790,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
             caption_vocals[caption] = []
         caption_vocals[caption].append(vocal)
         
-    with Canvas(bg=ImageBg(ctx.static_imgs.get("bg/bg_area_7.png"))).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_item_bg(roundrect_bg()):
                 # 附加标题
@@ -910,7 +910,7 @@ async def compose_music_list_image(
     if play_result_filter is None:
         play_result_filter = ['clear', 'not_clear', 'fc', 'ap']
 
-    with Canvas(bg=random_unit_bg(bg_unit)).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
             if profile:
                 await get_detailed_profile_card(ctx, profile, err_msg)
@@ -1011,7 +1011,7 @@ async def compose_play_progress_image(ctx: SekaiHandlerContext, diff: str, qid: 
 
     count = [(lv, c) for lv, c in count.items() if c.total > 0]
 
-    with Canvas(bg=random_unit_bg(bg_unit)).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
             if profile:
                 await get_detailed_profile_card(ctx, profile, err_msg)
@@ -1124,7 +1124,7 @@ async def compose_music_brief_list_image(
     covers = await batch_gather(*[get_music_cover_thumb(ctx, m['id']) for m in musics_or_mids])
     diff_infos = [await get_music_diff_info(ctx, m['id']) for m in musics_or_mids]
 
-    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
             if title and title_style:
                 if title_shadow:
@@ -1206,7 +1206,7 @@ async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Ima
                         combo_rewards[diff][lv] += MUSIC_COMBO_REWARDS[diff][i].jewel \
                             if diff != 'append' else MUSIC_COMBO_REWARDS[diff][i].shard
         # 绘图
-        with Canvas(bg=random_unit_bg(avatar_info.unit)).set_padding(BG_PADDING) as canvas:
+        with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
                 await get_detailed_profile_card(ctx, profile, err_msg)
                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16).set_bg(roundrect_bg()):
@@ -1270,7 +1270,7 @@ async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Ima
             return f"{x[0]*x[1]} ({x[0]}×{x[1]}首)"
 
         # 绘图
-        with Canvas(bg=random_unit_bg(avatar_info.unit)).set_padding(BG_PADDING) as canvas:
+        with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
                 await get_basic_profile_card(ctx, profile)
                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16).set_bg(roundrect_bg()):

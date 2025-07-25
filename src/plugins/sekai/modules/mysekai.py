@@ -272,8 +272,8 @@ def get_mysekai_phenomena_color_info(phenomena_id: int) -> dict:
     except Exception as e:
         return {
             'ground': (255, 255, 255, 255),
-            'sky1': DEFAULT_BLUE_GRADIENT_BG.fill.c1,
-            'sky2': DEFAULT_BLUE_GRADIENT_BG.fill.c2,
+            'sky1': SEKAI_BLUE_BG.fill.c1,
+            'sky2': SEKAI_BLUE_BG.fill.c2,
         }
 
 # 合成mysekai资源位置地图图片
@@ -624,7 +624,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         phenom_bg_img = ctx.static_imgs.get(f"mysekai/phenom_bg/{cur_phenom_id}.png")
         bg = ImageBg(phenom_bg_img)
     except: 
-        bg = DEFAULT_BLUE_GRADIENT_BG
+        bg = SEKAI_BLUE_BG
     
     # 绘制数量图
     with Canvas(bg=bg).set_padding(BG_PADDING) as canvas:
@@ -812,7 +812,7 @@ async def compose_mysekai_fixture_list_image(
         fixture_icons[fixture['id']] = icon
 
     # 绘制
-    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
                 if qid:
@@ -820,7 +820,8 @@ async def compose_mysekai_fixture_list_image(
 
             if qid and only_craftable:
                 TextBox(f"总收集进度: {total_obtained}/{total_all} ({total_obtained/total_all*100:.1f}%)", 
-                        TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100)))
+                        TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100))) \
+                        .set_padding(16).set_bg(roundrect_bg())
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
                 # 一级分类
@@ -1146,7 +1147,7 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
 
 # 获取mysekai家具详情
 async def compose_mysekai_fixture_detail_image(ctx: SekaiHandlerContext, fids: List[int]) -> Image.Image:
-    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
             for fid in fids:
                 await get_mysekai_fixture_detail_image_card(ctx, fid)
@@ -1246,7 +1247,7 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
                         item['color'] = red_color
                         item['sum_quantity'] = f"{user_quantity_text}/{sum_quantity}"
     
-    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
             if profile:
                 await get_detailed_profile_card(ctx, profile, pmsg)
@@ -1315,7 +1316,7 @@ async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, 
     for tag, mids in category_mids.items():
         music_covers[tag] = await batch_gather(*[get_music_cover_thumb(ctx, i) for i in mids])
         
-    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
                 await get_mysekai_info_card(ctx, mysekai_info, basic_profile, pmsg)
@@ -1561,7 +1562,7 @@ async def compose_mysekai_talk_list_image(
                 TextBox(f"x{noread_num}", TextStyle(font=DEFAULT_FONT, size=12, color=(255, 0, 0))).set_offset((5, 5))
                                         
     # 绘制
-    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
                 if qid:
@@ -1570,16 +1571,17 @@ async def compose_mysekai_talk_list_image(
                     await get_detailed_profile_card(ctx, profile, pmsg)
 
             # 进度
-            with HSplit().set_content_align('l').set_item_align('l').set_sep(5):
-                ImageBox(chara_icon, size=(None, 60))
+            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_bg(roundrect_bg()):
+                with HSplit().set_content_align('l').set_item_align('l').set_sep(5):
+                    ImageBox(chara_icon, size=(None, 60))
+                    if not show_all_talks:
+                        TextBox(f"未读对话家具列表 - 进度: {total_read_num}/{total_talk_num} ({total_read_num/total_talk_num*100:.1f}%)", 
+                                TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75)))
+                    else:
+                        TextBox(f"对话家具列表 - 共 {total_talk_num} 条对话", 
+                                TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100)))
                 if not show_all_talks:
-                    TextBox(f"未读对话家具列表 - 进度: {total_read_num}/{total_talk_num} ({total_read_num/total_talk_num*100:.1f}%)", 
-                            TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75)))
-                else:
-                    TextBox(f"对话家具列表 - 共 {total_talk_num} 条对话", 
-                            TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100)))
-            if not show_all_talks:
-                TextBox(f"*仅展示未读对话家具，灰色表示未获得蓝图", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(100, 100, 100)))
+                    TextBox(f"*仅展示未读对话家具，灰色表示未获得蓝图", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(100, 100, 100)))
             
             # 单人家具
             TextBox(f"单人对话家具", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75))) \
