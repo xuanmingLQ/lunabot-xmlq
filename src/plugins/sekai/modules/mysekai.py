@@ -865,7 +865,7 @@ async def compose_mysekai_fixture_list_image(
                                             TextBox(f"{fid}", TextStyle(font=DEFAULT_FONT, size=10, color=(50, 50, 50)))
 
                                 # 家具列表
-                                COL_COUNT, cur_idx = 15, 0
+                                COL_COUNT, cur_idx = 20, 0
                                 sep = 3
                                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(sep):
                                     while True:
