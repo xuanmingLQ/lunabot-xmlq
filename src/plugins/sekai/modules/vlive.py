@@ -34,7 +34,8 @@ async def get_vlive_widget(ctx: SekaiHandlerContext, vlive: dict) -> Frame:
                 f"【{vlive['id']}】{vlive['name']}", 
                 TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(20, 20, 20)), 
                 line_count=2, use_real_line_count=True
-            ).set_w(750).set_padding(16).set_bg(roundrect_bg())
+            ).set_w(750)
+            Spacer(w=1, h=4)
 
             with HSplit().set_content_align('c').set_item_align('c').set_sep(8):
                 # 图片
@@ -110,7 +111,7 @@ async def compose_vlive_list_image(ctx: SekaiCmdHandler, vlives, title=None, tit
     with Canvas(bg=bg).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
             if title and title_style:
-                TextBox(title, title_style)
+                TextBox(title, title_style).set_bg(roundrect_bg()).set_padding(16)
             for vlive in vlives:
                 await get_vlive_widget(ctx, vlive)
     add_watermark(canvas)
