@@ -40,12 +40,16 @@ async def compose_character_all_stamp_image(ctx: SekaiHandlerContext, cid):
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_sep(8).set_item_align('l'):
-            TextBox(f"蓝色ID支持表情制作", style=TextStyle(font=DEFAULT_FONT, size=20, color=(0, 0, 200, 255)))
-            with Grid(col_count=5).set_sep(4, 4):
+            TextBox(
+                f"发送\"{ctx.original_trigger_cmd} ID\"获取单张表情\n"
+                f"发送\"{ctx.original_trigger_cmd} ID 文本\"制作表情(仅蓝色ID支持制作)",
+                style=TextStyle(font=DEFAULT_FONT, size=24, color=(50, 50, 50, 255)), use_real_line_count=True) \
+                .set_padding(16).set_bg(roundrect_bg())
+            with Grid(col_count=5).set_sep(4, 4).set_item_bg(roundrect_bg()):
                 for sid, img in stamp_id_imgs:
                     text_color = (0, 0, 200, 255) if check_stamp_can_make(sid) else (200, 0, 0, 255)
-                    with VSplit().set_padding(4).set_sep(4).set_bg(roundrect_bg()):
-                        ImageBox(img, size=(128, None), use_alphablend=True)
+                    with VSplit().set_padding(4).set_sep(4):
+                        ImageBox(img, size=(None, 100), use_alphablend=True)
                         TextBox(str(sid), style=TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=text_color))
     add_watermark(canvas)
     return await canvas.get_img()

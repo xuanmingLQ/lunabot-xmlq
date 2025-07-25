@@ -421,9 +421,9 @@ async def get_event_by_index(ctx: SekaiHandlerContext, index: str) -> dict:
     else:
         raise ReplyException(f"""
 查活动参数错误，正确格式:
-1. 直接使用活动ID，例如{ctx.trigger_cmd} 123
-2. 使用负数索引，例如{ctx.trigger_cmd} -1
-3. 使用角色昵称+箱数，例如{ctx.trigger_cmd} mnr1
+1. 直接使用活动ID，例如{ctx.original_trigger_cmd} 123
+2. 使用负数索引，例如{ctx.original_trigger_cmd} -1
+3. 使用角色昵称+箱数，例如{ctx.original_trigger_cmd} mnr1
 查多个活动使用\"/活动列表\"
 """.strip())
 

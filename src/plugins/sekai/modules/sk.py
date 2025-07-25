@@ -489,11 +489,11 @@ async def get_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str,
             return 'name', args
     raise ReplyException(f"""
 查询指定榜线方式：
-查询自己: {ctx.trigger_cmd} (需要使用\"/{ctx.region}绑定\"绑定游戏ID)
-查询排名: {ctx.trigger_cmd} 100
-查询多个排名: {ctx.trigger_cmd} 1 2 3
-查询UID: {ctx.trigger_cmd} 12345678910
-查询昵称: {ctx.trigger_cmd} ABC
+查询自己: {ctx.original_trigger_cmd} (需要使用\"/{ctx.region}绑定\"绑定游戏ID)
+查询排名: {ctx.original_trigger_cmd} 100
+查询多个排名: {ctx.original_trigger_cmd} 1 2 3
+查询UID: {ctx.original_trigger_cmd} 12345678910
+查询昵称: {ctx.original_trigger_cmd} ABC
 """.strip())
 
 # 格式化sk查询参数
@@ -994,9 +994,9 @@ async def _(ctx: SekaiHandlerContext):
         except:
             return await ctx.asend_reply_msg(f"""
 参数错误，查询指定活动榜线：
-1. 指定活动ID: {ctx.trigger_cmd} 123
-2. 指定活动倒数序号: {ctx.trigger_cmd} -1
-3. 指定箱活: {ctx.trigger_cmd} mnr1
+1. 指定活动ID: {ctx.original_trigger_cmd} 123
+2. 指定活动倒数序号: {ctx.original_trigger_cmd} -1
+3. 指定箱活: {ctx.original_trigger_cmd} mnr1
 """.strip())
     else:
         event = None

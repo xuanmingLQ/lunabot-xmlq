@@ -1319,7 +1319,7 @@ async def _(ctx: SekaiHandlerContext):
         mid = music['id']
         title = music["title"]
     except:
-        return await ctx.asend_reply_msg(f"使用方式:\n{ctx.trigger_cmd} 歌曲ID/名称 别名1，别名2...")
+        return await ctx.asend_reply_msg(f"使用方式:\n{ctx.original_trigger_cmd} 歌曲ID/名称 别名1，别名2...")
 
     ok_aliases     = []
     failed_aliases = []
@@ -1386,7 +1386,7 @@ async def _(ctx: SekaiHandlerContext):
         aliases = args.split(",")
         assert aliases
     except:
-        return await ctx.asend_reply_msg(f"使用方式:\n{ctx.trigger_cmd} 别名1 别名2...")
+        return await ctx.asend_reply_msg(f"使用方式:\n{ctx.original_trigger_cmd} 别名1 别名2...")
 
     ok_aliases: Dict[int, List[str]] = {}
     failed_aliases = []

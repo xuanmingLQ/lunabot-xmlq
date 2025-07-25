@@ -235,7 +235,7 @@ async def _(ctx: SekaiHandlerContext):
         assert 0 < target_pt
     except:
         raise ReplyException(f"""
-使用方式: {ctx.trigger_cmd} 目标活动点数 歌曲ID/歌曲名
+使用方式: {ctx.original_trigger_cmd} 目标活动点数 歌曲ID/歌曲名
 """.strip())
 
     music = (await search_music(ctx, args)).music if args else None

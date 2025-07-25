@@ -832,11 +832,11 @@ async def compose_mysekai_fixture_list_image(
                         # 标签
                         main_genre_name, main_genre_image = await get_mysekai_fixture_genre_name_and_image(ctx, main_genre_id, True)
                         with HSplit().set_content_align('c').set_item_align('c').set_sep(5).set_omit_parent_bg(True):
-                            ImageBox(main_genre_image, size=(None, 30), use_alphablend=True).set_bg(RoundRectBg(fill=(200,200,200,255), radius=2))
-                            TextBox(main_genre_name, TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(150, 150, 150)))
+                            ImageBox(main_genre_image, size=(None, 30), use_alphablend=True).set_bg(RoundRectBg(fill=(150,150,150,255), radius=2))
+                            TextBox(main_genre_name, TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(100, 100, 100)))
                             if qid and only_craftable:
                                 a, b = main_genre_obtained[main_genre_id], main_genre_all[main_genre_id]
-                                TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(150, 150, 150)))
+                                TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(100, 100, 100)))
 
                         # 二级分类
                         for sub_genre_id in sorted(fixtures[main_genre_id].keys()):
@@ -847,17 +847,17 @@ async def compose_mysekai_fixture_list_image(
                                 if sub_genre_id != -1 and len(fixtures[main_genre_id]) > 1:  # 无二级分类或只有1个二级分类的不加标签
                                     sub_genre_name, sub_genre_image = await get_mysekai_fixture_genre_name_and_image(ctx, sub_genre_id, False)
                                     with HSplit().set_content_align('c').set_item_align('c').set_sep(5):
-                                        ImageBox(sub_genre_image, size=(None, 23), use_alphablend=True).set_bg(RoundRectBg(fill=(200,200,200,255), radius=2))
-                                        TextBox(sub_genre_name, TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=(150, 150, 150)))
+                                        ImageBox(sub_genre_image, size=(None, 23), use_alphablend=True).set_bg(RoundRectBg(fill=(150,150,150,255), radius=2))
+                                        TextBox(sub_genre_name, TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=(100, 100, 100)))
                                         if qid and only_craftable:
                                             a, b = sub_genre_obtained[main_genre_id][sub_genre_id], sub_genre_all[main_genre_id][sub_genre_id]
-                                            TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_FONT, size=12, color=(150, 150, 150)))
+                                            TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_FONT, size=12, color=(100, 100, 100)))
 
                                 # 绘制单个家具
                                 def draw_single_fid(fid: int, obtained: bool):
                                     f_sz = 30
                                     image = fixture_icons.get(fid)
-                                    with VSplit().set_content_align('c').set_item_align('c').set_sep(2):
+                                    with VSplit().set_content_align('c').set_item_align('c').set_sep(0):
                                         with Frame():
                                             ImageBox(image, size=(None, f_sz), use_alphablend=True)
                                             if not obtained:
@@ -1432,7 +1432,7 @@ async def compose_mysekai_talk_list_image(
         mysekai_cuids = set([item['gameCharacterUnitId'] for item in await ctx.md.mysekai_gate_character_lotteries.get()])
         cus = [cu for cu in await ctx.md.game_character_units.find_by('gameCharacterId', cid, mode='all') if cu['id'] in mysekai_cuids]
         if len(cus) > 1:
-            assert_and_reply(unit, f"查询存在多个组合的V家角色时需要同时指定组合，例如\"{ctx.trigger_cmd} miku ln\"")
+            assert_and_reply(unit, f"查询存在多个组合的V家角色时需要同时指定组合，例如\"{ctx.original_trigger_cmd} miku ln\"")
             cu = find_by(cus, "unit", unit)
             assert_and_reply(cu, f"找不到要查询的角色")
         else:
@@ -1596,8 +1596,8 @@ async def compose_mysekai_talk_list_image(
                         # 标签
                         main_genre_name, main_genre_image = await get_mysekai_fixture_genre_name_and_image(ctx, main_genre_id, True)
                         with HSplit().set_content_align('c').set_item_align('c').set_sep(5).set_omit_parent_bg(True):
-                            ImageBox(main_genre_image, size=(None, 30), use_alphablend=True).set_bg(RoundRectBg(fill=(200,200,200,255), radius=2))
-                            TextBox(main_genre_name, TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(150, 150, 150)))
+                            ImageBox(main_genre_image, size=(None, 30), use_alphablend=True).set_bg(RoundRectBg(fill=(150,150,150,255), radius=2))
+                            TextBox(main_genre_name, TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(100, 100, 100)))
 
                         # 家具列表
                         for sub_genre_id in sorted(single_talk_fixtures[main_genre_id].keys()):
@@ -1681,7 +1681,7 @@ async def _(ctx: SekaiHandlerContext):
         img = await compose_mysekai_fixture_list_image(
             ctx, 
             qid=ctx.user_id, 
-            show_id=show_id, 
+            show_id=True, 
             only_craftable=True, 
         )
     else:
@@ -1777,8 +1777,8 @@ async def _(ctx: SekaiHandlerContext):
     uid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
     nickname = await get_group_member_name(ctx.bot, ctx.group_id, uid)
 
-    task1 = get_mysekai_info(ctx, ctx.user_id, raise_exc=False, mode="local")
-    task2 = get_mysekai_info(ctx, ctx.user_id, raise_exc=False, mode="haruki")
+    task1 = get_mysekai_info(ctx, uid, raise_exc=False, mode="local")
+    task2 = get_mysekai_info(ctx, uid, raise_exc=False, mode="haruki")
     (local_profile, local_err), (haruki_profile, haruki_err) = await asyncio.gather(task1, task2)
 
     msg = f"@{nickname} 的{get_region_name(ctx.region)}Mysekai抓包数据状态\n"

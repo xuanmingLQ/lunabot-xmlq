@@ -1095,7 +1095,7 @@ async def compose_deck_recommend_image(
                         alg_and_cost_text += f"{alg_name} (等待{wait_time}/耗时{cost_time}) + "
                     alg_and_cost_text = alg_and_cost_text[:-3]
                     TextBox(alg_and_cost_text, tip_style)
-                    TextBox(f"发送\"{ctx.trigger_cmd}help\"获取组卡详细帮助", tip_style)
+                    TextBox(f"发送\"{ctx.original_trigger_cmd}help\"获取组卡详细帮助", tip_style)
 
     add_watermark(canvas)
     return await canvas.get_img()
@@ -1200,6 +1200,6 @@ async def _(ctx: SekaiHandlerContext):
         values = list(map(float, args))
         assert len(values) == 5
     except:
-        raise ReplyException(f"使用方式: {ctx.trigger_cmd} 100 100 100 100 100") 
+        raise ReplyException(f"使用方式: {ctx.original_trigger_cmd} 100 100 100 100 100") 
     res = values[0] + (values[1] + values[2] + values[3] + values[4]) / 5.
     return await ctx.asend_reply_msg(f"实效: {res:.1f}%")

@@ -513,7 +513,9 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -
                             t = TextBox(f"SCORE {score}", TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50, 255)))
                             t.set_bg(roundrect_bg(radius=6)).set_padding((10, 7))
 
-    add_watermark(canvas)
+    update_time = datetime.fromtimestamp(basic_profile['update_time'] / 1000)
+    text = f"Updated at {update_time.strftime('%Y-%m-%d %H:%M:%S')}        " + DEFAULT_WATERMARK
+    add_watermark(canvas, text)
     return await canvas.get_img(1.5)
 
 # 检测游戏id是否在黑名单中
