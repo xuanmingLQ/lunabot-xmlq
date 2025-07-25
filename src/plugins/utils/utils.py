@@ -111,7 +111,7 @@ def clean_name(s: str) -> str:
 
 
 def get_exc_desc(e: Exception) -> str:
-    et = f"{type(e).__name__}" if type(e).__name__ not in ['Exception', 'AssertionError'] else ''
+    et = f"{type(e).__name__}" if type(e).__name__ not in ['Exception', 'AssertionError', 'ReplyException'] else ''
     e = str(e)
     if et and e: return f"{et}: {e}"
     else: return et + e

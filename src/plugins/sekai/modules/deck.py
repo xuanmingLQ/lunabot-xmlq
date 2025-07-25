@@ -1012,10 +1012,10 @@ async def compose_deck_recommend_image(
                                             ImageBox(card_imgs[card_id], size=(None, 80))
                                             if options.fixed_cards and card_id in options.fixed_cards:
                                                 TextBox(str(card_id), TextStyle(font=DEFAULT_FONT, size=10, color=WHITE)) \
-                                                    .set_bg(RoundRectBg((200, 50, 50, 200), 2)).set_offset((-2, 2))
+                                                    .set_bg(RoundRectBg((200, 50, 50, 200), 2)).set_offset((-2, 0))
                                             else:
                                                 TextBox(str(card_id), TextStyle(font=DEFAULT_FONT, size=10, color=(75, 75, 75))) \
-                                                    .set_bg(roundrect_bg(radius=2)).set_offset((-2, 2))
+                                                    .set_bg(RoundRectBg((255, 255, 255, 200), 2)).set_offset((-2, 0))
                                             if card.has_canvas_bonus:
                                                 ImageBox(ctx.static_imgs.get(f"mysekai/icon_canvas.png"), size=(11, 11)) \
                                                         .set_offset((-32, 65))

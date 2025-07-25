@@ -30,7 +30,7 @@ MOST_RARE_MYSEKAI_RES = [
 ]
 RARE_MYSEKAI_RES = [
     "mysekai_material_32", "mysekai_material_33", "mysekai_material_34", "mysekai_material_61", 
-    "mysekai_material_64", "mysekai_material_65", 
+    "mysekai_material_64", "mysekai_material_65", "mysekai_material_66",
 ]
 MYSEKAI_HARVEST_FIXTURE_IMAGE_NAME = {
     1001: "oak.png",
@@ -718,9 +718,6 @@ async def compose_mysekai_fixture_list_image(
     qid: int, 
     show_id: bool, 
     only_craftable: bool, 
-    cid: int = None, 
-    unit: str = None,
-    show_all_talks: bool = False,
 ) -> Image.Image:
     # 获取玩家已获得的蓝图对应的家具ID
     obtained_fids = None
@@ -729,6 +726,10 @@ async def compose_mysekai_fixture_list_image(
         basic_profile = await get_basic_profile(ctx, uid)
         mysekai_info, mimsg = await get_mysekai_info(ctx, qid, raise_exc=True)
 
+        assert_and_reply(
+            'updatedResources' in mysekai_info,
+            "你的Mysekai抓包数据不完整，请尝试退出游戏到标题界面后重新上传抓包数据"
+        )
         assert_and_reply(
             'userMysekaiBlueprints' in mysekai_info['updatedResources'],
             "你的抓包数据来源没有提供蓝图数据"
@@ -775,6 +776,8 @@ async def compose_mysekai_fixture_list_image(
         # 处理错误归类
         if fid == 4: 
             sub_genre_id = 14
+        if main_genre_id in (5, 7, 8, 9, 10, 11, 12, 13):
+            sub_genre_id = -1
 
         if main_genre_id not in fixtures:
             fixtures[main_genre_id] = {}
@@ -808,129 +811,14 @@ async def compose_mysekai_fixture_list_image(
     for fixture, icon in zip(all_fixtures, result):
         fixture_icons[fixture['id']] = icon
 
-    # 获取家具对应的角色对话已读情况
-    if cid:
-        # 获取vs角色的cuid
-        mysekai_cuids = set([item['gameCharacterUnitId'] for item in await ctx.md.mysekai_gate_character_lotteries.get()])
-        cus = [cu for cu in await ctx.md.game_character_units.find_by('gameCharacterId', cid, mode='all') if cu['id'] in mysekai_cuids]
-        if len(cus) > 1:
-            assert_and_reply(unit, f"查询存在多个组合的V家角色时需要同时指定组合，例如\"{ctx.trigger_cmd} miku ln\"")
-            cu = find_by(cus, "unit", unit)
-            assert_and_reply(cu, f"找不到要查询的角色")
-        else:
-            cu = cus[0]
-            assert_and_reply(not unit or cu['unit'] == unit, f"找不到要查询的角色")
-        cid = cu['id']
-        chara_icon = await ctx.rip.img(f"character_sd_l_rip/chr_sp_{cid}.png")
-
-        if not show_all_talks:
-            profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True)
-            assert_and_reply('userMysekaiCharacterTalks' in profile, "你的Suite抓包数据来源没有提供角色家具对话数据")
-            user_character_talks = profile['userMysekaiCharacterTalks']
-        else:
-            profile = None
-            user_character_talks = []
-
-        # 获取角色收集对话项目的对应家具id和已读情况
-        aid_reads = {}
-        fixture_conds = await ctx.md.mysekai_character_talk_conditions.find_by("mysekaiCharacterTalkConditionType", "mysekai_fixture_id", mode='all')
-        for fixture in all_fixtures:
-            fid = fixture['id']
-            conds = find_by(fixture_conds, "mysekaiCharacterTalkConditionTypeValue", fid, mode='all')
-            conditions_ids = set([cond['id'] for cond in conds])
-            groups = await ctx.md.mysekai_character_talk_condition_groups.collect_by('mysekaiCharacterTalkConditionId', conditions_ids)
-            group_ids = set([group['id'] for group in groups])
-            talks = await ctx.md.mysekai_character_talks.collect_by('mysekaiCharacterTalkConditionGroupId', group_ids)
-            chara_talks = []
-            for t in talks:
-                # 获取对话的cuid
-                chara_group = await ctx.md.mysekai_game_character_unit_groups.find_by_id(t['mysekaiGameCharacterUnitGroupId'])
-                group_cuids = []
-                for i in range(1, 10):
-                    if f'gameCharacterUnitId{i}' in chara_group:
-                        group_cuids.append(chara_group[f'gameCharacterUnitId{i}'])
-                # 获取对话在角色收集对话项目的aid和显示情况
-                tid = t['id']
-                aid = t['characterArchiveMysekaiCharacterTalkGroupId']
-                archive_info = await ctx.md.character_archive_mysekai_character_talk_groups.find_by_id(aid)
-                display = archive_info and archive_info['archiveDisplayType'] == 'normal'
-                # 有效的对话
-                if cid in group_cuids and display:
-                    user_talk = find_by(user_character_talks, "mysekaiCharacterTalkId", tid)
-                    has_read = bool(user_talk is not None and user_talk['isRead'])
-                    if aid not in aid_reads:
-                        aid_reads[aid] = {
-                            'fids': set(),
-                            'has_read': False,
-                        }
-                    aid_reads[aid]['fids'].add(fid)
-                    aid_reads[aid]['has_read'] = aid_reads[aid]['has_read'] or has_read
-
-        # 统计家具id以及对应收集情况
-        fids_reads = {}
-        for aid, item in aid_reads.items():
-            fids = " ".join(sorted([str(fid) for fid in item['fids']]))
-            if fids not in fids_reads:
-                fids_reads[fids] = {
-                    'total': 0,
-                    'read': 0,
-                }
-            fids_reads[fids]['total'] += 1
-            fids_reads[fids]['read'] += int(item['has_read'])
-                
-        # 重新构造一个fixtures，包含组合的多个家具，顺便计算总进度
-        def find_genre(fid: int) -> Tuple[int, int]:
-            for main_genre_id in fixtures:
-                for sub_genre_id in fixtures[main_genre_id]:
-                    if fid in [item[0] for item in fixtures[main_genre_id][sub_genre_id]]:
-                        return main_genre_id, sub_genre_id
-            return -1, -1
-
-        new_fixtures = {}
-        total_talk_num, total_read_num = 0, 0
-        for fids, item in fids_reads.items():
-            fids = [int(fid) for fid in fids.split()]
-            total_talk_num += item['total']
-            total_read_num += item['read']
-            if not fids: 
-                continue
-            if item['total'] == item['read']:
-                continue
-            main_genre_id, sub_genre_id = find_genre(fids[0])
-            if main_genre_id not in new_fixtures:
-                new_fixtures[main_genre_id] = {}
-            if sub_genre_id not in new_fixtures[main_genre_id]:
-                new_fixtures[main_genre_id][sub_genre_id] = []
-            obtained = [not obtained_fids or fid in obtained_fids for fid in fids]
-            new_fixtures[main_genre_id][sub_genre_id].append((fids, obtained))
-
-        # 多家具的排在前面
-        for main_genre_id in new_fixtures:
-            for sub_genre_id in new_fixtures[main_genre_id]:
-                new_fixtures[main_genre_id][sub_genre_id].sort(key=lambda x: (len(x[0]), x[0][0]), reverse=True)
-        
-        fixtures = new_fixtures
-
     # 绘制
     with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
                 if qid:
                     await get_mysekai_info_card(ctx, mysekai_info, basic_profile, mimsg)
-                if cid and profile:
-                    await get_detailed_profile_card(ctx, profile, pmsg)
 
-            # 进度
-            if cid:
-                with HSplit().set_content_align('l').set_item_align('l').set_sep(5):
-                    ImageBox(chara_icon, size=(None, 60))
-                    if not show_all_talks:
-                        TextBox(f"未读对话家具列表 - 收集进度: {total_read_num}/{total_talk_num} ({total_read_num/total_talk_num*100:.1f}%)", 
-                                TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100)))
-                    else:
-                        TextBox(f"对话家具列表 - 共 {total_talk_num} 条对话", 
-                                TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100)))
-            elif qid and only_craftable:
+            if qid and only_craftable:
                 TextBox(f"总收集进度: {total_obtained}/{total_all} ({total_obtained/total_all*100:.1f}%)", 
                         TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100)))
 
@@ -939,13 +827,13 @@ async def compose_mysekai_fixture_list_image(
                 for main_genre_id in sorted(fixtures.keys()):
                     if count_dict(fixtures[main_genre_id], 2) == 0: continue
 
-                    with VSplit().set_content_align('lt').set_item_align('lt').set_sep(5).set_item_bg(roundrect_bg()).set_padding(8):
+                    with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()).set_padding(8):
                         # 标签
                         main_genre_name, main_genre_image = await get_mysekai_fixture_genre_name_and_image(ctx, main_genre_id, True)
                         with HSplit().set_content_align('c').set_item_align('c').set_sep(5).set_omit_parent_bg(True):
                             ImageBox(main_genre_image, size=(None, 30), use_alphablend=True).set_bg(RoundRectBg(fill=(200,200,200,255), radius=2))
                             TextBox(main_genre_name, TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(150, 150, 150)))
-                            if qid and only_craftable and not cid:
+                            if qid and only_craftable:
                                 a, b = main_genre_obtained[main_genre_id], main_genre_all[main_genre_id]
                                 TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(150, 150, 150)))
 
@@ -953,14 +841,14 @@ async def compose_mysekai_fixture_list_image(
                         for sub_genre_id in sorted(fixtures[main_genre_id].keys()):
                             if len(fixtures[main_genre_id][sub_genre_id]) == 0: continue
 
-                            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(5).set_padding(8):
+                            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(8):
                                 # 标签
                                 if sub_genre_id != -1 and len(fixtures[main_genre_id]) > 1:  # 无二级分类或只有1个二级分类的不加标签
                                     sub_genre_name, sub_genre_image = await get_mysekai_fixture_genre_name_and_image(ctx, sub_genre_id, False)
                                     with HSplit().set_content_align('c').set_item_align('c').set_sep(5):
                                         ImageBox(sub_genre_image, size=(None, 23), use_alphablend=True).set_bg(RoundRectBg(fill=(200,200,200,255), radius=2))
                                         TextBox(sub_genre_name, TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=(150, 150, 150)))
-                                        if qid and only_craftable and not cid:
+                                        if qid and only_craftable:
                                             a, b = sub_genre_obtained[main_genre_id][sub_genre_id], sub_genre_all[main_genre_id][sub_genre_id]
                                             TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_FONT, size=12, color=(150, 150, 150)))
 
@@ -972,13 +860,13 @@ async def compose_mysekai_fixture_list_image(
                                         with Frame():
                                             ImageBox(image, size=(None, f_sz), use_alphablend=True)
                                             if not obtained:
-                                                Spacer(w=f_sz, h=f_sz).set_bg(RoundRectBg(fill=(0,0,0,120), radius=2))
+                                                Spacer(w=f_sz, h=f_sz).set_bg(RoundRectBg(fill=(0,0,0,80), radius=2))
                                         if show_id:
                                             TextBox(f"{fid}", TextStyle(font=DEFAULT_FONT, size=10, color=(50, 50, 50)))
 
                                 # 家具列表
                                 COL_COUNT, cur_idx = 15, 0
-                                sep = 5 if cid else 3
+                                sep = 3
                                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(sep):
                                     while True:
                                         cur_x = 0
@@ -990,16 +878,12 @@ async def compose_mysekai_fixture_list_image(
                                                     cur_x += 1
                                                     cur_idx += 1
                                                 else:
-                                                    # 绘制包含多个家具组合以及已读情况
+                                                    # 绘制包含多个家具组合
                                                     with Frame().set_content_align('rb'):
                                                         with HSplit().set_content_align('c').set_item_align('c').set_sep(2) \
                                                             .set_bg(roundrect_bg(radius=4)).set_padding(4):
                                                             for fid, obtained in zip(fids, obtaineds):
                                                                 draw_single_fid(fid, obtained)
-                                                        read_info = fids_reads[" ".join([str(fid) for fid in fids])]
-                                                        noread_num = read_info['total'] - read_info['read']
-                                                        if noread_num > 1:
-                                                            TextBox(f"x{noread_num}", TextStyle(font=DEFAULT_FONT, size=12, color=(255, 0, 0))).set_offset((5, 5))
                                                     cur_x += len(fids)
                                                     cur_idx += 1     
                                                 if cur_idx >= len(fixtures[main_genre_id][sub_genre_id]):
@@ -1467,6 +1351,289 @@ async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, 
     add_watermark(canvas)
     return await canvas.get_img()
 
+# 合成mysekai对话列表图片
+async def compose_mysekai_talk_list_image(
+    ctx: SekaiHandlerContext, 
+    qid: int, 
+    show_id: bool, 
+    cid: int, 
+    unit: str = None,
+    show_all_talks: bool = False,
+) -> Image.Image:
+    # 获取玩家已获得的蓝图对应的家具ID
+    uid = get_player_bind_id(ctx, qid)
+    basic_profile = await get_basic_profile(ctx, uid)
+    mysekai_info, mimsg = await get_mysekai_info(ctx, qid, raise_exc=True)
+    assert_and_reply(
+        'updatedResources' in mysekai_info,
+        "你的Mysekai抓包数据不完整，请尝试退出游戏到标题界面后重新上传抓包数据"
+    )
+    assert_and_reply(
+        'userMysekaiBlueprints' in mysekai_info['updatedResources'],
+        "你的抓包数据来源没有提供蓝图数据"
+    )
+    obtained_fids = set()
+    for item in mysekai_info['updatedResources']['userMysekaiBlueprints']:
+        bid = item['mysekaiBlueprintId']
+        blueprint = await ctx.md.mysekai_blueprints.find_by_id(bid)
+        if blueprint and blueprint['mysekaiCraftType'] == 'mysekai_fixture':
+            fid = blueprint['craftTargetId']
+            obtained_fids.add(fid)
+
+    # 获取所有可合成的家具ID
+    craftable_fids = None
+    craftable_fids = set()
+    for item in await ctx.md.mysekai_blueprints.get():
+        if item['mysekaiCraftType'] =='mysekai_fixture':
+            craftable_fids.add(item['id'])
+
+    # 获取需要的家具信息
+    fixtures = {}
+    all_fixtures = []
+    for item in await ctx.md.mysekai_fixtures.get():
+        fid = item['id']
+        if craftable_fids and fid not in craftable_fids:
+            obtained_fids.add(fid)
+        
+        ftype = item['mysekaiFixtureType']
+        main_genre_id = item['mysekaiFixtureMainGenreId']
+        sub_genre_id = item.get('mysekaiFixtureSubGenreId', -1)
+        color_count = 1
+        if item.get('mysekaiFixtureAnotherColors'):
+            color_count += len(item['mysekaiFixtureAnotherColors'])
+
+        if ftype == "gate": continue
+
+        # 处理错误归类
+        if fid == 4: 
+            sub_genre_id = 14
+        if main_genre_id in (5, 7, 8, 9, 10, 11, 12, 13):
+            sub_genre_id = -1
+
+        if main_genre_id not in fixtures:
+            fixtures[main_genre_id] = {}
+        if sub_genre_id not in fixtures[main_genre_id]:
+            fixtures[main_genre_id][sub_genre_id] = []
+
+        obtained = not obtained_fids or fid in obtained_fids
+        fixtures[main_genre_id][sub_genre_id].append((fid, obtained))
+        all_fixtures.append(item)
+    
+    # 获取家具图标
+    fixture_icons = {}
+    result = await batch_gather(*[get_mysekai_fixture_icon(ctx, item) for item in all_fixtures])
+    for fixture, icon in zip(all_fixtures, result):
+        fixture_icons[fixture['id']] = icon
+
+    # 获取家具对应的角色对话已读情况
+    if cid:
+        # 获取vs角色的cuid
+        mysekai_cuids = set([item['gameCharacterUnitId'] for item in await ctx.md.mysekai_gate_character_lotteries.get()])
+        cus = [cu for cu in await ctx.md.game_character_units.find_by('gameCharacterId', cid, mode='all') if cu['id'] in mysekai_cuids]
+        if len(cus) > 1:
+            assert_and_reply(unit, f"查询存在多个组合的V家角色时需要同时指定组合，例如\"{ctx.trigger_cmd} miku ln\"")
+            cu = find_by(cus, "unit", unit)
+            assert_and_reply(cu, f"找不到要查询的角色")
+        else:
+            cu = cus[0]
+            assert_and_reply(not unit or cu['unit'] == unit, f"找不到要查询的角色")
+        cid = cu['id']
+        chara_icon = await ctx.rip.img(f"character_sd_l_rip/chr_sp_{cid}.png")
+
+        if not show_all_talks:
+            profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True)
+            assert_and_reply('userMysekaiCharacterTalks' in profile, "你的Suite抓包数据来源没有提供角色家具对话数据")
+            user_character_talks = profile['userMysekaiCharacterTalks']
+        else:
+            profile = None
+            user_character_talks = []
+
+        # 获取角色收集对话项目的对应家具id和已读情况
+        aid_reads = {}
+        fixture_conds = await ctx.md.mysekai_character_talk_conditions.find_by("mysekaiCharacterTalkConditionType", "mysekai_fixture_id", mode='all')
+        for fixture in all_fixtures:
+            fid = fixture['id']
+            conds = find_by(fixture_conds, "mysekaiCharacterTalkConditionTypeValue", fid, mode='all')
+            conditions_ids = set([cond['id'] for cond in conds])
+            groups = await ctx.md.mysekai_character_talk_condition_groups.collect_by('mysekaiCharacterTalkConditionId', conditions_ids)
+            group_ids = set([group['id'] for group in groups])
+            talks = await ctx.md.mysekai_character_talks.collect_by('mysekaiCharacterTalkConditionGroupId', group_ids)
+            for t in talks:
+                # 获取对话的cuid
+                chara_group = await ctx.md.mysekai_game_character_unit_groups.find_by_id(t['mysekaiGameCharacterUnitGroupId'])
+                group_cuids = []
+                for i in range(1, 10):
+                    if f'gameCharacterUnitId{i}' in chara_group:
+                        group_cuids.append(chara_group[f'gameCharacterUnitId{i}'])
+                # 获取对话在角色收集对话项目的aid和显示情况
+                tid = t['id']
+                aid = t['characterArchiveMysekaiCharacterTalkGroupId']
+                archive_info = await ctx.md.character_archive_mysekai_character_talk_groups.find_by_id(aid)
+                display = archive_info and archive_info['archiveDisplayType'] == 'normal'
+                # 有效的对话
+                if cid in group_cuids and display:
+                    user_talk = find_by(user_character_talks, "mysekaiCharacterTalkId", tid)
+                    has_read = bool(user_talk is not None and user_talk['isRead'])
+                    if aid not in aid_reads:
+                        aid_reads[aid] = {
+                            'fids': set(),
+                            'has_read': False,
+                            'cuids': group_cuids,
+                        }
+                    aid_reads[aid]['fids'].add(fid)
+                    aid_reads[aid]['has_read'] = aid_reads[aid]['has_read'] or has_read
+
+        # 统计家具id以及对应收集情况
+        fids_single_reads = {}  # 单人对话
+        fids_multi_reads = {}   # 多人对话
+        for aid, item in aid_reads.items():
+            cuids = item['cuids']
+            fids = " ".join(sorted([str(fid) for fid in item['fids']]))
+            reads = fids_single_reads if len(cuids) == 1 else fids_multi_reads
+            if fids not in reads:
+                reads[fids] = {
+                    'total': 0,
+                    'read': 0,
+                    'cuids_set': set(),
+                }
+            reads[fids]['total'] += 1
+            reads[fids]['read'] += int(item['has_read'])
+            if not item['has_read']:
+                reads[fids]['cuids_set'].add(tuple(cuids))
+
+        # 对话进度
+        total_talk_num, total_read_num = 0, 0
+
+        # 统计多人对话的进度
+        for fids, item in fids_multi_reads.items():
+            total_talk_num += item['total']
+            total_read_num += item['read']
+                
+        # 重新构造单人对话的fixtures，包含组合的多个家具，并统计进度
+        def find_genre(fid: int) -> Tuple[int, int]:
+            for main_genre_id in fixtures:
+                for sub_genre_id in fixtures[main_genre_id]:
+                    if fid in [item[0] for item in fixtures[main_genre_id][sub_genre_id]]:
+                        return main_genre_id, None  # 只分类一层
+            return -1, -1
+        single_talk_fixtures = {}
+        for fids, item in fids_single_reads.items():
+            fids = [int(fid) for fid in fids.split()]
+            total_talk_num += item['total']
+            total_read_num += item['read']
+            if not fids: 
+                continue
+            if item['total'] == item['read']:
+                continue
+            main_genre_id, sub_genre_id = find_genre(fids[0])
+            if main_genre_id not in single_talk_fixtures:
+                single_talk_fixtures[main_genre_id] = {}
+            if sub_genre_id not in single_talk_fixtures[main_genre_id]:
+                single_talk_fixtures[main_genre_id][sub_genre_id] = []
+            obtained = [not obtained_fids or fid in obtained_fids for fid in fids]
+            single_talk_fixtures[main_genre_id][sub_genre_id].append((fids, obtained))
+        # 多家具的排在前面
+        for main_genre_id in single_talk_fixtures:
+            for sub_genre_id in single_talk_fixtures[main_genre_id]:
+                single_talk_fixtures[main_genre_id][sub_genre_id].sort(key=lambda x: (len(x[0]), x[0][0]), reverse=True)
+
+    # 绘制单个家具
+    def draw_single_fid(fid: int):
+        f_sz = 30
+        image = fixture_icons.get(fid)
+        with VSplit().set_content_align('c').set_item_align('c').set_sep(2):
+            with Frame():
+                ImageBox(image, size=(None, f_sz), use_alphablend=True)
+                if fid not in obtained_fids:
+                    Spacer(w=f_sz, h=f_sz).set_bg(RoundRectBg(fill=(0,0,0,80), radius=2))
+            if show_id:
+                TextBox(f"{fid}", TextStyle(font=DEFAULT_FONT, size=10, color=(50, 50, 50)))
+
+    # 绘制包含多个家具组合以及已读情况
+    def draw_fids(fids: str, reads: Dict[str, Any]):
+        with Frame().set_content_align('rb'):
+            with HSplit().set_content_align('c').set_item_align('c').set_sep(2).set_bg(roundrect_bg(radius=4)).set_padding(4):
+                for fid in fids:
+                    draw_single_fid(fid)
+            read_info = reads[" ".join([str(fid) for fid in fids])]
+            noread_num = read_info['total'] - read_info['read']
+            if noread_num > 1:
+                TextBox(f"x{noread_num}", TextStyle(font=DEFAULT_FONT, size=12, color=(255, 0, 0))).set_offset((5, 5))
+                                        
+    # 绘制
+    with Canvas(bg=DEFAULT_BLUE_GRADIENT_BG).set_padding(BG_PADDING) as canvas:
+        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
+            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
+                if qid:
+                    await get_mysekai_info_card(ctx, mysekai_info, basic_profile, mimsg)
+                if profile:
+                    await get_detailed_profile_card(ctx, profile, pmsg)
+
+            # 进度
+            with HSplit().set_content_align('l').set_item_align('l').set_sep(5):
+                ImageBox(chara_icon, size=(None, 60))
+                if not show_all_talks:
+                    TextBox(f"未读对话家具列表 - 进度: {total_read_num}/{total_talk_num} ({total_read_num/total_talk_num*100:.1f}%)", 
+                            TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75)))
+                else:
+                    TextBox(f"对话家具列表 - 共 {total_talk_num} 条对话", 
+                            TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100)))
+            if not show_all_talks:
+                TextBox(f"*仅展示未读对话家具，灰色表示未获得蓝图", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(100, 100, 100)))
+            
+            # 单人家具
+            TextBox(f"单人对话家具", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75))) \
+                .set_padding(12).set_bg(roundrect_bg())
+
+            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
+                # 一级分类
+                for main_genre_id in sorted(single_talk_fixtures.keys()):
+                    if count_dict(single_talk_fixtures[main_genre_id], 2) == 0: continue
+
+                    with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(8):
+                        # 标签
+                        main_genre_name, main_genre_image = await get_mysekai_fixture_genre_name_and_image(ctx, main_genre_id, True)
+                        with HSplit().set_content_align('c').set_item_align('c').set_sep(5).set_omit_parent_bg(True):
+                            ImageBox(main_genre_image, size=(None, 30), use_alphablend=True).set_bg(RoundRectBg(fill=(200,200,200,255), radius=2))
+                            TextBox(main_genre_name, TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(150, 150, 150)))
+
+                        # 家具列表
+                        for sub_genre_id in sorted(single_talk_fixtures[main_genre_id].keys()):
+                            if len(single_talk_fixtures[main_genre_id][sub_genre_id]) == 0: continue
+                            COL_COUNT, cur_idx = 15, 0
+                            sep = 5 if cid else 3
+                            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(sep):
+                                while True:
+                                    cur_x = 0
+                                    with HSplit().set_content_align('lt').set_item_align('lt').set_sep(sep):
+                                        while cur_x < COL_COUNT:
+                                            fids, _ = single_talk_fixtures[main_genre_id][sub_genre_id][cur_idx]
+                                            draw_fids(fids, fids_single_reads)
+                                            cur_x += len(fids)
+                                            cur_idx += 1     
+                                            if cur_idx >= len(single_talk_fixtures[main_genre_id][sub_genre_id]):
+                                                break   
+                                    if cur_idx >= len(single_talk_fixtures[main_genre_id][sub_genre_id]):
+                                        break
+
+            # 多人家具
+            TextBox(f"多人对话家具", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75))) \
+                .set_padding(12).set_bg(roundrect_bg())    
+
+            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(8).set_bg(roundrect_bg()):
+                for fids, item in fids_multi_reads.items():
+                    if not fids or item['total'] == item['read']:
+                        continue
+                    fids = list(map(int, fids.split()))
+                    with HSplit().set_content_align('lt').set_item_align('l').set_sep(6):
+                        draw_fids(fids, fids_multi_reads)
+                        for cuids in item['cuids_set']:
+                            with HSplit().set_content_align('lt').set_item_align('lt').set_sep(5).set_padding(4).set_bg(roundrect_bg()):
+                                for cuid in cuids:
+                                    ImageBox(await get_chara_icon_by_chara_unit_id(ctx, cuid), size=(None, 36))
+
+    return await canvas.get_img()
+
 
 # ======================= 指令处理 ======================= #
 
@@ -1508,18 +1675,24 @@ async def _(ctx: SekaiHandlerContext):
     unit, args = extract_unit(args)
     cid = get_cid_by_nickname(args)
 
-    return await ctx.asend_reply_msg(await get_image_cq(
-        await compose_mysekai_fixture_list_image(
+    if not cid:
+        img = await compose_mysekai_fixture_list_image(
             ctx, 
             qid=ctx.user_id, 
             show_id=show_id, 
             only_craftable=True, 
+        )
+    else:
+        img = await compose_mysekai_talk_list_image(
+            ctx, 
+            qid=ctx.user_id, 
+            show_id=True, 
             cid=cid, 
             unit=unit, 
             show_all_talks=show_all_talks
-        ),
-        low_quality=True
-    ))
+        )
+
+    return await ctx.asend_reply_msg(await get_image_cq(img, low_quality=True))
 
 
 # 查询mysekai家具列表/家具
@@ -1550,18 +1723,24 @@ async def _(ctx: SekaiHandlerContext):
     unit, args = extract_unit(args)
     cid = get_cid_by_nickname(args)
 
-    return await ctx.asend_reply_msg(await get_image_cq(
-        await compose_mysekai_fixture_list_image(
+    if not cid:
+        img = await compose_mysekai_fixture_list_image(
             ctx, 
-            qid=ctx.user_id if cid else None, 
+            qid=None, 
             show_id=True, 
             only_craftable=False, 
+        )
+    else:
+        img = await compose_mysekai_talk_list_image(
+            ctx, 
+            qid=ctx.user_id, 
+            show_id=True, 
             cid=cid, 
             unit=unit, 
             show_all_talks=show_all_talks
-        ),
-        low_quality=True
-    ))
+        )
+
+    return await ctx.asend_reply_msg(await get_image_cq(img, low_quality=True))
 
 
 # 下载mysekai照片
