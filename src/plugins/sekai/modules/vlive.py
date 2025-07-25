@@ -30,8 +30,11 @@ async def get_vlive_widget(ctx: SekaiHandlerContext, vlive: dict) -> Frame:
     with Frame().set_bg(roundrect_bg()).set_padding(16) as f:
         with VSplit().set_content_align('l').set_item_align('l').set_sep(8):
             # 标题
-            TextBox(f"【{vlive['id']}】{vlive['name']}", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(20, 20, 20)), line_count=2, use_real_line_count=True).set_w(750)
-            Spacer(w=1, h=4)
+            TextBox(
+                f"【{vlive['id']}】{vlive['name']}", 
+                TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(20, 20, 20)), 
+                line_count=2, use_real_line_count=True
+            ).set_w(750).set_padding(16).set_bg(roundrect_bg())
 
             with HSplit().set_content_align('c').set_item_align('c').set_sep(8):
                 # 图片
