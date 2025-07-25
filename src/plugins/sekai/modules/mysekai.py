@@ -1120,9 +1120,9 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
                         col_num = col_num_dict[chara_num]
                         with Grid(col_count=col_num).set_content_align('c').set_sep(6, 4):
                             for imgs in chara_group_imgs:
-                                with HSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(4).set_bg(RoundRectBg(fill=(230,230,230,255), radius=6)):
+                                with HSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(4).set_bg(roundrect_bg(radius=8)):
                                     for img in imgs:
-                                        ImageBox(img, size=(32, 32), use_alphablend=True)
+                                        ImageBox(img, size=(40, 40), use_alphablend=True)
 
         # 标签
         if tags:
