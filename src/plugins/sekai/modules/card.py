@@ -377,11 +377,12 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
         if show_box and not card['has']:
             continue
         chara_cards[chara_id].append(card)
+
     # sort by chara id and rarity
     chara_cards = list(chara_cards.items())
     chara_cards.sort(key=lambda x: x[0])
     for i in range(len(chara_cards)):
-        chara_cards[i][1].sort(key=lambda x: (x['releaseAt'], x['id']))
+        chara_cards[i][1].sort(key=lambda x: (x['cardRarityType'], x['releaseAt'], x['id']))
 
     # 计算最佳高度限制
     max_card_num = max([len(cards) for _, cards in chara_cards]) if chara_cards else 0
@@ -399,7 +400,7 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
             total += max_height * width
             space += max_height * width - len(cards)
         # value = max(total_width, max_height) * total / (total - space)
-        value = max(total_width, max_height * 0.5)
+        value = max(total_width, max_height * 0.5) if total_width > 9 else max_height
         if value < best_value:
             best_height, best_value = i, value
 
