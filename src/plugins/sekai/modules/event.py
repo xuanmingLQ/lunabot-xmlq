@@ -771,10 +771,11 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
                             TextBox("加成属性", label_style)
                             ImageBox(get_attr_icon(detail.bonus_attr), size=(None, 40))
                         if detail.bonus_cuids:
+                            bonus_cids = set([await get_chara_id_by_cuid(ctx, cuid) for cuid in detail.bonus_cuids])
+                            bonus_cids = sorted(list(bonus_cids))
                             TextBox("加成角色", label_style)
                             with Grid(col_count=5).set_sep(4, 4):
-                                for cuid in detail.bonus_cuids:
-                                    cid = await get_chara_id_by_cuid(ctx, cuid)
+                                for cid in bonus_cids:
                                     ImageBox(get_chara_icon_by_chara_id(cid), size=(None, 40))
 
         add_watermark(canvas)
