@@ -64,13 +64,13 @@ class SekaiBg(WidgetBg):
 
     def draw(self, p: Painter):
         timecolors = [
-            (0,  0.57, 4.0, 0.15),
-            (5,  0.57, 3.0, 0.2),
-            (9,  0.57, 2.0, 0.8),
+            (0,  0.57, 4.0, 0.1),
+            (5,  0.57, 2.0, 0.2),
+            (9,  0.57, 1.0, 0.8),
             (12, 0.57, 1.0, 1.0),
-            (15, 0.57, 2.0, 0.8),
-            (19, 0.57, 3.0, 0.2),
-            (24, 0.57, 4.0, 0.15),
+            (15, 0.57, 1.0, 0.8),
+            (19, 0.57, 2.0, 0.2),
+            (24, 0.57, 4.0, 0.1),
         ]
         def get_timecolor(t: datetime):
             if t.hour < timecolors[0][0]:
@@ -150,8 +150,8 @@ class SekaiBg(WidgetBg):
                     continue
                 rot = random.uniform(0, 360)
                 size = max(1, min(1000, int(random.normalvariate(sz[0], sz[1]))))
-                dist = ((x - w // 2) ** 2 + (y - h // 2) ** 2) ** 0.5
-                size = int(size * dist / (w + h) * 5)
+                dist = (((x - w // 2) / w * 2) ** 2 + ((y - h // 2) / h * 2) ** 2)
+                size = int(size * dist)
                 size_alpha_factor, std_size = 1.0, 32 * size_factor
                 if size < std_size:
                     size_alpha_factor = size / std_size
@@ -165,8 +165,8 @@ class SekaiBg(WidgetBg):
                 type = i % 3 // 2
                 draw_tri(x, y, rot, size, color, type)
 
-        rand_tri(int(50 * dense_factor), (48 * size_factor, 16 * size_factor))
-        rand_tri(int(500 * dense_factor), (16 * size_factor, 16 * size_factor))
+        rand_tri(int(100 * dense_factor), (48 * size_factor, 16 * size_factor))
+        rand_tri(int(1000 * dense_factor), (16 * size_factor, 16 * size_factor))
 
         p.paste(bg, (0, 0))
 

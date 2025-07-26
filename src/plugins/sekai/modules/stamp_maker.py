@@ -264,14 +264,12 @@ def _get_text_img(
             if height > sentence_height[i]:
                 sentence_height[i] = height
 
+    p = Painter(text_image)
     for i, sentence in enumerate(texts):
         x = (text_width - sentence_width[i]) // 2
         for chart in sentence:
             c_font = get_font(chart)
-            
-            p = Painter(text_image)
-            p.text(chart, (int(x), int(y + get_y_offset(chart, c_font))), c_font, color)
-
+            p._impl_text(chart, (int(x), int(y + get_y_offset(chart, c_font))), c_font, color)
             x += c_font.getlength(chart)
         y += sentence_height[i] + line_spacing
     return text_image
