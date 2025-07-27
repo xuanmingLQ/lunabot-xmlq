@@ -893,7 +893,13 @@ async def compose_mysekai_fixture_list_image(
                                             break                       
 
     add_watermark(canvas)
-    return await canvas.get_img()
+
+    # 缓存非玩家查询的msf
+    cache_key = None
+    if not qid and show_id and not only_craftable:
+        cache_key = f"{ctx.region}_msf"
+
+    return await canvas.get_img(cache_key=cache_key)
 
 # 获取mysekai照片和拍摄时间
 async def get_mysekai_photo_and_time(ctx: SekaiHandlerContext, qid: int, seq: int) -> Tuple[Image.Image, datetime]:
@@ -1276,7 +1282,12 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
                                                 .set_offset((sz, sz)).set_offset_anchor('rb')
                                         TextBox(sum_quantity, TextStyle(font=DEFAULT_BOLD_FONT, size=12, color=color))
     add_watermark(canvas)
-    return await canvas.get_img()
+    
+    # 缓存full查询
+    cache_key = None
+    if profile is None and spec_gate_id is None:
+        cache_key = f"{ctx.region}_pjsk_msg"
+    return await canvas.get_img(cache_key=cache_key)
 
 # 合成mysekai唱片列表
 async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, show_id: bool = False) -> Image.Image:

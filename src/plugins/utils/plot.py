@@ -948,13 +948,13 @@ class Canvas(Frame):
         self.set_bg(bg)
         self.set_margin(0)
 
-    async def get_img(self, scale: float = None):
+    async def get_img(self, scale: float = None, cache_key: str=None):
         t = datetime.now()
         size = self._get_self_size()
         assert size[0] * size[1] < 4096 * 4096, f'Canvas size is too large ({size[0]} x {size[1]})'
         p = Painter(size=size)
         self.draw(p)
-        img = await p.get()
+        img = await p.get(cache_key)
         if scale:
             img = img.resize((int(size[0] * scale), int(size[1] * scale)), Image.Resampling.BILINEAR)
         if Canvas.log_draw_time:

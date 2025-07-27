@@ -369,7 +369,20 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
                             if d.banner_cid: ImageBox(get_chara_icon_by_chara_id(d.banner_cid), size=(None, 24))
 
     add_watermark(canvas)
-    return await canvas.get_img()
+
+    # 缓存无筛选的活动列表图片
+    cache_key = None
+    if not any([
+        filter.attr, 
+        filter.event_type, 
+        filter.unit, 
+        filter.cids, 
+        filter.banner_cid, 
+        filter.year
+    ]):
+        cache_key = f"{ctx.region}_events"
+
+    return await canvas.get_img(cache_key=cache_key)
 
 # 根据"昵称箱数"（比如saki1）获取活动，不存在返回None
 async def get_event_by_ban_name(ctx: SekaiHandlerContext, ban_name: str) -> Optional[dict]:

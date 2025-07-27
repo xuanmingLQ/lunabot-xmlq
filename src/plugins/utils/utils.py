@@ -2261,3 +2261,23 @@ async def _(ctx: HandlerContext):
     else:
         Canvas.log_draw_time = True
         return await ctx.asend_reply_msg("已开启画图时间日志")
+
+# 删除Painter缓存
+clear_painter_cache = CmdHandler(['/clear_pcache', '/clear pcache', '/pcache clear', '/pcache_clear'], utils_logger)
+clear_painter_cache.check_superuser()
+@clear_painter_cache.handle()
+async def _(ctx: HandlerContext):
+    key = ctx.get_args().strip()
+    ok_count = Painter.clear_cache(key)
+    return await ctx.asend_reply_msg(f'已清除Painter缓存: {ok_count}个文件被删除')
+
+# 查看Painter缓存
+painter_cache = CmdHandler(['/pcache'], utils_logger)
+painter_cache.check_superuser()
+@painter_cache.handle()
+async def _(ctx: HandlerContext):
+    ret = Painter.get_cache_key_mtimes()
+    msg = f"当前Painter缓存的keys:\n"
+    for key, mtime in ret.items():
+        msg += f"{key}: {mtime.strftime('%Y-%m-%d %H:%M:%S')}\n"
+    return await ctx.asend_reply_msg(msg.strip())

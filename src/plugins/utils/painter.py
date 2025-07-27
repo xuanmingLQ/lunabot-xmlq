@@ -1,7 +1,7 @@
-from typing import Union, Tuple, List, Optional, Dict
+from typing import Union, Tuple, List, Optional, Dict, Any
 from PIL import Image, ImageFont, ImageDraw, ImageFilter, ImageChops
 from PIL.ImageFont import ImageFont as Font
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass, fields
 import os
 import numpy as np
 from copy import deepcopy
@@ -15,11 +15,16 @@ import asyncio
 from typing import get_type_hints
 import colorsys
 import random
+import hashlib
+import pickle
+import glob
+import io
 
 from .img_utils import mix_image_by_color, adjust_image_alpha_inplace
 from .process_pool import *
 
 DEBUG = False
+
 
 def debug_print(*args, **kwargs):
     if DEBUG:
@@ -33,8 +38,119 @@ def get_memo_usage():
         return mem_info.rss / (1024 * 1024)  # 返回单位为MB
     return 0
 
+def deterministic_hash(obj: Any) -> str:
+    """
+    计算复杂对象的确定性哈希值
+    """
+    ret = hashlib.md5()
+    def update(s: Union[str, bytes]):
+        if isinstance(s, str):
+            s = s.encode('utf-8')
+        ret.update(s)
+
+    def _serialize(obj: Any): 
+        # 基本类型
+        if obj is None:
+            update(b"None")
+        elif isinstance(obj, bool):
+            update(str(obj))
+        elif isinstance(obj, int):
+            update(str(obj))
+        elif isinstance(obj, float):
+            update(str(obj))
+        elif isinstance(obj, str):
+            update(str(obj))
+        elif isinstance(obj, bytes):
+            update(obj)
+        
+        # 容器类型
+        elif isinstance(obj, (list, tuple)):
+            for item in obj:
+                _serialize(item)
+        
+        elif isinstance(obj, dict):
+            # 字典按键排序确保一致性
+            for key, value in sorted(obj.items()):
+                _serialize(key)
+                _serialize(value)
+        
+        elif isinstance(obj, set):
+            # 集合元素排序确保一致性
+            for item in sorted(obj):
+                _serialize(item)
+        
+        elif isinstance(obj, frozenset):
+            for item in sorted(obj):
+                _serialize(item)
+        
+        # PIL Image
+        elif isinstance(obj, Image.Image):
+            _serialize_pil_image(obj)
+        
+        # NumPy数组
+        elif hasattr(obj, '__array__') and hasattr(obj, 'dtype'):
+            _serialize_numpy_array(obj)
+        
+        # Dataclass
+        elif is_dataclass(obj) and not isinstance(obj, type):
+            _serialize_dataclass(obj)
+        
+        # 有__dict__属性的自定义对象
+        elif hasattr(obj, '__dict__'):
+            class_name = f"{obj.__class__.__module__}.{obj.__class__.__name__}"
+            dict_data = {k: v for k, v in obj.__dict__.items() if not k.startswith('_')}
+            update(f"object:{class_name}:")
+            _serialize(dict_data)
+        
+        # 其他可迭代对象
+        elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes)):
+            update(f"iterable:{type(obj).__name__}:")
+            for item in obj:
+                _serialize(item)
+
+        else:
+            # 其他类型的对象
+            try:
+                class_name = f"{obj.__class__.__module__}.{obj.__class__.__name__}"
+                update(f"{class_name}:")
+                attrs = dir(obj)
+                for attr in attrs:
+                    if not attr.startswith('_'):
+                        value = getattr(obj, attr)
+                        _serialize(value)
+            except:
+                return f"fallback:{type(obj).__name__}:{id(obj)}"
+    
+    def _serialize_pil_image(img: Image.Image):
+        """序列化PIL Image"""
+        update(f"{img.size[0]}x{img.size[1]}:{img.mode}:")
+        update(img.tobytes())
+    
+    def _serialize_numpy_array(arr):
+        """序列化NumPy数组"""
+        arr_bytes = arr.tobytes()
+        arr_shape = arr.shape
+        arr_dtype = arr.dtype.str
+        update(f"{arr_shape}:{arr_dtype}:")
+        update(arr_bytes)
+    
+    def _serialize_dataclass(obj):
+        """序列化dataclass对象"""
+        class_name = f"{obj.__class__.__module__}.{obj.__class__.__name__}"
+        update(f"{class_name}:")
+        # 获取所有字段
+        for field in fields(obj):
+            field_value = getattr(obj, field.name)
+            update(f"{field.name}:")
+            _serialize(field_value)
+    
+    _serialize(obj)
+    return ret.hexdigest()
+
 
 # =========================== 基础定义 =========================== #
+
+PAINTER_CACHE_DIR = "data/utils/painter_cache/"
 
 PAINTER_PROCESS_NUM = 4
 
@@ -80,7 +196,6 @@ class FontCacheEntry:
 
 FONT_CACHE_MAX_NUM = 128
 font_cache: dict[str, FontCacheEntry] = {}
-
 
 def crop_by_align(original_size, crop_size, align):
     w, h = original_size
@@ -285,6 +400,7 @@ class PainterOperation:
     size: Size
     func: Union[str, callable]
     args: List
+    exclude_on_hash: bool
 
     def image_to_id(self, img_dict: Dict[int, Image.Image]):
         if isinstance(self.args, tuple):
@@ -305,6 +421,7 @@ class PainterOperation:
 
 
 class Painter:
+    
     def __init__(self, img: Image.Image = None, size: Tuple[int, int] = None):
         self.operations: List[PainterOperation] = []
         if img is not None:
@@ -365,9 +482,36 @@ class Painter:
         debug_print(f"Sub process use time: {datetime.now() - t}")
         return p.img
 
-    async def get(self) -> Image.Image:
+    async def get(self, cache_key: str=None) -> Image.Image:
+        # 使用缓存
+        if cache_key is not None:
+            t = datetime.now()
+            debug_print(f"Cache key: {cache_key}")
+            op_hash = await asyncio.to_thread(deterministic_hash, {"key": cache_key, "op": self.operations})
+            debug_print(f"Cache key: {cache_key}, op_hash: {op_hash}, elapsed: {datetime.now() - t}")
+
+            paths = glob.glob(os.path.join(PAINTER_CACHE_DIR, f"{cache_key}__*.png"))
+            if paths:
+                path = paths[0]
+                if path.endswith(f"{cache_key}__{op_hash}.png"):
+                    # 如果hash相同则直接返回缓存的图片
+                    debug_print(f"Using cached image: {path}")
+                    img = Image.open(path)
+                    img.load()
+                    return img
+                else:
+                    # 否则清空缓存并重新绘图
+                    for p in paths:
+                        try: 
+                            os.remove(p)
+                        except Exception as e: 
+                            print(f"Failed to remove cache file {p}: {e}")
+                    debug_print(f"Cache mismatch, removed {len(paths)} files")
+
         global _painter_pool
         debug_print(f"Main process memory usage: {get_memo_usage()} MB")
+
+        # 收集所有图片对象到字典中
         image_dict = {}
         for op in self.operations:
             op.image_to_id(image_dict)
@@ -379,15 +523,54 @@ class Painter:
         # for op in self.operations:
         #     debug_print(f"Operation: {op.name}, args: {op.args}, offset: {op.offset}, size: {op.size}")
 
+        # 执行绘图操作
         t = datetime.now()
         self.img = await _painter_pool.submit(Painter._execute, self.operations, self.img, self.size, image_dict)
         self.operations = []
         debug_print(f"Painter executed in {datetime.now() - t}")
 
+        # 保存缓存
+        if cache_key is not None:
+            try:
+                cache_path = os.path.join(PAINTER_CACHE_DIR, f"{cache_key}__{op_hash}.png")
+                os.makedirs(PAINTER_CACHE_DIR, exist_ok=True)
+                self.img.save(cache_path, format='PNG')
+            except:
+                debug_print(f"Failed to save cache for {cache_key}")
+
         return self.img
-        
-    def add_operation(self, func: Union[str, callable], *args):
-        self.operations.append(PainterOperation(self.offset, self.size, func, args))
+    
+    def add_operation(self, func: Union[str, callable], exclude_on_hash: bool, args: List[Any]):
+        self.operations.append(PainterOperation(
+            offset=self.offset,
+            size=self.size,
+            func=func,
+            args=list(args),
+            exclude_on_hash=exclude_on_hash,
+        ))
+        return self
+
+    @staticmethod
+    def clear_cache(cache_key: str) -> int:
+        paths = glob.glob(os.path.join(PAINTER_CACHE_DIR, f"{cache_key}__*.png"))
+        ok = 0
+        for p in paths:
+            try: 
+                os.remove(p)
+                ok += 1
+            except Exception as e: 
+                print(f"Failed to remove cache file {p}: {e}")
+        return ok
+    
+    @staticmethod
+    def get_cache_key_mtimes() -> Dict[str, datetime]:
+        paths = glob.glob(os.path.join(PAINTER_CACHE_DIR, f"*.png"))
+        cache_keys = {}
+        for p in paths:
+            mtime = os.path.getmtime(p)
+            cache_key = os.path.basename(p).split('__')[0]
+            cache_keys[cache_key] = datetime.fromtimestamp(mtime)
+        return cache_keys
 
 
     def set_region(self, pos: Position, size: Size):
@@ -436,29 +619,29 @@ class Painter:
         pos: Position, 
         font: Union[FontDesc, Font],
         fill: Union[Color, LinearGradient] = BLACK,
-        align: str = "left"
+        align: str = "left",
+        exclude_on_hash: bool = False,
     ):
-        self.operations.append(PainterOperation(self.offset, self.size, "_impl_text", (text, pos, font, fill, align)))
-        return self
+        return self.add_operation("_impl_text", exclude_on_hash, (text, pos, font, fill, align))
         
     def paste(
         self, 
         sub_img: Image.Image,
         pos: Position, 
-        size: Size = None
+        size: Size = None,
+        exclude_on_hash: bool = False,
     ) -> Image.Image:
-        self.operations.append(PainterOperation(self.offset, self.size, "_impl_paste", (sub_img, pos, size)))
-        return self
+        return self.add_operation("_impl_paste", exclude_on_hash, (sub_img, pos, size))
 
     def paste_with_alphablend(
         self, 
         sub_img: Image.Image,
         pos: Position, 
         size: Size = None,
-        alpha: float = None
+        alpha: float = None,
+        exclude_on_hash: bool = False,
     ) -> Image.Image:
-        self.operations.append(PainterOperation(self.offset, self.size, "_impl_paste_with_alphablend", (sub_img, pos, size, alpha)))
-        return self
+        return self.add_operation("_impl_paste_with_alphablend", exclude_on_hash, (sub_img, pos, size, alpha))
 
     def rect(
         self, 
@@ -467,9 +650,9 @@ class Painter:
         fill: Union[Color, Gradient], 
         stroke: Color=None, 
         stroke_width: int=1,
+        exclude_on_hash: bool = False
     ):
-        self.operations.append(PainterOperation(self.offset, self.size, "_impl_rect", (pos, size, fill, stroke, stroke_width)))
-        return self
+        return self.add_operation("_impl_rect", exclude_on_hash, (pos, size, fill, stroke, stroke_width))
         
     def roundrect(
         self, 
@@ -480,9 +663,9 @@ class Painter:
         stroke: Color=None, 
         stroke_width: int=1,
         corners = (True, True, True, True),
+        exclude_on_hash: bool = False
     ):
-        self.operations.append(PainterOperation(self.offset, self.size, "_impl_roundrect", (pos, size, fill, radius, stroke, stroke_width, corners)))
-        return self
+        return self.add_operation("_impl_roundrect", exclude_on_hash, (pos, size, fill, radius, stroke, stroke_width, corners))
 
     def pieslice(
         self,
@@ -493,9 +676,9 @@ class Painter:
         fill: Color,
         stroke: Color=None,
         stroke_width: int=1,
+        exclude_on_hash: bool = False
     ):
-        self.operations.append(PainterOperation(self.offset, self.size, "_impl_pieslice", (pos, size, start_angle, end_angle, fill, stroke, stroke_width)))
-        return self
+        return self.add_operation("_impl_pieslice", exclude_on_hash, (pos, size, start_angle, end_angle, fill, stroke, stroke_width))
 
     def blurglass_roundrect(
         self, 
@@ -507,13 +690,18 @@ class Painter:
         shadow_width: int=6,
         shadow_alpha: float=0.3,
         corners = (True, True, True, True),
+        exclude_on_hash: bool = False
     ):
-        self.operations.append(PainterOperation(self.offset, self.size, "_impl_blurglass_roundrect", (pos, size, fill, radius, blur, shadow_width, shadow_alpha, corners)))
-        return self
+        return self.add_operation("_impl_blurglass_roundrect", exclude_on_hash, (pos, size, fill, radius, blur, shadow_width, shadow_alpha, corners))
 
-    def draw_random_triangle_bg(self, time_color: bool, main_hue: float, size_fixed_rate: float):
-        self.operations.append(PainterOperation(self.offset, self.size, "_impl_draw_random_triangle_bg", (time_color, main_hue, size_fixed_rate)))
-        return self
+    def draw_random_triangle_bg(
+        self, 
+        time_color: bool, 
+        main_hue: float, 
+        size_fixed_rate: float,
+        exclude_on_hash: bool = False
+    ):
+        return self.add_operation("_impl_draw_random_triangle_bg", exclude_on_hash, (time_color, main_hue, size_fixed_rate))
 
 
     def _impl_text(
