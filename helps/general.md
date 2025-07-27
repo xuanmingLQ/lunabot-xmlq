@@ -13,6 +13,8 @@
 - [`/blacklist_add` 添加黑名单](#blacklist_add)
 - [`/blacklist_del` 删除黑名单](#blacklist_del)
 - [`/send_count` 获取当日消息发送数量](#send_count)
+- [`/pcache` 查询绘图缓存](#pcache)
+- [`/pcache_clear` 删除绘图缓存](#pcache_clear)
 
 ---
 
@@ -118,6 +120,24 @@
 - **示例**
 
     `/send_count` 获取当日消息发送数量
+
+## `/pcache`
+```
+查询绘图缓存
+```
+- **示例**
+
+    `/pcache` 查询绘图缓存
+
+
+## `/pcache_clear`
+```
+删除绘图缓存
+```
+- **示例**
+
+    `/pcache_clear key` 删除指定key的绘图缓存
+
 
 --- 
 
