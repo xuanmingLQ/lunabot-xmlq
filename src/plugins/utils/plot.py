@@ -110,6 +110,16 @@ class ImageBg(WidgetBg):
                 for x in range(0, p.w, w):
                     p.paste(self.img, (x, y))
 
+class RandomTriangleBg(WidgetBg):
+    def __init__(self, time_color, main_hue: float=None, size_fixed_rate: float=0.0):
+        super().__init__()
+        self.time_color = time_color
+        self.main_hue = main_hue
+        self.size_fixed_rate = size_fixed_rate
+
+    def draw(self, p: Painter):
+        p.draw_random_triangle_bg(self.time_color, self.main_hue, self.size_fixed_rate)
+
 
 # =========================== 布局类型 =========================== #
 
