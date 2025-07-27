@@ -13,6 +13,7 @@ import emoji
 from datetime import datetime, timedelta
 import asyncio
 from .img_utils import mix_image_by_color, adjust_image_alpha_inplace
+from typing import get_type_hints
 from .process_pool import *
 
 DEBUG = False
@@ -279,7 +280,7 @@ class RadialGradient(Gradient):
 class PainterOperation:
     offset: Position
     size: Size
-    name: str
+    func: Union[str, callable]
     args: List
 
     def image_to_id(self, img_dict: Dict[int, Image.Image]):
@@ -351,7 +352,12 @@ class Painter:
             p.offset = op.offset
             p.size = op.size
             p.w, p.h = op.size
-            getattr(p, op.name)(*op.args)
+            func = getattr(p, op.func) if isinstance(op.func, str) else op.func
+            kwargs = {}
+            for key, value in get_type_hints(func).items():
+                if value == Painter:
+                    kwargs[key] = p
+            func(*op.args, **kwargs)
             # debug_print(f"Method {op.name} executed, current memory usage: {get_memo_usage()} MB")
         debug_print(f"Sub process use time: {datetime.now() - t}")
         return p.img
@@ -499,7 +505,10 @@ class Painter:
         self.operations.append(PainterOperation(self.offset, self.size, "_impl_blurglass_roundrect", (pos, size, fill, radius, blur, shadow_width, shadow_alpha, corners)))
         return self
 
-    
+    def add_operation(self, func: Union[str, callable], *args):
+        self.operations.append(PainterOperation(self.offset, self.size, func, args))
+
+
     def _impl_text(
         self, 
         text: str, 

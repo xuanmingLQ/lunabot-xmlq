@@ -1322,7 +1322,8 @@ async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, 
                 await get_mysekai_info_card(ctx, mysekai_info, basic_profile, pmsg)
 
                 a, b = obtained_num, total_num
-                TextBox(f"总收集进度: {a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100)))
+                TextBox(f"总收集进度: {a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100))) \
+                    .set_padding(16).set_bg(roundrect_bg())
 
                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
                    for tag, mids in category_mids.items():
@@ -1333,13 +1334,13 @@ async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, 
                                     tag_icon = get_unit_icon(MUSIC_TAG_UNIT_MAP[tag])
                                     ImageBox(tag_icon, size=(None, 30))
                                 else:
-                                    TextBox("其他", TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(150, 150, 150)))
+                                    TextBox("其他", TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(100, 100, 100)))
                                 a, b = category_obtained_num[tag], category_total_num[tag]
-                                TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(150, 150, 150)))
+                                TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(100, 100, 100)))
 
                             # 歌曲列表
                             sz = 30
-                            with Grid(col_count=20).set_content_align('lt').set_item_align('lt').set_sep(3, 3):
+                            with Grid(col_count=20).set_content_align('lt').set_item_align('lt').set_sep(3, 3).set_padding(8):
                                 for mid, cover in zip(mids, music_covers[tag]):
                                     with VSplit().set_content_align('c').set_item_align('c').set_sep(3):
                                         with Frame():

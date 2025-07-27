@@ -184,7 +184,13 @@ async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict
         await add_frame(img, rarity)
 
         if is_main:
-            wordbundlename = f"honorname_{cid1:02d}{cid2:02d}_{(hwid%100):02d}_01"
+            if abs(hid - hwid) < 100:
+                wordbundlename = f"honorname_{cid1:02d}{cid2:02d}_{(hwid%100):02d}_01"
+            else:
+                if hwid % 10 == 1:
+                    wordbundlename = f"honorname_{cid1:02d}{cid2:02d}_default_{cid1:02d}{cid2:02d}_01"
+                else:
+                    wordbundlename = f"honorname_{cid1:02d}{cid2:02d}_default_{cid2:02d}{cid1:02d}_01"
             word_img = await ctx.rip.img(f"bonds_honor/word/{wordbundlename}_rip/{wordbundlename}.png")
             img.paste(word_img, (int(190-(word_img.size[0]/2)), int(40-(word_img.size[1]/2))), word_img)
 

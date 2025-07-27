@@ -760,7 +760,7 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
     
     img = await run_in_pool(draw_graph)
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        ImageBox(img).set_bg(roundrect_bg())
+        ImageBox(img).set_bg(roundrect_bg(fill=(255, 255, 255, 200)))
         if wl_cid:
             with VSplit().set_content_align('c').set_item_align('c').set_sep(4).set_bg(roundrect_bg()).set_padding(8):
                 ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
@@ -860,7 +860,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
     
     img = await run_in_pool(draw_graph)
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        ImageBox(img).set_bg(roundrect_bg())
+        ImageBox(img).set_bg(roundrect_bg(fill=(255, 255, 255, 200)))
         if wl_cid:
             with VSplit().set_content_align('c').set_item_align('c').set_sep(4).set_bg(roundrect_bg()).set_padding(8):
                 ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
