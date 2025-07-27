@@ -1600,9 +1600,11 @@ async def compose_mysekai_talk_list_image(
                 .set_padding(12).set_bg(roundrect_bg())
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
+                has_single = False
                 # 一级分类
                 for main_genre_id in sorted(single_talk_fixtures.keys()):
                     if count_dict(single_talk_fixtures[main_genre_id], 2) == 0: continue
+                    has_single = True
 
                     with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(8):
                         # 标签
@@ -1629,15 +1631,19 @@ async def compose_mysekai_talk_list_image(
                                                 break   
                                     if cur_idx >= len(single_talk_fixtures[main_genre_id][sub_genre_id]):
                                         break
+                if not has_single:
+                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 255, 100)))
 
             # 多人家具
             TextBox(f"多人对话家具", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75))) \
                 .set_padding(12).set_bg(roundrect_bg())    
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(8).set_bg(roundrect_bg()):
+                has_multi = False
                 for fids, item in fids_multi_reads.items():
                     if not fids or item['total'] == item['read']:
                         continue
+                    has_multi = True
                     fids = list(map(int, fids.split()))
                     with HSplit().set_content_align('lt').set_item_align('l').set_sep(6):
                         draw_fids(fids, fids_multi_reads)
@@ -1645,6 +1651,8 @@ async def compose_mysekai_talk_list_image(
                             with HSplit().set_content_align('lt').set_item_align('lt').set_sep(5).set_padding(4).set_bg(roundrect_bg()):
                                 for cuid in cuids:
                                     ImageBox(await get_chara_icon_by_chara_unit_id(ctx, cuid), size=(None, 36))
+                if not has_multi:
+                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 255, 100)))
 
     return await canvas.get_img()
 
