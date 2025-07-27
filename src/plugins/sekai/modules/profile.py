@@ -192,12 +192,12 @@ def get_player_bind_id(ctx: SekaiHandlerContext, qid: int, check_bind=True) -> s
     return uid
 
 # 根据游戏id获取玩家基本信息
-async def get_basic_profile(ctx: SekaiHandlerContext, uid: int, use_cache=True, raise_when_no_found=True) -> dict:
+async def get_basic_profile(ctx: SekaiHandlerContext, uid: int, use_cache=True, use_remote_cache=True, raise_when_no_found=True) -> dict:
     cache_path = f"{SEKAI_PROFILE_DIR}/profile_cache/{ctx.region}/{uid}.json"
     try:
         url = get_gameapi_config(ctx).profile_api_url
         assert_and_reply(url, f"暂不支持查询 {ctx.region} 服务器的玩家信息")
-        profile = await download_json(url.format(uid=uid))
+        profile = await download_json(url.format(uid=uid) + f"?use_cache={use_remote_cache}")
         if raise_when_no_found:
             assert_and_reply(profile, f"找不到ID为 {uid} 的玩家")
         elif not profile:
@@ -762,7 +762,7 @@ async def _(ctx: SekaiHandlerContext):
             if not validate_uid(region_ctx, args):
                 return region, None, f"ID格式错误"
             checked_regions.append(get_region_name(region))
-            profile = await get_basic_profile(region_ctx, args, use_cache=False, raise_when_no_found=False)
+            profile = await get_basic_profile(region_ctx, args, use_cache=False, use_remote_cache=False, raise_when_no_found=False)
             if not profile:
                 return region, None, "找不到该ID的玩家"
             user_name = profile['user']['name']
@@ -900,10 +900,10 @@ async def _(ctx: SekaiHandlerContext):
         uid = int(args)
     except:
         uid = get_player_bind_id(ctx, ctx.user_id)
-    res_profile = await get_basic_profile(ctx, uid)
+    profile = await get_basic_profile(ctx, uid, use_cache=False, use_remote_cache=False)
     logger.info(f"绘制名片 region={ctx.region} uid={uid}")
     return await ctx.asend_reply_msg(await get_image_cq(
-        await compose_profile_image(ctx, res_profile),
+        await compose_profile_image(ctx, profile),
         low_quality=True,
     ))
 
