@@ -1632,7 +1632,7 @@ async def compose_mysekai_talk_list_image(
                                     if cur_idx >= len(single_talk_fixtures[main_genre_id][sub_genre_id]):
                                         break
                 if not has_single:
-                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 255, 100)))
+                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(16)
 
             # 多人家具
             TextBox(f"多人对话家具", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75))) \
@@ -1652,7 +1652,7 @@ async def compose_mysekai_talk_list_image(
                                 for cuid in cuids:
                                     ImageBox(await get_chara_icon_by_chara_unit_id(ctx, cuid), size=(None, 36))
                 if not has_multi:
-                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 255, 100)))
+                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(8)
 
     return await canvas.get_img()
 

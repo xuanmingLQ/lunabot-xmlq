@@ -111,7 +111,7 @@ async def _(ctx: SekaiHandlerContext):
     # 尝试解析：全都是id
     if not qtype:
         try:
-            assert all([int(x) >= 0 and int(x) <= 9999 for x in args.split()])
+            assert all([int(x) >= 0 for x in args.split()])
             sid = [int(x) for x in args.split()]
             qtype = "id"
         except:
@@ -131,17 +131,17 @@ async def _(ctx: SekaiHandlerContext):
         try:
             sid, text = args.split(maxsplit=1)
             sid = int(sid)
-            assert sid >= 0 and sid <= 9999 and text
+            assert sid >= 0 and text
             qtype = "id_text"
         except:
             pass
     
     if not qtype:
         return await ctx.asend_reply_msg(f"""使用方式
-根据id查询: /pjsk stamp 123
-查询多个: /pjsk stamp 123 456
-查询某个角色所有: /pjsk stamp miku                                    
-制作表情: /pjsk stamp 123 文本
+根据id查询: {ctx.original_trigger_cmd} 123
+查询多个: {ctx.original_trigger_cmd} 123 456
+查询某个角色所有: {ctx.original_trigger_cmd} miku                                    
+制作表情: {ctx.original_trigger_cmd} 123 文本
 """.strip())
     
     # id获取表情
