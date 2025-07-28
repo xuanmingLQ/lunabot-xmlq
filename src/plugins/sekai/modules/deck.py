@@ -1086,7 +1086,8 @@ async def compose_deck_recommend_image(
                     tip_style = TextStyle(font=DEFAULT_FONT, size=16, color=(20, 20, 20))
                     if recommend_type not in ["bonus", "wl_bonus"]:
                         TextBox(f"12星卡默认全满，34星及生日卡默认满级，oc的bfes花前技能活动组卡为平均值，挑战组卡为最大值", tip_style)
-                    TextBox(f"组卡代码来自 https://github.com/NeuraXmy/sekai-deck-recommend-cpp", tip_style)
+                    TextBox(f"组卡代码使用 https://github.com/NeuraXmy/sekai-deck-recommend-cpp", tip_style)
+                    TextBox(f"33Kit原仓库 https://github.com/xfl03/sekai-calculator", tip_style)
                     alg_and_cost_text = "本次组卡使用算法: "
                     for alg, cost in cost_times.items():
                         alg_name = RECOMMEND_ALG_NAMES[alg]
