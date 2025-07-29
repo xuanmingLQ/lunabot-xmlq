@@ -869,6 +869,7 @@ async def compose_deck_recommend_image(
     draw_eventbonus = recommend_type in ["bonus", "wl_bonus"]
     async def _get_thumb(card, pcard):
         try: 
+            custom_text = None
             if draw_eventbonus:
                 bonus = pcard.get('eventBonus', 0)
                 if abs(bonus - int(bonus)) < 0.01:
