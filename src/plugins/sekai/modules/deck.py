@@ -869,7 +869,12 @@ async def compose_deck_recommend_image(
     draw_eventbonus = recommend_type in ["bonus", "wl_bonus"]
     async def _get_thumb(card, pcard):
         try: 
-            return (card['id'], await get_card_full_thumbnail(ctx, card, pcard=pcard, draw_eventbonus=draw_eventbonus))
+            if draw_eventbonus:
+                bonus = pcard.get('eventBonus', 0)
+                if abs(bonus - int(bonus)) < 0.01:
+                    bonus = int(bonus)
+                custom_text = f"+{bonus}%"
+            return (card['id'], await get_card_full_thumbnail(ctx, card, pcard=pcard, custom_text=custom_text))
         except: 
             return (card['id'], UNKNOWN_IMG)
     card_imgs = []

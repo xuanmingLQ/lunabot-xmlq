@@ -1,3 +1,4 @@
+from .card_extractor import *
 from .card import *
 from .chart import *
 from .deck import *

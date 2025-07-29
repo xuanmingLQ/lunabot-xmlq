@@ -59,7 +59,7 @@ async def get_card_full_thumbnail(
     card_or_card_id: Dict, 
     after_training: bool=None, 
     pcard: Dict=None, 
-    draw_eventbonus: bool=False,
+    custom_text: str=None,
 ):
     if isinstance(card_or_card_id, int):
         card = await ctx.md.cards.find_by_id(card_or_card_id)
@@ -101,13 +101,10 @@ async def get_card_full_thumbnail(
 
         # 如果是profile卡片则绘制等级/加成
         if pcard:
-            if draw_eventbonus:
-                bonus = pcard.get('eventBonus', 0)
-                if abs(bonus - int(bonus)) < 0.01:
-                    bonus = int(bonus)
+            if custom_text is not None:
                 draw = ImageDraw.Draw(img)
                 draw.rectangle((0, img_h - 24, img_w, img_h), fill=(70, 70, 100, 255))
-                draw.text((6, img_h - 31), f"+{bonus}%", font=get_font(DEFAULT_BOLD_FONT, 20), fill=WHITE)
+                draw.text((6, img_h - 31), custom_text, font=get_font(DEFAULT_BOLD_FONT, 20), fill=WHITE)
             else:
                 level = pcard['level']
                 draw = ImageDraw.Draw(img)
