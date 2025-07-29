@@ -172,6 +172,7 @@ def save_transparent_gif(frames: Union[Image.Image, List[Image.Image]], duration
 
 # 保存高质量静态GIF
 def save_high_quality_static_gif(img: Image, save_path: str, alpha_threshold: float=0.5):
+    return save_transparent_gif(img, duration=50, save_path=save_path, alpha_threshold=alpha_threshold)
     import random
     import os
     from PIL.Image import Palette
