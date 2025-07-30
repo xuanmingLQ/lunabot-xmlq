@@ -128,6 +128,13 @@ class _ImageTemplate:
     value: int
     img: np.ndarray
 
+@dataclass
+class _LevelFont:
+    path: str
+    size: int
+    x_offset: int
+    y_offset: int
+
 
 class CardExtractor:
     """
@@ -148,7 +155,10 @@ class CardExtractor:
     SURF_IMG_SCALE = 1.0
     CARD_TEMPLATE_SCALE = 0.5
 
-    LEVEL_FONT_PATH = "data/utils/fonts/FOT-RodinNTLG Pro EB.otf"
+    LEVEL_FONTS = [
+        _LevelFont("data/utils/fonts/FOT-RodinNTLG Pro EB.otf", 20, 0, 0),
+        _LevelFont("data/utils/fonts/SourceHanSansCN-Bold.otf", 20, 0, -7),
+    ]
     MASTER_RANK_IMAGE_PATH = "data/sekai/assets/static_images/card/train_rank_{i}.png"
 
     # ================== 初始化 ================== #
@@ -235,24 +245,32 @@ class CardExtractor:
         """
         初始化等级和技能等级的模板
         """
-        font = ImageFont.FreeTypeFont(self.LEVEL_FONT_PATH, size=20)
-
-        lv_region = (10, 105, 70, 20)
-        lv_bg_color = (102, 68, 68)
-
-        for lv in range(1, 61):
-            lv_img = Image.new('RGB', (lv_region[2], lv_region[3]), lv_bg_color)
-            draw = ImageDraw.Draw(lv_img)
-            text = f"Lv.{lv}"
-            draw.text((0, 1), text, fill=(255, 255, 255), font=font)
-            self._lv_and_slv_templates.append(_ImageTemplate(type='lv', value=lv, img=np.array(lv_img)))
-
-        for slv in range(1, 5):
-            slv_img = Image.new('RGB', (lv_region[2], lv_region[3]), lv_bg_color)
-            draw = ImageDraw.Draw(slv_img)
-            text = f"SLv.{slv}"
-            draw.text((0, 1), text, fill=(255, 255, 255), font=font)
-            self._lv_and_slv_templates.append(_ImageTemplate(type='slv', value=slv, img=np.array(slv_img)))
+        for font in self.LEVEL_FONTS:
+            x_offset, y_offset = font.x_offset, font.y_offset
+            font = ImageFont.FreeTypeFont(font.path, size=font.size)
+            lv_region = (10, 105, 60, 20)
+            lv_bg_color = (102, 68, 68)
+            sr = 0
+            for lv in range(1, 61):
+                lv_img = Image.new('RGB', (lv_region[2], lv_region[3]), lv_bg_color)
+                draw = ImageDraw.Draw(lv_img)
+                text = f"Lv.{lv}"
+                draw.text((0 + x_offset, 1 + y_offset), text, fill=(255, 255, 255), font=font)
+                for r in range(-sr, sr + 1):
+                    h = lv_region[3] + r
+                    w = int(lv_region[2] * h / lv_region[3])
+                    img = lv_img.resize((w, h))
+                    self._lv_and_slv_templates.append(_ImageTemplate(type='lv', value=lv, img=np.array(img)))
+            for slv in range(1, 5):
+                slv_img = Image.new('RGB', (lv_region[2], lv_region[3]), lv_bg_color)
+                draw = ImageDraw.Draw(slv_img)
+                text = f"SLv.{slv}"
+                draw.text((0 + x_offset, 1 + y_offset), text, fill=(255, 255, 255), font=font)
+                for r in range(-sr, sr + 1):
+                    h = lv_region[3] + r
+                    w = int(lv_region[2] * h / lv_region[3])
+                    img = lv_img.resize((w, h))
+                    self._lv_and_slv_templates.append(_ImageTemplate(type='slv', value=slv, img=np.array(slv_img)))
 
     def _init_master_rank_templates(self):
         """
@@ -286,12 +304,11 @@ class CardExtractor:
         w, h = img.shape[1], img.shape[0]
         area_diff, closest_res = float('inf'), (0, 0)
         for i in range(1, 10):
-            if w % i == 0 and h % i == 0:
-                res = (w // i, h // i)
-                diff = abs(res[0] * res[1] - target_res[0] * target_res[1])
-                if diff < area_diff:
-                    area_diff = diff
-                    closest_res = res
+            res = (w // i, h // i)
+            diff = abs(res[0] * res[1] - target_res[0] * target_res[1])
+            if diff < area_diff:
+                area_diff = diff
+                closest_res = res
         for i in range(1, 10):
             res = (w * i, h * i)
             diff = abs(res[0] * res[1] - target_res[0] * target_res[1])
@@ -567,15 +584,41 @@ class CardExtractor:
                 best_template = template
         return best_template if best_score < threshold else None, best_score 
     
-    def _extract_card_info(self, img: np.ndarray) -> Dict[str, Optional[int]]:
+    def _extract_card_info(self, img: np.ndarray, level_mode: Optional[str], card: Optional[CardThumbnail] = None) -> Dict[str, Optional[int]]:
         """
-        从图片中提取卡牌信息，包括等级、技能等级和突破等级
+        从图片中提取卡牌信息，包括等级、技能等级和突破等级，可以通过传入CardThumbnail进行提前筛选
         """
         img = cv2.resize(img, (128, 128))
         lv, slv, mr = None, None, None
 
+        lv_and_slv_templates = self._lv_and_slv_templates
+        # 通过给定的level_mode筛选
+        if level_mode == 'lv':
+            lv_and_slv_templates = [t for t in lv_and_slv_templates if t.type == 'lv']
+        if level_mode == 'slv':
+            lv_and_slv_templates = [t for t in lv_and_slv_templates if t.type == 'slv']
+        # 额外通过稀度和花后筛选
+        if card is not None:
+            VALID_LV_RANGE = {
+                "rarity_1_normal": (1, 20),
+                "rarity_2_normal": (1, 30),
+                "rarity_3_normal": (1, 50),
+                "rarity_4_normal": (1, 60),
+                "rarity_birthday_normal": (1, 60),
+                "rarity_3_after": (40, 50),
+                "rarity_4_after": (50, 60),
+            }
+            key = f"{card.rarity}_{'after' if card.is_aftertraining else 'normal'}"
+            if key in VALID_LV_RANGE:
+                lv_and_slv_templates = [
+                    t for t in lv_and_slv_templates
+                    if t.type != 'lv' or (VALID_LV_RANGE[key][0] <= t.value <= VALID_LV_RANGE[key][1])
+                ]
+
         # 匹配等级和技能等级
-        ret, lv_score = self._match_by_template(img, self._lv_and_slv_templates)
+        region = (0, 90, 80, 38)
+        lv_img = img[region[1]:region[1]+region[3], region[0]:region[0]+region[2]]
+        ret, lv_score = self._match_by_template(lv_img, self._lv_and_slv_templates)
         if ret is not None:
             if ret.type == 'lv':
                 lv = ret.value
@@ -601,7 +644,7 @@ class CardExtractor:
 
     # ================== 提取函数 ================== #
 
-    def _extract_single_card(self, img: np.ndarray) -> Optional[SingleCardExtractResult]:
+    def _extract_single_card(self, img: np.ndarray, level_mode: Optional[str]) -> Optional[SingleCardExtractResult]:
         """
         从单个卡牌缩略图中提取卡牌信息，匹配失败时返回None
         """
@@ -618,7 +661,7 @@ class CardExtractor:
             if card is None:
                 return None
             
-            info = self._extract_card_info(img)
+            info = self._extract_card_info(img, level_mode, card)
             return SingleCardExtractResult(
                 id=card.id,
                 is_aftertraining=card.is_aftertraining,
@@ -645,7 +688,7 @@ class CardExtractor:
         results: List[SingleCardExtractResult] = []
         for row_idx, col_idx in grid.get_valid_indices():
             card_img = grid.get_grid_image(row_idx, col_idx)
-            res = self._extract_single_card(card_img)
+            res = self._extract_single_card(card_img, level_mode)
             if res is not None:
                 res.col_idx = col_idx
                 res.row_idx = row_idx
@@ -671,4 +714,5 @@ class CardExtractor:
             grid=grid,
             cards=results
         )
+    
 
