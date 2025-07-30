@@ -417,7 +417,7 @@ class CardExtractor:
             if 100 < area < 20000:
                 x, y, w, h = cv2.boundingRect(contour)
                 aspect_ratio = w / h
-                if 0.8 < aspect_ratio < 1.2:
+                if 0.95 < aspect_ratio < 1.05:
                     bboxes.append(_BBox(x + shrink, y + shrink, w - shrink * 2, h - shrink * 2))
 
         # 过滤掉面积过小或过大的bbox

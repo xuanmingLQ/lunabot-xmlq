@@ -119,7 +119,7 @@ async def get_card_full_thumbnail(
             rank = pcard['masterRank']
             if rank:
                 rank_img = ctx.static_imgs.get(f"card/train_rank_{rank}.png")
-                rank_img = rank_img.resize((int(img_w * 0.3), int(img_h * 0.3)))
+                rank_img = rank_img.resize((int(img_w * 0.35), int(img_h * 0.35)))
                 rank_img_w, rank_img_h = rank_img.size
                 img.paste(rank_img, (img_w - rank_img_w, img_h - rank_img_h), rank_img)
         # 左上角绘制属性

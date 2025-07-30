@@ -70,6 +70,12 @@ MASTER_MAX_KEYWORDS = ("满突破", "满破", "rankmax", "mastermax")
 EPISODE_READ_KEYWORDS = ("剧情已读", "满剧情", "已读")
 CANVAS_KEYWORDS = ("满画布", "全画布", "画布")
 DISABLE_KEYWORDS = ("禁用", "disable")
+TEAMMATE_POWER_KEYWORDS = ("队友综合力", "队友总合力", "队友综合", "队友总和")
+TEAMMATE_SCOREUP_KEYWORDS = ("队友实效", "队友技能")
+KEEP_AFTERTRAINING_STATE_KEYWORDS = (
+    "bfes不变", "Bfes不变", "BFes不变", "BFES不变", 
+    "bf不变", "Bf不变", "BF不变",
+)
 
 DEFAULT_CARD_CONFIG_12 = DeckRecommendCardConfig()
 DEFAULT_CARD_CONFIG_12.disable = False
@@ -97,6 +103,9 @@ NOCHANGE_CARD_CONFIG.canvas = False
 
 DEFAULT_LIMIT = 8
 BONUS_TARGET_LIMIT = 1
+
+DEFAULT_TEAMMATE_POWER = 200000
+DEFAULT_TEAMMATE_SCOREUP = 200
 
 
 # ======================= 参数获取 ======================= #
@@ -302,25 +311,44 @@ def extract_card_config(args: str, options: DeckRecommendOptions) -> str:
         options.rarity_birthday_config,
     ])
 
+    # bfes不变设置
+    options.keep_after_training_state = False
+    for keyword in KEEP_AFTERTRAINING_STATE_KEYWORDS:
+        if keyword in args:
+            options.keep_after_training_state = True
+            args = args.replace(keyword, "").strip()
+            break
+
     return args
+
+# 从args中提取队友综合和实效设置
+def extract_teammate_options(args: str, options: DeckRecommendOptions) -> str:
+    if options.live_type != "multi":
+        return args.strip()
+
+    options.multi_live_teammate_power = DEFAULT_TEAMMATE_POWER
+    options.multi_live_teammate_score_up = DEFAULT_TEAMMATE_SCOREUP
+
+    segs = args.split()
+    for seg in segs:
+        for keyword in TEAMMATE_POWER_KEYWORDS:
+            if keyword in seg:
+                options.multi_live_teammate_power = int(seg.replace(keyword, "").strip())
+                args = args.replace(seg, "").strip()
+                break
+        for keyword in TEAMMATE_SCOREUP_KEYWORDS:
+            if keyword in seg:
+                options.multi_live_teammate_score_up = int(seg.replace(keyword, "").strip())
+                args = args.replace(seg, "").strip()
+                break
+
+    return args.strip()
 
 
 # 从args中提取活动组卡参数
 async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
-
-    args = extract_fixed_cards(args, options)
-    args = extract_card_config(args, options)
-    args = extract_target(args, options)
-
-    # 算法
-    options.algorithm = "all"
-    options.timeout_ms = int(RECOMMEND_TIMEOUT.total_seconds() * 1000)
-    if "dfs" in args:
-        options.algorithm = "dfs"
-        args = args.replace("dfs", "").strip()
-        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT.total_seconds() * 1000)
 
     # live类型
     if "多人" in args or '协力' in args: 
@@ -334,6 +362,19 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
         args = args.replace("自动", "").replace("auto", "").strip()
     else:
         options.live_type = "multi"
+
+    args = extract_teammate_options(args, options)
+    args = extract_fixed_cards(args, options)
+    args = extract_card_config(args, options)
+    args = extract_target(args, options)
+
+    # 算法
+    options.algorithm = "all"
+    options.timeout_ms = int(RECOMMEND_TIMEOUT.total_seconds() * 1000)
+    if "dfs" in args:
+        options.algorithm = "dfs"
+        args = args.replace("dfs", "").strip()
+        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT.total_seconds() * 1000)
 
     # 活动id
     event, wl_cid, args = await extract_target_event(ctx, args)
@@ -423,18 +464,6 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
 
-    args = extract_fixed_cards(args, options)
-    args = extract_card_config(args, options)
-    args = extract_target(args, options)
-
-    # 算法
-    options.algorithm = "all"
-    options.timeout_ms = int(NO_EVENT_RECOMMEND_TIMEOUT.total_seconds() * 1000)
-    if "dfs" in args:
-        options.algorithm = "dfs"
-        args = args.replace("dfs", "").strip()
-        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT.total_seconds() * 1000)
-
     # live类型
     if "多人" in args or '协力' in args: 
         options.live_type = "multi"
@@ -447,6 +476,19 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
         args = args.replace("自动", "").replace("auto", "").strip()
     else:
         options.live_type = "multi"
+
+    args = extract_teammate_options(args, options)
+    args = extract_fixed_cards(args, options)
+    args = extract_card_config(args, options)
+    args = extract_target(args, options)
+
+    # 算法
+    options.algorithm = "all"
+    options.timeout_ms = int(NO_EVENT_RECOMMEND_TIMEOUT.total_seconds() * 1000)
+    if "dfs" in args:
+        options.algorithm = "dfs"
+        args = args.replace("dfs", "").strip()
+        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT.total_seconds() * 1000)
 
     # 活动id
     options.event_id = None
@@ -480,18 +522,6 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
 
-    args = extract_fixed_cards(args, options)
-    args = extract_card_config(args, options)
-    args = extract_target(args, options)
-
-    # 算法
-    options.algorithm = "all"
-    options.timeout_ms = int(RECOMMEND_TIMEOUT.total_seconds() * 1000)
-    if "dfs" in args:
-        options.algorithm = "dfs"
-        args = args.replace("dfs", "").strip()
-        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT.total_seconds() * 1000)
-
     # live类型
     if "多人" in args or '协力' in args: 
         options.live_type = "multi"
@@ -504,6 +534,19 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
         args = args.replace("自动", "").replace("auto", "").strip()
     else:
         options.live_type = "multi"
+
+    args = extract_teammate_options(args, options)
+    args = extract_fixed_cards(args, options)
+    args = extract_card_config(args, options)
+    args = extract_target(args, options)
+
+    # 算法
+    options.algorithm = "all"
+    options.timeout_ms = int(RECOMMEND_TIMEOUT.total_seconds() * 1000)
+    if "dfs" in args:
+        options.algorithm = "dfs"
+        args = args.replace("dfs", "").strip()
+        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT.total_seconds() * 1000)
 
     # 5v5
     if "5v5" in args or "5V5" in args:
@@ -991,12 +1034,18 @@ async def compose_deck_recommend_image(
                             style = th_style1 if target_score else th_style2
                             TextBox(text, style).set_h(gh // 2).set_content_align('c')
                             Spacer(h=6)
-                            for i, deck in enumerate(result_decks):
+                            for i, (deck, alg) in enumerate(zip(result_decks, result_algs)):
                                 with Frame().set_content_align('rb'):
+                                    alg_offset = 0
+                                    # 挑战分数差距
                                     if recommend_type in ['challenge', 'challenge_all']:
+                                        alg_offset = 20
                                         dlt = challenge_score_dlt[i]
                                         color = (50, 150, 50) if dlt > 0 else (150, 50, 50)
-                                        TextBox(f"{dlt:+d}", TextStyle(font=DEFAULT_FONT, size=12, color=color)).set_offset((0, -10-voffset*2))
+                                        TextBox(f"{dlt:+d}", TextStyle(font=DEFAULT_FONT, size=15, color=color)).set_offset((0, -8-voffset*2))
+                                    # 算法
+                                    TextBox(alg.upper(), TextStyle(font=DEFAULT_FONT, size=12, color=(150, 150, 150))).set_offset((0, -8-voffset*2+alg_offset))
+                                    # 分数
                                     score = deck.live_score if recommend_type == "no_event" else deck.score
                                     with Frame().set_content_align('c'):
                                         TextBox(str(score), tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
@@ -1055,12 +1104,14 @@ async def compose_deck_recommend_image(
                                 if wl_chara_name:
                                     bonus = f"{deck.event_bonus_rate:.1f}+{deck.support_deck_bonus_rate:.1f}%"
                                     total = f"{deck.event_bonus_rate+deck.support_deck_bonus_rate:.1f}%"
-                                    with VSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(0).set_h(gh).set_offset((0, -voffset)):
-                                        TextBox(total, tb_style)
-                                        TextBox(bonus, TextStyle(font=DEFAULT_FONT, size=18, color=(100, 100, 100)))
                                 else:
-                                    bonus = f"{deck.event_bonus_rate:.1f}%"
-                                    TextBox(bonus, tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
+                                    bonus = None
+                                    total = f"{deck.event_bonus_rate:.1f}%"
+                                with Frame().set_content_align('rb'):
+                                    if bonus is not None:
+                                        TextBox(bonus, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -6-voffset*2))
+                                    with Frame().set_content_align('c'):
+                                        TextBox(total, tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
 
                     # 实效
                     if options.live_type in ['multi', 'cheerful']:
@@ -1071,7 +1122,12 @@ async def compose_deck_recommend_image(
                             TextBox(text, style).set_h(gh // 2).set_content_align('c')
                             Spacer(h=6)
                             for deck in result_decks:
-                                TextBox(f"{deck.expect_skill_score_up:.1f}%", tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
+                                with Frame().set_content_align('rb'):
+                                    if options.multi_live_teammate_score_up is not None:
+                                        teammate_text = f"队友 {int(options.multi_live_teammate_score_up)}"
+                                        TextBox(teammate_text, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -8-voffset*2))
+                                    with Frame().set_content_align('c'):
+                                        TextBox(f"{deck.expect_skill_score_up:.1f}%", tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
 
                     # 综合力和算法
                     if recommend_type not in ["bonus", "wl_bonus"]:
@@ -1081,9 +1137,11 @@ async def compose_deck_recommend_image(
                             style = th_style1 if target_power else th_style2
                             TextBox(text, style).set_h(gh // 2).set_content_align('c')
                             Spacer(h=6)
-                            for deck, alg in zip(result_decks, result_algs):
+                            for deck in result_decks:
                                 with Frame().set_content_align('rb'):
-                                    TextBox(alg.upper(), TextStyle(font=DEFAULT_FONT, size=10, color=(150, 150, 150))).set_offset((0, -10-voffset*2))
+                                    if options.multi_live_teammate_power is not None:
+                                        teammate_text = f"队友 {int(options.multi_live_teammate_power)}"
+                                        TextBox(teammate_text, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -8-voffset*2))
                                     with Frame().set_content_align('c'):
                                         TextBox(str(deck.total_power), tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
         
@@ -1196,7 +1254,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # 实效计算
 pjsk_score_up = CmdHandler([
-    "/实效", "/pjsk_score_up", "/pjsk score up"
+    "/实效", "/pjsk_score_up", "/pjsk score up", "/倍率",
 ], logger)
 pjsk_score_up.check_cdrate(cd).check_wblist(gbl)
 @pjsk_score_up.handle()
@@ -1206,6 +1264,6 @@ async def _(ctx: SekaiHandlerContext):
         values = list(map(float, args))
         assert len(values) == 5
     except:
-        raise ReplyException(f"使用方式: {ctx.original_trigger_cmd} 100 100 100 100 100") 
+        raise ReplyException(f"使用方式: {ctx.trigger_cmd} 100 100 100 100 100") 
     res = values[0] + (values[1] + values[2] + values[3] + values[4]) / 5.
     return await ctx.asend_reply_msg(f"实效: {res:.1f}%")
