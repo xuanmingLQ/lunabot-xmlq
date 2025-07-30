@@ -7,6 +7,7 @@ from ..draw import *
 from ..sub import SekaiGroupSubHelper
 from .card_extractor import CardExtractor, CardExtractResult, CardThumbnail
 from .profile import get_card_full_thumbnail
+from .card import has_after_training, only_has_after_training
 
 md_update_group_sub = SekaiGroupSubHelper("update", "MasterData更新通知", ALL_SERVER_REGIONS)
 
@@ -98,24 +99,26 @@ async def _(ctx: SekaiHandlerContext):
             attr = card['attr']
             assetbundle_name = card['assetbundleName']
             img_dir = 'data/sekai/assets/rip/jp/thumbnail/chara_rip'
-            normal_path = os.path.join(img_dir, f"{assetbundle_name}_normal.png")
-            if os.path.exists(normal_path):
-                card_thumbs.append(CardThumbnail(
-                    id=card_id,
-                    rarity=rarity,
-                    attr=attr,
-                    is_aftertraining=False,
-                    img_path=os.path.join(img_dir, f"{assetbundle_name}_normal.png"),
-                ))
-            aftertraining_path = os.path.join(img_dir, f"{assetbundle_name}_after_training.png")
-            if os.path.exists(aftertraining_path):
-                card_thumbs.append(CardThumbnail(
-                    id=card_id,
-                    rarity=rarity,
-                    attr=attr,
-                    is_aftertraining=True,
-                    img_path=os.path.join(img_dir, f"{assetbundle_name}_after_training.png"),
-                ))
+            if not only_has_after_training(card):
+                normal_path = await ctx.rip.get_asset_cache_path(f'thumbnail/chara_rip/{assetbundle_name}_normal.png')
+                if normal_path:
+                    card_thumbs.append(CardThumbnail(
+                        id=card_id,
+                        rarity=rarity,
+                        attr=attr,
+                        is_aftertraining=False,
+                        img_path=os.path.join(img_dir, f"{assetbundle_name}_normal.png"),
+                    ))
+            if has_after_training(card):
+                aftertraining_path = await ctx.rip.get_asset_cache_path(f'thumbnail/chara_rip/{assetbundle_name}_after_training.png')
+                if aftertraining_path:
+                    card_thumbs.append(CardThumbnail(
+                        id=card_id,
+                        rarity=rarity,
+                        attr=attr,
+                        is_aftertraining=True,
+                        img_path=os.path.join(img_dir, f"{assetbundle_name}_after_training.png"),
+                    ))
         t = datetime.now()
         await run_in_pool(card_extractor.init, card_thumbs)
         logger.info(f"CardExtractor initialized in {datetime.now() - t} seconds")

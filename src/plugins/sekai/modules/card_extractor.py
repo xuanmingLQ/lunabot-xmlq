@@ -710,6 +710,7 @@ class CardExtractor:
                     r.skill_level = r.level
                 r.level = None
 
+        results.sort(key=lambda x: (x.row_idx, x.col_idx))
         return CardExtractResult(
             grid=grid,
             cards=results
