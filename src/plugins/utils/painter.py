@@ -1011,7 +1011,7 @@ class Painter:
                     hour1, h1, s1, l1 = timecolors[i]
                     hour2, h2, s2, l2 = timecolors[i + 1]
                     t1 = datetime(t.year, t.month, t.day, hour1)
-                    if hour2 == 24: t2 = datetime(t.year, t.month, t.day + 1, 0)
+                    if hour2 == 24: t2 = datetime(t.year, t.month, t.day, 0) + timedelta(days=1)
                     else:           t2 = datetime(t.year, t.month, t.day, hour2)
                     x = (t - t1) / (t2 - t1)
                     return (
