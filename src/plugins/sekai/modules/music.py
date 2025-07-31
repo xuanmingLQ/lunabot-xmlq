@@ -115,6 +115,13 @@ MUSIC_COMBO_REWARDS: Dict[str, Dict[int, MusicAchievementReward]] = {
     },
 }
 
+@dataclass
+class ChartBpmData:
+    bpm_main: float
+    bpm_events: List[Dict[str, float]]
+    bar_count: int
+    duration: float
+
 
 # ======================= 别名处理 ======================= #
 
@@ -1295,6 +1302,94 @@ async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Ima
     add_watermark(canvas)
     return await canvas.get_img()
 
+# 获取铺面bpm
+async def get_chart_bpm(ctx: SekaiHandlerContext, mid: int, timeout: float=5.0):
+    # from https://gitlab.com/pjsekai/musics/-/blob/main/music_bpm.py
+    try:
+        sus_path = await ctx.rip.get_asset_cache_path(
+            f"music/music_score/{mid:04d}_01_rip/expert", 
+            allow_error=False, timeout=timeout,
+        )
+        r = Path(sus_path).read_text(encoding='utf-8')
+    except:
+        try:
+            sus_path = await ctx.rip.get_asset_cache_path(
+                f"music/music_score/{mid:04d}_01_rip/append", 
+                allow_error=False, timeout=timeout,
+            )
+            r = Path(sus_path).read_text(encoding='utf-8')
+        except:
+            return ChartBpmData(
+                main_bpm=None,
+                bpm_events=[{'time': 0, 'bpm': None}],
+                bar_count=0,
+                duration=None,
+            )
+
+    score = {}
+    bar_count = 0
+    for line in r.split('\n'):
+        match: re.Match = re.match(r'#(...)(...?)\s*\:\s*(\S*)', line)
+        if match:
+            bar, key, value = match.groups()
+            score[(bar, key)] = value
+            if bar.isdigit():
+                bar_count = max(bar_count, int(bar) + 1)
+
+    bpm_palette = {}
+    for bar, key in score:
+        if bar == 'BPM':
+            bpm_palette[key] = float(score[(bar, key)])
+
+    bpm_events = {}
+    for bar, key in score:
+        if bar.isdigit() and key == '08':
+            value = score[(bar, key)]
+            length = len(value) // 2
+
+            for i in range(length):
+                bpm_key = value[i*2:(i+1)*2]
+                if bpm_key == '00':
+                    continue
+                bpm = bpm_palette[bpm_key]
+                t = int(bar) + i / length
+                bpm_events[t] = bpm
+
+    bpm_events = [{
+        'bar': bar,
+        'bpm': bpm,
+    } for bar, bpm in sorted(bpm_events.items())]
+
+    for i in range(len(bpm_events)):
+        if i > 0 and bpm_events[i]['bpm'] == bpm_events[i-1]['bpm']:
+            bpm_events[i]['deleted'] = True
+
+    bpm_events = [bpm_event for bpm_event in bpm_events if bpm_event.get('deleted') != True]
+
+    bpms = {}
+    for i in range(len(bpm_events)):
+        bpm = bpm_events[i]['bpm']
+        if bpm not in bpms:
+            bpms[bpm] = 0.0
+
+        if i+1 < len(bpm_events):
+            bpm_events[i]['duration'] = (bpm_events[i+1]['bar'] - bpm_events[i]['bar']) / bpm * 4 * 60
+        else:
+            bpm_events[i]['duration'] = (bar_count - bpm_events[i]['bar']) / bpm * 4 * 60
+
+        bpms[bpm] += bpm_events[i]['duration']
+
+    sorted_bpms = sorted([(bpms[bpm], bpm) for bpm in bpms], reverse=True)
+    bpm_main = sorted_bpms[0][1]
+    duration = sum([bpm[0] for bpm in sorted_bpms])
+
+    return ChartBpmData(
+        bpm_main=bpm_main,
+        bpm_events=bpm_events,
+        bar_count=bar_count,
+        duration=duration,
+    )
+
 
 # ======================= 指令处理 ======================= #
 
@@ -1625,6 +1720,37 @@ async def _(ctx: SekaiHandlerContext):
         await compose_music_rewards_image(ctx, ctx.user_id),
         low_quality=True,
     ))
+
+
+# bpm查询
+pjsk_bpm = SekaiCmdHandler([
+    "/pjsk bpm", "/pjsk_bpm", "/pjskbpm", "/查bpm",
+])
+pjsk_bpm.check_cdrate(cd).check_wblist(gbl)
+@pjsk_bpm.handle()
+async def _(ctx: SekaiHandlerContext):
+    query = ctx.get_args().strip()
+    ret = await search_music(ctx, query, MusicSearchOptions())
+    assert_and_reply(ret.music, f"未找到歌曲\"{query}\"")
+
+    cover_cq = await get_image_cq(
+        await get_music_cover_thumb(ctx, ret.music['id']), 
+        low_quality=True
+    )
+    msg = f"{cover_cq}【{ret.music['id']}】{ret.music['title']}\n{ret.candidate_msg}".strip()
+    
+    bpm = await get_chart_bpm(ctx, ret.music['id'])
+    msg += "\n---\nBPM: "
+    for event in bpm.bpm_events:
+        bpm = event.get('bpm')
+        if bpm is None:
+            msg += "无数据 - "
+        else:
+            if bpm.is_integer():
+                bpm = int(bpm)
+            msg += f"{bpm} - "
+    msg = msg.rstrip(" - ")
+    return await ctx.asend_reply_msg(msg)
 
 
 # ======================= 定时任务 ======================= #

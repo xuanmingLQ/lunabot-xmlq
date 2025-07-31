@@ -4,10 +4,9 @@ from ..handler import *
 from ..asset import *
 from ..draw import *
 from .music import *
+import pjsekai.scores
 
 # ======================= 处理逻辑 ======================= #
-
-import pjsekai.scores
 
 CHART_CACHE_PATH = SEKAI_ASSET_DIR + "/chart/{region}/{mid}_{diff}.png"
 CHART_ASSET_DIR = f"{SEKAI_ASSET_DIR}/chart_asset"
