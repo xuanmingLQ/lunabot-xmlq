@@ -918,22 +918,27 @@ async def compose_deck_recommend_image(
                 if abs(bonus - int(bonus)) < 0.01:
                     bonus = int(bonus)
                 custom_text = f"+{bonus}%"
-            return (card['id'], await get_card_full_thumbnail(ctx, card, pcard=pcard, custom_text=custom_text))
+            return await get_card_full_thumbnail(ctx, card, pcard=pcard, custom_text=custom_text)
         except: 
-            return (card['id'], UNKNOWN_IMG)
-    card_imgs = []
+            return UNKNOWN_IMG
+    card_imgs, card_keys = [], []
     for deck in result_decks:
         for deckcard in deck.cards:
             card = await ctx.md.cards.find_by_id(deckcard.card_id)
             pcard = {
+                'cardId': deckcard.card_id,
                 'defaultImage': deckcard.default_image,
                 'specialTrainingStatus': "done" if deckcard.after_training else "",
                 'level': deckcard.level,
                 'masterRank': deckcard.master_rank,
                 'eventBonus': deckcard.event_bonus_rate,
             }
-            card_imgs.append(_get_thumb(card, pcard))
-    card_imgs = { cid: img for cid, img in await asyncio.gather(*card_imgs) }
+            card_key = f"{deckcard.card_id}_{deckcard.default_image}"
+            if card_key not in card_keys:
+                card_keys.append(card_key)
+                card_imgs.append(_get_thumb(card, pcard))
+    card_imgs = await asyncio.gather(*card_imgs)
+    card_imgs = { key : img for key, img in zip(card_keys, card_imgs) }
 
     # 获取挑战live额外分数信息
     challenge_score_dlt = []
@@ -1064,7 +1069,8 @@ async def compose_deck_recommend_image(
 
                                     with VSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(0).set_h(gh):
                                         with Frame().set_content_align('rt'):
-                                            ImageBox(card_imgs[card_id], size=(None, 80))
+                                            card_key = f"{card_id}_{card.default_image}"
+                                            ImageBox(card_imgs[card_key], size=(None, 80))
                                             if options.fixed_cards and card_id in options.fixed_cards:
                                                 TextBox(str(card_id), TextStyle(font=DEFAULT_FONT, size=10, color=WHITE)) \
                                                     .set_bg(RoundRectBg((200, 50, 50, 200), 2)).set_offset((-2, 0))

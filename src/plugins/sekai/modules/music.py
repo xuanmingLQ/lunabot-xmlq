@@ -1887,7 +1887,7 @@ async def new_apd_notify():
                 img = await compose_music_detail_image(
                     ctx, mid, title=f"新{region_name}APPEND谱面上线", 
                     title_style=TextStyle(font=DEFAULT_BOLD_FONT, size=35, color=DIFF_COLORS['append']),
-                    title_shadow=True,
+                    title_shadow=False,
                 )
                 msg = await get_image_cq(img)
 
