@@ -93,7 +93,7 @@ CARD_SUPPLIES_NAMES = [
      "bfes", "bfes限", "bfes限定"),
     ("unit_event_limited", "wl", "wl限", "wl限定", "worldlink", "worldlink限定", "WL"),
     ("collaboration_limited", "联动", "联动限定"),
-    ("colorful_festival_limited", "fes", "fes限", "fes限定", "Fes", "Fes限定"),
+    ("colorful_festival_limited", 'cfes', 'cfes限定', "fes", "fes限", "fes限定", "Fes", "Fes限定"),
     ("not_limited", "非限", "非限定"),
     ("term_limited", "期间限定", "期间"),
     ("all_limited", "限定", "限"),
@@ -150,10 +150,21 @@ def get_cid_by_nickname(nickname: str) -> Optional[int]:
     """
     通过角色昵称获取角色ID，不存在则返回None
     """
+    if nickname is None:
+        return None
     for item in CHARACTER_NICKNAME_DATA:
         if nickname in item['nicknames']:
             return item['id']
     return None
+
+# 从参数中提取角色昵称，返回角色ID和剩余参数
+def extract_nickname_from_args(args: str, default=None) -> Tuple[Optional[str], List[str]]:
+    for item in CHARACTER_NICKNAME_DATA:
+        for nickname in item['nicknames']:
+            if nickname in args:
+                args = args.replace(nickname, "").strip()
+                return nickname, args
+    return default, args
 
 # 获取所有(昵称, 角色ID)对
 def get_all_nicknames() -> List[Tuple[str, int]]:

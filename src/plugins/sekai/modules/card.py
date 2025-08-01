@@ -64,7 +64,119 @@ class SkillInfo:
     detail: str
 
 
+DETAIL_SKILL_KEYWORDS_IDS = [
+    (
+        ["纯分", "普分"],
+        [1, 2, 3, 4],
+    ),
+    (
+        ["p分", "P分"],
+        [11, 13, 14],
+    ),
+    (
+        ["判分"], 
+        [5, 6, 7]
+    ),
+    (
+        ["奶分"],
+        [8, 9, 10]
+    ),
+    (
+        ["血分"],
+        [12]
+    ),
+    (
+        ["组分", "团分"],
+        [15, 16, 17, 18, 19]
+    ),
+]
+
+
 # ======================= 处理逻辑 ======================= #
+
+# 解析查多张卡的参数 返回筛选后的cards列表和剩余参数
+async def parse_multi_card_search_args(ctx: SekaiHandlerContext, args: str, cards: List[dict]=None, leak=True) -> Tuple[List[dict], str]:
+    if cards is None:
+        cards = await ctx.md.cards.get()
+
+    # 活动id
+    event = None
+    if m := re.match(r"event(\d+)", args):
+        event_id = int(m.group(1))
+        event = await ctx.md.events.find_by_id(event_id)
+        args = args.replace(f"event{event_id}", "").strip()
+    # 箱活
+    if not event:
+        event, args = await extract_ban_event(ctx, args)
+    # 获取活动卡牌
+    event_card_ids = None
+    if event is not None:
+        event_card_ids = [card['id'] for card in await get_cards_of_event(ctx, event['id'])]
+
+    # 详细的技能类型
+    skill_ids = None
+    for keywords, sids in DETAIL_SKILL_KEYWORDS_IDS:
+        for keyword in keywords:
+            if keyword in args:
+                skill_ids = sids
+                args = args.replace(keyword, "").strip()
+                break
+
+    # 其他参数
+    attr, args = extract_card_attr(args)
+    supply, args = extract_card_supply(args)
+    skill, args = extract_card_skill(args)
+    year, args = extract_year(args)
+    unit, args = extract_unit(args)
+    rare, args = extract_card_rare(args)
+    nickname, args = extract_nickname_from_args(args)
+    chara_id = get_cid_by_nickname(nickname)
+    oc = False
+    if 'oc' in args:
+        args = args.replace('oc', '').strip()
+        oc = True
+
+    # 筛选卡牌
+    ret = []
+    for card in cards:
+        card_id = card["id"]
+        card_sid = card["skillId"]
+        card_cid = card["characterId"]
+        release_time = datetime.fromtimestamp(card["releaseAt"] / 1000)
+
+        if not leak and release_time > datetime.now(): continue
+
+        if event_card_ids is not None and card_id not in event_card_ids: continue
+        if skill_ids is not None and card_sid not in skill_ids: continue
+        if attr is not None and card["attr"] != attr: continue
+
+        supply_type = await get_card_supply_type(ctx, card["id"])
+        card["supply_show_name"] = CARD_SUPPLIES_SHOW_NAMES.get(supply_type, None)
+        if supply is not None:
+            search_supplies = []
+            if supply == "all_limited":
+                search_supplies = CARD_SUPPLIES_SHOW_NAMES.keys()
+            elif supply == "not_limited":
+                search_supplies = ["normal"]
+            else:
+                search_supplies = [supply]
+            if supply_type not in search_supplies: continue
+
+        skill_type = (await ctx.md.skills.find_by_id(card["skillId"]))["descriptionSpriteName"]
+        card["skill_type"] = skill_type
+        if skill is not None:
+            if skill_type != skill: continue
+
+        if year is not None and release_time.year != int(year): continue
+        if unit is not None and CID_UNIT_MAP.get(card_cid) != unit: continue
+        if rare is not None and card["cardRarityType"] != rare: continue
+        if chara_id is not None and card_cid != int(chara_id): continue
+        
+        if oc and card_cid > 20: continue
+
+        ret.append(card)
+
+    return ret, args.strip()
 
 # 获取角色名称
 async def get_character_name_by_id(ctx: SekaiHandlerContext, cid: int, space_first_last = False) -> str:
@@ -101,18 +213,19 @@ async def get_card_by_index(ctx: SekaiHandlerContext, index: str) -> dict:
     return card
 
 # 合成卡牌列表图片
-async def compose_card_list_image(ctx: SekaiHandlerContext, bg_unit: str, cards: List[Dict], qid: int):
-    box_card_ids = None
+async def compose_card_list_image(ctx: SekaiHandlerContext, cards: List[Dict], qid: int):
     if qid:
         profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True)
         if profile:
-            box_card_ids = set([int(item['cardId']) for item in profile['userCards']])
+            box_card_ids = set([uc['cardId'] for uc in profile['userCards']])
+            cards = [c for c in cards if c['id'] in box_card_ids]
+
+    assert_and_reply(len(cards) > 0,    f"找不到符合条件的卡牌")
+    assert_and_reply(len(cards) < 90,   f"卡牌数量过多({len(cards)}), 请缩小查询范围")
 
     async def get_thumb_nothrow(card):
         try: 
             if qid:
-                if int(card['id']) not in box_card_ids: 
-                    return None
                 pcard = find_by(profile['userCards'], "cardId", card['id'])
                 img = await get_card_full_thumbnail(ctx, card, pcard=pcard)
                 return img, None
@@ -126,6 +239,7 @@ async def compose_card_list_image(ctx: SekaiHandlerContext, bg_unit: str, cards:
     card_and_thumbs = [(card, thumb) for card, thumb in zip(cards, thumbs) if thumb is not None]
     card_and_thumbs.sort(key=lambda x: (x[0]['releaseAt'], x[0]['id']), reverse=True)
 
+    bg_unit = await get_unit_by_card_id(ctx, cards[0]['id'])
 
     with Canvas(bg=random_unit_bg(bg_unit)).set_padding(BG_PADDING) as canvas:
         with VSplit().set_sep(16).set_content_align('lt').set_item_align('lt'):
@@ -134,8 +248,6 @@ async def compose_card_list_image(ctx: SekaiHandlerContext, bg_unit: str, cards:
 
             with Grid(col_count=3).set_bg(roundrect_bg()).set_padding(16):
                 for i, (card, (normal, after)) in enumerate(card_and_thumbs):
-                    if box_card_ids and int(card['id']) not in box_card_ids: 
-                        continue
 
                     bg = roundrect_bg(fill=(255, 255, 255, 150), radius=WIDGET_BG_RADIUS)
                     if card["supply_show_name"]: 
@@ -821,76 +933,18 @@ async def _(ctx: SekaiHandlerContext):
         ))
         
     ## 尝试解析：查多张卡
+    res, args = await parse_multi_card_search_args(ctx, args, cards)
 
-    # event id
-    event = None
-    if m := re.match(r"event(\d+)", args):
-        event_id = int(m.group(1))
-        event = await ctx.md.events.find_by_id(event_id)
-        args = args.replace(f"event{event_id}", "").strip()
-
-    # 箱活
-    if not event:
-        event, args = await extract_ban_event(ctx, args)
-
-    # 其他参数
-    attr, args = extract_card_attr(args)
-    supply, args = extract_card_supply(args)
-    skill, args = extract_card_skill(args)
-    year, args = extract_year(args)
-    unit, args = extract_unit(args)
-    rare, args = extract_card_rare(args)
     box = False
     if 'box' in args:
         args = args.replace('box', '').strip()
         box = True
-    chara_id = get_cid_by_nickname(args)
 
-    assert_and_reply(any([unit, chara_id, rare, attr, supply, skill, year, event]), SEARCH_SINGLE_CARD_HELP + "\n---\n" + SEARCH_MULTI_CARD_HELP)
-
-    logger.info(f"查询卡牌: unit={unit} chara_id={chara_id} rare={rare} attr={attr} supply={supply} skill={skill} event_id={event['id'] if event else None}")
-
-    if event:
-        cards = await get_cards_of_event(ctx, event['id'])
-
-    res_cards = []
-    for card in cards:
-        card_cid = card["characterId"]
-        if unit and CID_UNIT_MAP.get(card_cid) != unit: continue
-        if chara_id and card_cid != int(chara_id): continue
-        if rare and card["cardRarityType"] != rare: continue
-        if attr and card["attr"] != attr: continue
-
-        supply_type = await get_card_supply_type(ctx, card["id"])
-        card["supply_show_name"] = CARD_SUPPLIES_SHOW_NAMES.get(supply_type, None)
-        
-        if supply:
-            search_supplies = []
-            if supply == "all_limited":
-                search_supplies = CARD_SUPPLIES_SHOW_NAMES.keys()
-            elif supply == "not_limited":
-                search_supplies = ["normal"]
-            else:
-                search_supplies = [supply]
-            if supply_type not in search_supplies: continue
-
-        skill_type = (await ctx.md.skills.find_by_id(card["skillId"]))["descriptionSpriteName"]
-        card["skill_type"] = skill_type
-        if skill and skill_type != skill: continue
-
-        if year and datetime.fromtimestamp(card["releaseAt"] / 1000).year != int(year): continue
-
-        res_cards.append(card)
-
-    logger.info(f"搜索到{len(res_cards)}个卡牌")
-    if len(res_cards) == 0:
-        return await ctx.asend_reply_msg("没有找到相关卡牌")
+    logger.info(f"搜索到{len(res)}个卡牌")
 
     qid = ctx.user_id if box else None
-    
-    bg_unit = unit or (CID_UNIT_MAP.get(int(chara_id), None) if chara_id else None)
     return await ctx.asend_reply_msg(await get_image_cq(
-        await compose_card_list_image(ctx, bg_unit, res_cards, qid),
+        await compose_card_list_image(ctx, res, qid),
         low_quality=True,
     ))
         
@@ -950,7 +1004,7 @@ pjsk_box.check_cdrate(cd).check_wblist(gbl)
 @pjsk_box.handle()
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
-    cards = await ctx.md.cards.get()
+    cards, args = await parse_multi_card_search_args(ctx, args, leak=False)
 
     show_id = False
     if 'id' in args:
@@ -966,50 +1020,9 @@ async def _(ctx: SekaiHandlerContext):
     if 'before' in args:
         use_after_training = False
         args = args.replace('before', '').strip()
-        
-    attr, args = extract_card_attr(args)
-    supply, args = extract_card_supply(args)
-    skill, args = extract_card_skill(args)
-    year, args = extract_year(args)
-    unit, args = extract_unit(args)
-    rare, args = extract_card_rare(args)
-    chara_id = get_cid_by_nickname(args)
-
-    res_cards = []
-    for card in cards:
-        release_time = datetime.fromtimestamp(card['releaseAt'] / 1000)
-        if release_time > datetime.now():
-            continue
-
-        card_cid = card["characterId"]
-        if unit and CID_UNIT_MAP.get(card_cid) != unit: continue
-        if chara_id and card_cid != int(chara_id): continue
-        if rare and card["cardRarityType"] != rare: continue
-        if attr and card["attr"] != attr: continue
-
-        supply_type = await get_card_supply_type(ctx, card["id"])
-        card["supply_show_name"] = CARD_SUPPLIES_SHOW_NAMES.get(supply_type, None)
-
-        if supply:
-            search_supplies = []
-            if supply == "all_limited":
-                search_supplies = CARD_SUPPLIES_SHOW_NAMES.keys()
-            elif supply == "not_limited":
-                search_supplies = ["normal"]
-            else:
-                search_supplies = [supply]
-            if supply_type not in search_supplies: continue
-
-        skill_type = (await ctx.md.skills.find_by_id(card["skillId"]))["descriptionSpriteName"]
-        card["skill_type"] = skill_type
-        if skill and skill_type != skill: continue
-
-        if year and datetime.fromtimestamp(card["releaseAt"] / 1000).year != int(year): continue
-
-        res_cards.append(card)
     
     await ctx.asend_reply_msg(await get_image_cq(
-        await compose_box_image(ctx, ctx.user_id, res_cards, show_id, show_box, use_after_training),
+        await compose_box_image(ctx, ctx.user_id, cards, show_id, show_box, use_after_training),
         low_quality=True,
     ))
 
