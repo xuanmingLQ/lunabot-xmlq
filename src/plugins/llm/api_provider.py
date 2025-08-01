@@ -31,6 +31,10 @@ class LlmModel:
 
     def get_price_unit(self) -> str:
         return self.provider.price_unit
+    
+    def get_full_name(self) -> str:
+        return f"{self.provider.name}:{self.name}"
+
 
 
 @dataclass
@@ -43,9 +47,17 @@ class ApiProvider:
     - sync_quota() 同步剩余额度
     """
 
-    def __init__(self, id: str, name: str, models: List[LlmModel], qps_limit: int, quota_sync_interval_sec: int, price_unit: str):
-        self.id = id
+    def __init__(
+        self, 
+        name: str, 
+        code: str,
+        models: List[LlmModel], 
+        qps_limit: int, 
+        quota_sync_interval_sec: int, 
+        price_unit: str
+    ):
         self.name = name
+        self.code = code
         self.models = models
         for model in self.models:
             model.provider = self
@@ -54,7 +66,7 @@ class ApiProvider:
         self.cur_query_ts = 0
         self.cur_sec_query_count = 0
 
-        self.local_quota_key = f"api_provider_{self.id}_local_quota"
+        self.local_quota_key = f"api_provider_{self.name}_local_quota"
         self.quota_sync_interval_sec = quota_sync_interval_sec
         self.last_quota_sync_time = datetime.now() - timedelta(seconds=self.quota_sync_interval_sec)
 
@@ -69,8 +81,8 @@ class ApiProvider:
             self.cur_query_ts = now_ts
             self.cur_sec_query_count = 0
         if self.cur_sec_query_count >= self.qps_limit:
-            logger.warning(f"API供应方 {self.id} QPS限制 {self.qps_limit} 已超出")
-            raise Exception(f"API供应方 {self.id} QPS限制 {self.qps_limit} 已超出，请稍后再试")
+            logger.warning(f"API供应方 {self.name} QPS限制 {self.qps_limit} 已超出")
+            raise Exception(f"API供应方 {self.name} QPS限制 {self.qps_limit} 已超出，请稍后再试")
         self.cur_sec_query_count += 1
 
     async def aupdate_quota(self, delta: float) -> float:
@@ -84,7 +96,7 @@ class ApiProvider:
         local_quota += delta
         file_db.set(self.local_quota_key, local_quota)
         new_quota = await self.aget_current_quota()
-        logger.info(f"API供应方 {self.id} 更新剩余额度成功: {last_quota}{self.price_unit} -> {new_quota}{self.price_unit}")
+        logger.info(f"API供应方 {self.name} 更新剩余额度成功: {last_quota}{self.price_unit} -> {new_quota}{self.price_unit}")
         return new_quota
 
     async def aget_current_quota(self) -> float:
@@ -96,9 +108,9 @@ class ApiProvider:
                 new_quota = await self.sync_quota()
                 if new_quota is not None:
                     file_db.set(self.local_quota_key, new_quota)
-                    logger.info(f"API供应方 {self.id} 同步剩余额度成功: {new_quota}{self.price_unit}")
+                    logger.info(f"API供应方 {self.name} 同步剩余额度成功: {new_quota}{self.price_unit}")
             except:
-                logger.print_exc(f"API供应方 {self.id} 同步剩余额度失败")
+                logger.print_exc(f"API供应方 {self.name} 同步剩余额度失败")
             self.last_quota_sync_time = datetime.now()
         return file_db.get(self.local_quota_key, 0.0)
 

@@ -1,5 +1,5 @@
 from ...utils import *
-from ...llm import translate_text, ChatSession
+from ...llm import translate_text, ChatSession, get_model_preset, ChatSessionResponse
 from ..common import *
 from ..handler import *
 from ..asset import *
@@ -21,11 +21,6 @@ from .event import (
     get_card_supply_type,
 )
 
-DEFAULT_CARD_STORY_SUMMARY_MODEL = [
-    'gemini-2.5-flash',
-    'gemini-2-flash',
-    'qwen3-free',
-]
 
 SEARCH_SINGLE_CARD_HELP = """
 查单张卡的方式:
@@ -366,41 +361,36 @@ async def get_card_story_summary(ctx: SekaiHandlerContext, card: dict, refresh: 
             summary_prompt_template = Path(f"{SEKAI_DATA_DIR}/story_summary/card_story_summary_prompt.txt").read_text()
             summary_prompt = summary_prompt_template.format(raw_story=raw_story,)
             
-            if isinstance(summary_model, str):
-                summary_model = [summary_model]
-            models = summary_model.copy()
-            
-            @retry(stop=stop_after_attempt(len(models)), wait=wait_fixed(1), reraise=True)
+            @retry(stop=stop_after_attempt(2), wait=wait_fixed(1), reraise=True)
             async def do_summary():
                 try:
-                    model = models[0]
-                    models.pop(0)
-
                     session = ChatSession()
                     session.append_user_content(summary_prompt, verbose=False)
-                    resp = await session.get_response(model)
+                    
+                    def process(resp: ChatSessionResponse):
+                        resp_text = resp.result
+                        if len(resp_text) > 1024:
+                            raise Exception(f"生成文本超过长度限制({len(resp_text)}>1024)")
+                        start_idx = resp_text.find("{")
+                        end_idx = resp_text.rfind("}") + 1
+                        data = loads_json(resp_text[start_idx:end_idx])
 
-                    resp_text = resp.result
-                    if len(resp_text) > 1024:
-                        raise Exception(f"生成文本超过长度限制({len(resp_text)}>1024)")
-                    start_idx = resp_text.find("{")
-                    end_idx = resp_text.rfind("}") + 1
-                    data = loads_json(resp_text[start_idx:end_idx])
+                        ep_summary = {}
+                        ep_summary['summary'] = data['summary']
 
-                    ep_summary = {}
-                    ep_summary['summary'] = data['summary']
-
-                    additional_info = f"生成模型: {resp.model.name} | {resp.prompt_tokens}+{resp.completion_tokens} tokens"
-                    if resp.quota > 0:
-                        price_unit = resp.model.get_price_unit()
-                        if resp.cost == 0.0:
-                            additional_info += f" | 0/{resp.quota:.2f}{price_unit}"
-                        elif resp.cost >= 0.0001:
-                            additional_info += f" | {resp.cost:.4f}/{resp.quota:.2f}{price_unit}"
-                        else:
-                            additional_info += f" | <0.0001/{resp.quota:.2f}{price_unit}"
-                    ep_summary['additional_info'] = additional_info
-                    return ep_summary
+                        additional_info = f"生成模型: {resp.model.get_full_name()} | {resp.prompt_tokens}+{resp.completion_tokens} tokens"
+                        if resp.quota > 0:
+                            price_unit = resp.model.get_price_unit()
+                            if resp.cost == 0.0:
+                                additional_info += f" | 0/{resp.quota:.2f}{price_unit}"
+                            elif resp.cost >= 0.0001:
+                                additional_info += f" | {resp.cost:.4f}/{resp.quota:.2f}{price_unit}"
+                            else:
+                                additional_info += f" | <0.0001/{resp.quota:.2f}{price_unit}"
+                        ep_summary['additional_info'] = additional_info
+                        return ep_summary
+                    
+                    return await session.get_response(summary_model, process_func=process, timeout=300)
 
                 except Exception as e:
                     logger.warning(f"生成剧情总结失败: {e}")
@@ -447,11 +437,10 @@ async def get_card_story_summary(ctx: SekaiHandlerContext, card: dict, refresh: 
         additional_info_text += f"EP#{i} {summary.get(ep['title'], {}).get('additional_info', '')}\n"
 
     msg_lists.append(f"""
-以上内容由NeuraXmy(ルナ茶)的QQBot生成
+以上内容由Lunabot生成
 {additional_info_text.strip()}
 使用\"/卡牌剧情 卡牌id\"查询对应活动总结
 使用\"/卡牌剧情 卡牌id refresh\"可刷新AI活动总结
-更多pjsk功能请@bot并发送\"/help sekai\"
 """.strip())
         
     return msg_lists
@@ -982,7 +971,7 @@ async def _(ctx: SekaiHandlerContext):
         args = args.replace('refresh', '').strip()
         refresh = True
 
-    model = DEFAULT_CARD_STORY_SUMMARY_MODEL
+    model = get_model_preset("sekai.story_summary.card")
     if 'model:' in args:
         assert_and_reply(check_superuser(ctx.event), "仅超级用户可指定模型")
         model = args.split('model:')[1].strip()

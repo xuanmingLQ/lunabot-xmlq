@@ -3,7 +3,7 @@ from nonebot.adapters.onebot.v11 import Bot
 from nonebot.adapters.onebot.v11 import MessageSegment
 from nonebot.adapters.onebot.v11.message import Message as OutMessage
 from nonebot.adapters.onebot.v11 import MessageEvent
-from ..llm import ChatSession, download_image_to_b64, tts, ChatSessionResponse, api_provider_mgr, translate_text
+from ..llm import ChatSession, download_image_to_b64, tts, ChatSessionResponse, api_provider_mgr, translate_text, get_model_preset
 from ..utils import *
 from ..llm.translator import Translator, TranslationResult
 from datetime import datetime, timedelta
@@ -23,9 +23,6 @@ gwl = get_group_white_list(file_db, logger, 'chat')
 
 # CHAT_RETRY_NUM = 3
 # CHAT_RETRY_DELAY_SEC = 1
-
-DEFAULT_PRIVATE_MODEL_NAME = config['default_private_model_name']
-DEFAULT_GROUP_MODEL_NAME = config['default_group_model_name']
 
 FOLD_LENGTH_THRESHOLD = config['fold_response_threshold']
 SESSION_LEN_LIMIT = config['session_len_limit']
@@ -97,7 +94,8 @@ async def get_image_caption(mdata: dict, model_name: str, timeout: int, use_llm:
             resp = await asyncio.wait_for(
                 session.get_response(
                     model_name=model_name, 
-                    enable_reasoning=False
+                    enable_reasoning=False,
+                    timeout=60,
                 ), 
                 timeout=timeout
             )
@@ -184,44 +182,53 @@ async def get_forward_msg_text(model: str, forward_seg, indent: int = 0) -> str:
 # 获取某个群组当前的模型名
 def get_group_model_name(group_id, mode):
     group_model_dict = file_db.get("group_chat_model_dict", {})
-    return group_model_dict.get(str(group_id), DEFAULT_GROUP_MODEL_NAME).get(mode, DEFAULT_GROUP_MODEL_NAME[mode])
+    default = get_model_preset("chat.group")
+    return group_model_dict.get(str(group_id), default).get(mode, default[mode])
 
 # 获取某个用户私聊当前的模型名
 def get_private_model_name(user_id, mode):
     private_model_dict = file_db.get("private_chat_model_dict", {})
-    return private_model_dict.get(str(user_id), DEFAULT_PRIVATE_MODEL_NAME).get(mode, DEFAULT_PRIVATE_MODEL_NAME[mode])
+    default = get_model_preset("chat.private")
+    return private_model_dict.get(str(user_id), default).get(mode, default[mode])
 
 # 获取某个event的模型名
-def get_model_name(event, mode):
+def get_model_name(event, mode) -> Union[str, List[str]]:
     if is_group_msg(event):
-        return get_group_model_name(event.group_id, mode)
+        ret = get_group_model_name(event.group_id, mode)
     else:
-        return get_private_model_name(event.user_id, mode)
+        ret = get_private_model_name(event.user_id, mode)
+    if not isinstance(ret, str) and len(ret) == 1:
+        ret = ret[0]
+    return ret
     
 # 修改某个群组当前的模型名
-def change_group_model_name(group_id, model_name, mode):
+def change_group_model_name(group_id, model_name: str, mode):
     ChatSession.check_model_name(model_name, mode)
     group_model_dict = file_db.get("group_chat_model_dict", {})
+    default = get_model_preset("chat.group")
     if str(group_id) not in group_model_dict:
-        group_model_dict[str(group_id)] = copy.deepcopy(DEFAULT_GROUP_MODEL_NAME)
+        group_model_dict[str(group_id)] = copy.deepcopy(default)
     group_model_dict[str(group_id)][mode] = model_name
     file_db.set("group_chat_model_dict", group_model_dict)
 
 # 修改某个用户的私聊当前的模型名
-def change_private_model_name(user_id, model_name, mode):
+def change_private_model_name(user_id, model_name: str, mode):
     ChatSession.check_model_name(model_name, mode)
     private_model_dict = file_db.get("private_chat_model_dict", {})
+    default = get_model_preset("chat.private")
     if str(user_id) not in private_model_dict:
-        private_model_dict[str(user_id)] = copy.deepcopy(DEFAULT_PRIVATE_MODEL_NAME)
+        private_model_dict[str(user_id)] = copy.deepcopy(default)
     private_model_dict[str(user_id)][mode] = model_name
     file_db.set("private_chat_model_dict", private_model_dict)
 
 # 根据event修改模型名
-def change_model_name(event, model_name, mode):
+def change_model_name(event, model_name: str, mode):
+    model_name = api_provider_mgr.find_model(model_name).get_full_name()
     if is_group_msg(event):
         change_group_model_name(event.group_id, model_name, mode)
     else:
         change_private_model_name(event.user_id, model_name, mode)
+    return model_name
 
 # ------------------------------------------ 聊天逻辑 ------------------------------------------ #
 
@@ -428,9 +435,10 @@ async def _(ctx: HandlerContext):
         # 进行询问
         total_seconds, total_ptokens, total_ctokens, total_cost = 0, 0, 0, 0
         tools_additional_info = ""
-        rest_quota, provider_name = 0, None
+        rest_quota = 0
         reasoning = None
         text_len = 0
+        resp_model = None
 
         for _ in range(3):
             t = datetime.now()
@@ -438,6 +446,7 @@ async def _(ctx: HandlerContext):
                 model_name=model_name, 
                 enable_reasoning=enable_reasoning,
                 image_response=enable_image_response,
+                timeout=300,
             )
 
             text_len = get_str_appear_length(resp.result)
@@ -454,7 +463,7 @@ async def _(ctx: HandlerContext):
             total_cost += resp.cost
             total_seconds += (datetime.now() - t).total_seconds()
             rest_quota = resp.quota
-            provider_name = resp.provider.name
+            resp_model = resp.model
             reasoning = resp.reasoning
 
             # 如果回复时关闭则取消回复
@@ -493,9 +502,9 @@ async def _(ctx: HandlerContext):
         reasoning_text = f"【思考】\n{reasoning}\n【回答】\n"
     
     # 添加额外信息
-    additional_info = f"{model_name}@{provider_name} | {total_seconds:.1f}s, {total_ptokens}+{total_ctokens} tokens"
+    additional_info = f"{resp_model.get_full_name()} | {total_seconds:.1f}s, {total_ptokens}+{total_ctokens} tokens"
     if rest_quota > 0:
-        price_unit = api_provider_mgr.find_model(model_name)[1].get_price_unit()
+        price_unit = resp_model.provider.price_unit
         if total_cost == 0.0:
             additional_info += f" | 0/{rest_quota:.2f}{price_unit}"
         elif total_cost >= 0.0001:
@@ -526,7 +535,9 @@ async def _(ctx: HandlerContext):
 
 
 # 获取或修改当前私聊或群聊使用的模型
-change_model = CmdHandler(["/chat_model"], logger, priority=100)
+change_model = CmdHandler([
+    "/chat_model", "/chat model", "/chatmodel"
+], logger)
 change_model.check_cdrate(chat_cd).check_wblist(gwl)
 @change_model.handle()
 async def _(ctx: HandlerContext):
@@ -546,51 +557,68 @@ async def _(ctx: HandlerContext):
         if "text" in args:
             last_model_name = get_model_name(ctx.event, "text")
             args = args.replace("text", "").strip()
-            change_model_name(ctx.event, args, "text")
-            return await ctx.asend_reply_msg(f"已切换文本模型: {last_model_name} -> {args}")
+            name = change_model_name(ctx.event, args, "text")
+            return await ctx.asend_reply_msg(f"已切换文本模型: {last_model_name} -> {name}")
         # 只修改多模态模型
         elif "mm" in args:
             last_model_name = get_model_name(ctx.event, "mm")
             args = args.replace("mm", "").strip()
-            change_model_name(ctx.event, args, "mm")
-            return await ctx.asend_reply_msg(f"已切换多模态模型: {last_model_name} -> {args}")
+            name = change_model_name(ctx.event, args, "mm")
+            return await ctx.asend_reply_msg(f"已切换多模态模型: {last_model_name} -> {name}")
         # 只修改工具模型
         elif "tool" in args:
             last_model_name = get_model_name(ctx.event, "tool")
             args = args.replace("tool", "").strip()
-            change_model_name(ctx.event, args, "tool")
-            return await ctx.asend_reply_msg(f"已切换工具模型: {last_model_name} -> {args}")
+            name = change_model_name(ctx.event, args, "tool")
+            return await ctx.asend_reply_msg(f"已切换工具模型: {last_model_name} -> {name}")
         # 只修改图片生成模型
         elif "image" in args:
             last_model_name = get_model_name(ctx.event, "image")
             args = args.replace("image", "").strip()
-            change_model_name(ctx.event, args, "image")
-            return await ctx.asend_reply_msg(f"已切换图片生成模型: {last_model_name} -> {args}")
+            name = change_model_name(ctx.event, args, "image")
+            return await ctx.asend_reply_msg(f"已切换图片生成模型: {last_model_name} -> {name}")
         # 同时修改文本和多模态模型
         else:
             msg = ""
             try:
                 last_mm_model_name = get_model_name(ctx.event, "mm")
-                change_model_name(ctx.event, args, "mm")  
-                msg += f"已切换多模态模型: {last_mm_model_name} -> {args}\n"
+                name = change_model_name(ctx.event, args, "mm")  
+                msg += f"已切换多模态模型: {last_mm_model_name} -> {name}\n"
             except Exception as e:
                 msg += f"{e}, 仅切换文本模型\n"
             last_text_model_name = get_model_name(ctx.event, "text")
-            change_model_name(ctx.event, args, "text")
-            msg += f"已切换文本模型: {last_text_model_name} -> {args}"
+            name = change_model_name(ctx.event, args, "text")
+            msg += f"已切换文本模型: {last_text_model_name} -> {name}"
             return await ctx.asend_reply_msg(msg.strip())
 
 
 # 获取所有可用的模型名
-all_model = CmdHandler(["/chat_model_list"], logger, priority=101)
+all_model = CmdHandler([
+    "/model_list", "/model list", "/modellist",
+    "/allmodel", "/all model", "/all_model",
+], logger)
 all_model.check_cdrate(chat_cd).check_wblist(gwl)
 @all_model.handle()
 async def _(ctx: HandlerContext):
-    return await ctx.asend_reply_msg(f"可用模型列表: {', '.join(ChatSession.get_all_model_names())}")
+    msg = "可用模型列表:\n"
+    for model in api_provider_mgr.get_all_models():
+        msg += f"{model.get_full_name()} "
+        if model.input_pricing + model.output_pricing < 1e-6:
+            msg += "🆓"
+        if model.is_multimodal:
+            msg += "🏞️"
+        if model.include_reasoning:
+            msg += "🤔"
+        if model.image_response:
+            msg += "🎨"
+        msg += "\n"
+    return await ctx.asend_fold_msg_adaptive(msg.strip())
 
 
 # 获取所有可用的供应商名
-chat_providers = CmdHandler(["/chat_providers"], logger, priority=101)
+chat_providers = CmdHandler([
+    "/chat_provider", "/chat provider", "/chatprovider"
+], logger)
 chat_providers.check_cdrate(chat_cd).check_wblist(gwl)
 @chat_providers.handle()
 async def _(ctx: HandlerContext):
@@ -598,7 +626,7 @@ async def _(ctx: HandlerContext):
     msg = ""
     for provider in providers:
         quota = await provider.aget_current_quota()
-        msg += f"{provider.name} 余额: {quota:.4f}{provider.price_unit}\n"
+        msg += f"{provider.name}({provider.code}) {quota:.4f}{provider.price_unit}\n"
     return await ctx.asend_reply_msg(msg.strip())
 
 
@@ -921,42 +949,37 @@ async def _(ctx: HandlerContext):
         ).strip()
 
         # 生成回复
-        last_exception = None
-        for model_name in cfg.model_names:
-            try:
-                @retry(stop=stop_after_attempt(cfg.retry_num), wait=wait_fixed(cfg.retry_delay_sec), reraise=True)
-                async def chat():
-                    session = ChatSession()
-                    session.append_user_content(prompt, verbose=False)
-                    resp = await session.get_response(model_name=model_name, enable_reasoning=cfg.reasoning)
-                    text = resp.result
-                    appear_len = get_str_appear_length(text)
-                    if appear_len > cfg.output_len_limit:
-                        raise Exception(f"回复过长: {appear_len} > {cfg.output_len_limit}")
-                    start_idx = text.find('{')
-                    end_idx = text.rfind('}')
-                    if start_idx == -1 or end_idx == -1:
-                        raise Exception("回复格式错误")
-                    text = text[start_idx:end_idx+1]
-                    try: 
-                        data = loads_json(text)
-                        text = data["text"]
-                    except:
-                        raise Exception("回复格式错误")
-                    return text
-                
-                res_text = await chat()
-                last_exception = None
-                break
+        @retry(stop=stop_after_attempt(cfg.retry_num), wait=wait_fixed(cfg.retry_delay_sec), reraise=True)
+        async def chat():
+            session = ChatSession()
+            session.append_user_content(prompt, verbose=False)
 
-            except Exception as e:
-                logger.warning(f"群聊 {group_id} 尝试模型 {model_name} 自动聊天失败: {e}")
-                last_exception = e
-                continue
+            def process(resp: ChatSessionResponse):
+                text = resp.result
+                appear_len = get_str_appear_length(text)
+                if appear_len > cfg.output_len_limit:
+                    raise Exception(f"回复过长: {appear_len} > {cfg.output_len_limit}")
+                start_idx = text.find('{')
+                end_idx = text.rfind('}')
+                if start_idx == -1 or end_idx == -1:
+                    raise Exception("回复格式错误")
+                text = text[start_idx:end_idx+1]
+                try: 
+                    data = loads_json(text)
+                    text = data["text"]
+                except:
+                    raise Exception("回复格式错误")
+                return text
 
-        if last_exception:
-            raise last_exception
-                
+            return await session.get_response(
+                cfg.model_names, 
+                enable_reasoning=cfg.reasoning,
+                process_func=process,
+                timeout=300,
+            )
+
+        res_text = await chat()
+
         # 获取at和回复
         at_id, reply_id = None, None
         # 匹配 [@id]

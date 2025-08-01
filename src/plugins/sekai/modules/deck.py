@@ -148,7 +148,7 @@ async def extract_target_event(
         event = ok_events[0]
     else:
         event = await ctx.md.events.find_by_id(event_id)
-        assert_and_reply(event, f"活动 {event_id} 不存在")
+        assert_and_reply(event, f"活动 {ctx.region}-{event_id} 不存在")
 
     wl_events = await get_wl_events(ctx, event['id'])
     if wl_events:
@@ -171,16 +171,16 @@ async def extract_target_event(
                 chapter = ok_chapters[0]
         elif chapter_id:
             chapter = find_by(wl_events, "id", 1000 * chapter_id + event['id'])
-            assert_and_reply(chapter, f"活动 {event['id']} 没有章节 {chapter_id}")
+            assert_and_reply(chapter, f"活动 {ctx.region}-{event['id']} 没有章节 {chapter_id}")
         else: 
             cid = get_cid_by_nickname(chapter_nickname)
             chapter = find_by(wl_events, "wl_cid", cid)
-            assert_and_reply(chapter, f"活动 {event['id']} 没有 {chapter_nickname} 的章节 ")
+            assert_and_reply(chapter, f"活动 {ctx.region}-{event['id']} 没有 {chapter_nickname} 的章节 ")
 
         wl_cid = chapter['wl_cid']
 
     else:
-        assert_and_reply(not chapter_id, f"活动 {event['id']} 不是WL活动，无法指定章节")
+        assert_and_reply(not chapter_id, f"活动 {ctx.region}-{event['id']} 不是WL活动，无法指定章节")
         wl_cid = None
 
     return event, wl_cid, args
@@ -1156,7 +1156,7 @@ async def compose_deck_recommend_image(
                     tip_style = TextStyle(font=DEFAULT_FONT, size=16, color=(20, 20, 20))
                     if recommend_type not in ["bonus", "wl_bonus"]:
                         TextBox(f"12星卡默认全满，34星及生日卡默认满级，oc的bfes花前技能活动组卡为平均值，挑战组卡为最大值", tip_style)
-                    TextBox(f"功能移植并修改自33Kit https://3-3.dev/sekai/deck-recommend 算错概不负责，请支持正版", tip_style)
+                    TextBox(f"功能移植并修改自33Kit https://3-3.dev/sekai/deck-recommend 算错概不负责", tip_style)
                     alg_and_cost_text = "本次组卡使用算法: "
                     for alg, cost in cost_times.items():
                         alg_name = RECOMMEND_ALG_NAMES[alg]
@@ -1165,7 +1165,7 @@ async def compose_deck_recommend_image(
                         alg_and_cost_text += f"{alg_name} (等待{wait_time}/耗时{cost_time}) + "
                     alg_and_cost_text = alg_and_cost_text[:-3]
                     TextBox(alg_and_cost_text, tip_style)
-                    TextBox(f"发送\"{ctx.original_trigger_cmd}help\"获取组卡详细帮助", tip_style)
+                    TextBox(f"若发现组卡漏掉最优解可指定固定卡牌再尝试，发送\"{ctx.original_trigger_cmd}help\"获取详细帮助", tip_style)
 
     add_watermark(canvas)
     return await canvas.get_img()

@@ -5,7 +5,7 @@ from nonebot.adapters.onebot.v11.message import Message as OutMessage
 from nonebot.adapters.onebot.v11 import MessageEvent
 from datetime import datetime, timedelta
 from ..utils import *
-from ..llm import ChatSession
+from ..llm import ChatSession, get_model_preset, ChatSessionResponse
 
 
 config = get_config('cron')
@@ -15,7 +15,6 @@ cd = ColdDown(file_db, logger, config['cd'])
 gbl = get_group_black_list(file_db, logger, 'cron')
 
 MAX_RETIRES = config['max_retries']
-MODEL_NAME = config['model_name']
 
 # 获取下次提醒时间描述
 def get_task_next_run_time_str(group_id, task_id):
@@ -86,20 +85,22 @@ async def parse_instruction(group_id, user_id, user_instruction):
     session = ChatSession(system_prompt)
     session.append_user_content(user_instruction)
 
+    model_name = get_model_preset('cron')
+
     for retry_count in range(MAX_RETIRES):
         try:
-            resp = await session.get_response(model_name=MODEL_NAME)   
-            task = loads_json(resp.result)
-            params = task['parameters']
-            for key in params:
-                params[key] = str(params[key])
-            task['group_id'] = group_id
-            task['user_id'] = user_id
-            task['sub_users'] = [ str(user_id) ]
-            task['count'] = 0
-            task['mute'] = False
-
-            return task
+            def process(resp: ChatSessionResponse):
+                task = loads_json(resp.result)
+                params = task['parameters']
+                for key in params:
+                    params[key] = str(params[key])
+                task['group_id'] = group_id
+                task['user_id'] = user_id
+                task['sub_users'] = [ str(user_id) ]
+                task['count'] = 0
+                task['mute'] = False
+                return task
+            return await session.get_response(model_name, process_func=process)
         except Exception as e:
             if retry_count < MAX_RETIRES - 1:
                 logger.warning(f"分析用户指示失败: {e}")
@@ -128,6 +129,13 @@ async def add_cron_job(task, verbose=False):
             if task['mute']:
                 logger.info(f"群组 {group_id} 的任务 {task_id} 已mute")
                 return
+            
+            last_notify_time = task.get('last_notify_time', None)
+            if last_notify_time is not None:
+                last_notify_time = datetime.fromisoformat(last_notify_time)
+                if (datetime.now() - last_notify_time).total_seconds() < 60:
+                    logger.warning(f"跳过在60秒内已执行过的群组 {group_id} 的任务 {task_id}")
+                    return
 
             logger.info(f"执行群组 {group_id} 的任务 {task_id} (第 {task['count']} 次)")
 
@@ -143,6 +151,7 @@ async def add_cron_job(task, verbose=False):
 
             # 更新count
             task['count'] += 1
+            task['last_notify_time'] = datetime.now().isoformat()
             file_db.set(f"tasks_{group_id}", group_tasks)
 
         except Exception as e:

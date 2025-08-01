@@ -10,6 +10,24 @@ config = get_config('llm')
 logger = get_logger("Llm")
 file_db = get_file_db("data/llm/db.json", logger)
 
+# -------------------------------- 获取模型预设 -------------------------------- #
+
+MODEL_PRESET_PATH = "data/llm/model_preset.yaml"
+
+def get_model_preset(key: str) -> Union[str, List[str], dict]:
+    with open(MODEL_PRESET_PATH, "r", encoding="utf-8") as f:
+        model_preset = yaml.safe_load(f)
+    key = key.split('.')
+    ret = model_preset
+    for k in key:
+        ret = ret.get(k)
+        if ret is None:
+            raise ValueError(f"模型预设 {key} 不存在")
+    if isinstance(ret, str) and ret.startswith("&"):
+        return get_model_preset(ret[1:])
+    return ret
+
+
 # -------------------------------- GPT聊天相关 -------------------------------- #
 
 CHAT_TIMEOUT = 300
@@ -33,22 +51,18 @@ class ChatSessionResponse:
 
 # 会话类型
 class ChatSession:
-    # 获取所有聊天模型名
-    @staticmethod
-    def get_all_model_names() -> List[str]:
-        ret = set()
-        for provider, model in api_provider_mgr.get_all_models():
-            ret.add(model.name)
-        return list(ret)
-
     # 检查模型名，不存在或不支持多模态抛出异常
     @staticmethod
-    def check_model_name(model_name, mode="text"):
-        provider, model = api_provider_mgr.find_model(model_name, raise_exc=True)
-        if mode == "mm" and not model.is_multimodal:
-            raise Exception(f"模型 {model_name} 不支持多模态输入")
-        if mode == "image" and not model.image_response:
-            raise Exception(f"模型 {model_name} 不支持图片回复")
+    def check_model_name(model_name: Union[str, List[str]], mode="text"):
+        if not isinstance(model_name, str):
+            for name in model_name:
+                ChatSession.check_model_name(name, mode=mode)
+        else:
+            model = api_provider_mgr.find_model(model_name)
+            if mode == "mm" and not model.is_multimodal:
+                raise Exception(f"模型 {model_name} 不支持多模态输入")
+            if mode == "image" and not model.image_response:
+                raise Exception(f"模型 {model_name} 不支持图片回复")
 
     def __init__(self, system_prompt=None):
         global session_id_top
@@ -121,121 +135,160 @@ class ChatSession:
         return self.has_image
 
     # 获取回复 并且自动添加回复到消息列表
-    async def get_response(self, model_name, enable_reasoning=False, image_response=False):
-        logger.info(f"会话{self.id}请求回复, 使用模型: {model_name}")
+    async def get_response(
+        self, 
+        model_name: Union[str, List[str]],
+        process_func = None,
+        enable_reasoning=False, 
+        image_response=False,
+        timeout=180,
+    ):
+        if isinstance(model_name, str):
+            model_name = [model_name]
+        errs: List[Tuple[str, str]] = []
+        for idx, name in enumerate(model_name):
+            try:
+                model = api_provider_mgr.find_model(name)
+                name = model.get_full_name()
+                provider = model.provider
+                if not model.is_multimodal and self.has_image:
+                    raise Exception(f"模型 {name} 不支持多模态输入")
+                
+                logger.info(f"会话{self.id}请求回复, 模型名: {name} ({idx+1}/{len(model_name)})")
 
-        provider, model = api_provider_mgr.find_model(model_name)
-        if not model.is_multimodal and self.has_image:
-            raise Exception(f"模型 {model_name} 不支持多模态输入")
-        
-        provider.check_qps_limit()
+                provider.check_qps_limit()
 
-        # 推理附加新的prompt
-        use_reasoning = enable_reasoning and model.include_reasoning
-        content = self.content.copy()
-        if use_reasoning:
-            with open("data/llm/reasoning_prompt.txt", "r", encoding="utf-8") as f:
-                reasoning_prompt = f.read()
-            if isinstance(content[-1]['content'], str):
-                content[-1]['content'] += reasoning_prompt
-            else:
-                content[-1]['content'].append({
-                    "type": "text",
-                    "text": reasoning_prompt
-                })
+                # 推理附加新的prompt
+                use_reasoning = enable_reasoning and model.include_reasoning
+                content = self.content.copy()
+                if use_reasoning:
+                    with open("data/llm/reasoning_prompt.txt", "r", encoding="utf-8") as f:
+                        reasoning_prompt = f.read()
+                    if isinstance(content[-1]['content'], str):
+                        content[-1]['content'] += reasoning_prompt
+                    else:
+                        content[-1]['content'].append({
+                            "type": "text",
+                            "text": reasoning_prompt
+                        })
 
-        # 请求回复
-        extra_body = {}
-        if model.include_reasoning:
-            extra_body["include_reasoning"] = use_reasoning
-        if model.image_response:
-            extra_body["image_response"] = image_response
-        if reasoning_effort := model.data.get("reasoning_effort"):
-            extra_body["reasoning_effort"] = reasoning_effort
+                # 请求回复
+                extra_body = {}
+                if model.include_reasoning:
+                    extra_body["include_reasoning"] = use_reasoning
+                if model.image_response:
+                    extra_body["image_response"] = image_response
+                if reasoning_effort := model.data.get("reasoning_effort"):
+                    extra_body["reasoning_effort"] = reasoning_effort
 
-        # qwen3 推理使用/think /no_think
-        if "qwen3" in model_name:
-            if content[0]['role'] != "system":
-                content.insert(0, { "role": "system", "content": "" })
-            content[0]['content'] = "/think " if use_reasoning else "/no_think " + content[0]['content']
+                # qwen3 推理使用/think /no_think
+                if "qwen3" in name:
+                    if content[0]['role'] != "system":
+                        content.insert(0, { "role": "system", "content": "" })
+                    content[0]['content'] = "/think " if use_reasoning else "/no_think " + content[0]['content']
 
-        client = provider.get_client()
-        response = await client.chat.completions.create(
-            model=model.get_model_id(),
-            messages=content,
-            extra_body=extra_body,
-        )
-        if not isinstance(response, dict):
-            response = response.model_dump()
+                client = provider.get_client()
 
-        if response.get('error'):
-            raise Exception(response['error'])
+                try:
+                    response = await asyncio.wait_for(
+                        client.chat.completions.create(
+                            model=model.get_model_id(),
+                            messages=content,
+                            extra_body=extra_body,
+                        ), 
+                        timeout=timeout
+                    )
+                except TimeoutError:
+                    raise Exception(f"等待回复超时")
 
-        # 解析回复
-        message             = response['choices'][0]['message']
-        prompt_tokens       = response['usage']['prompt_tokens']
-        completion_tokens   = response['usage']['completion_tokens']
+                if not isinstance(response, dict):
+                    response = response.model_dump()
 
-        # 回复内容
-        resp_content = message['content']
-        if isinstance(resp_content, str):
-            # 纯文本回复
-            result = resp_content
-            images = []
-            result_list = [result]
+                if response.get('error'):
+                    raise Exception(response['error'])
+
+                # 解析回复
+                message             = response['choices'][0]['message']
+                prompt_tokens       = response['usage']['prompt_tokens']
+                completion_tokens   = response['usage']['completion_tokens']
+
+                # 回复内容
+                resp_content = message['content']
+                if isinstance(resp_content, str):
+                    # 纯文本回复
+                    result = resp_content
+                    images = []
+                    result_list = [result]
+                else:
+                    # 多段回复（文本+图片）
+                    result = ""
+                    images = []
+                    for part in resp_content:
+                        if isinstance(part, str):
+                            result += part
+                        elif isinstance(part, Image.Image):
+                            result += "[图片]"
+                            images.append(part)
+                        result_list = resp_content
+
+                # 推理内容
+                reasoning: str = None
+                if 'reasoning_content' in message:
+                    reasoning = message['reasoning_content']
+                elif 'reasoning' in message:
+                    reasoning = message['reasoning']
+
+                log_text = f"会话{self.id}获取回复，使用token: {prompt_tokens}+{completion_tokens}，内容:\n"
+                if reasoning: log_text += f"【思考】" + truncate(reasoning.replace('\n', '\\n'), 128) + "\n"
+                for part in result_list:
+                    log_text += truncate(part.replace('\n', '\\n'), 128) if isinstance(part, str) else "[图片]"
+                logger.info(log_text)
+
+                # 添加到对话记录
+                self.append_bot_content(result, imgs=[get_image_b64(img) for img in images], verbose=False)
+
+                # 计算并更新额度
+                cost = model.calc_price(prompt_tokens, completion_tokens)
+                quota = await provider.aupdate_quota(-cost)
+
+                self.update_time = datetime.now()
+
+                ret = ChatSessionResponse(
+                    result=result,
+                    provider=provider,
+                    model=model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    cost=cost,
+                    quota=quota,
+                    reasoning=reasoning,
+                    images=images,
+                    result_list=result_list,
+                )
+
+                if process_func:
+                    if asyncio.iscoroutinefunction(process_func):
+                        ret = await process_func(ret)
+                    else:
+                        ret = process_func(ret)
+                return ret
+            
+            except Exception as e:
+                logger.warning(f"会话{self.id}获取回复失败, 使用模型 {name}: {get_exc_desc(e)}")
+                errs.append((name, truncate(get_exc_desc(e), 64)))
+
+        if len(errs) == 1:
+            raise Exception(f"调用模型{errs[0][0]}失败: {errs[0][1]}")
         else:
-            # 多段回复（文本+图片）
-            result = ""
-            images = []
-            for part in resp_content:
-                if isinstance(part, str):
-                    result += part
-                elif isinstance(part, Image.Image):
-                    result += "[图片]"
-                    images.append(part)
-                result_list = resp_content
-
-        # 推理内容
-        reasoning: str = None
-        if 'reasoning_content' in message:
-            reasoning = message['reasoning_content']
-        elif 'reasoning' in message:
-            reasoning = message['reasoning']
-
-        log_text = f"会话{self.id}获取回复，使用token: {prompt_tokens}+{completion_tokens}，内容:\n"
-        if reasoning: log_text += f"【思考】" + truncate(reasoning.replace('\n', '\\n'), 128) + "\n"
-        for part in result_list:
-            log_text += truncate(part.replace('\n', '\\n'), 128) if isinstance(part, str) else "[图片]"
-        logger.info(log_text)
-
-        # 添加到对话记录
-        self.append_bot_content(result, imgs=[get_image_b64(img) for img in images], verbose=False)
-
-        # 计算并更新额度
-        cost = model.calc_price(prompt_tokens, completion_tokens)
-        quota = await provider.aupdate_quota(-cost)
-
-        self.update_time = datetime.now()
-
-        return ChatSessionResponse(
-            result=result,
-            provider=provider,
-            model=model,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            cost=cost,
-            quota=quota,
-            reasoning=reasoning,
-            images=images,
-            result_list=result_list,
-        )
+            err_str = "\n".join([f"[{err[0]}] {err[1]}" for err in errs])
+            raise Exception(f"调用多个模型失败\n{err_str}")
 
 
 # -------------------------------- TextEmbedding相关 -------------------------------- #
 
 TEXT_EMBEDDING_MODEL = config['text_embedding_model']
 
-# 获取文本嵌入 TODO 修改能够批量获取
+# 获取文本嵌入
 async def get_text_embedding(texts: List[str]) -> List[List[float]]:
     logger.info(f"获取文本嵌入: {texts}")
 
@@ -448,7 +501,9 @@ async def tts(text):
     
 # -------------------------------- 文本翻译相关 -------------------------------- #
 
-async def translate_text(text, additional_info=None, dst_lang="中文", timeout=20, default=None, model='gemini-2-flash', cache=True):
+async def translate_text(text, additional_info=None, dst_lang="中文", timeout=20, default=None, model=None, cache=True):
+    if model is None:
+        model = get_model_preset("translation")
     text_translation_db = get_file_db("data/llm/text_translations.json", logger)
     translations = text_translation_db.get("translations", {}) if cache else {}
     key = get_md5(text)
