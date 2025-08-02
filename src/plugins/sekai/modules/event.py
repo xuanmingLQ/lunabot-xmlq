@@ -563,20 +563,20 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
                 
                 timeout = 300
                 progress = "第1章"
-                limit = 100 if len(eps) > 10 else 200 
+                limit = 50 if len(eps) >= 10 else 60 
                 prompt_start = prompt_start_template.format(title=title, outline=outline, raw_story=raw_stories[0], limit=limit)
                 session = ChatSession()
                 session.append_user_content(prompt_start, verbose=False)
                 await session.get_response(summary_model, process_func=get_process_func('start'), timeout=timeout)
 
-                for i, ep in enumerate(eps, 1):
+                for i in range(2, len(eps) + 1):
                     progress = f"第{i}章"
-                    prompt_ep = prompt_ep_template.format(ep=i, raw_story=raw_stories[i-1])
+                    prompt_ep = prompt_ep_template.format(ep=i, raw_story=raw_stories[i-1], limit=limit)
                     session.append_user_content(prompt_ep, verbose=False)
                     await session.get_response(summary_model, process_func=get_process_func(f'ep{i}'), timeout=timeout)
 
                 progress = f"最终"
-                prompt_end = prompt_end_template
+                prompt_end = prompt_end_template.format(limit=limit)
                 session.append_user_content(prompt_end, verbose=False)
                 await session.get_response(summary_model, process_func=get_process_func('end'), timeout=timeout)
 
@@ -586,7 +586,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
             except Exception as e:
                 logger.warning(f"生成{progress}剧情总结失败: {e}")
                 await ctx.asend_reply_msg(f"生成剧情总结失败, 重新生成中...")
-                raise Exception(f"生成{progress}剧情总结失败: {e}")
+                raise ReplyException(f"生成{progress}剧情总结失败: {e}")
 
         summary = await do_summary()
         if save:

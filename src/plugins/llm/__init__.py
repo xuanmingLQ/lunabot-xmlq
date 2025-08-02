@@ -148,6 +148,7 @@ class ChatSession:
         enable_reasoning=False, 
         image_response=False,
         timeout=180,
+        model_interval=1,
     ):
         if isinstance(model_name, str):
             model_name = [model_name]
@@ -282,6 +283,7 @@ class ChatSession:
             except Exception as e:
                 logger.warning(f"会话{self.id}获取回复失败, 使用模型 {name}: {get_exc_desc(e)}")
                 errs.append((name, truncate(get_exc_desc(e), 64)))
+                await asyncio.sleep(model_interval)
 
         if len(errs) == 1:
             raise Exception(f"调用模型{errs[0][0]}失败: {errs[0][1]}")
