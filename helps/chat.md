@@ -12,6 +12,7 @@
 ### 管理指令
 
 - [`/chat_model` 查询或修改聊天模型](#chat_model)
+- [`/clear_model` 清空聊天模型设置](#clear_model)
 - [`/autochat_{on|off}` 开启或关闭自动聊天](#autochat_onoff)
 - [`/autochat_clear` 清空自动聊天的自身聊天记录](#autochat_clear)
 
@@ -95,6 +96,13 @@
     `/chat_model gpt-4o` 修改文本和多模态模型为 gpt-4o
 
     `/chat_model text o1-mini` 只修改文本模型为 o1-mini
+
+
+## `/clear_model`
+
+```
+清空当前私聊或群聊的聊天模型设置，在群聊中需要超级用户权限
+```
 
 
 ## `/autochat_{on|off}`

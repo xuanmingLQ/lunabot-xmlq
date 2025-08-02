@@ -23,8 +23,14 @@ def get_model_preset(key: str) -> Union[str, List[str], dict]:
         ret = ret.get(k)
         if ret is None:
             raise ValueError(f"模型预设 {key} 不存在")
-    if isinstance(ret, str) and ret.startswith("&"):
-        return get_model_preset(ret[1:])
+    def parse_ref(s: str):
+        return get_model_preset(s[1:]) if s.startswith("&") else s
+    if isinstance(ret, str):
+        ret = parse_ref(ret)
+    if isinstance(ret, list):
+        ret = [parse_ref(s) for s in ret]
+    if isinstance(ret, dict):
+        ret = {k: parse_ref(v) for k, v in ret.items()}
     return ret
 
 

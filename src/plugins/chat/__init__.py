@@ -200,7 +200,26 @@ def get_model_name(event, mode) -> Union[str, List[str]]:
     if not isinstance(ret, str) and len(ret) == 1:
         ret = ret[0]
     return ret
-    
+
+# 清空某个群组当前的模型名
+def clear_group_model_name(group_id):
+    group_model_dict = file_db.get("group_chat_model_dict", {})
+    group_model_dict.pop(str(group_id), None)
+    file_db.set("group_chat_model_dict", group_model_dict)
+
+# 清空某个用户的私聊当前的模型名
+def clear_private_model_name(user_id):
+    private_model_dict = file_db.get("private_chat_model_dict", {})
+    private_model_dict.pop(str(user_id), None)
+    file_db.set("private_chat_model_dict", private_model_dict)
+
+# 清空某个event的模型名
+def clear_model_name(event):
+    if is_group_msg(event):
+        clear_group_model_name(event.group_id)
+    else:
+        clear_private_model_name(event.user_id)
+
 # 修改某个群组当前的模型名
 def change_group_model_name(group_id, model_name: str, mode):
     ChatSession.check_model_name(model_name, mode)
@@ -590,6 +609,19 @@ async def _(ctx: HandlerContext):
             name = change_model_name(ctx.event, args, "text")
             msg += f"已切换文本模型: {last_text_model_name} -> {name}"
             return await ctx.asend_reply_msg(msg.strip())
+
+
+# 清空当前私聊或群聊使用的模型
+clear_model = CmdHandler([
+    "/clear_model", "/clear model", "/clearmodel"
+], logger)
+clear_model.check_cdrate(chat_cd).check_wblist(gwl)
+@clear_model.handle()
+async def _(ctx: HandlerContext):
+    # 群聊中只有超级用户可以清空模型
+    if is_group_msg(ctx.event) and not check_superuser(ctx.event): return
+    clear_model_name(ctx.event)
+    return await ctx.asend_reply_msg("已清空模型设置")
 
 
 # 获取所有可用的模型名
