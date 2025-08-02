@@ -504,74 +504,93 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
         await ctx.asend_reply_msg(f"{banner_img_cq}正在生成活动剧情总结...")
 
         # 获取剧情文本
-        raw_story = ""
+        raw_stories = []
         for i, ep in enumerate(eps, 1):
-            raw_story += f"【EP{i}: {ep['title']}】\n"
+            ep_raw_story = f"【EP{i}: {ep['title']}】\n"
             for names, text in ep['snippets']:
                 if names:
-                    raw_story += f"---\n{' & '.join(names)}:\n{text}\n"
+                    ep_raw_story += f"---\n{' & '.join(names)}:\n{text}\n"
                 else:
-                    raw_story += f"---\n({text})\n"
-            raw_story += "\n"
+                    ep_raw_story += f"---\n({text})\n"
+            ep_raw_story += "\n"
+            raw_stories.append(ep_raw_story)
 
-        # with open(f"sandbox/event_story_raw.txt", "w", encoding="utf-8") as f:
-        #     f.write(raw_story)
-
-        summary_prompt_template = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt.txt").read_text()
-        summary_prompt = summary_prompt_template.format(
-            title=title,
-            outline=outline,
-            raw_story=raw_story,
-        )
+        prompt_start_template = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt_start.txt").read_text()
+        prompt_ep_template = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt_ep.txt").read_text()
+        prompt_end_template = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt_end.txt").read_text()
         
         @retry(stop=stop_after_attempt(2), wait=wait_fixed(1), reraise=True)
         async def do_summary():
             try:
-                session = ChatSession()
-                session.append_user_content(summary_prompt, verbose=False)
+                summary = {}
 
-                def process(resp: ChatSessionResponse):
-                    resp_text = resp.result
-                    if len(resp_text) > 4096:
-                        raise Exception(f"生成文本超过长度限制({len(resp_text)}>4096)")
+                def get_process_func(phase: str):
+                    def process(resp: ChatSessionResponse):
+                        resp_text = resp.result
+                        if len(resp_text) > 500:
+                            raise Exception(f"生成文本超过长度限制({len(resp_text)}>500)")
+                    
+                        start_idx = resp_text.find("{")
+                        end_idx = resp_text.rfind("}") + 1
+                        data = loads_json(resp_text[start_idx:end_idx])
+
+                        ep_idx = None
+                        if phase == 'start':
+                            ep_idx = 1
+                        elif phase.startswith('ep'):
+                            ep_idx = int(phase[2:])
+
+                        if phase == 'start':
+                            summary['title'] = data['title']
+                            summary['outline'] = data['outline']
+                        if ep_idx is not None:
+                            summary[f'ep_{ep_idx}_title'] = data[f'ep_{ep_idx}_title']
+                            summary[f'ep_{ep_idx}_summary'] = data[f'ep_{ep_idx}_summary']
+                        if phase == 'end':
+                            summary['summary'] = data['summary']
+
+                        additional_info = f"{resp.model.get_full_name()} | {resp.prompt_tokens}+{resp.completion_tokens} tokens"
+                        if resp.quota > 0:
+                            price_unit = resp.model.get_price_unit()
+                            if resp.cost == 0.0:
+                                additional_info += f" | 0/{resp.quota:.2f}{price_unit}"
+                            elif resp.cost >= 0.0001:
+                                additional_info += f" | {resp.cost:.4f}/{resp.quota:.2f}{price_unit}"
+                            else:
+                                additional_info += f" | <0.0001/{resp.quota:.2f}{price_unit}"
+                        summary[f'{phase}_additional_info'] = additional_info
+                    return process
                 
-                    start_idx = resp_text.find("{")
-                    end_idx = resp_text.rfind("}") + 1
-                    data = loads_json(resp_text[start_idx:end_idx])
+                timeout = 300
+                progress = "第1章"
+                limit = 100 if len(eps) > 10 else 200 
+                prompt_start = prompt_start_template.format(title=title, outline=outline, raw_story=raw_stories[0], limit=limit)
+                session = ChatSession()
+                session.append_user_content(prompt_start, verbose=False)
+                await session.get_response(summary_model, process_func=get_process_func('start'), timeout=timeout)
 
-                    summary = {}
-                    summary['title'] = data['title']
-                    summary['outline'] = data['outline']
-                    for i, ep in enumerate(eps, 1):
-                        summary[f'ep_{i}_title'] = data[f'ep_{i}_title']
-                        summary[f'ep_{i}_summary'] = data[f'ep_{i}_summary']
-                    summary['summary'] = data['summary']
+                for i, ep in enumerate(eps, 1):
+                    progress = f"第{i}章"
+                    prompt_ep = prompt_ep_template.format(ep=i, raw_story=raw_stories[i-1])
+                    session.append_user_content(prompt_ep, verbose=False)
+                    await session.get_response(summary_model, process_func=get_process_func(f'ep{i}'), timeout=timeout)
 
-                    additional_info = f"生成模型: {resp.model.get_full_name()} | {resp.prompt_tokens}+{resp.completion_tokens} tokens"
-                    if resp.quota > 0:
-                        price_unit = resp.model.get_price_unit()
-                        if resp.cost == 0.0:
-                            additional_info += f" | 0/{resp.quota:.2f}{price_unit}"
-                        elif resp.cost >= 0.0001:
-                            additional_info += f" | {resp.cost:.4f}/{resp.quota:.2f}{price_unit}"
-                        else:
-                            additional_info += f" | <0.0001/{resp.quota:.2f}{price_unit}"
-                    summary['additional_info'] = additional_info
+                progress = f"最终"
+                prompt_end = prompt_end_template
+                session.append_user_content(prompt_end, verbose=False)
+                await session.get_response(summary_model, process_func=get_process_func('end'), timeout=timeout)
 
-                    summary['chapter_num'] = len(eps)
-
-                    if save:
-                        summary_db.set("summary", summary)
-                    return summary
-
-                return await session.get_response(summary_model, process_func=process, timeout=300)
-
+                summary['chapter_num'] = len(eps)
+                return summary
+            
             except Exception as e:
-                logger.warning(f"生成剧情总结失败: {e}")
+                logger.warning(f"生成{progress}剧情总结失败: {e}")
                 await ctx.asend_reply_msg(f"生成剧情总结失败, 重新生成中...")
-                raise Exception(f"生成剧情总结失败: {e}")
+                raise Exception(f"生成{progress}剧情总结失败: {e}")
 
         summary = await do_summary()
+        if save:
+            summary_db.set("summary", summary)
     
     ## 生成回复
     msg_lists = []
@@ -626,12 +645,14 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
         chara_talk_count_text += f"{name}: {count}\n"
     msg_lists.append(chara_talk_count_text.strip())
 
-    msg_lists.append(f"""
-以上内容由Lunabot生成
-{summary.get('additional_info', '')}
-使用\"/活动剧情 活动id\"查询对应活动总结
-使用\"/活动剧情 活动id refresh\"可刷新AI活动总结
-""".strip())
+    additional_info = "以上内容由Lunabot生成\n"
+    for phase in ['start', *[f'ep{i}' for i in range(1, len(eps) + 1)], 'end']:
+        phase_info = summary.get(f'{phase}_additional_info', '')
+        if phase_info:
+            additional_info += f"{phase}: {phase_info}\n"
+    additional_info += "使用\"/活动剧情 活动id\"查询对应活动总结\n"
+    additional_info += "使用\"/活动剧情 活动id refresh\"可刷新AI活动总结"
+    msg_lists.append(additional_info.strip())
         
     return msg_lists
 
