@@ -912,10 +912,19 @@ async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
             "mysekaiGateLevel": 40,
         })
 
+    fixture_chara_bonus = { cid: 0 for cid in range(1, 27) }
+    for fixture in await ctx.md.mysekai_fixtures.get():
+        bid = fixture.get('mysekaiFixtureGameCharacterGroupPerformanceBonusId')
+        if bid:
+            cid = (bid - 1) // 3 + 1
+            t = (bid - 1) % 3
+            if t == 0: fixture_chara_bonus[cid] += 1
+            elif t == 1: fixture_chara_bonus[cid] += 3
+            else: fixture_chara_bonus[cid] += 6
     for cid in range(1, 27):
         p['userMysekaiFixtureGameCharacterPerformanceBonuses'].append({
             "gameCharacterId": cid,
-            "totalBonusRate": 20
+            "totalBonusRate": min(fixture_chara_bonus[cid], 100)
         })
 
     p['userAreas'].append({
