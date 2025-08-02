@@ -5,8 +5,8 @@
 ### 用户指令
 
 - [`/chat` AI聊天](#chat)
-- [`/chat_model_list` 查询支持的聊天模型](#chat_model_list)
-- [`/chat_providers` 查询所有供应商以及余额](#chat_providers)
+- [`/all_models` 查询支持的聊天模型](#all_models)
+- [`/chat_provider` 查询所有供应商以及余额](#chat_provider)
 - [`/tts` 文本转语音](#tts)
 
 ### 管理指令
@@ -50,25 +50,22 @@
     `/chat 你好` 普通询问，在开启自动聊天的群聊中使用
 
 
-## `/chat_model_list`
+## `/all_models`
 
 ```
 显示支持的聊天模型
 ```
 
-- **示例**
+- **指令别名**
 
-    `/chat_model_list`
+    `/model_list`
+    
 
-## `/chat_providers`
+## `/chat_provider`
 
 ```
 查询所有供应商以及余额
 ```
-
-- **示例**
-
-    `/chat_providers`
 
 
 ## `/tts`

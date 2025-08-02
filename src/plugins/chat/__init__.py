@@ -603,7 +603,7 @@ async def _(ctx: HandlerContext):
     msg = "可用模型列表:\n"
     for model in api_provider_mgr.get_all_models():
         msg += f"{model.get_full_name()} "
-        if model.input_pricing + model.output_pricing < 1e-6:
+        if model.input_pricing + model.output_pricing < 1e-9:
             msg += "🆓"
         if model.is_multimodal:
             msg += "🏞️"

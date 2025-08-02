@@ -12,10 +12,10 @@ class LlmModel:
     LLM模型
     """
     name: str
-    is_multimodal: bool
-    input_pricing: float
-    output_pricing: float
-    max_token: int
+    input_pricing: float = 0.
+    output_pricing: float = 0.
+    max_token: int = 128000
+    is_multimodal: bool = False
     model_id: Optional[str] = None
     data: dict = field(default_factory=dict)
     include_reasoning: bool = False
@@ -51,16 +51,16 @@ class ApiProvider:
         self, 
         name: str, 
         code: str,
-        models: List[LlmModel], 
         qps_limit: int, 
         quota_sync_interval_sec: int, 
         price_unit: str
     ):
         self.name = name
         self.code = code
-        self.models = models
-        for model in self.models:
-            model.provider = self
+
+        self.model_config_path = f"data/llm/models/{self.name}.yaml"
+        self.models: List[LlmModel] = []
+        self.models_mtime = None
 
         self.qps_limit = qps_limit
         self.cur_query_ts = 0
@@ -71,6 +71,30 @@ class ApiProvider:
         self.last_quota_sync_time = datetime.now() - timedelta(seconds=self.quota_sync_interval_sec)
 
         self.price_unit = price_unit
+
+    def update_models(self):
+        mtime = int(os.path.getmtime(self.model_config_path))
+        if self.models_mtime != mtime:
+            def parse_price(d, k):
+                if not isinstance(d.get(k), str):
+                    return
+                if '/' in d[k]:
+                    nums = d[k].split('/', 1)
+                else:
+                    nums = [d[k], '1']
+                nums = [float(num) for num in nums]
+                d[k] = nums[0] / nums[1]
+
+            with open(self.model_config_path, 'r', encoding='utf-8') as f:
+                model_configs = yaml.safe_load(f)
+            for model_config in model_configs:
+                parse_price(model_config, 'input_pricing')
+                parse_price(model_config, 'output_pricing')
+                self.models.append(LlmModel(**model_config))
+            for model in self.models:
+                model.provider = self
+            self.models_mtime = mtime
+            logger.info(f"API供应方 {self.name} 模型列表更新成功 (共 {len(self.models)} 个模型)")
         
     def check_qps_limit(self):
         """

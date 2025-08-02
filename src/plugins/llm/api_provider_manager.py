@@ -4,6 +4,7 @@ from ..llm.api_providers.aiyyds import AiyydsApiProvider
 from ..llm.api_providers.openrouter import OpenrouterApiProvider
 from ..llm.api_providers.siliconflow import SiliconflowApiProvider
 from ..llm.api_providers.google import GoogleApiProvider
+from ..llm.api_providers.new_api import NewApiApiProvider
 from typing import Tuple
 
 
@@ -21,6 +22,7 @@ class ApiProviderManager:
         """
         for provider in self.providers:
             if provider.code == name_or_code or provider.name == name_or_code:
+                provider.update_models()
                 return provider
         return None
 
@@ -28,6 +30,8 @@ class ApiProviderManager:
         """
         获取所有供应方
         """
+        for provider in self.providers:
+            provider.update_models()
         return self.providers
 
     def get_all_models(self) -> List[LlmModel]:
@@ -36,6 +40,7 @@ class ApiProviderManager:
         """
         ret = []
         for provider in self.providers:
+            provider.update_models()
             for model in provider.models:
                 ret.append(model)
         return ret
@@ -46,6 +51,7 @@ class ApiProviderManager:
         """
         provider = self.get_provider(name_or_code)
         if provider:
+            provider.update_models()
             return provider.models
         return None
 
@@ -73,6 +79,7 @@ class ApiProviderManager:
         min_distance = 1e10
         closest_model = None
         for provider in providers:
+            provider.update_models()
             for model in provider.models:
                 distance = levenshtein_distance(model.name, name)
                 if distance < min_distance:
@@ -125,6 +132,7 @@ class ApiProviderManager:
             if provider:
                 msg += f"，是否是 {provider.name}?"
             raise Exception(msg)
+        provider.update_models()
         
         # 获取模型
         model: Optional[LlmModel] = None
@@ -148,4 +156,5 @@ api_provider_mgr = ApiProviderManager([
     OpenrouterApiProvider(),
     SiliconflowApiProvider(),
     GoogleApiProvider(),
+    NewApiApiProvider(),
 ])
