@@ -515,6 +515,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
             ep_raw_story += "\n"
             raw_stories.append(ep_raw_story)
 
+        prompt_head = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt_head.txt").read_text()
         prompt_start_template = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt_start.txt").read_text()
         prompt_ep_template = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt_ep.txt").read_text()
         prompt_end_template = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt_end.txt").read_text()
@@ -527,7 +528,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
                 def get_process_func(phase: str):
                     def process(resp: ChatSessionResponse):
                         resp_text = resp.result
-                        if len(resp_text) > 500:
+                        if len(resp_text) > 650:
                             raise Exception(f"生成文本超过长度限制({len(resp_text)}>500)")
                     
                         start_idx = resp_text.find("{")
@@ -543,9 +544,13 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
                         if phase == 'start':
                             summary['title'] = data['title']
                             summary['outline'] = data['outline']
+                            summary['previous'] = f"标题: {data['title']}\n"
+                            summary['previous'] += f"简介: {data['outline']}\n\n"
                         if ep_idx is not None:
                             summary[f'ep_{ep_idx}_title'] = data[f'ep_{ep_idx}_title']
                             summary[f'ep_{ep_idx}_summary'] = data[f'ep_{ep_idx}_summary']
+                            summary['previous'] += f"第{ep_idx}章标题: {data[f'ep_{ep_idx}_title']}\n"
+                            summary['previous'] += f"第{ep_idx}章剧情: {data[f'ep_{ep_idx}_summary']}\n\n"
                         if phase == 'end':
                             summary['summary'] = data['summary']
 
@@ -562,30 +567,36 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
                     return process
                 
                 timeout = 300
+                limit = 80 if len(eps) >= 10 else 100
+                
                 progress = "第1章"
-                limit = 50 if len(eps) >= 10 else 60 
-                prompt_start = prompt_start_template.format(title=title, outline=outline, raw_story=raw_stories[0], limit=limit)
+                prompt_start = prompt_head + prompt_start_template.format(title=title, outline=outline, raw_story=raw_stories[0], limit=limit)
                 session = ChatSession()
                 session.append_user_content(prompt_start, verbose=False)
                 await session.get_response(summary_model, process_func=get_process_func('start'), timeout=timeout)
 
                 for i in range(2, len(eps) + 1):
                     progress = f"第{i}章"
-                    prompt_ep = prompt_ep_template.format(ep=i, raw_story=raw_stories[i-1], limit=limit)
+                    prompt_ep = prompt_head + prompt_ep_template.format(ep=i, raw_story=raw_stories[i-1], limit=limit, prev_summary=summary['previous'])
+                    session = ChatSession()
                     session.append_user_content(prompt_ep, verbose=False)
                     await session.get_response(summary_model, process_func=get_process_func(f'ep{i}'), timeout=timeout)
+                    if i % 3 == 0:
+                        await asyncio.sleep(3) 
 
                 progress = f"最终"
-                prompt_end = prompt_end_template.format(limit=limit)
+                prompt_end = prompt_head + prompt_end_template.format(limit=limit, prev_summary=summary['previous'])
+                session = ChatSession()
                 session.append_user_content(prompt_end, verbose=False)
                 await session.get_response(summary_model, process_func=get_process_func('end'), timeout=timeout)
 
                 summary['chapter_num'] = len(eps)
+                del summary['previous']
                 return summary
             
             except Exception as e:
                 logger.warning(f"生成{progress}剧情总结失败: {e}")
-                await ctx.asend_reply_msg(f"生成剧情总结失败, 重新生成中...")
+                # await ctx.asend_reply_msg(f"生成剧情总结失败, 重新生成中...")
                 raise ReplyException(f"生成{progress}剧情总结失败: {e}")
 
         summary = await do_summary()
