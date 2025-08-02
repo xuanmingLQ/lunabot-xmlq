@@ -488,6 +488,7 @@ MasterDataManager.set_index_keys("musicTags", ['id', 'musicId'])
 MasterDataManager.set_index_keys("eventDeckBonuses", ['id', 'eventId'])
 MasterDataManager.set_index_keys("eventCards", ['id', 'eventId'])
 MasterDataManager.set_index_keys("musicDifficulties", ['id', 'musicId'])
+MasterDataManager.set_index_keys("cardEpisodes", ['id', 'cardId'])
 
 
 # ================================ MasterData自定义下载 ================================ #

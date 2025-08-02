@@ -562,6 +562,7 @@ class SpeedOperation(ImageOperation):
         self.help = """
 调整动图播放速度，使用方式:
 speed 2.0x 设置动图播放速度为原图的2倍
+speed -2.0x 设置动图播放速度为原图的2倍倒放
 speed 100 设置动图帧间隔为100ms
 """.strip()
         
@@ -570,9 +571,15 @@ speed 100 设置动图帧间隔为100ms
         ret = {}
         if args[0].endswith('x'): 
             ret['speed'] = float(args[0].removesuffix('x'))
+            if ret['speed'] < 0:
+                ret['back'] = True
+                ret['speed'] = -ret['speed']
             assert_and_reply(0.01 <= ret['speed'] <= 100.0, "加速倍率必须在0.01-100.0之间")
         else: 
             ret['duration'] = int(args[0])
+            if ret['duration'] < 0:
+                ret['back'] = True
+                ret['duration'] = -ret['duration']
             assert_and_reply(1 <= ret['duration'] <= 1000, "帧间隔必须在1ms-1000ms之间")
         return ret
         
@@ -603,6 +610,8 @@ speed 100 设置动图帧间隔为100ms
             new_frames = []
             for i in range(0, frame_num, interval):
                 new_frames.append(frames[i])
+            if args.get('back', False):
+                new_frames.reverse()
             save_transparent_gif(new_frames, duration, tmp_path)
             return Image.open(tmp_path)
         finally:

@@ -11,6 +11,7 @@ from .profile import (
     get_card_full_thumbnail,
     get_user_challenge_live_info,
 )
+from .card import get_unit_by_card_id, has_after_training
 from .music import DIFF_NAMES, search_music, MusicSearchOptions, extract_diff
 from sekai_deck_recommend import (
     DeckRecommendOptions, 
@@ -73,9 +74,18 @@ DISABLE_KEYWORDS = ("禁用", "disable")
 TEAMMATE_POWER_KEYWORDS = ("队友综合力", "队友总合力", "队友综合", "队友总和")
 TEAMMATE_SCOREUP_KEYWORDS = ("队友实效", "队友技能")
 KEEP_AFTERTRAINING_STATE_KEYWORDS = (
-    "bfes不变", "Bfes不变", "BFes不变", "BFES不变", 
-    "bf不变", "Bf不变", "BF不变",
+    "bfes不变", "bf不变", 
 )
+
+UNIT_FILTER_KEYWORDS = {
+    "light_sound": ["纯ln"],
+    "idol": ["纯mmj"],
+    "street": ["纯vbs"],
+    "theme_park": ["纯ws"],
+    "school_refusal": ["纯25h", "纯25时", "纯25"],
+    "piapro": ["纯vs", "纯v"],
+}
+MAX_PROFILE_KEYWORDS = ('顶配',)
 
 DEFAULT_CARD_CONFIG_12 = DeckRecommendCardConfig()
 DEFAULT_CARD_CONFIG_12.disable = False
@@ -344,11 +354,44 @@ def extract_teammate_options(args: str, options: DeckRecommendOptions) -> str:
 
     return args.strip()
 
+# 从args中提取不在options中的参数
+def extract_addtional_options(args: str) -> Tuple[dict, str]:
+    ret = {}
+
+    for unit, keywords in UNIT_FILTER_KEYWORDS.items():
+        for keyword in keywords:
+            if keyword in args:
+                ret['unit_filter'] = unit
+                args = args.replace(keyword, "").strip()
+                break
+    
+    for keyword in MAX_PROFILE_KEYWORDS:
+        if keyword in args:
+            ret['max_profile'] = True
+            args = args.replace(keyword, "").strip()
+            break
+
+    ret['excluded_cards'] = []
+    segs = args.split()
+    for seg in segs:
+        if seg[0] == '-' and seg[1:].isdigit():
+            try:
+                x = int(seg[1:])
+                if 0 < x < 5000:
+                    ret['excluded_cards'].append(x)
+                    args = args.replace(seg, "").strip()
+            except ValueError:
+                pass
+
+    return ret, args.strip()
+
 
 # 从args中提取活动组卡参数
 async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
+
+    additional, args = extract_addtional_options(args)
 
     # live类型
     if "多人" in args or '协力' in args: 
@@ -403,12 +446,15 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     return {
         'options': options,
         'last_args': args.strip(),
+        'additional': additional,
     }
 
 # 从args中提取挑战组卡参数
 async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
+
+    additional, args = extract_addtional_options(args)
 
     args = extract_fixed_cards(args, options)
     args = extract_card_config(args, options)
@@ -457,12 +503,15 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
     return {
         'options': options,
         'last_args': args.strip(),
+        'additional': additional,
     }
 
 # 从args中提取长草组卡参数
 async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
+
+    additional, args = extract_addtional_options(args)
 
     # live类型
     if "多人" in args or '协力' in args: 
@@ -515,12 +564,15 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     return {
         'options': options,
         'last_args': args.strip(),
+        'additional': additional,
     }
 
 # 从args中提取组卡参数
 async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
+
+    additional, args = extract_addtional_options(args)
 
     # live类型
     if "多人" in args or '协力' in args: 
@@ -583,12 +635,15 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
     return {
         'options': options,
         'last_args': args.strip(),
+        'additional': additional,
     }
 
 # 从args中提取加成组卡参数
 async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
     options = DeckRecommendOptions()
+
+    additional, args = extract_addtional_options(args)
 
     options.algorithm = "dfs"
     options.timeout_ms = int(BONUS_RECOMMEND_TIMEOUT.total_seconds() * 1000)
@@ -624,6 +679,7 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     return {
         'options': options,
         'last_args': '',
+        'additional': additional,
     }
 
 
@@ -802,12 +858,86 @@ async def do_deck_recommend(
     res.decks = decks
     return res, src_algs, cost_and_wait_times
 
+# 构造顶配profile
+async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
+    p = {
+        'userGamedata': {},
+        'userDecks': [],
+        'userCards': [],
+        'userHonors': [],
+        "userMysekaiCanvases": [],
+        "userCharacters": [],
+        "userMysekaiGates": [],
+        "userMysekaiFixtureGameCharacterPerformanceBonuses": [],
+        "userAreas": [],
+    }
+
+    for card in await ctx.md.cards.get():
+        episodes = await ctx.md.card_episodes.find_by("cardId", card['id'], mode='all')
+        p["userCards"].append({
+            "cardId": card['id'],
+            "level": 1,
+            "skillLevel": 4,
+            "masterRank": 5,
+            "specialTrainingStatus": "done" if has_after_training(card) else "none",
+            "defaultImage": "special_training" if has_after_training(card) else "original",
+            "episodes": [
+                {
+                    "cardEpisodeId": ep['id'],
+                    "scenarioStatus": "already_read",
+                } for ep in episodes
+            ]
+        })
+        p['userMysekaiCanvases'].append({
+            'cardId': card['id'],
+            "quantity": 1,
+        })
+
+    for honor in await ctx.md.honors.get():
+        if honor.get('levels'):
+            p['userHonors'].append({
+                "honorId": honor['id'],
+                "level": honor['levels'][-1]['level'],
+            })
+
+    for cid in range(1, 27):
+        p['userCharacters'].append({
+            "characterId": cid,
+            "characterRank": 120,
+        })
+
+    for gid in range(1, 6):
+        p['userMysekaiGates'].append({
+            "mysekaiGateId": gid,
+            "mysekaiGateLevel": 40,
+        })
+
+    for cid in range(1, 27):
+        p['userMysekaiFixtureGameCharacterPerformanceBonuses'].append({
+            "gameCharacterId": cid,
+            "totalBonusRate": 20
+        })
+
+    p['userAreas'].append({
+        "userAreaStatus": {},
+        "areaItems": [
+            {
+                "areaItemId": i,
+                "level": 15
+            } for i in range(1, 56)
+        ]
+    })
+
+    return p
+
+
 # 合成自动组卡图片
 async def compose_deck_recommend_image(
     ctx: SekaiHandlerContext, 
     qid: int,
     options: DeckRecommendOptions,
     last_args: str,
+    additional: dict,
 ) -> Image.Image:
     # 是哪种组卡类型
     if options.target == "bonus":
@@ -831,9 +961,31 @@ async def compose_deck_recommend_image(
         else:
             recommend_type = "no_event"
 
-    # 用户信息
-    profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True, ignore_hide=True)
-    uid = profile['userGamedata']['userId']
+    # 是否是顶配租卡
+    use_max_profile = additional.get('max_profile', False)
+    if use_max_profile:
+        profile = await construct_max_profile(ctx)
+        uid = None
+    else:
+        # 用户信息
+        profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True, ignore_hide=True)
+        uid = profile['userGamedata']['userId']
+
+    original_usercards = profile['userCards']
+    # 组合卡牌过滤
+    unit_filter = additional.get('unit_filter', None)
+    if unit_filter:
+        profile['userCards'] = [
+            uc for uc in profile['userCards']
+            if await get_unit_by_card_id(ctx, uc['cardId']) == unit_filter
+        ]
+    # 排除卡牌
+    excluded_cards = additional.get('excluded_cards', [])
+    if excluded_cards:
+        profile['userCards'] = [
+            uc for uc in profile['userCards']
+            if uc['cardId'] not in excluded_cards
+        ]
 
     # 准备用户数据
     with TempFilePath("json") as userdata_path:
@@ -841,6 +993,8 @@ async def compose_deck_recommend_image(
         options.region = ctx.region
         options.user_data_file_path = userdata_path
         log_options(ctx, uid, options)
+        # 还原profile避免画头像问题
+        profile['userCards'] = original_usercards
 
         # 组卡！
         cost_times, wait_times = {}, {}
@@ -943,7 +1097,8 @@ async def compose_deck_recommend_image(
     # 获取挑战live额外分数信息
     challenge_score_dlt = []
     if recommend_type in ["challenge", "challenge_all"]:
-        challenge_live_info = await get_user_challenge_live_info(ctx, profile)
+        try: challenge_live_info = await get_user_challenge_live_info(ctx, profile)
+        except: challenge_live_info = {}
         for deck in result_decks:
             card_id = deck.cards[0].card_id
             chara_id = (await ctx.md.cards.find_by_id(card_id))['characterId']
@@ -953,7 +1108,8 @@ async def compose_deck_recommend_image(
     # 绘图
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16):
-            await get_detailed_profile_card(ctx, profile, pmsg)
+            if not use_max_profile:
+                await get_detailed_profile_card(ctx, profile, pmsg)
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16).set_bg(roundrect_bg()):
                 # 标题
@@ -1010,8 +1166,20 @@ async def compose_deck_recommend_image(
                             ImageBox(unit_logo, size=(None, 60))
                             ImageBox(attr_icon, size=(None, 50))
                         
-                        # TextBox(f"最高{target}", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(70, 70, 70)))
+                        if use_max_profile:
+                            TextBox("(顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
 
+                    if unit_filter or excluded_cards:
+                        with HSplit().set_content_align('l').set_item_align('l').set_sep(16):
+                            TextBox("卡组设置:", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)))
+                            if unit_filter:
+                                TextBox(f"仅", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)))
+                                ImageBox(get_unit_logo(unit_filter), size=(None, 40))
+                                TextBox(f"上场", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)))
+                            if excluded_cards:
+                                TextBox(f"排除 {','.join(map(str, excluded_cards))}", 
+                                        TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)))
+                            
                     if recommend_type in ["bonus", "wl_bonus"]:
                         TextBox(f"友情提醒：控分前请核对加成和体力设置", TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(255, 50, 50)))
                     else:
@@ -1023,6 +1191,7 @@ async def compose_deck_recommend_image(
                                 ImageBox(music_cover, size=(50, 50))
                             TextBox(f"{music_title} ({options.music_diff.upper()})", 
                                     TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
+
                 # 表格
                 gh, vsp, voffset = 120, 12, 18
                 with HSplit().set_content_align('c').set_item_align('c').set_sep(16).set_padding(16).set_bg(roundrect_bg()):
