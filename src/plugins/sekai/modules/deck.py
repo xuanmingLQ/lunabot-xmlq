@@ -66,10 +66,10 @@ DEFAULT_CHANLLENGE_DECK_RECOMMEND_DIFF = {
     "other": "master"
 }
 
-SKILL_MAX_KEYWORDS = ("满技能", "满技", "skillmax", "技能满级")
-MASTER_MAX_KEYWORDS = ("满突破", "满破", "rankmax", "mastermax")
-EPISODE_READ_KEYWORDS = ("剧情已读", "满剧情", "已读")
-CANVAS_KEYWORDS = ("满画布", "全画布", "画布")
+SKILL_MAX_KEYWORDS = ("满技能", "满技", "skillmax", "技能满级", "slv4")
+MASTER_MAX_KEYWORDS = ("满突破", "满破", "rankmax", "mastermax", "5破", "五破")
+EPISODE_READ_KEYWORDS = ("剧情已读", "满剧情", "前后篇已读", "前后篇", "已读")
+CANVAS_KEYWORDS = ("满画布", "全画布", "画布", "满画板", "全画板", "画板")
 DISABLE_KEYWORDS = ("禁用", "disable")
 TEAMMATE_POWER_KEYWORDS = ("队友综合力", "队友总合力", "队友综合", "队友总和")
 TEAMMATE_SCOREUP_KEYWORDS = ("队友实效", "队友技能")
