@@ -39,11 +39,12 @@ async def _(ctx: HandlerContext):
             pass
 
     if not args or args not in help_names:
-        msg = "发送 \"/help 英文服务名\" 查看各服务的详细帮助\n"
+        msg = "【Lunabot使用帮助】\n"
+        msg += "发送 \"/help 英文服务名\" 查看各服务的详细帮助\n"
         msg += f"例如发送 \"/help alive\" 查看\"连接检测服务\"的帮助\n"
         msg += "\n可查询的服务列表:\n"
         for name, desc in zip(help_names, help_decs):
-            msg += f"【{name}】{desc}\n"
+            msg += f"{name} - {desc}\n"
         msg += f"\n或前往网页查看帮助文档:\n"
         msg += HELP_DOCS_WEB_URL.format(name='main')
         return await ctx.asend_fold_msg_adaptive(msg, threshold=0, need_reply=False)
