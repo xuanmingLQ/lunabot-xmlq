@@ -658,7 +658,7 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.world_bloom_character_id = wl_cid
         
     # 歌曲id和难度
-    args = await extract_music_and_diff(ctx, "", options, "event")
+    await extract_music_and_diff(ctx, "", options, "event")
 
     # 组卡限制
     options.limit = BONUS_TARGET_LIMIT
