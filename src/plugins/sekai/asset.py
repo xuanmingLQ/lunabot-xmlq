@@ -10,6 +10,11 @@ DEFAULT_VERSION = "0.0.0.0"
 MASTER_DB_CACHE_DIR = f"{SEKAI_ASSET_DIR}/masterdata/"
 DEFAULT_INDEX_KEYS = ['id']
 
+def get_multi_keys(data: dict, keys: List[Any]):
+    for key in keys:
+        if key in data:
+            return data[key]
+    raise KeyError(f"None of the keys {keys} found in dict")
 
 def get_version_order(version: str) -> tuple:
     return tuple(map(int, version.split(".")))
@@ -29,9 +34,9 @@ class RegionMasterDbSource:
         version = DEFAULT_VERSION
         try:
             version_data = await download_json(self.version_url)
-            version = version_data['dataVersion']
+            version = get_multi_keys(version_data, ['data_version', 'dataVersion'])
             self.version = version
-            self.asset_version = version_data['assetVersion']
+            self.asset_version = get_multi_keys(version_data, ['asset_version', 'assetVersion'])
             # logger.info(f"MasterDB [{self.name}] 的版本为 {version}")
         except Exception as e:
             logger.print_exc(f"获取 MasterDB [{self.name}] 的版本信息失败")

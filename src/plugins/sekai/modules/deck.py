@@ -73,9 +73,7 @@ CANVAS_KEYWORDS = ("满画布", "全画布", "画布", "满画板", "全画板",
 DISABLE_KEYWORDS = ("禁用", "disable")
 TEAMMATE_POWER_KEYWORDS = ("队友综合力", "队友总合力", "队友综合", "队友总和")
 TEAMMATE_SCOREUP_KEYWORDS = ("队友实效", "队友技能")
-KEEP_AFTERTRAINING_STATE_KEYWORDS = (
-    "bfes不变", "bf不变", 
-)
+KEEP_AFTERTRAINING_STATE_KEYWORDS = ("bfes不变", "bf不变")
 
 UNIT_FILTER_KEYWORDS = {
     "light_sound": ["纯ln"],
