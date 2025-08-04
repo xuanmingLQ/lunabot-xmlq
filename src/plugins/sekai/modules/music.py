@@ -629,6 +629,19 @@ async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearc
 
 # ======================= 处理逻辑 ======================= #
 
+# 检查是否有效歌曲
+async def is_valid_music(ctx: SekaiHandlerContext, mid: int, leak=False) -> bool:
+    m = await ctx.md.musics.find_by_id(mid)
+    if not m:
+        return False
+    if not leak and datetime.fromtimestamp(m['publishedAt'] / 1000) > datetime.now():
+        return False
+    if m.get('isFullLength'):
+        return False
+    if m['id'] in (241, 290):
+        return False
+    return True
+
 # 获取有效歌曲列表
 async def get_valid_musics(ctx: SekaiHandlerContext, leak=False) -> List[Dict]:
     musics = await ctx.md.musics.get()

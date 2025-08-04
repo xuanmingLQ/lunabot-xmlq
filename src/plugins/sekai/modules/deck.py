@@ -12,7 +12,7 @@ from .profile import (
     get_user_challenge_live_info,
 )
 from .card import get_unit_by_card_id, has_after_training
-from .music import DIFF_NAMES, search_music, MusicSearchOptions, extract_diff
+from .music import DIFF_NAMES, search_music, MusicSearchOptions, extract_diff, is_valid_music
 from sekai_deck_recommend import (
     DeckRecommendOptions, 
     DeckRecommendCardConfig, 
@@ -51,19 +51,14 @@ last_deck_recommend_musicmetas_update_time: Dict[str, datetime] = {}
 
 # ======================= 默认配置 ======================= #
 
-DEFAULT_EVENT_DECK_RECOMMEND_MID = {
-    'other': 74,
-}
-DEFAULT_EVENT_DECK_RECOMMEND_DIFF = {
-    "other": "expert",
-}
-
-DEFAULT_CHANLLENGE_DECK_RECOMMEND_MID = {
-    "jp": 540,
-    "other": 104,
-}
-DEFAULT_CHANLLENGE_DECK_RECOMMEND_DIFF = {
-    "other": "master"
+DEFAULT_DECK_RECOMMEND_MUSICDIFFS = {
+    "event": [
+        (74, "expert"),
+    ],
+    "challenge": [
+        (540, "master"),
+        (104, "master"),
+    ],
 }
 
 SKILL_MAX_KEYWORDS = ("满技能", "满技", "skillmax", "技能满级", "slv4")
@@ -352,6 +347,32 @@ def extract_teammate_options(args: str, options: DeckRecommendOptions) -> str:
 
     return args.strip()
 
+# 从args中提取歌曲和难度
+async def extract_music_and_diff(ctx: SekaiHandlerContext, args: str, options: DeckRecommendOptions, rec_type: str) -> str:
+    options.music_diff, args = extract_diff(args, default=None)
+    args = args.strip()
+
+    if args:
+        search_options = MusicSearchOptions(
+            diff=options.music_diff, 
+            raise_when_err=False,
+            use_emb=False,
+        )
+        music = (await search_music(ctx, args, search_options)).music
+        assert_and_reply(music, f"找不到歌曲\"{args}\"\n发送\"{ctx.trigger_cmd}help\"查看帮助")
+        options.music_id = music['id']
+
+    default_musicdiffs = DEFAULT_DECK_RECOMMEND_MUSICDIFFS[rec_type]
+    for mid, diff in default_musicdiffs:
+        if await is_valid_music(ctx, mid, leak=False):
+            if options.music_id is None:
+                options.music_id = mid
+            if options.music_diff is None:
+                options.music_diff = diff
+            break
+    
+    return args
+
 # 从args中提取不在options中的参数
 def extract_addtional_options(args: str) -> Tuple[dict, str]:
     ret = {}
@@ -423,13 +444,7 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.world_bloom_character_id = wl_cid
         
     # 歌曲id和难度
-    options.music_diff, args = extract_diff(args, default=None)
-    music = (await search_music(ctx, args, MusicSearchOptions(diff=options.music_diff, raise_when_err=False))).music
-    if music:
-        options.music_id = music['id']
-
-    options.music_diff = options.music_diff or DEFAULT_EVENT_DECK_RECOMMEND_DIFF.get(ctx.region, DEFAULT_EVENT_DECK_RECOMMEND_DIFF['other'])
-    options.music_id   = options.music_id   or DEFAULT_EVENT_DECK_RECOMMEND_MID.get(ctx.region, DEFAULT_EVENT_DECK_RECOMMEND_MID['other'])
+    args = await extract_music_and_diff(ctx, args, options, "event")
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -479,13 +494,7 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
     # 不指定角色情况下每个角色都组1个最强卡
 
     # 歌曲id和难度
-    options.music_diff, args = extract_diff(args, default=None)
-    music = (await search_music(ctx, args, MusicSearchOptions(raise_when_err=False))).music
-    if music:
-        options.music_id = music['id']
-
-    options.music_id    = options.music_id   or DEFAULT_CHANLLENGE_DECK_RECOMMEND_MID.get(ctx.region, DEFAULT_CHANLLENGE_DECK_RECOMMEND_MID['other'])
-    options.music_diff  = options.music_diff or DEFAULT_CHANLLENGE_DECK_RECOMMEND_DIFF.get(ctx.region, DEFAULT_CHANLLENGE_DECK_RECOMMEND_DIFF['other'])
+    args = await extract_music_and_diff(ctx, args, options, "challenge")
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -541,13 +550,7 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.event_id = None
         
     # 歌曲id和难度
-    options.music_diff, args = extract_diff(args, default=None)
-    music = (await search_music(ctx, args, MusicSearchOptions(diff=options.music_diff, raise_when_err=False))).music
-    if music:
-        options.music_id = music['id']
-
-    options.music_diff = options.music_diff or DEFAULT_EVENT_DECK_RECOMMEND_DIFF.get(ctx.region, DEFAULT_EVENT_DECK_RECOMMEND_DIFF['other'])
-    options.music_id   = options.music_id   or DEFAULT_EVENT_DECK_RECOMMEND_MID.get(ctx.region, DEFAULT_EVENT_DECK_RECOMMEND_MID['other'])
+    args = await extract_music_and_diff(ctx, args, options, "event")
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -612,13 +615,7 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
     assert_and_reply(options.event_attr, "请指定活动组卡的属性（例如: 紫/紫月/月亮）")
         
     # 歌曲id和难度
-    options.music_diff, args = extract_diff(args, default=None)
-    music = (await search_music(ctx, args, MusicSearchOptions(diff=options.music_diff, raise_when_err=False))).music
-    if music:
-        options.music_id = music['id']
-
-    options.music_diff = options.music_diff or DEFAULT_EVENT_DECK_RECOMMEND_DIFF.get(ctx.region, DEFAULT_EVENT_DECK_RECOMMEND_DIFF['other'])
-    options.music_id   = options.music_id   or DEFAULT_EVENT_DECK_RECOMMEND_MID.get(ctx.region, DEFAULT_EVENT_DECK_RECOMMEND_MID['other'])
+    args = await extract_music_and_diff(ctx, args, options, "event")
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -661,8 +658,7 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.world_bloom_character_id = wl_cid
         
     # 歌曲id和难度
-    options.music_diff = DEFAULT_EVENT_DECK_RECOMMEND_DIFF.get(ctx.region, DEFAULT_EVENT_DECK_RECOMMEND_DIFF['other'])
-    options.music_id   = DEFAULT_EVENT_DECK_RECOMMEND_MID.get(ctx.region, DEFAULT_EVENT_DECK_RECOMMEND_MID['other'])
+    args = await extract_music_and_diff(ctx, "", options, "event")
 
     # 组卡限制
     options.limit = BONUS_TARGET_LIMIT
