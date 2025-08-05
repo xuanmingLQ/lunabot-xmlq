@@ -1694,7 +1694,7 @@ async def _(ctx: SekaiHandlerContext):
 # 打歌进度
 pjsk_play_progress = SekaiCmdHandler([
     "/pjsk progress", "/pjsk_progress", 
-    "/pjsk进度", 
+    "/pjsk进度", "/打歌进度", "/歌曲进度", "/打歌信息",
 ])
 pjsk_play_progress.check_cdrate(cd).check_wblist(gbl)
 @pjsk_play_progress.handle()

@@ -899,10 +899,9 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
 
 # ======================= 指令处理 ======================= #
 
-# 活动列表
+# 查活动
 pjsk_event_list = SekaiCmdHandler([
-    "/pjsk events", "/pjsk_events", 
-    "/活动列表"
+    "/pjsk events", "/pjsk_events", "/events", "/活动列表", "/活动一览",
 ])
 pjsk_event_list.check_cdrate(cd).check_wblist(gbl)
 @pjsk_event_list.handle()
@@ -937,8 +936,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # 单个活动
 pjsk_event_list = SekaiCmdHandler([
-    "/pjsk event", "/pjsk_event", "/event",
-    "/活动", "/查活动",
+    "/pjsk event", "/pjsk_event", "/event", "/活动", "/查活动",
 ])
 pjsk_event_list.check_cdrate(cd).check_wblist(gbl)
 @pjsk_event_list.handle()

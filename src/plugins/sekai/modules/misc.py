@@ -14,7 +14,7 @@ md_update_group_sub = SekaiGroupSubHelper("update", "MasterData更新通知", AL
 # ======================= 指令处理 ======================= #
 
 pjsk_update = SekaiCmdHandler([
-    "/pjsk update", "/pjsk_update", "/pjsk refresh", "/pjsk_refresh",
+    "/pjsk update", "/pjsk_update", "/pjsk refresh", "/pjsk_refresh", "/pjskupdate",
 ])
 pjsk_update.check_cdrate(cd).check_wblist(gbl)
 @pjsk_update.handle()

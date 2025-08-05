@@ -117,10 +117,11 @@ DEFAULT_TEAMMATE_SCOREUP = 200
 async def extract_target_event(
     ctx: SekaiHandlerContext, 
     args: str,
+    need_event_prefix: bool,
 ) -> Tuple[dict, Optional[int], str]:
     # 是否指定了活动id/章节id/角色昵称
     event_id, chapter_id, chapter_nickname = None, None, None
-    event_match = re.search(r"event(\d+)", args)
+    event_match = re.search(r"event(\d+)" if need_event_prefix else r"(?:event)?(\d+)", args)
     if event_match:
         event_id = int(event_match.group(1))
         args = args.replace(event_match.group(0), "").strip()
@@ -145,7 +146,8 @@ async def extract_target_event(
             if start_time - timedelta(days=2) <= datetime.now() <= end_time:
                 ok_events.append(event)
         assert_and_reply(ok_events, """
-找不到正在进行的/即将开始的活动，使用\"/组卡\"指定团队+属性组卡，或使用\"/活动组卡help\"查看如何组往期活动
+找不到正在进行的/即将开始的活动
+使用\"/组卡\"指定团队&属性组卡，或使用\"/活动组卡help\"查看如何组往期活动
 """.strip())
         ok_events.sort(key=lambda x: x['startAt'], reverse=True)
         event = ok_events[0]
@@ -169,7 +171,7 @@ async def extract_target_event(
                     end_time = datetime.fromtimestamp(chapter['aggregateAt'] / 1000 + 1)
                     if start_time - timedelta(hours=1) <= datetime.now() <= end_time:
                         ok_chapters.append(chapter)
-                assert_and_reply(ok_chapters, f"请指定一个要查询的WL章节，例如 event112 wl1 或 event112 miku")
+                assert_and_reply(ok_chapters, f"请指定一个要查询的WL章节，例如\"event140 wl1\"或\"event140 miku\"")
                 ok_chapters.sort(key=lambda x: x['startAt'], reverse=True)
                 chapter = ok_chapters[0]
         elif chapter_id:
@@ -215,7 +217,7 @@ def extract_fixed_cards(args: str, options: DeckRecommendOptions) -> str:
         try:
             fixed_cards = list(map(int, fixed_cards.strip().split()))
         except:
-            raise ReplyException("固定卡牌格式错误，正确格式为 /组卡指令 其他参数 #123 456 789...")
+            raise ReplyException("参数格式错误，固定卡牌参数必须放在最后，正确格式为 /组卡指令 其他参数 #123 456 789...")
         assert_and_reply(len(fixed_cards) <= 5, f"固定卡牌数量不能超过5张")
         assert_and_reply(len(set(fixed_cards)) == len(fixed_cards), "固定卡牌不能重复")
         options.fixed_cards = fixed_cards
@@ -354,9 +356,11 @@ async def extract_music_and_diff(ctx: SekaiHandlerContext, args: str, options: D
 
     if args:
         search_options = MusicSearchOptions(
+            use_emb=False,
+            use_id=False,
+            use_nidx=False,
             diff=options.music_diff, 
             raise_when_err=False,
-            use_emb=False,
         )
         music = (await search_music(ctx, args, search_options)).music
         assert_and_reply(music, f"找不到歌曲\"{args}\"\n发送\"{ctx.trigger_cmd}help\"查看帮助")
@@ -381,6 +385,14 @@ def extract_addtional_options(args: str) -> Tuple[dict, str]:
         for keyword in keywords:
             if keyword in args:
                 ret['unit_filter'] = unit
+                args = args.replace(keyword, "").strip()
+                break
+
+    for names in CARD_ATTR_NAMES:
+        for name in names:
+            keyword = '纯' + name
+            if keyword in args:
+                ret['attr_filter'] = names[0]
                 args = args.replace(keyword, "").strip()
                 break
     
@@ -439,7 +451,7 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
         options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT.total_seconds() * 1000)
 
     # 活动id
-    event, wl_cid, args = await extract_target_event(ctx, args)
+    event, wl_cid, args = await extract_target_event(ctx, args, need_event_prefix=False)
     options.event_id = event['id']
     options.world_bloom_character_id = wl_cid
         
@@ -611,8 +623,15 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
     options.event_id = None
     options.event_unit, args = extract_unit(args, default=None)
     options.event_attr, args = extract_card_attr(args, default=None)
-    assert_and_reply(options.event_unit, "请指定组卡的团（ln/mmj/vbs/ws/25/vs）")
-    assert_and_reply(options.event_attr, "请指定活动组卡的属性（例如: 紫/紫月/月亮）")
+
+    unit_hint = "请指定组卡的团（ln/mmj/vbs/ws/25/vs）\n"
+    attr_hint = "请指定组卡的属性（例如: 紫/紫月/月亮）\n"
+    hint = ""
+    if not options.event_unit:  hint += unit_hint
+    if not options.event_attr:  hint += attr_hint
+    if hint:
+        hint += "该指令用于组指定团&属性加成的模拟活动（暂不支持模拟wl），组实际存在的活动请使用\"/活动组卡\""
+        raise ReplyException(hint.strip())
         
     # 歌曲id和难度
     args = await extract_music_and_diff(ctx, args, options, "event")
@@ -653,7 +672,7 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.rarity_birthday_config = NOCHANGE_CARD_CONFIG
 
     # 活动id
-    event, wl_cid, args = await extract_target_event(ctx, args)
+    event, wl_cid, args = await extract_target_event(ctx, args, need_event_prefix=True)
     options.event_id = event['id']
     options.world_bloom_character_id = wl_cid
         
@@ -982,6 +1001,13 @@ async def compose_deck_recommend_image(
             uc for uc in profile['userCards']
             if await get_unit_by_card_id(ctx, uc['cardId']) == unit_filter
         ]
+    # 属性卡牌过滤
+    attr_filter = additional.get('attr_filter', None)
+    if attr_filter:
+        profile['userCards'] = [
+            uc for uc in profile['userCards']
+            if (await ctx.md.cards.find_by_id(uc['cardId']))['attr'] == attr_filter
+        ]
     # 排除卡牌
     excluded_cards = additional.get('excluded_cards', [])
     if excluded_cards:
@@ -1172,12 +1198,13 @@ async def compose_deck_recommend_image(
                         if use_max_profile:
                             TextBox("(顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
 
-                    if unit_filter or excluded_cards:
+                    if any([unit_filter, attr_filter, excluded_cards]):
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(16):
                             TextBox("卡组设置:", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)))
-                            if unit_filter:
+                            if unit_filter or attr_filter:
                                 TextBox(f"仅", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)))
-                                ImageBox(get_unit_logo(unit_filter), size=(None, 40))
+                                if unit_filter: ImageBox(get_unit_logo(unit_filter), size=(None, 40))
+                                if attr_filter: ImageBox(get_attr_icon(attr_filter), size=(None, 35))
                                 TextBox(f"上场", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)))
                             if excluded_cards:
                                 TextBox(f"排除 {','.join(map(str, excluded_cards))}", 
