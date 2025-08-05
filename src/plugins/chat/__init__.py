@@ -68,7 +68,6 @@ async def use_tool(handle, session, type, data, event):
 # ------------------------------------------ 聊天记录总结逻辑 ------------------------------------------ #
 
 image_caption_db = get_file_db("data/chat/image_caption_db.json", logger)
-DEFAULT_IMAGE_CAPTION_MODEL_NAME = "gemini-2-flash"
 IMAGE_CAPTION_TIMEOUT_SEC = 10
 IMAGE_CAPTION_LIMIT = 2048
 IMAGE_CAPTION_TEMPLATE_PATH = "data/chat/image_caption_prompt.txt"
@@ -414,7 +413,7 @@ async def _(ctx: HandlerContext):
                 # 回复折叠内容
                 if "forward" in reply_cqs:
                     logger.info(reply_cqs["forward"][0]["id"])
-                    forward_text = await get_forward_msg_text(DEFAULT_IMAGE_CAPTION_MODEL_NAME, find_by(reply_msg, 'type', "forward"))
+                    forward_text = await get_forward_msg_text(get_model_preset('chat.image_caption'), find_by(reply_msg, 'type', "forward"))
                     session.append_user_content(forward_text)
                 # 回复普通内容
                 elif len(reply_imgs) > 0 or reply_text.strip() != "":
