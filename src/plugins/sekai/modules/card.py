@@ -218,6 +218,9 @@ async def compose_card_list_image(ctx: SekaiHandlerContext, cards: List[Dict], q
     assert_and_reply(len(cards) > 0,    f"找不到符合条件的卡牌")
     assert_and_reply(len(cards) < 90,   f"卡牌数量过多({len(cards)}), 请缩小查询范围")
 
+    if len(cards) == 1:
+        return await compose_card_detail_image(ctx, cards[0]['id'])
+
     async def get_thumb_nothrow(card):
         try: 
             if qid:
