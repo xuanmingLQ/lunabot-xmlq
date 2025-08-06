@@ -908,7 +908,7 @@ async def _(ctx: SekaiHandlerContext):
 # 查询注册时间
 pjsk_reg_time = SekaiCmdHandler([
     "/pjsk reg time", "/pjsk_reg_time", 
-    "/注册时间", "/pjsk注册时间", "/pjsk 注册时间",
+    "/注册时间", "/pjsk注册时间", "/pjsk 注册时间", "/查时间",
 ])
 pjsk_reg_time.check_cdrate(cd).check_wblist(gbl)
 @pjsk_reg_time.handle()
@@ -916,7 +916,8 @@ async def _(ctx: SekaiHandlerContext):
     uid = get_player_bind_id(ctx, ctx.user_id)
     reg_time = get_register_time(ctx.region, uid)
     elapsed = datetime.now() - reg_time
-    return await ctx.asend_reply_msg(f"注册时间: {reg_time.strftime('%Y-%m-%d')} ({elapsed.days}天前)")
+    region_name = get_region_name(ctx.region)
+    return await ctx.asend_reply_msg(f"{region_name}注册时间: {reg_time.strftime('%Y-%m-%d')} ({elapsed.days}天前)")
 
 
 # 检查profile服务器状态
