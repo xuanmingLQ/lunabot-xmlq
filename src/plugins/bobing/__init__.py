@@ -28,10 +28,9 @@ async def _(ctx: HandlerContext):
     image = Image.new('RGBA', (DICE_SIZE * 6, DICE_SIZE * 2), (255, 255, 255, 0))
     for i, dice in enumerate(dices):
         image.paste(dice_images[dice - 1], (i * DICE_SIZE, DICE_SIZE // 2))
-    tmp_save_path = f"data/bobing/{rand_filename('gif')}"
-    save_transparent_gif(image, 0, tmp_save_path)
-    await ctx.asend_reply_msg(await get_image_cq(tmp_save_path))
-    os.remove(tmp_save_path)
+    with TempFilePath('gif') as save_path:
+        save_high_quality_static_gif(image, save_path)
+        await ctx.asend_reply_msg(await get_image_cq(save_path))
 
 
 # 博饼规则
@@ -41,7 +40,7 @@ bing_rule = CmdHandler(["/bingrule", "/bing_rule", "/bing rule",
 bing_rule.check_cdrate(cd).check_wblist(gbl)
 @bing_rule.handle()
 async def _(ctx: HandlerContext):
-    return await ctx.asend_reply_msg(await get_image_cq(dice_rule_image))
+    return await ctx.asend_reply_msg(await get_image_cq(dice_rule_image, low_quality=True))
 
 
 # 随机数

@@ -1108,10 +1108,11 @@ async def compose_deck_recommend_image(
     for deck in result_decks:
         for deckcard in deck.cards:
             card = await ctx.md.cards.find_by_id(deckcard.card_id)
+            usercard = find_by(profile['userCards'], 'cardId', deckcard.card_id)
             pcard = {
                 'cardId': deckcard.card_id,
-                'defaultImage': deckcard.default_image,
-                'specialTrainingStatus': "done" if deckcard.after_training else "",
+                'defaultImage': deckcard.default_image,                                 # 默认图片跟随组卡结果
+                'specialTrainingStatus': usercard.get('specialTrainingStatus', 'none'), # 稀有度图标绘制跟随原本卡组
                 'level': deckcard.level,
                 'masterRank': deckcard.master_rank,
                 'eventBonus': deckcard.event_bonus_rate,

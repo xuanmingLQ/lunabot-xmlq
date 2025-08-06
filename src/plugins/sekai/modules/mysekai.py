@@ -1857,7 +1857,7 @@ async def _(ctx: SekaiHandlerContext):
 # 查询烤森唱片数据
 pjsk_mysekai_musicrecord = SekaiCmdHandler([
     "/pjsk mysekai musicrecord", "/pjsk_mysekai_musicrecord",
-    "/msm",
+    "/msm", "/mss",
 ])
 pjsk_mysekai_musicrecord.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_musicrecord.handle()
