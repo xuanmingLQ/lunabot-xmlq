@@ -122,6 +122,7 @@ async def parse_multi_card_search_args(ctx: SekaiHandlerContext, args: str, card
     supply, args = extract_card_supply(args)
     skill, args = extract_card_skill(args)
     year, args = extract_year(args)
+    vs_unit, args = extract_vs_unit(args)
     unit, args = extract_unit(args)
     rare, args = extract_card_rare(args)
     nickname, args = extract_nickname_from_args(args)
@@ -137,6 +138,7 @@ async def parse_multi_card_search_args(ctx: SekaiHandlerContext, args: str, card
         card_id = card["id"]
         card_sid = card["skillId"]
         card_cid = card["characterId"]
+        card_support_unit = card['supportUnit']
         release_time = datetime.fromtimestamp(card["releaseAt"] / 1000)
 
         if not leak and release_time > datetime.now(): continue
@@ -164,6 +166,7 @@ async def parse_multi_card_search_args(ctx: SekaiHandlerContext, args: str, card
 
         if year is not None and release_time.year != int(year): continue
         if unit is not None and CID_UNIT_MAP.get(card_cid) != unit: continue
+        if vs_unit is not None and card_support_unit != vs_unit: continue
         if rare is not None and card["cardRarityType"] != rare: continue
         if chara_id is not None and card_cid != int(chara_id): continue
         
@@ -997,6 +1000,7 @@ pjsk_box.check_cdrate(cd).check_wblist(gbl)
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
     cards, args = await parse_multi_card_search_args(ctx, args, leak=False)
+    assert_and_reply(cards, "没有找到符合条件的卡牌")
 
     show_id = False
     if 'id' in args:

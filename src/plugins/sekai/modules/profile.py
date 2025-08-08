@@ -303,7 +303,7 @@ async def get_detailed_profile(ctx: SekaiHandlerContext, qid: int, raise_exc=Fal
         
         # 缓存数据
         cache_path = f"{SEKAI_PROFILE_DIR}/suite_cache/{ctx.region}/{uid}.json"
-        dump_json(profile, cache_path)
+        # dump_json(profile, cache_path)
         logger.info(f"获取 {qid} 抓包数据成功，数据已缓存")
         
     except Exception as e:

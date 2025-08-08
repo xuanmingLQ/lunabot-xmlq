@@ -125,7 +125,7 @@ async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, 
         
         # 缓存数据
         cache_path = f"{SEKAI_PROFILE_DIR}/mysekai_cache/{ctx.region}/{uid}.json"
-        dump_json(mysekai_info, cache_path)
+        # dump_json(mysekai_info, cache_path)
         logger.info(f"获取 {qid} mysekai抓包数据成功，数据已缓存")
 
     except Exception as e:
