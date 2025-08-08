@@ -61,22 +61,25 @@ DEFAULT_DECK_RECOMMEND_MUSICDIFFS = {
     ],
 }
 
+POWER_TARGET_KEYWORDS = ('综合力', '综合', '总合力', '总和', 'power')
+SKILL_TARGET_KEYWORDS = ('倍率', '实效', 'skill', '时效')
+
 SKILL_MAX_KEYWORDS = ("满技能", "满技", "skillmax", "技能满级", "slv4")
 MASTER_MAX_KEYWORDS = ("满突破", "满破", "rankmax", "mastermax", "5破", "五破")
 EPISODE_READ_KEYWORDS = ("剧情已读", "满剧情", "前后篇已读", "前后篇", "已读")
 CANVAS_KEYWORDS = ("满画布", "全画布", "画布", "满画板", "全画板", "画板")
 DISABLE_KEYWORDS = ("禁用", "disable")
 TEAMMATE_POWER_KEYWORDS = ("队友综合力", "队友总合力", "队友综合", "队友总和")
-TEAMMATE_SCOREUP_KEYWORDS = ("队友实效", "队友技能")
+TEAMMATE_SCOREUP_KEYWORDS = ("队友实效", "队友技能", "队友时效")
 KEEP_AFTERTRAINING_STATE_KEYWORDS = ("bfes不变", "bf不变")
 
 UNIT_FILTER_KEYWORDS = {
-    "light_sound": ["纯ln"],
-    "idol": ["纯mmj"],
-    "street": ["纯vbs"],
-    "theme_park": ["纯ws"],
-    "school_refusal": ["纯25h", "纯25时", "纯25"],
-    "piapro": ["纯vs", "纯v"],
+    "light_sound": ["纯ln", "仅ln"],
+    "idol": ["纯mmj", "仅mmj"],
+    "street": ["纯vbs", "仅vbs"],
+    "theme_park": ["纯ws", "仅ws"],
+    "school_refusal": ["纯25h", "纯25时", "纯25", "仅25h", "仅25时", "仅25"],
+    "piapro": ["纯vs", "纯v", "仅vs", "仅v"],
 }
 MAX_PROFILE_KEYWORDS = ('顶配',)
 
@@ -113,6 +116,16 @@ DEFAULT_TEAMMATE_SCOREUP = 200
 
 # ======================= 参数获取 ======================= #
 
+# 解析 20k 20w 这类数字
+def parse_number(s: str) -> Optional[int]:
+    s = s.strip().lower()
+    if s.endswith('k'):
+        return int(float(s[:-1]) * 1000)
+    elif s.endswith('w'):
+        return int(float(s[:-1]) * 10000)
+    else:
+        return int(s)
+
 # 从args获取组卡目标活动（如果是wl则会同时返回cid）返回 (活动, cid, 剩余参数)
 async def extract_target_event(
     ctx: SekaiHandlerContext, 
@@ -121,15 +134,15 @@ async def extract_target_event(
 ) -> Tuple[dict, Optional[int], str]:
     # 是否指定了活动id/章节id/角色昵称
     event_id, chapter_id, chapter_nickname = None, None, None
-    event_match = re.search(r"event(\d+)" if need_event_prefix else r"(?:event)?(\d+)", args)
-    if event_match:
-        event_id = int(event_match.group(1))
-        args = args.replace(event_match.group(0), "").strip()
     for i in range(1, 10):
         if f"wl{i}" in args:
             chapter_id = i
             args = args.replace(f"wl{i}", "").strip()
             break
+    event_match = re.search(r"event(\d+)" if need_event_prefix else r"(?:event)?(\d+)", args)
+    if event_match:
+        event_id = int(event_match.group(1))
+        args = args.replace(event_match.group(0), "").strip()
     for item in CHARACTER_NICKNAME_DATA:
         for nickname in item['nicknames']:
             if nickname in args:
@@ -194,15 +207,13 @@ async def extract_target_event(
 def extract_target(args: str, options: DeckRecommendOptions) -> str:
     options.target = "score"
 
-    power_keywords = sorted(['综合', '综合力', '总和', '总合力', 'power'], key=len, reverse=True)
-    for keyword in power_keywords:
+    for keyword in POWER_TARGET_KEYWORDS:
         if keyword in args:
             args = args.replace(keyword, "").strip()
             options.target = "power"
             break
 
-    skill_keywords = sorted(['技能', '实效', 'skill'], key=len, reverse=True)
-    for keyword in skill_keywords:
+    for keyword in SKILL_TARGET_KEYWORDS:
         if keyword in args:
             args = args.replace(keyword, "").strip()
             options.target = "skill"
@@ -338,7 +349,7 @@ def extract_teammate_options(args: str, options: DeckRecommendOptions) -> str:
     for seg in segs:
         for keyword in TEAMMATE_POWER_KEYWORDS:
             if keyword in seg:
-                options.multi_live_teammate_power = int(seg.replace(keyword, "").strip())
+                options.multi_live_teammate_power = parse_number(seg.replace(keyword, "").strip())
                 args = args.replace(seg, "").strip()
                 break
         for keyword in TEAMMATE_SCOREUP_KEYWORDS:
@@ -391,6 +402,11 @@ def extract_addtional_options(args: str) -> Tuple[dict, str]:
     for names in CARD_ATTR_NAMES:
         for name in names:
             keyword = '纯' + name
+            if keyword in args:
+                ret['attr_filter'] = names[0]
+                args = args.replace(keyword, "").strip()
+                break
+            keyword = '仅' + name
             if keyword in args:
                 ret['attr_filter'] = names[0]
                 args = args.replace(keyword, "").strip()
@@ -1112,7 +1128,7 @@ async def compose_deck_recommend_image(
             pcard = {
                 'cardId': deckcard.card_id,
                 'defaultImage': deckcard.default_image,                                 # 默认图片跟随组卡结果
-                'specialTrainingStatus': usercard.get('specialTrainingStatus', 'none'), # 稀有度图标绘制跟随原本卡组
+                'specialTrainingStatus': usercard.get('specialTrainingStatus', 'none') if usercard else 'none', # 稀有度图标绘制跟随原本卡组
                 'level': deckcard.level,
                 'masterRank': deckcard.master_rank,
                 'eventBonus': deckcard.event_bonus_rate,
@@ -1460,7 +1476,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # 实效计算
 pjsk_score_up = CmdHandler([
-    "/实效", "/pjsk_score_up", "/pjsk score up", "/倍率",
+    "/实效", "/pjsk_score_up", "/pjsk score up", "/倍率", "/时效",
 ], logger)
 pjsk_score_up.check_cdrate(cd).check_wblist(gbl)
 @pjsk_score_up.handle()

@@ -34,7 +34,7 @@ class RegionMasterDbSource:
         version = DEFAULT_VERSION
         try:
             version_data = await download_json(self.version_url)
-            version = get_multi_keys(version_data, ['data_version', 'dataVersion'])
+            version = str(get_multi_keys(version_data, ['cdnVersion', 'data_version', 'dataVersion']))
             self.version = version
             self.asset_version = get_multi_keys(version_data, ['asset_version', 'assetVersion'])
             # logger.info(f"MasterDB [{self.name}] 的版本为 {version}")
