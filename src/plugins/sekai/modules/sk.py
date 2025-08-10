@@ -22,6 +22,7 @@ from .sk_sql import (
     query_latest_ranking, 
     query_first_ranking_after,
 )
+import zipfile
 from matplotlib import pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib
@@ -1096,6 +1097,7 @@ async def _(ctx: SekaiHandlerContext):
         args = args.replace("full", "").replace("all", "").replace("全部", "").strip()
 
     if args:
+        raise ReplyException(f"已不支持查询往期榜线")
         try: event = await get_event_by_index(ctx, args)
         except:
             return await ctx.asend_reply_msg(f"""
@@ -1235,7 +1237,8 @@ ranking_update_failures = { region: 0 for region in ALL_SERVER_REGIONS }
 async def update_ranking():
     tasks = []
     region_failed = {}
-
+    
+    # 获取所有服务器的榜线数据
     for region in ALL_SERVER_REGIONS:
         ctx = SekaiHandlerContext.from_region(region)
 
@@ -1269,6 +1272,7 @@ async def update_ranking():
         return
     results = await asyncio.gather(*tasks)
 
+    # 处理获取到的榜线数据
     for region, eid, data in results:
         ctx = SekaiHandlerContext.from_region(region)
         ranking_update_times[region] += 1
@@ -1318,6 +1322,36 @@ async def update_ranking():
                 ranking_update_failures[region] = 0
 
 
+SK_COMPRESS_INTERVAL = 60 * 60
+SK_COMPRESS_THRESHOLD = timedelta(days=7)
 
+@repeat_with_interval(60 * 60, '压缩榜线数据', logger)
+async def compress_ranking_data():
+    for region in ALL_SERVER_REGIONS:
+        ctx = SekaiHandlerContext.from_region(region)
+        db_path = SEKAI_DATA_DIR + f"/db/sk_{region}/*_ranking.db"
+        db_files = glob.glob(db_path)
+        for db_file in db_files:
+            zip_path = db_file + '.zip'
+            if os.path.exists(zip_path):
+                continue
 
-    
+            try:
+                event_id = int(Path(db_file).stem.split('_')[0]) % 1000
+                event = await ctx.md.events.find_by_id(event_id)
+                assert event, f"未找到活动 {event_id}"
+                end_time = datetime.fromtimestamp(event['aggregateAt'] / 1000)
+                if datetime.now() - end_time < SK_COMPRESS_THRESHOLD:
+                    continue
+
+                def do_zip():
+                    with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+                        zf.write(db_file, arcname=Path(db_file).name)
+
+                await run_in_pool(do_zip)
+                os.remove(db_file)
+
+                logger.info(f"已压缩榜线数据库 {db_file}")
+                
+            except Exception as e:
+                logger.warning(f"尝试检查压缩 {db_file} 失败: {get_exc_desc(e)}")
