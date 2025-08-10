@@ -476,10 +476,19 @@ async def get_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str,
         segs = [s for s in args.split() if s]
         if len(segs) > 1 and all(s.isdigit() for s in segs):
             ranks = [int(s) for s in segs]
+            assert_and_reply(len(ranks) <= 20, "查询排名过多，最多查询20个排名")
             for rank in ranks:
                 if rank not in ALL_RANKS:
                     raise ReplyException(f"不支持的排名: {rank}")
             return 'ranks', ranks
+        elif '-' in args:
+            start, end = args.split('-', 1)
+            start, end = int(start), int(end)
+            assert_and_reply(start <= end, "查询排名范围错误: 起始排名大于结束排名")
+            assert_and_reply(end - start + 1 <= 20, "查询排名范围过大，最多查询20个排名")
+            assert_and_reply(start in ALL_RANKS, f"不支持的起始排名: {start}")
+            assert_and_reply(end in ALL_RANKS, f"不支持的结束排名: {end}")
+            return 'ranks', list(range(start, end + 1))
         elif args.isdigit():
             if int(args) in ALL_RANKS:
                 return 'rank', int(args)
@@ -602,8 +611,10 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     style3 = TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)
     texts: List[str, TextStyle] = []
 
-    ranks = []
+    ranks, ranks_list = [], None
     cf_start_time = min(datetime.now(), event_end) - timedelta(hours=1)
+    latest_ranks = await get_latest_ranking(ctx, eid, ALL_RANKS)
+    skl_ranks = [r for r in latest_ranks if r.rank in list(range(1, 10)) + SKL_QUERY_RANKS]
 
     match qtype:
         case 'self':
@@ -613,64 +624,101 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
         case 'name':
             ranks = await query_ranking(ctx.region, eid, name=qval, start_time=cf_start_time)
         case 'rank':
-            latest_ranks = await get_latest_ranking(ctx, eid, ALL_RANKS)
             r = find_by_func(latest_ranks, lambda x: x.rank == qval)
             assert_and_reply(r, f"找不到排名 {qval} 的榜线数据")
             ranks = await query_ranking(ctx.region, eid, uid=r.uid, start_time=cf_start_time)
+        case 'ranks':
+            uid_list = []
+            for rank in qval:
+                r = find_by_func(latest_ranks, lambda x: x.rank == rank)
+                assert_and_reply(r, f"找不到排名 {rank} 的榜线数据")
+                uid_list.append(r.uid)
+            ranks_list = await batch_gather(*[query_ranking(ctx.region, eid, uid=uid, start_time=cf_start_time) for uid in uid_list])
         case _:
             raise ReplyException(f"不支持的查询类型: {qtype}")
-    
-    ranks.sort(key=lambda x: x.time)
-    assert_and_reply(ranks, f"找不到{format_sk_query_params(qtype, qval)}的榜线数据")
 
-    pts = []
-    abnormal = False
-    abnormal_time = timedelta(seconds=SK_RECORD_INTERVAL * 1.5)
-    if ranks[0].time - cf_start_time > abnormal_time:
-        abnormal = True
-    for i in range(len(ranks) - 1):
-        if ranks[i + 1].time - ranks[i].time > abnormal_time:
+    def calc(ranks: List[Ranking]) -> Dict[str, float]:
+        if not ranks:
+            return { 'status': 'no_found' }
+
+        pts = []
+        abnormal = False
+        abnormal_time = timedelta(seconds=SK_RECORD_INTERVAL * 1.5)
+        if ranks[0].time - cf_start_time > abnormal_time:
             abnormal = True
-            continue
-        if ranks[i].score != ranks[i + 1].score:
-            pts.append(ranks[i + 1].score - ranks[i].score)
+        for i in range(len(ranks) - 1):
+            if ranks[i + 1].time - ranks[i].time > abnormal_time:
+                abnormal = True
+                continue
+            if ranks[i].score != ranks[i + 1].score:
+                pts.append(ranks[i + 1].score - ranks[i].score)
+        
+        if len(pts) < 1:
+            return { 'status': 'no_enough' }
+        
+        ret = {
+            'status': 'ok',
+            'abnormal': abnormal,
+            'name': truncate(ranks[-1].name, 40),
+            'uid': ranks[-1].uid,
+            'cur_rank': ranks[-1].rank,
+            'cur_score': ranks[-1].score,
+            'start_time': ranks[0].time,
+            'end_time': ranks[-1].time,
+            'hour_speed': int((ranks[-1].score - ranks[0].score) / (ranks[-1].time - ranks[0].time).total_seconds() * 3600),
+            'last_pt': pts[-1],
+            'avg_pt_n': min(10, len(pts)),
+            'avg_pt': sum(pts[-min(10, len(pts)):]) / min(10, len(pts)),
+            'pts': pts,
+        }
+        if last_20min_rank := find_by_func(ranks, lambda x: x.time <= ranks[-1].time - timedelta(minutes=20), mode='last'):
+            ret['last_20min_speed'] = int((ranks[-1].score - last_20min_rank.score) / (ranks[-1].time - last_20min_rank.time).total_seconds() * 3600)
+        if prev_rank := find_prev_ranking(skl_ranks, ret['cur_rank']):
+            ret['prev_score'] = prev_rank.score
+            ret['prev_rank'] = prev_rank.rank
+            ret['prev_dlt'] = prev_rank.score - ret['cur_score']
+        if next_rank := find_next_ranking(skl_ranks, ret['cur_rank']):
+            ret['next_score'] = next_rank.score
+            ret['next_rank'] = next_rank.rank
+            ret['next_dlt'] = ret['cur_score'] - next_rank.score
+        return ret
 
-    assert_and_reply(len(pts) > 1, f"{format_sk_query_params(qtype, qval)}的最近游玩次数少于2，无法查询")
-
-    name = truncate(ranks[-1].name, 40)
-    uid = ranks[-1].uid
-    cur_rank = ranks[-1].rank
-    cur_score = ranks[-1].score
-    start_time = ranks[0].time
-    end_time = ranks[-1].time
-    hour_speed = int((ranks[-1].score - ranks[0].score) / (end_time - start_time).total_seconds() * 3600)
-    last_pt = pts[-1]
-    avg_pt_n = min(10, len(pts))
-    avg_pt = sum(pts[-avg_pt_n:]) / avg_pt_n
-    
-    texts.append((f"{name}", style1))
-    texts.append((f"当前排名 {get_board_rank_str(cur_rank)} - 当前分数 {get_board_score_str(cur_score)}", style2))
-
-    latest_ranks = await get_latest_ranking(ctx, eid, ALL_RANKS)
-    skl_ranks = [r for r in latest_ranks if r.rank in list(range(1, 10)) + SKL_QUERY_RANKS]
-    if prev_rank := find_prev_ranking(skl_ranks, cur_rank):
-        dlt_score = prev_rank.score - cur_score
-        texts.append((f"{prev_rank.rank}名分数: {get_board_score_str(prev_rank.score)}  ↑{get_board_score_str(dlt_score)}", style3))
-    if next_rank := find_next_ranking(skl_ranks, cur_rank):
-        dlt_score = cur_score - next_rank.score
-        texts.append((f"{next_rank.rank}名分数: {get_board_score_str(next_rank.score)}  ↓{get_board_score_str(dlt_score)}", style3))
-
-    texts.append((f"近{avg_pt_n}次平均Pt: {avg_pt:.1f}", style2))
-    texts.append((f"最近一次Pt: {last_pt}", style2))
-    texts.append((f"时速: {get_board_score_str(hour_speed)}", style2))
-    if last_20min_rank := find_by_func(ranks, lambda x: x.time <= end_time - timedelta(minutes=20), mode='last'):
-        last_20min_speed = int((ranks[-1].score - last_20min_rank.score) / (end_time - last_20min_rank.time).total_seconds() * 3600)
-        texts.append((f"20min×3时速: {get_board_score_str(last_20min_speed)}", style2))
-    texts.append((f"本小时周回数: {len(pts)}", style2))
-    if abnormal:
-        texts.append((f"记录时间内有数据空缺，周回数不准确", style2))
-    texts.append((f"数据开始于: {get_readable_datetime(start_time, show_original_time=False)}", style2))
-    texts.append((f"数据更新于: {get_readable_datetime(end_time, show_original_time=False)}", style2))
+    if ranks_list is None:
+        # 单个
+        d = calc(ranks)
+        assert_and_reply(d['status'] != 'no_found', f"找不到{format_sk_query_params(qtype, qval)}的榜线数据")
+        assert_and_reply(d['status'] != 'no_enough', f"{format_sk_query_params(qtype, qval)}的最近游玩次数少于2，无法查询")
+        texts.append((f"{d['name']}", style1))
+        texts.append((f"当前排名 {get_board_rank_str(d['cur_rank'])} - 当前分数 {get_board_score_str(d['cur_score'])}", style2))
+        if 'prev_rank' in d:
+            texts.append((f"{d['prev_rank']}名分数: {get_board_score_str(d['prev_score'])}  ↑{get_board_score_str(d['prev_dlt'])}", style3))
+        if 'next_rank' in d:
+            texts.append((f"{d['next_rank']}名分数: {get_board_score_str(d['next_score'])}  ↓{get_board_score_str(d['next_dlt'])}", style3))
+        texts.append((f"近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.1f}", style2))
+        texts.append((f"最近一次Pt: {d['last_pt']}", style2))
+        texts.append((f"时速: {get_board_score_str(d['hour_speed'])}", style2))
+        if 'last_20min_speed' in d:
+            texts.append((f"20min×3时速: {get_board_score_str(d['last_20min_speed'])}", style2))
+        texts.append((f"本小时周回数: {len(d['pts'])}", style2))
+        if d['abnormal']:
+            texts.append((f"记录时间内有数据空缺，周回数不准确", style2))
+        texts.append((f"数据开始于: {get_readable_datetime(d['start_time'], show_original_time=False)}", style2))
+        texts.append((f"数据更新于: {get_readable_datetime(d['end_time'], show_original_time=False)}", style2))
+    else:
+        # 多个
+        ds = [calc(ranks) for ranks in ranks_list]
+        for d in ds:
+            if d['status'] == 'no_found':
+                texts.append((f"找不到{format_sk_query_params(qtype, qval)}的榜线数据", style1))
+                continue
+            if d['status'] == 'no_enough':
+                texts.append((f"{format_sk_query_params(qtype, qval)}的最近游玩次数少于2，无法查询", style1))
+                continue
+            texts.append((f"{d['name']}", style1))
+            texts.append((f"当前排名 {get_board_rank_str(d['cur_rank'])} - 当前分数 {get_board_score_str(d['cur_score'])}", style2))
+            texts.append((f"时速: {get_board_score_str(d['hour_speed'])} - 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.1f}", style2))
+            texts.append((f"本小时周回数: {len(d['pts'])}", style2))
+            texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style2))
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
@@ -700,7 +748,8 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
     assert_and_reply(event, "未找到当前活动")
     eid = event['id']
     wl_cid = await get_wl_chapter_cid(ctx, eid)
-    ranks = []
+    ranks, ranks2 = [], None
+    latest_ranks = await get_latest_ranking(ctx, eid, ALL_RANKS)
 
     match qtype:
         case 'self':
@@ -710,14 +759,24 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
         case 'name':
             ranks = await query_ranking(ctx.region, eid, name=qval)
         case 'rank':
-            latest_ranks = await get_latest_ranking(ctx, eid, ALL_RANKS)
             r = find_by_func(latest_ranks, lambda x: x.rank == qval)
             assert_and_reply(r, f"找不到排名 {qval} 的榜线数据")
             ranks = await query_ranking(ctx.region, eid, uid=r.uid)
+        case 'ranks':
+            assert_and_reply(len(qval) == 2, "最多同时对比两个玩家的追踪数据")
+            v1, v2 = qval
+            r = find_by_func(latest_ranks, lambda x: x.rank == v1)
+            assert_and_reply(r, f"找不到排名 {v1} 的榜线数据")
+            ranks = await query_ranking(ctx.region, eid, uid=r.uid)
+            r = find_by_func(latest_ranks, lambda x: x.rank == v2)
+            assert_and_reply(r, f"找不到排名 {v2} 的榜线数据")
+            ranks2 = await query_ranking(ctx.region, eid, uid=r.uid)
         case _:
             raise ReplyException(f"不支持的查询类型: {qtype}")
         
     if len(ranks) < 1:
+        raise ReplyException(f"{format_sk_query_params(qtype, qval)}的榜线记录过少，无法查询")
+    if ranks2 is not None and len(ranks2) < 1:
         raise ReplyException(f"{format_sk_query_params(qtype, qval)}的榜线记录过少，无法查询")
 
     ranks.sort(key=lambda x: x.time)
@@ -725,6 +784,12 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
     times = [rank.time for rank in ranks]
     scores = [rank.score for rank in ranks]
     rs = [rank.rank for rank in ranks]
+    if ranks2 is not None:
+        ranks2.sort(key=lambda x: x.time)
+        name2 = truncate(ranks2[-1].name, 40)
+        times2 = [rank.time for rank in ranks2]
+        scores2 = [rank.score for rank in ranks2]
+        rs2 = [rank.rank for rank in ranks2]
 
     def draw_graph() -> Image.Image:
         fig, ax = plt.subplots()
@@ -733,28 +798,63 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
 
         draw_daynight_bg(ax, times[0], times[-1])
 
+        min_score = min(scores)
+        max_score = max(scores) 
+        max_rank = max(rs)
+        min_rank = min(rs)
+        if ranks2 is not None:
+            min_score = min(min_score, min(scores2))
+            max_score = max(max_score, max(scores2))
+            max_rank = max(max_rank, max(rs2))
+            min_rank = min(min_rank, min(rs2))
+
+        lines = []
+
+        color_p1 = ('royalblue', 'cornflowerblue')
+        color_p2 = ('orangered', 'coral')
+
         # 绘制分数
-        ax.plot(times, scores, 'o', label='分数', color='blue', markersize=2, linewidth=0.5)
-        ax.set_ylim(min(scores) * 0.95, max(scores) * 1.05)
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(x)))
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
-        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+        line_score, = ax.plot(times, scores, 'o', label=f'{name}分数', color=color_p1[0], markersize=1, linewidth=0.5)
+        lines.append(line_score)
         plt.annotate(f"{get_board_score_str(scores[-1])}", xy=(times[-1], scores[-1]), xytext=(times[-1], scores[-1]), 
-                     color='blue', fontsize=12, ha='right')
-        ax.legend(loc='lower right')
+                     color=color_p1[0], fontsize=12, ha='right')
+        if ranks2 is not None:
+            line_score2, = ax.plot(times2, scores2, 'o', label=f'{name2}分数', color=color_p2[0], markersize=1, linewidth=0.5)
+            lines.append(line_score2)
+            plt.annotate(f"{get_board_score_str(scores2[-1])}", xy=(times2[-1], scores2[-1]), xytext=(times2[-1], scores2[-1]),
+                            color=color_p2[0], fontsize=12, ha='right')
+
+        ax.set_ylim(min_score * 0.95, max_score * 1.05)
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(x)))
         ax.grid(True, linestyle='-', alpha=0.3, color='gray')
 
         # 绘制排名
         ax2 = ax.twinx()
-        ax2.plot(times, rs, 'o', label='排名', color='red', markersize=2, linewidth=0.5)
-        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x))))
-        ax2.set_ylim(max(rs) + 1, min(rs) - 1)
-        ax2.legend(loc='lower right')
 
+        line_rank, = ax2.plot(times, rs, 'o', label=f'{name}排名', color=color_p1[1], markersize=1, linewidth=0.5)
+        lines.append(line_rank)
+        plt.annotate(f"{int(rs[-1])}", xy=(times[-1], rs[-1] * 1.02), xytext=(times[-1], rs[-1] * 1.02),
+                     color=color_p1[1], fontsize=12, ha='right')
+        if ranks2 is not None:
+            line_rank2, = ax2.plot(times2, rs2, 'o', label=f'{name2}排名', color=color_p2[1], markersize=1, linewidth=0.5)
+            lines.append(line_rank2)
+            plt.annotate(f"{int(rs2[-1])}", xy=(times2[-1], rs2[-1] * 1.02), xytext=(times2[-1], rs2[-1] * 1.02),
+                            color=color_p2[1], fontsize=12, ha='right')
+
+        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x))))
+        ax2.set_ylim(min_rank - 1, max_rank + 1)
+
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
         fig.autofmt_xdate()
-        plt.annotate(f"{int(rs[-1])}", xy=(times[-1], rs[-1]), xytext=(times[-1], rs[-1]),
-                     color='red', fontsize=12, ha='right')
-        plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} 玩家: {name}")
+
+        if ranks2 is None:
+            plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} 玩家: {name}")
+        else:
+            plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} 玩家: {name} vs {name2}")
+
+        labels = [l.get_label() for l in lines]
+        ax.legend(lines, labels, loc='upper left')
 
         return plt_fig_to_image(fig)
     
@@ -802,23 +902,20 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
             speeds.append(-1)
     
     # 附加排名预测
+    final_score = None
     try:
         predict = await get_predict_ranks(ctx)
         if predict.event_id == eid:
             final_score = predict.final.get(rank)
-            if final_score:
-                # 当前
-                pred_times.append(times[-1])
-                pred_scores.append(scores[-1])
-                # 预测
-                pred_times.append(predict.event_end)
-                pred_scores.append(final_score)
     except Exception as e:
         logger.warning(f"获取榜线预测失败: {get_exc_desc(e)}")
 
     def draw_graph() -> Image.Image:
         max_score = max(scores + pred_scores)
         min_score = min(scores + pred_scores)
+        if final_score:
+            max_score = max(max_score, final_score)
+            min_score = min(min_score, final_score)
 
         fig, ax = plt.subplots()
         fig.set_size_inches(12, 8)
@@ -827,34 +924,32 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
         draw_daynight_bg(ax, times[0], times[-1])
 
         # 绘制分数
-        ax.plot(times, scores, 'o', label='分数', color='blue', markersize=2, linewidth=0.5)
-        ax.set_ylim(min_score * 0.95, max_score * 1.05)
+        line_scores, = ax.plot(times, scores, 'o', label='分数', color='blue', markersize=1, linewidth=0.5)
+        ax.set_ylim(min_score * 0.95, max_score * 1.1)
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(x)))
-        ax.legend(loc='lower right')
         ax.grid(True, linestyle='-', alpha=0.3, color='gray')
         plt.annotate(f"{get_board_score_str(scores[-1])}", xy=(times[-1], scores[-1]), xytext=(times[-1], scores[-1]), 
                      color='blue', fontsize=12, ha='right')
 
         # 绘制预测线
-        if pred_scores:
-            ax.plot(pred_times, pred_scores, 'o--', label='预测', color='red', markersize=2, linewidth=1)
-            ax.set_ylim(min_score * 0.95, max_score * 1.05)
-            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: ""))
-            ax.legend(loc='lower right')
-            plt.annotate(f"{get_board_score_str(pred_scores[-1])}", xy=(pred_times[-1], pred_scores[-1]), xytext=(pred_times[-1], pred_scores[-1]), 
-                         color='red', fontsize=12, ha='right')
+        if final_score:
+            ax.axhline(y=final_score, color='red', linestyle='--', linewidth=0.5)
+            ax.text(times[-1], final_score * 1.02, f"预测最终: {get_board_score_str(final_score)}", color='red', fontsize=12, ha='right')
 
         # 绘制时速
         ax2 = ax.twinx()
-        ax2.plot(times, speeds, 'o', label='时速', color='green', markersize=0.5, linewidth=0.5)
+        line_speeds, = ax2.plot(times, speeds, 'o', label='时速', color='green', markersize=0.5, linewidth=0.5)
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(int(x)) + "/h"))
         ax2.set_ylim(0, max(speeds) * 1.05)
-        ax2.legend(loc='upper left')
         
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
         ax.xaxis.set_major_locator(mdates.AutoDateLocator())
         fig.autofmt_xdate()
         plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} T{rank} 分数线")
+
+        lines = [line_scores, line_speeds]
+        labels = [l.get_label() for l in lines]
+        ax.legend(lines, labels, loc='upper left')
 
         return plt_fig_to_image(fig)
     
@@ -1057,7 +1152,6 @@ async def _(ctx: SekaiHandlerContext):
     wl_event, args = await extract_wl_event(ctx, args)
 
     qtype, qval = await get_sk_query_params(ctx, args)
-    assert_and_reply(qtype != 'ranks', "查房不支持查询多个排名")
     return await ctx.asend_msg(await get_image_cq(
         await compose_cf_image(ctx, qtype, qval, event=wl_event),
         low_quality=True,
@@ -1065,17 +1159,16 @@ async def _(ctx: SekaiHandlerContext):
 
 
 # 玩家追踪
-pjsk_cf = SekaiCmdHandler([
+pjsk_ptr = SekaiCmdHandler([
     "/ptr", "/玩家追踪", "/pjsk玩家追踪",
 ], prefix_args=['', 'wl'])
-pjsk_cf.check_cdrate(cd).check_wblist(gbl)
-@pjsk_cf.handle()
+pjsk_ptr.check_cdrate(cd).check_wblist(gbl)
+@pjsk_ptr.handle()
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip() + ctx.prefix_arg
     wl_event, args = await extract_wl_event(ctx, args)
 
     qtype, qval = await get_sk_query_params(ctx, args)
-    assert_and_reply(qtype != 'ranks', "追踪不支持查询多个排名")
     return await ctx.asend_msg(await get_image_cq(
         await compose_player_trace_image(ctx, qtype, qval, event=wl_event),
         low_quality=True,
@@ -1083,12 +1176,12 @@ async def _(ctx: SekaiHandlerContext):
 
 
 # 分数线追踪
-pjsk_cf = SekaiCmdHandler([
+pjsk_rtr = SekaiCmdHandler([
     "/rtr", "/skt", "/追踪", "/pjsk追踪", 
     "/sklt", "/sktl", "/分数线追踪", "/pjsk分数线追踪",
 ], prefix_args=['', 'wl'])
-pjsk_cf.check_cdrate(cd).check_wblist(gbl)
-@pjsk_cf.handle()
+pjsk_rtr.check_cdrate(cd).check_wblist(gbl)
+@pjsk_rtr.handle()
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip() + ctx.prefix_arg
     wl_event, args = await extract_wl_event(ctx, args)
@@ -1096,7 +1189,7 @@ async def _(ctx: SekaiHandlerContext):
     try:
         rank = int(args)
     except:
-        return await ctx.asend_reply_msg(f"请输入正确的排名")
+        return await ctx.asend_reply_msg(f"请输入正确的单个排名")
     
     assert_and_reply(rank in ALL_RANKS, f"不支持的排名: {rank}")
 

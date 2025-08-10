@@ -1941,19 +1941,20 @@ async def msr_auto_push():
             if uid and int(uid) not in need_push_uids:
                 continue
 
-            # 检查这个qid刷新后是否已经推送过
-            if qid in msr_last_push_time:
-                last_push_time = datetime.fromtimestamp(msr_last_push_time[qid] / 1000)
+            if not uid:
+                # logger.info(f"用户 {qid} 未绑定游戏id，跳过{region_name}Mysekai资源查询自动推送")
+                continue
+
+            # 检查这个uid-qid刷新后是否已经推送过
+            key = f"{uid}-{qid}"
+            if key in msr_last_push_time:
+                last_push_time = datetime.fromtimestamp(msr_last_push_time[key] / 1000)
                 if last_push_time >= last_refresh_time:
                     continue
 
-            msr_last_push_time[qid] = int(datetime.now().timestamp() * 1000)
+            msr_last_push_time[key] = int(datetime.now().timestamp() * 1000)
             file_db.set(f"{region}_msr_last_push_time", msr_last_push_time)
 
-            if not uid:
-                logger.info(f"用户 {qid} 未绑定游戏id，跳过{region_name}Mysekai资源查询自动推送")
-                continue
-                
             try:
                 logger.info(f"在 {gid} 中自动推送用户 {qid} 的{region_name}Mysekai资源查询")
                 contents = [
