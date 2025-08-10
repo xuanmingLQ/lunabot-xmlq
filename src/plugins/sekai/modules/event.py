@@ -190,15 +190,6 @@ async def get_wl_events(ctx: SekaiHandlerContext, event_id: int) -> List[dict]:
         wl_events.append(wl_event)
     return sorted(wl_events, key=lambda x: x['startAt'])
 
-# 获取用于显示的活动ID-活动名称文本
-def get_event_id_and_name_text(region: str, event_id: int, event_name: str) -> str:
-    if event_id < 1000:
-        return f"【{region.upper()}-{event_id}】{event_name}"
-    else:
-        chapter_id = event_id // 1000
-        event_id = event_id % 1000
-        return f"【{region.upper()}-{event_id}-第{chapter_id}章单榜】{event_name}"
-
 # 从cuid获取cid
 async def get_chara_id_by_cuid(ctx: SekaiHandlerContext, cuid: int) -> int:
     unit_chara = await ctx.md.game_character_units.find_by_id(cuid)

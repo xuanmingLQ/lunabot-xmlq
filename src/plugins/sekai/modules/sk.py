@@ -14,7 +14,6 @@ from .event import (
     get_event_by_index,
     get_wl_chapter_cid,
     get_wl_events,
-    get_event_id_and_name_text,
 )
 from .sk_sql import (
     Ranking, 
@@ -71,6 +70,15 @@ class PredictWinrate:
 
 
 # ======================= 处理逻辑 ======================= #
+
+# 获取用于显示的活动ID-活动名称文本
+def get_event_id_and_name_text(region: str, event_id: int, event_name: str) -> str:
+    if event_id < 1000:
+        return f"【{region.upper()}-{event_id}】{event_name}"
+    else:
+        chapter_id = event_id // 1000
+        event_id = event_id % 1000
+        return f"【{region.upper()}-{event_id}-第{chapter_id}章单榜】{event_name}"
 
 # 从参数获取带有wl_id的wl_event，返回 (wl_event, args)，未指定章节则默认查询当前章节
 async def extract_wl_event(ctx: SekaiHandlerContext, args: str) -> Tuple[dict, str]:
@@ -345,7 +353,7 @@ async def compose_skl_image(ctx: SekaiHandlerContext, event: dict = None, full: 
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
             with HSplit().set_content_align('rt').set_item_align('rt').set_padding(8).set_sep(7):
                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(5):
-                    TextBox(get_event_id_and_name_text(ctx.region, eid, truncate(title, 20)), TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK))
+                    TextBox(get_event_id_and_name_text(ctx.region, eid, truncate(title, 16)), TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK))
                     TextBox(f"{event_start.strftime('%Y-%m-%d %H:%M')} ~ {event_end.strftime('%Y-%m-%d %H:%M')}", 
                             TextStyle(font=DEFAULT_FONT, size=18, color=BLACK))
                     time_to_end = event_end - datetime.now()
@@ -354,10 +362,11 @@ async def compose_skl_image(ctx: SekaiHandlerContext, event: dict = None, full: 
                     else:
                         time_to_end = f"距离活动结束还有{get_readable_timedelta(time_to_end)}"
                     TextBox(time_to_end, TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK))
-                if banner_img:
-                    ImageBox(banner_img, size=(140, None))
-                if wl_cid:
-                    ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
+                with Frame().set_content_align('r'):
+                    if banner_img:
+                        ImageBox(banner_img, size=(140, None))
+                    if wl_cid:
+                        ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
 
             if ranks:
                 gh = 30
@@ -416,7 +425,7 @@ async def compose_sks_image(ctx: SekaiHandlerContext, event: dict = None, period
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
             with HSplit().set_content_align('rt').set_item_align('rt').set_padding(8).set_sep(7):
                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(5):
-                    TextBox(get_event_id_and_name_text(ctx.region, eid, truncate(title, 20)), TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK))
+                    TextBox(get_event_id_and_name_text(ctx.region, eid, truncate(title, 16)), TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK))
                     TextBox(f"{event_start.strftime('%Y-%m-%d %H:%M')} ~ {event_end.strftime('%Y-%m-%d %H:%M')}", 
                             TextStyle(font=DEFAULT_FONT, size=18, color=BLACK))
                     time_to_end = event_end - datetime.now()
@@ -425,10 +434,11 @@ async def compose_sks_image(ctx: SekaiHandlerContext, event: dict = None, period
                     else:
                         time_to_end = f"距离活动结束还有{get_readable_timedelta(time_to_end)}"
                     TextBox(time_to_end, TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK))
-                if banner_img:
-                    ImageBox(banner_img, size=(140, None))
-                if wl_cid:
-                    ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
+                with Frame().set_content_align('r'):
+                    if banner_img:
+                        ImageBox(banner_img, size=(140, None))
+                    if wl_cid:
+                        ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
 
             if speeds:
                 gh = 30
@@ -831,18 +841,19 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
         # 绘制排名
         ax2 = ax.twinx()
 
-        line_rank, = ax2.plot(times, rs, 'o', label=f'{name}排名', color=color_p1[1], markersize=1, linewidth=0.5)
+        line_rank, = ax2.plot(times, rs, 'o', label=f'{name}排名', color=color_p1[1], markersize=0.7, linewidth=0.5)
         lines.append(line_rank)
         plt.annotate(f"{int(rs[-1])}", xy=(times[-1], rs[-1] * 1.02), xytext=(times[-1], rs[-1] * 1.02),
                      color=color_p1[1], fontsize=12, ha='right')
         if ranks2 is not None:
-            line_rank2, = ax2.plot(times2, rs2, 'o', label=f'{name2}排名', color=color_p2[1], markersize=1, linewidth=0.5)
+            line_rank2, = ax2.plot(times2, rs2, 'o', label=f'{name2}排名', color=color_p2[1], markersize=0.7, linewidth=0.5)
             lines.append(line_rank2)
             plt.annotate(f"{int(rs2[-1])}", xy=(times2[-1], rs2[-1] * 1.02), xytext=(times2[-1], rs2[-1] * 1.02),
                             color=color_p2[1], fontsize=12, ha='right')
 
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x))))
-        ax2.set_ylim(max_rank + 1, min_rank - 1)
+        rank_range = max_rank - min_rank
+        ax2.set_ylim(max_rank + rank_range * 0.2, min_rank - rank_range * 0.2)
 
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
         ax.xaxis.set_major_locator(mdates.AutoDateLocator())
