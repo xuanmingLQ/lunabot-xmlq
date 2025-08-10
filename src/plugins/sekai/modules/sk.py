@@ -842,7 +842,7 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
                             color=color_p2[1], fontsize=12, ha='right')
 
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x))))
-        ax2.set_ylim(min_rank - 1, max_rank + 1)
+        ax2.set_ylim(max_rank + 1, min_rank - 1)
 
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
         ax.xaxis.set_major_locator(mdates.AutoDateLocator())
