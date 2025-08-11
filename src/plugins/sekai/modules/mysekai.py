@@ -618,7 +618,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         if site_harvest_map:
             site_harvest_map_imgs.append(compose_mysekai_harvest_map_image(ctx, site_harvest_map, show_harvested, phenom_color_info))
     site_harvest_map_imgs = await asyncio.gather(*site_harvest_map_imgs)
-    logger.info(f"合成资源位置图耗时: {datetime.now() - t}")
+    # logger.info(f"合成资源位置图耗时: {datetime.now() - t}")
     
     try: 
         phenom_bg_img = ctx.static_imgs.get(f"mysekai/phenom_bg/{cur_phenom_id}.png")

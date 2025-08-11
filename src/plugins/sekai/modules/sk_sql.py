@@ -10,9 +10,11 @@ _conns: Dict[str, aiosqlite.Connection] = {}
 _created_table_keys: Dict[str, bool] = {}
 
 
-async def get_conn(region, event_id) -> aiosqlite.Connection:
+async def get_conn(region, event_id, create) -> Optional[aiosqlite.Connection]:
     path = DB_PATH.format(region=region, event_id=event_id)
     create_parent_folder(path)
+    if not create and not os.path.exists(path):
+        return None
 
     global _conns
     if _conns.get(path) is None:
@@ -69,7 +71,7 @@ class Ranking:
 
 
 async def insert_rankings(region: str, event_id: int, rankings: List[Ranking]):
-    conn = await get_conn(region, event_id)
+    conn = await get_conn(region, event_id, create=True)
 
     for ranking in rankings:
         ranking.name = ranking.name[:RANKING_NAME_LEN_LIMIT]
@@ -91,7 +93,9 @@ async def query_ranking(
     limit: int = None,
     order_by: str = None,
 ) -> List[Ranking]:
-    conn = await get_conn(region, event_id)
+    conn = await get_conn(region, event_id, create=False)
+    if not conn:
+        return []
 
     sql = "SELECT * FROM ranking WHERE 1=1"
     args = []
@@ -131,9 +135,11 @@ async def query_ranking(
 
 
 async def query_latest_ranking(region: str, event_id: int, ranks: List[int] = None) -> List[Ranking]:
+    conn = await get_conn(region, event_id, create=False)
+    if not conn:
+        return []
     if ranks:
         # 对于ranks中的每一个rank，找到最新的一条记录
-        conn = await get_conn(region, event_id)
         ret = []
         for rank in ranks:
             cursor = await conn.execute("""
@@ -146,7 +152,6 @@ async def query_latest_ranking(region: str, event_id: int, ranks: List[int] = No
         return ret
     else:
         # 对于表中的每一个rank，找到最新的一条记录
-        conn = await get_conn(region, event_id)
         cursor = await conn.execute("""
             SELECT * FROM ranking WHERE id IN (
                 SELECT MAX(id) FROM ranking GROUP BY rank
@@ -163,9 +168,11 @@ async def query_first_ranking_after(
     after_time: datetime,
     ranks: List[int] = None,
 ) -> List[Ranking]:
+    conn = await get_conn(region, event_id, create=False)
+    if not conn:
+        return []
     if ranks:
         # 对于ranks中的每一个rank，找到第一条记录
-        conn = await get_conn(region, event_id)
         ret = []
         for rank in ranks:
             cursor = await conn.execute("""
@@ -178,7 +185,6 @@ async def query_first_ranking_after(
         return ret
     else:
         # 对于表中的每一个rank，找到第一条记录
-        conn = await get_conn(region, event_id)
         cursor = await conn.execute("""
             SELECT * FROM ranking WHERE id IN (
                 SELECT MIN(id) FROM ranking WHERE ts > ? GROUP BY rank

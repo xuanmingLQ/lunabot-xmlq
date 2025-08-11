@@ -248,10 +248,14 @@ def is_user_hide_suite(ctx: SekaiHandlerContext, qid: int) -> bool:
     hide_list = profile_db.get("hide_suite_list", {}).get(ctx.region, [])
     return qid in hide_list
 
+# 用户是否隐藏id
+def is_user_hide_id(region: str, qid: int) -> bool:
+    hide_list = profile_db.get("hide_id_list", {}).get(region, [])
+    return qid in hide_list
+
 # 如果ctx的用户隐藏id则返回隐藏的uid，否则原样返回
 def process_hide_uid(ctx: SekaiHandlerContext, uid: int) -> bool:
-    hide_list = profile_db.get("hide_id_list", {}).get(ctx.region, [])
-    if ctx.user_id in hide_list:
+    if is_user_hide_id(ctx.region, ctx.user_id):
         return "*" * 16
     return uid
 
@@ -741,6 +745,8 @@ async def _(ctx: SekaiHandlerContext):
             region_ctx = SekaiHandlerContext.from_region(region)
             uid = get_player_bind_id(region_ctx, ctx.user_id, check_bind=False)
             if uid:
+                if is_user_hide_id(region, ctx.user_id):
+                    uid = "*" * 14 + uid[-6:]
                 uids.append(f"[{region.upper()}] {uid}")
         if not uids:
             return await ctx.asend_reply_msg("你还没有绑定过游戏ID，请使用\"/绑定 游戏ID\"进行绑定")
@@ -784,7 +790,7 @@ async def _(ctx: SekaiHandlerContext):
         await ctx.asend_reply_msg(f"该ID在多个服务器都存在！默认绑定找到的第一个服务器")
     region, user_name, _ = ok_check_results[0]
 
-    msg = f"{get_region_name(region)}ID绑定成功: {user_name}"
+    msg = f"{get_region_name(region)}绑定成功: {user_name}"
 
     # 如果以前没有绑定过其他区服，设置默认服务器
     bind_list: Dict[str, Dict[str, setattr]] = profile_db.get("bind_list", {})
@@ -794,8 +800,10 @@ async def _(ctx: SekaiHandlerContext):
         other_bind = other_bind or bind_list.get(r, {}).get(str(ctx.user_id), None)
     default_region = get_user_default_region(ctx.user_id, None)
     if not other_bind and not default_region:
-        msg += f"\n已设置你的默认查询区服为{region}，如需修改可使用\"/pjsk服务器 区服\""
+        msg += f"\n已设置你的默认服务器为{get_region_name(region)}，如需修改可使用\"/pjsk服务器\""
         set_user_default_region(ctx.user_id, region)
+    if default_region and default_region != region:
+        msg += f"\n你的默认服务器为{get_region_name(default_region)}，查询{get_region_name(region)}需加前缀{region}，或使用\"/pjsk服务器\"修改默认服务器"
 
     # 如果该区服以前没有绑定过，设置默认隐藏id
     last_bind_id = bind_list.get(region, {}).get(str(ctx.user_id), None)
