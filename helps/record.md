@@ -9,6 +9,7 @@
 
 ### 管理指令
 
+- [`/record_msg_{on|off}` 开启或关闭消息记录](#record_msg_onoff)
 - [`/check` 检查消息](#check)
 - [`/forward` 启动或关闭私聊转发](#forward)
 - [`/cmd_history` 展示最近的指令历史](#cmd_history)
@@ -41,6 +42,19 @@
     `(回复一个聊天记录) /to_text`
 
 ---
+
+##  `/record_msg_{on|off}`
+```
+开启或关闭消息记录
+关闭后不会记录消息到数据库
+但消息仍然会发送到其他模块
+```
+- **示例**
+
+    `/record_msg_on` 开启消息记录
+
+    `/record_msg_off` 关闭消息记录
+    
 
 ##  `/check`
 ```

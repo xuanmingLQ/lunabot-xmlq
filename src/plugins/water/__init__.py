@@ -333,6 +333,7 @@ MAX_TASK_NUM = 50
 # 添加HASH记录任务
 @before_record_hook
 async def record_new_message(bot, event):
+    if not gbl.check(event): return
     if not is_group_msg(event): return
     group_id = event.group_id
     msg_obj = await get_msg_obj(bot, event.message_id)

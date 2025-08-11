@@ -12,6 +12,8 @@ file_db = get_file_db("data/record/db.json", logger)
 gbl = get_group_black_list(file_db, logger, "record")
 cd = ColdDown(file_db, logger, config['cd'])
 
+record_msg_gbl = get_group_black_list(file_db, logger, "record_msg", is_service=False)
+
 
 # 防止神秘原因导致的重复消息
 message_id_set = set()
@@ -55,48 +57,44 @@ async def record_message(bot: Bot, event: GroupMessageEvent):
         try: await hook(bot, event)
         except: logger.print_exc(f"记录消息前hook {hook.__name__} 执行失败")
 
-    time = datetime.fromtimestamp(event.time)
-    msg_obj = await get_msg_obj(bot, event.message_id)
+    if record_msg_gbl.check(event):
+        time = datetime.fromtimestamp(event.time)
+        msg_obj = await get_msg_obj(bot, event.message_id)
 
-    msg = msg_obj['message']
+        msg = msg_obj['message']
+        msg_id = msg_obj['message_id']
+        user_id = event.user_id
+        is_group = is_group_msg(event)
 
-    msg_id = msg_obj['message_id']
-    msg_text = extract_text(msg)
-    img_urls = extract_image_url(msg)
-    img_ids = extract_image_id(msg)
+        if is_group:
+            group_id = event.group_id
+            user_name = await get_group_member_name(bot, group_id, user_id)
+        else:
+            group_id = 0
+            user_name = (await get_stranger_info(bot, user_id)).get('nickname', '')
 
-    user_id = event.user_id
-    is_group = is_group_msg(event)
+        if is_group:
+            try: group_name = truncate(await get_group_name(bot, group_id), 16)
+            except: group_name = "未知群聊"
 
-    if is_group:
-        group_id = event.group_id
-        user_name = await get_group_member_name(bot, group_id, user_id)
-    else:
-        group_id = 0
-        user_name = (await get_stranger_info(bot, user_id)).get('nickname', '')
+        msg_for_log = simplify_msg(msg)
+        if not is_group:
+            logger.info(f"[{msg_id}] {user_name}({user_id}): {str(msg_for_log)}")
+        elif check_self_reply(event):
+            logger.info(f"[{msg_id}] {group_name}({group_id}) 自身回复: {str(msg_for_log)}")
+        elif check_self(event):
+            logger.info(f"[{msg_id}] {group_name}({group_id}) 自身消息: {str(msg_for_log)}")
+        else:
+            logger.info(f"[{msg_id}] {group_name}({group_id}) {user_name}({user_id}): {str(msg_for_log)}")
 
-    if is_group:
-        try: group_name = truncate(await get_group_name(bot, group_id), 16)
-        except: group_name = "未知群聊"
-
-    msg_for_log = simplify_msg(msg)
-    if not is_group:
-        logger.info(f"[{msg_id}] {user_name}({user_id}): {str(msg_for_log)}")
-    elif check_self_reply(event):
-        logger.info(f"[{msg_id}] {group_name}({group_id}) 自身回复: {str(msg_for_log)}")
-    elif check_self(event):
-        logger.info(f"[{msg_id}] {group_name}({group_id}) 自身消息: {str(msg_for_log)}")
-    else:
-        logger.info(f"[{msg_id}] {group_name}({group_id}) {user_name}({user_id}): {str(msg_for_log)}")
-
-    await insert_msg(
-        group_id=group_id,
-        time=time,
-        msg_id=msg_id,
-        user_id=user_id,
-        nickname=user_name,
-        msg=msg,
-    )
+        await insert_msg(
+            group_id=group_id,
+            time=time,
+            msg_id=msg_id,
+            user_id=user_id,
+            nickname=user_name,
+            msg=msg,
+        )
 
     for hook in after_record_hook_funcs:
         try: await hook(bot, event)
