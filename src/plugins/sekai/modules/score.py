@@ -156,7 +156,7 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
     if len(valid_scores) == 0:
         msg = "找不到符合条件的分数范围"
         if target_point % 5 != 0 and target_point > 500:
-            msg += f"\n不能整除5的PT仅0火可打出，难以打出较高的PT，推荐分多次控分"
+            msg += f"\n大数字的PT一般较难打出，并且数字过大计算可能存在误差，推荐以多次进行控分"
         raise ReplyException(msg)
 
     music = await ctx.md.musics.find_by_id(music_id)
@@ -183,8 +183,12 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
                     ImageBox(music_cover, size=(20, 20), use_alphablend=False)
                     TextBox(f"【{music_id}】{music_title} (任意难度)", style1)
                 with HSplit().set_content_align('lb').set_item_align('lb').set_sep(4):
-                    TextBox(f"歌曲基础分 {music_basic_score}   目标活动点数", style1)
-                    TextBox(f" {target_point} PT", style3)
+                    TextBox(f"歌曲基础分 {music_basic_score}   目标PT: ", style1)
+                    TextBox(f" {target_point}", style3)
+                if target_point > 2000:
+                    TextBox(f"目标PT过大，可能存在误差，推荐以多次控分", style3)
+                TextBox(f"控分教程：选取表中一个活动加成和体力", style1)
+                TextBox(f"游玩歌曲到对应分数范围内放置", style1)
                 TextBox(f"友情提醒：控分前请核对加成和体力设置", style3)
                 TextBox(f"特别注意核对加成是否多了0.5", style3)
             

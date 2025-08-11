@@ -737,7 +737,8 @@ pjsk_bind.check_cdrate(cd).check_wblist(gbl)
 @pjsk_bind.handle()
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
-    args = args.lower().removeprefix("id").strip()
+    args = ''.join([c for c in args if c.isdigit()])
+    
     # 查询
     if not args:
         uids: List[str] = []

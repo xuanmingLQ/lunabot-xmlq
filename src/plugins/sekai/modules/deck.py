@@ -869,7 +869,7 @@ async def do_deck_recommend(
                 deck_src_alg[deck_hash] += "+" + alg
     def key_func(deck: RecommendDeck):
         if options.target == "score":
-            return deck.score
+            return (deck.score, deck.expect_skill_score_up)
         elif options.target == "power":
             return deck.total_power
         elif options.target == "skill":
