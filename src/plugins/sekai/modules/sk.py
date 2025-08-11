@@ -623,8 +623,8 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     texts: List[str, TextStyle] = []
 
     ranks, ranks_list = [], None
-    cf_start_time = min(datetime.now(), event_end) - timedelta(hours=1)
     latest_ranks = await get_latest_ranking(ctx, eid, ALL_RANKS)
+    cf_start_time = latest_ranks[0].time - timedelta(hours=1)
     skl_ranks = [r for r in latest_ranks if r.rank in list(range(1, 10)) + SKL_QUERY_RANKS]
 
     match qtype:
@@ -654,15 +654,14 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
 
         pts = []
         abnormal = False
-        abnormal_time = timedelta(seconds=SK_RECORD_INTERVAL * 1.5)
+        abnormal_time = timedelta(seconds=SK_RECORD_INTERVAL * 2)
         if ranks[0].time - cf_start_time > abnormal_time:
             abnormal = True
         for i in range(len(ranks) - 1):
-            if ranks[i + 1].time - ranks[i].time > abnormal_time:
-                abnormal = True
-                continue
-            if ranks[i].score != ranks[i + 1].score:
+            if ranks[i + 1].score != ranks[i].score:
                 pts.append(ranks[i + 1].score - ranks[i].score)
+                if ranks[i + 1].time - ranks[i].time > abnormal_time:
+                    abnormal = True
         
         if len(pts) < 1:
             return { 'status': 'no_enough' }
@@ -718,17 +717,19 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     else:
         # 多个
         ds = [calc(ranks) for ranks in ranks_list]
-        for d in ds:
+        for i, d in enumerate(ds):
             if d['status'] == 'no_found':
-                texts.append((f"找不到{format_sk_query_params(qtype, qval)}的榜线数据", style1))
+                texts.append((f"找不到{format_sk_query_params('rank', qval[i])}的榜线数据", style1))
                 continue
             if d['status'] == 'no_enough':
-                texts.append((f"{format_sk_query_params(qtype, qval)}的最近游玩次数少于2，无法查询", style1))
+                texts.append((f"{format_sk_query_params('rank', qval[i])}的最近游玩次数少于2，无法查询", style1))
                 continue
             texts.append((f"{d['name']}", style1))
             texts.append((f"当前排名 {get_board_rank_str(d['cur_rank'])} - 当前分数 {get_board_score_str(d['cur_score'])}", style2))
             texts.append((f"时速: {get_board_score_str(d['hour_speed'])} - 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.1f}", style2))
             texts.append((f"本小时周回数: {len(d['pts'])}", style2))
+            if d['abnormal']:
+                texts.append((f"记录时间内有数据空缺，周回数不准确", style2))
             texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style2))
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
@@ -952,7 +953,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
         ax2 = ax.twinx()
         line_speeds, = ax2.plot(times, speeds, 'o', label='时速', color='green', markersize=0.5, linewidth=0.5)
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(int(x)) + "/h"))
-        ax2.set_ylim(0, max(speeds) * 1.05)
+        ax2.set_ylim(0, max(speeds) * 1.2)
         
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
         ax.xaxis.set_major_locator(mdates.AutoDateLocator())
