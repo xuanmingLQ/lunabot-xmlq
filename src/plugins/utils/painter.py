@@ -1085,7 +1085,7 @@ class Painter:
                     size_alpha_factor = size / std_size
                 if size > std_size:
                     size_alpha_factor = 1.0 - (size - std_size * 1.5) / (std_size * 1.5)
-                alpha = int(random.normalvariate(50, 200) * max(0, min(1.2, size_alpha_factor)))
+                alpha = int(random.normalvariate(50, 200) * max(0, min(1.2, size_alpha_factor) * (ml ** 0.5)))
                 if alpha <= 0:
                     continue
                 color = random.choice(preset_colors + [(255, 255, 255)] * 0)
@@ -1093,8 +1093,8 @@ class Painter:
                 type = i % 3 // 2
                 draw_tri(x, y, rot, size, color, type)
 
-        rand_tri(int(100 * dense_factor), (48 * size_factor, 16 * size_factor))
-        rand_tri(int(1000 * dense_factor), (16 * size_factor, 16 * size_factor))
+        rand_tri(int(80 * dense_factor), (48 * size_factor, 16 * size_factor))
+        rand_tri(int(800 * dense_factor), (16 * size_factor, 16 * size_factor))
 
         self.img.paste(bg, self.offset)
 
