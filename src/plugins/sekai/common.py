@@ -42,7 +42,7 @@ UNIT_NAMES = [
     ('street', 'vbs'),
     ('theme_park', 'ws'),
     ('school_refusal', '25h', '25时', '25'),
-    ('piapro', 'vs'),
+    ('piapro', 'vs', 'v'),
 ]
 CID_UNIT_MAP = {
     1: "light_sound", 2: "light_sound", 3: "light_sound", 4: "light_sound", 
