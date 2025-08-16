@@ -36,10 +36,6 @@ def get_config(name: str=None, default={}):
         return _config.get(name, default)
     return _config
 
-SUPERUSER = get_config()['superuser']   
-BOT_NAME  = get_config()['bot_name']
-
-
 
 # ============================ 基础 ============================ #
 

@@ -1,10 +1,3 @@
-from nonebot import on_command, on_message
-from nonebot import get_bot
-from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, Bot
-from nonebot.adapters.onebot.v11.message import MessageSegment
-from datetime import datetime
-from PIL import Image
-import io
 from ..utils import *
 from .draw import draw_all, reset_jieba, draw_date_count_plot, draw_word_count_plot, draw_all_long
 from ..record.sql import query_msg_by_range, query_msg_count

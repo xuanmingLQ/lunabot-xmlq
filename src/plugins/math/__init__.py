@@ -1,8 +1,3 @@
-from nonebot import on_command
-from nonebot.adapters.onebot.v11 import Bot
-from nonebot.adapters.onebot.v11 import MessageSegment
-from nonebot.adapters.onebot.v11.message import Message as OutMessage
-from nonebot.adapters.onebot.v11 import MessageEvent
 from ..utils import *
 from asteval import Interpreter
 from .oeis import oeis_query

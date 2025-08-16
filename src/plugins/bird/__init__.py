@@ -1,13 +1,5 @@
 from ..utils import *
-from nonebot import on_command
-from nonebot.adapters.onebot.v11 import Bot
-from nonebot.adapters.onebot.v11.message import Message
-from nonebot.adapters.onebot.v11 import MessageEvent
-from nonebot.params import CommandArg
-import random
 import pandas as pd
-import os
-from tqdm import tqdm
 
 config = get_config('bird')
 logger = get_logger("Bird")

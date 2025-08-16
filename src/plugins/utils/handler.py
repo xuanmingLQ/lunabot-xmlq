@@ -7,19 +7,29 @@ from argparse import ArgumentParser
 import requests
 
 
+SUPERUSER = get_config()['superuser']   
+BOT_NAME  = get_config()['bot_name']
+
+
 # ============================ 消息处理 ============================ #
 
-# 获取加入的所有群id
-async def get_group_id_list(bot):
+async def get_group_id_list(bot) -> List[int]:
+    """
+    获取加入的所有群id
+    """
     group_list = await bot.call_api('get_group_list')
-    return [group['group_id'] for group in group_list]
+    return [int(group['group_id']) for group in group_list]
 
-# 获取加入的所有群
-async def get_group_list(bot):
+async def get_group_list(bot) -> List[dict]:
+    """
+    获取加入的所有群
+    """
     return await bot.call_api('get_group_list')
 
-# 为图片消息添加file_unique
-def add_file_unique_for_image(msg):
+def add_file_unique_for_image_msg(msg):
+    """
+    为图片消息添加file_unique字段
+    """
     for seg in msg:
         if seg['type'] == 'image':
             if not 'file_unique' in seg['data']:
@@ -31,101 +41,108 @@ def add_file_unique_for_image(msg):
                 file_unique = url[start_idx:end_idx]
                 seg['data']['file_unique'] = file_unique
 
-# 获取完整消息对象
-async def get_msg_obj(bot, message_id):
+async def get_msg_obj(bot, message_id: int) -> dict:
+    """
+    获取完整的消息对象
+    """
     msg_obj = await bot.call_api('get_msg', **{'message_id': int(message_id)})
-    add_file_unique_for_image(msg_obj['message'])
+    add_file_unique_for_image_msg(msg_obj['message'])
     return msg_obj
 
-# 获取消息段
-async def get_msg(bot, message_id):
+async def get_msg(bot, message_id: int) -> List[dict]:
+    """
+    获取消息段内容
+    """
     return (await get_msg_obj(bot, message_id))['message']
 
-# 获取陌生人信息
-async def get_stranger_info(bot, user_id):
+async def get_stranger_info(bot, user_id: int) -> dict:
+    """
+    获取陌生人信息
+    """
     return await bot.call_api('get_stranger_info', **{'user_id': int(user_id)})
 
-# 获取头像url
-def get_avatar_url(user_id):
-    return f"http://q1.qlogo.cn/g?b=qq&nk={user_id}&s=100"
-
-# 获取高清头像url
-def get_avatar_url_large(user_id):
-    return f"http://q1.qlogo.cn/g?b=qq&nk={user_id}&s=640"
-
-# 下载头像（非异步）
-def download_avatar(user_id, circle=False) -> Image.Image:
-    url = get_avatar_url(user_id)
-    response = requests.get(url)
-    img = Image.open(io.BytesIO(response.content))
-    if circle:
-        r = img.width // 2
-        circle_img = Image.new('L', (img.width, img.height), 0)
-        draw = ImageDraw.Draw(circle_img)
-        draw.ellipse((0, 0, r * 2, r * 2), fill=255)
-        img.putalpha(circle_img)
-    return img
-
-# 获取群聊中的用户名 如果有群名片则返回群名片 否则返回昵称
-async def get_group_member_name(bot, group_id, user_id):
+async def get_group_member_name(bot, group_id: int, user_id: int) -> str:
+    """
+    获取群聊中的用户名 如果有群名片则返回群名片 否则返回昵称
+    """
     info = await bot.call_api('get_group_member_info', **{'group_id': int(group_id), 'user_id': int(user_id)})
     if 'card' in info and info['card']:
         return info['card']
     else:
         return info['nickname']
 
-# 获取群聊中所有用户
-async def get_group_users(bot, group_id):
+async def get_group_users(bot, group_id: int) -> List[dict]:
+    """
+    获取群聊中所有用户
+    """
     return await bot.call_api('get_group_member_list', **{'group_id': int(group_id)})
 
-# 获取群聊名
-async def get_group_name(bot, group_id):
+async def get_group_name(bot, group_id: int) -> str:
+    """
+    获取群聊名
+    """
     group_info = await bot.call_api('get_group_info', **{'group_id': int(group_id)})
     return group_info['group_name']
 
-# 获取群聊信息
-async def get_group(bot, group_id):
+async def get_group(bot, group_id: int) -> dict:
+    """
+    获取群聊信息
+    """
     return await bot.call_api('get_group_info', **{'group_id': int(group_id)})
 
-# 解析消息段中的所有CQ码 返回格式为 ret["类型"]=[{CQ码1的字典}{CQ码2的字典}...]
-def extract_cq_code(msg):
+def extract_cq_code(msg) -> Dict[str, List[dict]]:
+    """
+    解析消息段中的所有CQ码 返回格式为 ret["类型"]=[{CQ码1的data}{CQ码2的data}...]
+    """
     ret = {}
     for seg in msg:
         if seg['type'] not in ret: ret[seg['type']] = []
         ret[seg['type']].append(seg['data'])
     return ret
 
-# 是否包含图片
-def has_image(msg):
+def has_image(msg) -> bool:
+    """
+    检查消息段中是否包含图片
+    """
     cqs = extract_cq_code(msg)
     return "image" in cqs and len(cqs["image"]) > 0
 
-# 从消息段中提取所有图片链接
-def extract_image_url(msg):
+def extract_image_url(msg) -> List[str]:
+    """
+    从消息段中提取所有图片链接
+    """
     cqs = extract_cq_code(msg)
     if "image" not in cqs or len(cqs["image"]) == 0: return []
     return [cq["url"] for cq in cqs["image"] if "url" in cq]
 
-# 从消息段中提取所有图片id
-def extract_image_id(msg):
+def extract_image_id(msg) -> List[str]:
+    """
+    从消息段中提取所有图片id
+    """
     cqs = extract_cq_code(msg)
     if "image" not in cqs or len(cqs["image"]) == 0: return []
     return [cq["file"] for cq in cqs["image"] if "file" in cq]
 
-# 从消息段提取所有@qq
 def extract_at_qq(msg) -> List[int]:
+    """
+    从消息段提取所有at的qq号
+    """
     cqs = extract_cq_code(msg)
     if "at" not in cqs or len(cqs["at"]) == 0: return []
     return [int(cq["qq"]) for cq in cqs["at"] if "qq" in cq]
 
-# 从消息段中提取文本
-def extract_text(msg):
+def extract_text(msg) -> str:
+    """
+    从消息段中提取文本
+    """
     cqs = extract_cq_code(msg)
     if "text" not in cqs or len(cqs["text"]) == 0: return ""
     return ' '.join([cq['text'] for cq in cqs["text"]])
 
-# 从消息段提取带有特殊消息的文本
-async def extract_special_text(msg, group_id=None):
+async def extract_special_text(msg, group_id=None) -> str:
+    """
+    从消息段提取带有特殊消息的文本
+    """
     bot = get_bot()
     text = ""
     for seg in msg:
@@ -152,26 +169,31 @@ async def extract_special_text(msg, group_id=None):
             text += f"[表情]"
     return text
     
-# 获取折叠消息
-async def get_forward_msg(bot, forward_id):
+async def get_forward_msg(bot, forward_id: int) -> dict:
+    """
+    获取折叠消息
+    """
     return await bot.call_api('get_forward_msg', **{'id': str(forward_id)})
 
-# 从消息段获取回复的消息，如果没有回复则返回None
-async def get_reply_msg(bot, msg):
+async def get_reply_msg(bot, msg) -> Optional[List[dict]]:
+    """
+    从消息段获取回复的消息段，如果没有回复则返回None
+    """
     cqs = extract_cq_code(msg)
     if "reply" not in cqs or len(cqs["reply"]) == 0: return None
     reply_id = cqs["reply"][0]["id"]
     return await get_msg(bot, reply_id)
 
-# 从消息段获取完整的回复消息对象，如果没有回复则返回None
-async def get_reply_msg_obj(bot, msg):
+async def get_reply_msg_obj(bot, msg) -> Optional[dict]:
+    """
+    从消息段获取完整的回复消息对象，如果没有回复则返回None
+    """
     cqs = extract_cq_code(msg)
     if "reply" not in cqs or len(cqs["reply"]) == 0: return None
     reply_id = cqs["reply"][0]["id"]
     return await get_msg_obj(bot, reply_id)
 
 
-# 获取图片的cq码用于发送
 async def get_image_cq(
     image: Union[str, Image.Image, bytes],
     allow_error: bool = False, 
@@ -179,6 +201,9 @@ async def get_image_cq(
     low_quality: bool = False, 
     quality: int = 75,
 ):
+    """
+    获取图片的cq码用于发送
+    """
     args = (allow_error, logger, low_quality, quality)
     try:
         # 如果是远程图片
@@ -216,8 +241,10 @@ async def get_image_cq(
             return f"[图片加载失败:{truncate(str(e), 16)}]"
         raise e
 
-# 获取音频的cq码用于发送
-def get_audio_cq(audio_path):
+def get_audio_cq(audio_path: str):
+    """
+    获取音频的cq码用于发送
+    """
     with open(audio_path, 'rb') as f:
         return f'[CQ:record,file=base64://{base64.b64encode(f.read()).decode()}]'
 
@@ -249,37 +276,75 @@ class TempNapcatFilePath:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         remove_file(self.path)
 
+def get_avatar_url(user_id: int) -> str:
+    """
+    获取QQ头像的url
+    """
+    return f"http://q1.qlogo.cn/g?b=qq&nk={user_id}&s=100"
+
+def get_avatar_url_large(user_id: int) -> str:
+    """
+    获取QQ头像的高清url
+    """
+    return f"http://q1.qlogo.cn/g?b=qq&nk={user_id}&s=640"
+
+def download_avatar(user_id: int, circle=False) -> Image.Image:
+    """
+    下载QQ头像并返回PIL Image对象
+    """
+    url = get_avatar_url(user_id)
+    response = requests.get(url)
+    img = Image.open(io.BytesIO(response.content))
+    if circle:
+        r = img.width // 2
+        circle_img = Image.new('L', (img.width, img.height), 0)
+        draw = ImageDraw.Draw(circle_img)
+        draw.ellipse((0, 0, r * 2, r * 2), fill=255)
+        img.putalpha(circle_img)
+    return img
 
 
 # ============================ 聊天检查 ============================ #
         
-# 是否是群聊消息
 def is_group_msg(event):
+    """
+    检查事件是否是群聊消息
+    """
     return hasattr(event, 'group_id') and event.group_id is not None
 
-# 检查是否加入了某个群
-async def check_in_group(bot, group_id):
+async def check_in_group(bot, group_id: int):
+    """
+    检查bot是否加入了某个群
+    """
     return int(group_id) in await get_group_id_list(bot)
 
-# 用户是否在黑名单
-def check_in_blacklist(user_id):
+def check_in_blacklist(user_id: int):
+    """
+    检查用户是否在黑名单中
+    """
     blacklist = utils_file_db.get('blacklist', [])
     return int(user_id) in blacklist
 
-# 检查群聊是否被全局禁用
-def check_group_disabled(group_id):
+def check_group_disabled(group_id: int):
+    """
+    检查群聊是否被全局禁用
+    """
     enabled_groups = utils_file_db.get('enabled_groups', [])
     return int(group_id) not in enabled_groups
 
-# 通过event检查群聊是否被全局禁用
 def check_group_disabled_by_event(event):
+    """
+    通过event检查群聊是否被全局禁用
+    """
     if is_group_msg(event) and check_group_disabled(event.group_id):
         utils_logger.warning(f'取消发送消息到被全局禁用的群 {event.group_id}')
         return True
     return False
 
-# 设置群聊全局启用状态
-def set_group_enable(group_id, enable):
+def set_group_enable(group_id: int, enable: bool):
+    """
+    设置群聊全局启用状态
+    """
     enabled_groups = utils_file_db.get('enabled_groups', [])
     if enable:
         if int(group_id) not in enabled_groups:
@@ -290,27 +355,41 @@ def set_group_enable(group_id, enable):
     utils_file_db.set('enabled_groups', enabled_groups)
     utils_logger.info(f'设置群聊 {group_id} 全局启用状态为 {enable}')
 
-# 检查是否是bot自身
 def check_self(event):
+    """
+    检查事件是否是自身发送的消息
+    """
     return event.user_id == event.self_id
 
-# 检查是否是超级用户
-def check_superuser(event, superuser=SUPERUSER):
+def check_superuser(event, superuser: List[int]=SUPERUSER):
+    """ 
+    检查事件是否是超级用户发送
+    """
     if superuser is None: return False
     return event.user_id in superuser
 
-# 检查是否是自身对指令的回复
 def check_self_reply(event):
-    return int(event.message_id) in bot_reply_msg_ids
+    """
+    检查事件是否是自身对指令的回复消息
+    """
+    return int(event.message_id) in _bot_reply_msg_ids
 
 
 
 # ============================ 消息发送 ============================ #
 
 SEND_MSG_DAILY_LIMIT = 4000
+MSG_RATE_LIMIT_PER_SECOND = get_config()['msg_rate_limit_per_second']
+_bot_reply_msg_ids = set()
+_current_msg_count = 0
+_current_msg_second = -1
+_send_msg_failed_last_mail_time = datetime.fromtimestamp(0)
+_send_msg_failed_mail_interval = timedelta(minutes=10)
 
-# 检查是否超过全局发送消息上限
 def check_send_msg_daily_limit() -> bool:
+    """
+    检查是否超过全局发送消息上限
+    """
     date = datetime.now().strftime("%Y-%m-%d")
     send_msg_count = utils_file_db.get('send_msg_count', {})
     count = send_msg_count.get('count', 0)
@@ -320,8 +399,10 @@ def check_send_msg_daily_limit() -> bool:
         count = 0
     return count < SEND_MSG_DAILY_LIMIT
 
-# 记录消息发送
 def record_daily_msg_send():
+    """
+    记录消息发送
+    """
     date = datetime.now().strftime("%Y-%m-%d")
     send_msg_count = utils_file_db.get('send_msg_count', {})
     count = send_msg_count.get('count', 0)
@@ -335,8 +416,10 @@ def record_daily_msg_send():
     if count == SEND_MSG_DAILY_LIMIT:
         utils_logger.warning(f'达到每日发送消息上限 {SEND_MSG_DAILY_LIMIT}')
 
-# 获取当日发送消息数量
 def get_send_msg_daily_count() -> int:
+    """
+    获取当日发送消息数量
+    """
     date = datetime.now().strftime("%Y-%m-%d")
     send_msg_count = utils_file_db.get('send_msg_count', {})
     count = send_msg_count.get('count', 0)
@@ -347,42 +430,37 @@ def get_send_msg_daily_count() -> int:
     return count
 
 
-bot_reply_msg_ids = set()
-MSG_RATE_LIMIT_PER_SECOND = get_config()['msg_rate_limit_per_second']
-current_msg_count = 0
-current_msg_second = -1
-send_msg_failed_last_mail_time = datetime.fromtimestamp(0)
-send_msg_failed_mail_interval = timedelta(minutes=10)
-
-# 发送消息装饰器
 def send_msg_func(func):
+    """
+    发送消息函数的装饰器
+    """
     async def wrapper(*args, **kwargs):
         # 检查消息发送次数限制
         cur_ts = int(datetime.now().timestamp())
-        global current_msg_count, current_msg_second
-        if cur_ts != current_msg_second:
-            current_msg_count = 0
-            current_msg_second = cur_ts
-        if current_msg_count >= MSG_RATE_LIMIT_PER_SECOND:
+        global _current_msg_count, _current_msg_second
+        if cur_ts != _current_msg_second:
+            _current_msg_count = 0
+            _current_msg_second = cur_ts
+        if _current_msg_count >= MSG_RATE_LIMIT_PER_SECOND:
             utils_logger.warning(f'消息达到发送频率，取消消息发送')
             return
-        current_msg_count += 1
+        _current_msg_count += 1
         
         try:
             ret = await func(*args, **kwargs)
         except Exception as e:
             # 失败发送邮件通知
-            global send_msg_failed_last_mail_time
-            if datetime.now() - send_msg_failed_last_mail_time > send_msg_failed_mail_interval:
-                send_msg_failed_last_mail_time = datetime.now()
+            global _send_msg_failed_last_mail_time
+            if datetime.now() - _send_msg_failed_last_mail_time > _send_msg_failed_mail_interval:
+                _send_msg_failed_last_mail_time = datetime.now()
                 asyncio.create_task(asend_exception_mail("消息发送失败", traceback.format_exc(), utils_logger))
             raise
 
         # 记录自身对指令的回复消息id集合
         try:
             if ret:
-                global bot_reply_msg_ids
-                bot_reply_msg_ids.add(int(ret["message_id"]))
+                global _bot_reply_msg_ids
+                _bot_reply_msg_ids.add(int(ret["message_id"]))
         except Exception as e:
             utils_logger.print_exc(f'记录发送消息的id失败')
 
@@ -393,26 +471,36 @@ def send_msg_func(func):
         
     return wrapper
     
-# 发送消息
+
 @send_msg_func
 async def send_msg(handler, event, message):
+    """
+    发送普通消息
+    """
     if check_group_disabled_by_event(event): return None
     return await handler.send(OutMessage(message))
 
-# 发送回复消息
 @send_msg_func
 async def send_reply_msg(handler, event, message):
+    """
+    发送回复消息
+    """
     if check_group_disabled_by_event(event): return None
     return await handler.send(OutMessage(f'[CQ:reply,id={event.message_id}]{message}'))
 
-# 发送at消息
 @send_msg_func
 async def send_at_msg(handler, event, message):
+    """
+    发送at消息
+    """
     if check_group_disabled_by_event(event): return None
     return await handler.send(OutMessage(f'[CQ:at,qq={event.user_id}]{message}'))
 
-# 发送折叠消息失败的fallback
-async def fold_msg_fallback(bot, group_id, contents, e, method):
+
+async def fold_msg_fallback(bot, group_id: int, contents: List[str], e: Exception, method: str):
+    """
+    发送折叠消息失败的fallback
+    """
     utils_logger.warning(f'发送折叠消息失败，fallback为发送普通消息: {get_exc_desc(e)}')
     if method == 'seperate':
         contents[0] = "（发送折叠消息失败）\n" + contents[0]
@@ -432,9 +520,11 @@ async def fold_msg_fallback(bot, group_id, contents, e, method):
         raise Exception(f'未知折叠消息fallback方法 {method}')
     return ret
 
-# 发送群聊折叠消息 其中contents是text的列表
 @send_msg_func
-async def send_group_fold_msg(bot, group_id, contents, fallback_method='none'):
+async def send_group_fold_msg(bot, group_id: int, contents: List[str], fallback_method='none'):
+    """
+    发送群聊折叠消息 其中contents是text的列表
+    """
     if check_group_disabled(group_id):
         utils_logger.warning(f'取消发送消息到被全局禁用的群 {group_id}')
         return
@@ -451,9 +541,11 @@ async def send_group_fold_msg(bot, group_id, contents, fallback_method='none'):
     except Exception as e:
         return await fold_msg_fallback(bot, group_id, contents, e, fallback_method)
 
-# 发送多条消息折叠消息
 @send_msg_func
-async def send_multiple_fold_msg(bot, event, contents, fallback_method='none'):
+async def send_multiple_fold_msg(bot, event, contents: List[str], fallback_method='none'):
+    """
+    发送多条消息折叠消息
+    """
     if check_group_disabled_by_event(event): return None
     msg_list = [{
         "type": "node",
@@ -471,25 +563,32 @@ async def send_multiple_fold_msg(bot, event, contents, fallback_method='none'):
     else:
         return await bot.send_private_forward_msg(user_id=event.user_id, messages=msg_list)
     
-# 在event外发送群聊消息
+
 @send_msg_func
-async def send_group_msg_by_bot(bot, group_id, message):
+async def send_group_msg_by_bot(bot, group_id: int, content: str):
+    """
+    在event外发送群聊消息
+    """
     if check_group_disabled(group_id):
         utils_logger.warning(f'取消发送消息到被全局禁用的群 {group_id}')
         return
     if not await check_in_group(bot, group_id):
         utils_logger.warning(f'取消发送消息到未加入的群 {group_id}')
         return
-    return await bot.send_group_msg(group_id=int(group_id), message=message)
+    return await bot.send_group_msg(group_id=int(group_id), message=content)
 
-# 在event外发送私聊消息
 @send_msg_func
-async def send_private_msg_by_bot(bot, user_id, message):
-    return await bot.send_private_msg(user_id=int(user_id), message=message)
+async def send_private_msg_by_bot(bot, user_id: int, content: str):
+    """
+    在event外发送私聊消息
+    """
+    return await bot.send_private_msg(user_id=int(user_id), message=content)
 
-# 在event外发送多条消息折叠消息
 @send_msg_func
-async def send_multiple_fold_msg_by_bot(bot, group_id, contents, fallback_method='none'):
+async def send_multiple_fold_msg_by_bot(bot, group_id: int, contents: List[str], fallback_method='none'):
+    """
+    在event外发送多条消息折叠消息
+    """
     if check_group_disabled(group_id):
         utils_logger.warning(f'取消发送消息到被全局禁用的群 {group_id}')
         return
@@ -506,25 +605,33 @@ async def send_multiple_fold_msg_by_bot(bot, group_id, contents, fallback_method
     except Exception as e:
         return await fold_msg_fallback(bot, group_id, contents, e, fallback_method)
 
-# 根据消息长度以及是否是群聊消息来判断是否需要折叠消息
-async def send_fold_msg_adaptive(bot, handler, event, message, threshold=200, need_reply=True, text_len=None, fallback_method='none'):
-    if text_len is None: 
-        text_len = get_str_display_length(message)
-    if is_group_msg(event) and text_len > threshold:
-        return await send_group_fold_msg(bot, event.group_id, [event.get_plaintext(), message], fallback_method)
-    if need_reply:
-        return await send_reply_msg(handler, event, message)
-    return await send_msg(handler, event, message)
 
+async def send_fold_msg_adaptive(bot, handler, event, content: str, threshold: int=200, need_reply=True, text_len=None, fallback_method='none'):
+    """
+    根据消息长度以及是否是群聊消息动态判断是否需要折叠消息
+    """
+    if text_len is None: 
+        text_len = get_str_display_length(content)
+    if is_group_msg(event) and text_len > threshold:
+        contents = [content]
+        if need_reply and event.group_id:
+            user_name = await get_group_member_name(bot, event.group_id, event.user_id)
+            contents = [f'{user_name}: {event.get_plaintext()}', content]
+        return await send_group_fold_msg(bot, event.group_id, contents, fallback_method)
+    if need_reply:
+        return await send_reply_msg(handler, event, content)
+    return await send_msg(handler, event, content)
 
 
 # ============================ 聊天控制 ============================ #
 
 CD_VERBOSE_INTERVAL = get_config()['cd_verbose_interval']
 
-# 冷却时间
 class ColdDown:
-    def __init__(self, db, logger, default_interval, superuser=SUPERUSER, cold_down_name=None, group_seperate=False):
+    """
+    冷却时间
+    """
+    def __init__(self, db: FileDB, logger: Logger, default_interval: int, superuser=SUPERUSER, cold_down_name=None, group_seperate=False):
         self.default_interval = default_interval
         self.superuser = superuser
         self.db = db
@@ -532,7 +639,7 @@ class ColdDown:
         self.group_seperate = group_seperate
         self.cold_down_name = f'cold_down' if cold_down_name is None else f'cold_down_{cold_down_name}'
     
-    async def check(self, event, interval=None, allow_super=True, verbose=True):
+    async def check(self, event, interval: int=None, allow_super=True, verbose=True):
         if allow_super and check_superuser(event, self.superuser):
             self.logger.debug(f'{self.cold_down_name}检查: 超级用户{event.user_id}')
             return True
@@ -572,17 +679,18 @@ class ColdDown:
         self.logger.debug(f'{self.cold_down_name}检查: {key} 通过')
         return True
 
-    def get_last_use(self, user_id, group_id=None):
+    def get_last_use(self, user_id: int, group_id: int=None):
         key = f'{group_id}-{user_id}' if group_id else str(user_id)
         last_use = self.db.get(self.cold_down_name, {})
         if key not in last_use:
             return None
         return datetime.fromtimestamp(last_use[key])
 
-
-# 频率限制
 class RateLimit:
-    def __init__(self, db, logger, limit, period_type, superuser=SUPERUSER, rate_limit_name=None, group_seperate=False):
+    """
+    频率限制
+    """
+    def __init__(self, db: FileDB, logger: Logger, limit: int, period_type: str, superuser=SUPERUSER, rate_limit_name=None, group_seperate=False):
         """
         period_type: "minute", "hour", "day" or "m", "h", "d"
         """
@@ -596,7 +704,7 @@ class RateLimit:
         self.group_seperate = group_seperate
         self.rate_limit_name = f'default' if rate_limit_name is None else f'{rate_limit_name}'
 
-    def get_period_time(self, t):
+    def get_period_time(self, t: datetime) -> datetime:
         if self.period_type == "m":
             return t.replace(second=0, microsecond=0)
         if self.period_type == "h":
@@ -646,10 +754,11 @@ class RateLimit:
         self.db.set(last_check_time_key, datetime.now().timestamp())
         return ok
         
-
-# 群白名单：默认关闭
 class GroupWhiteList:
-    def __init__(self, db, logger, name, superuser=SUPERUSER, on_func=None, off_func=None):
+    """
+    群白名单：默认关闭
+    """
+    def __init__(self, db: FileDB, logger: Logger, name: str, superuser=SUPERUSER, on_func=None, off_func=None):
         self.superuser = superuser
         self.name = name
         self.logger = logger
@@ -659,53 +768,45 @@ class GroupWhiteList:
         self.off_func = off_func
 
         # 开启命令
-        switch_on = on_command(f'/{name}_on', block=False, priority=100)
+        switch_on = CmdHandler([f'/{name} on'], utils_logger, help_command='/{服务名} on')
+        switch_on.check_superuser()
         @switch_on.handle()
-        async def _(event: GroupMessageEvent, superuser=self.superuser, name=self.name, 
-                    white_list_name=self.white_list_name):
-            if not check_superuser(event, superuser):
-                logger.log(f'{event.user_id} 无权限开启 {name}')
-                return
-            group_id = event.group_id
-            white_list = db.get(white_list_name, [])
+        async def _(ctx: HandlerContext):
+            group_id = ctx.group_id
+            white_list = db.get(self.white_list_name, [])
             if group_id in white_list:
-                return await send_reply_msg(switch_on, event, f'{name}已经是开启状态')
+                return await ctx.asend_reply_msg(f'{name}已经是开启状态')
             white_list.append(group_id)
-            db.set(white_list_name, white_list)
-            if self.on_func is not None: await self.on_func(event.group_id)
-            return await send_reply_msg(switch_on, event, f'{name}已开启')
+            db.set(self.white_list_name, white_list)
+            if self.on_func is not None: 
+                await self.on_func(ctx.group_id)
+            return await ctx.asend_reply_msg(f'{name}已开启')
         
         # 关闭命令
-        switch_off = on_command(f'/{name}_off', block=False, priority=100)
+        switch_off = CmdHandler([f'/{name} off'], utils_logger, help_command='/{服务名} off')
+        switch_off.check_superuser()
         @switch_off.handle()
-        async def _(event: GroupMessageEvent, superuser=self.superuser, name=self.name, 
-                    white_list_name=self.white_list_name):
-            if not check_superuser(event, superuser):
-                logger.info(f'{event.user_id} 无权限关闭 {name}')
-                return
-            group_id = event.group_id
-            white_list = db.get(white_list_name, [])
+        async def _(ctx: HandlerContext):
+            group_id = ctx.group_id
+            white_list = db.get(self.white_list_name, [])
             if group_id not in white_list:
-                return await send_reply_msg(switch_off, event, f'{name}已经是关闭状态')
+                return await ctx.asend_reply_msg(f'{name}已经是关闭状态')
             white_list.remove(group_id)
-            db.set(white_list_name, white_list)
-            if self.off_func is not None:  await self.off_func(event.group_id)
-            return await send_reply_msg(switch_off, event, f'{name}已关闭')
+            db.set(self.white_list_name, white_list)
+            if self.off_func is not None:  
+                await self.off_func(ctx.group_id)
+            return await ctx.asend_reply_msg(f'{name}已关闭')
             
         # 查询命令
-        switch_query = on_command(f'/{name}_status', block=False, priority=100)
+        switch_query = CmdHandler([f'/{name} status'], utils_logger, help_command='/{服务名} status')
         @switch_query.handle()
-        async def _(event: GroupMessageEvent, superuser=self.superuser, name=self.name, 
-                    white_list_name=self.white_list_name):
-            if not check_superuser(event, superuser):
-                logger.info(f'{event.user_id} 无权限查询 {name}')
-                return
-            group_id = event.group_id
-            white_list = db.get(white_list_name, [])
+        async def _(ctx: HandlerContext):
+            group_id = ctx.group_id
+            white_list = db.get(self.white_list_name, [])
             if group_id in white_list:
-                return await send_reply_msg(switch_query, event, f'{name}开启中')
+                return await ctx.asend_reply_msg(f'本群聊的{name}开启中')
             else:
-                return await send_reply_msg(switch_query, event, f'{name}关闭中')
+                return await ctx.asend_reply_msg(f'本群聊的{name}关闭中')
             
 
     def get(self):
@@ -745,10 +846,11 @@ class GroupWhiteList:
         self.logger.debug(f'白名单{self.white_list_name}检查: {"允许私聊" if allow_private else "不允许私聊"}')
         return allow_private
     
-    
-# 群黑名单：默认开启
 class GroupBlackList:
-    def __init__(self, db, logger, name, superuser=SUPERUSER, on_func=None, off_func=None):
+    """
+    群黑名单：默认开启
+    """
+    def __init__(self, db: FileDB, logger: Logger, name: str, superuser=SUPERUSER, on_func=None, off_func=None):
         self.superuser = superuser
         self.name = name
         self.logger = logger
@@ -758,53 +860,45 @@ class GroupBlackList:
         self.off_func = off_func
 
         # 关闭命令
-        off = on_command(f'/{name}_off', block=False, priority=100)
-        @off.handle()
-        async def _(event: GroupMessageEvent, superuser=self.superuser, name=self.name, 
-                    black_list_name=self.black_list_name):
-            if not check_superuser(event, superuser):
-                logger.info(f'{event.user_id} 无权限关闭 {name}')
-                return
-            group_id = event.group_id
-            black_list = db.get(black_list_name, [])
+        switch_on = CmdHandler([f'/{name} on'], utils_logger, help_command='/{服务名} on')
+        switch_on.check_superuser()
+        @switch_on.handle()
+        async def _(ctx: HandlerContext):
+            group_id = ctx.group_id
+            black_list = db.get(self.black_list_name, [])
             if group_id in black_list:
-                return await send_reply_msg(off, event, f'{name}已经是关闭状态')
+                return await ctx.asend_reply_msg(f'{name}已经是关闭状态')
             black_list.append(group_id)
-            db.set(black_list_name, black_list)
-            if self.off_func is not None: await self.off_func(event.group_id)
-            return await send_reply_msg(off, event, f'{name}已关闭')
+            db.set(self.black_list_name, black_list)
+            if self.off_func is not None: 
+                await self.off_func(ctx.group_id)
+            return await ctx.asend_reply_msg(f'{name}已关闭')
         
         # 开启命令
-        on = on_command(f'/{name}_on', block=False, priority=100)
-        @on.handle()
-        async def _(event: GroupMessageEvent, superuser=self.superuser, name=self.name, 
-                    black_list_name=self.black_list_name):
-            if not check_superuser(event, superuser):
-                logger.info(f'{event.user_id} 无权限开启 {name}')
-                return
-            group_id = event.group_id
-            black_list = db.get(black_list_name, [])
+        switch_off = CmdHandler([f'/{name} off'], utils_logger, help_command='/{服务名} off')
+        switch_off.check_superuser()
+        @switch_off.handle()
+        async def _(ctx: HandlerContext):
+            group_id = ctx.group_id
+            black_list = db.get(self.black_list_name, [])
             if group_id not in black_list:
-                return await send_reply_msg(on, event, f'{name}已经是开启状态')
+                return await ctx.asend_reply_msg(f'{name}已经是开启状态')
             black_list.remove(group_id)
-            db.set(black_list_name, black_list)
-            if self.on_func is not None: await self.on_func(event.group_id)
-            return await send_reply_msg(on, event, f'{name}已开启')
+            db.set(self.black_list_name, black_list)
+            if self.on_func is not None: 
+                await self.on_func(ctx.group_id)
+            return await ctx.asend_reply_msg(f'{name}已开启')
             
         # 查询命令
-        query = on_command(f'/{name}_status', block=False, priority=100)
-        @query.handle()
-        async def _(event: GroupMessageEvent, superuser=self.superuser, name=self.name, 
-                    black_list_name=self.black_list_name):
-            if not check_superuser(event, superuser):
-                logger.info(f'{event.user_id} 无权限查询 {name}')
-                return
-            group_id = event.group_id
-            black_list = db.get(black_list_name, [])
+        switch_query = CmdHandler([f'/{name} status'], utils_logger, help_command='/{服务名} status')
+        @switch_query.handle()
+        async def _(ctx: HandlerContext):
+            group_id = ctx.group_id
+            black_list = db.get(self.black_list_name, [])
             if group_id in black_list:
-                return await send_reply_msg(query, event, f'{name}关闭中')
+                return await ctx.asend_reply_msg(f'本群聊的{name}关闭中')
             else:
-                return await send_reply_msg(query, event, f'{name}开启中')
+                return await ctx.asend_reply_msg(f'本群聊的{name}开启中')
         
     def get(self):
         return self.db.get(self.black_list_name, [])
@@ -846,7 +940,7 @@ class GroupBlackList:
     
 
 _gwls: Dict[str, GroupWhiteList] = {}
-def get_group_white_list(db, logger, name, superuser=SUPERUSER, on_func=None, off_func=None, is_service=True) -> GroupWhiteList:
+def get_group_white_list(db: FileDB, logger: Logger, name: str, superuser=SUPERUSER, on_func=None, off_func=None, is_service=True) -> GroupWhiteList:
     if is_service:
         global _gwls
         if name not in _gwls:
@@ -855,7 +949,7 @@ def get_group_white_list(db, logger, name, superuser=SUPERUSER, on_func=None, of
     return GroupWhiteList(db, logger, name, superuser, on_func, off_func)
 
 _gbls: Dict[str, GroupBlackList] = {}
-def get_group_black_list(db, logger, name, superuser=SUPERUSER, on_func=None, off_func=None, is_service=True) -> GroupBlackList:
+def get_group_black_list(db: FileDB, logger: Logger, name: str, superuser=SUPERUSER, on_func=None, off_func=None, is_service=True) -> GroupBlackList:
     if is_service:
         global _gbls
         if name not in _gbls:
@@ -867,21 +961,31 @@ def get_group_black_list(db, logger, name, superuser=SUPERUSER, on_func=None, of
 
 # ============================ 聊天处理 ============================ #
 
-# 不会触发消息回复的Exception，用于退出当前Event
 class NoReplyException(Exception):
+    """
+    不会触发消息回复的Exception，用于退出当前消息处理
+    """
     pass
 
-# 触发特定消息回复并且不会折叠的Exception，用于退出当前Event
 class ReplyException(Exception):
+    """
+    触发特定消息回复并且不会折叠的Exception，用于退出当前消息处理
+    """
     pass
 
-def assert_and_reply(condition, msg):
+def assert_and_reply(condition, msg: str):
+    """
+    检查条件，如果不满足则抛出ReplyException
+    """
     if not condition:
         raise ReplyException(msg)
 
-# 适用于HandlerContext的参数解析器
+
 class MessageArgumentParser(ArgumentParser):
-    def __init__(self, ctx, *args, **kwargs):
+    """
+    适用于HandlerContext的参数解析器
+    """
+    def __init__(self, ctx: 'HandlerContext', *args, **kwargs):
         super().__init__(*args, **kwargs, exit_on_error=False)
         self.ctx = ctx
 
@@ -946,21 +1050,24 @@ class HandlerContext:
     def asend_at_msg(self, msg: str):
         return send_at_msg(self.nonebot_handler, self.event, msg)
 
-    def asend_fold_msg_adaptive(self, msg: str, threshold=200, need_reply=True, text_len=None, fallback_method='none'):
-        return send_fold_msg_adaptive(self.bot, self.nonebot_handler, self.event, msg, threshold, need_reply, text_len, fallback_method)
+    def asend_fold_msg_adaptive(self, content: str, threshold=200, need_reply=True, text_len=None, fallback_method='none'):
+        return send_fold_msg_adaptive(self.bot, self.nonebot_handler, self.event, content, threshold, need_reply, text_len, fallback_method)
 
-    async def asend_multiple_fold_msg(self, msgs: List[str], show_cmd=True, fallback_method='none'):
+    async def asend_multiple_fold_msg(self, contents: List[str], show_cmd=True, fallback_method='none'):
         if show_cmd:
             cmd_msg = self.trigger_cmd + self.arg_text
             if self.group_id:
                 user_name = await get_group_member_name(self.bot, self.group_id, self.user_id)
                 cmd_msg = f'{user_name}: {cmd_msg}'
-            msgs = [cmd_msg] + msgs
-        return await send_multiple_fold_msg(self.bot, self.event, msgs, fallback_method)
+            contents = [cmd_msg] + contents
+        return await send_multiple_fold_msg(self.bot, self.event, contents, fallback_method)
 
     # -------------------------- 其他 -------------------------- # 
 
     async def block(self, block_id: str = "", timeout: int = 3 * 60, err_msg: str = None):
+        """
+        遇到相同block_idd调用时阻塞当前指令，超时timeout秒后抛出ReplyException
+        """
         block_id = str(block_id)
         block_start_time = datetime.now()
         while True:
@@ -974,8 +1081,12 @@ class HandlerContext:
         self.handler.block_set.add(block_id)
         self.block_ids.append(block_id)
 
+
 @dataclass
 class HelpDocCmdPart:
+    """
+    帮助文档的单个指令部分
+    """
     doc_name: str
     cmds: Set[str] = None
     content: str = ""
@@ -983,19 +1094,48 @@ class HelpDocCmdPart:
 
 @dataclass
 class HelpDoc:
+    """
+    帮助文档
+    """
     mtime: int
     parts: List[HelpDocCmdPart] = field(default_factory=list)
+
+
+SEG_COMMAND_SEPS = ['', ' ', '_']
+
+class SegCmd:
+    """
+    由多段构成的指令，用于生成不同分隔符的指令
+    """
+    def __init__(self, *args, seps: List[str]=SEG_COMMAND_SEPS):
+        self.commands = set()
+        assert len(args) > 0, "至少需要一个参数"
+        if len(args) == 1:
+            args = args[0]
+            for sep in SEG_COMMAND_SEPS:
+                if sep:
+                    args = args.replace(sep, ' ')
+            args = args.split()
+        for sep in seps:
+            self.commands.add(''.join([sep.join(args)]))
+
+    def get(self) -> List[str]:
+        return list(self.commands)
+
 
 _cmd_history: List[HandlerContext] = []
 MAX_CMD_HISTORY = 100
 
 class CmdHandler:
+    """
+    命令处理器，封装了指令的注册和处理逻辑
+    """
     HELP_PART_IMG_CACHE_DIR = "data/utils/help_part_img_cache/"
     help_docs: Dict[str, HelpDoc] = {}
 
     def __init__(
             self, 
-            commands: List[str], 
+            commands: Union[str, SegCmd, List[Union[str, SegCmd]]], 
             logger: Logger, 
             error_reply=True, 
             priority=100, 
@@ -1006,18 +1146,32 @@ class CmdHandler:
             check_group_enabled=True,
             allow_bot_reply_msg=False,
             help_command: str=None,
-            disable_help = False,
+            disable_help=False,
             help_trigger_condition: Union[str, Callable] = 'exact',
+            use_seg_cmd=True,
         ):
-        if isinstance(commands, str):
+        if isinstance(commands, str) or isinstance(commands, SegCmd):
             commands = [commands]
-        self.commands = commands
+        self.commands = []
+        for cmd in commands:
+            if isinstance(cmd, str):
+                if use_seg_cmd:
+                    self.commands.extend(SegCmd(cmd).get())
+                else:
+                    self.commands.append(cmd)
+            elif isinstance(cmd, SegCmd):
+                self.commands.extend(cmd.get())
+            else:
+                raise Exception(f'未知的指令类型 {type(cmd)}')
+        self.commands = list(set(self.commands)) 
+        self.commands.sort()
+            
         self.logger = logger
         self.error_reply = error_reply
         self.check_group_enabled = check_group_enabled
         handler_kwargs = {}
         if only_to_me: handler_kwargs["rule"] = rule_to_me()
-        self.handler = on_command(commands[0], priority=priority, block=block, aliases=set(commands[1:]), **handler_kwargs)
+        self.handler = on_command(self.commands[0], priority=priority, block=block, aliases=set(self.commands[1:]), **handler_kwargs)
         self.superuser_check = None
         self.private_group_check = None
         self.wblist_checks = []
@@ -1157,7 +1311,7 @@ class CmdHandler:
                     return
                 
                 # 禁止bot回复自己的消息重复触发
-                if not self.allow_bot_reply_msg and event.message_id in bot_reply_msg_ids:
+                if not self.allow_bot_reply_msg and event.message_id in _bot_reply_msg_ids:
                     return
                 
                 # 检测群聊是否启用

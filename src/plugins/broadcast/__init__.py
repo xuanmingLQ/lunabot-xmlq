@@ -1,8 +1,3 @@
-from nonebot import on_command
-from nonebot.adapters.onebot.v11 import Bot
-from nonebot.adapters.onebot.v11.message import Message
-from nonebot.adapters.onebot.v11 import MessageEvent
-from nonebot.params import CommandArg
 from ..utils import *
 
 

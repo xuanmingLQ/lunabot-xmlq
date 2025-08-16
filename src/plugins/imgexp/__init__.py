@@ -1,14 +1,5 @@
-from nonebot import on_command
-from nonebot.adapters.onebot.v11 import Bot
-from nonebot.adapters.onebot.v11 import MessageSegment
-from nonebot.adapters.onebot.v11.message import Message as OutMessage
-from nonebot.adapters.onebot.v11 import MessageEvent
-from datetime import datetime, timedelta
 from ..utils import *
 from .imgexp import search_image
-from PIL import Image
-import numpy as np
-import io
 import yt_dlp
 from tenacity import retry, wait_fixed, stop_after_attempt
 

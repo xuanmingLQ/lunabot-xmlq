@@ -1,8 +1,4 @@
-import yaml
 from ..utils import *
-from nonebot import on_command
-from nonebot.adapters.onebot.v11 import GroupMessageEvent, MessageEvent
-from nonebot.rule import to_me
 import glob
 
 config = get_config('helper')

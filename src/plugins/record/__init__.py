@@ -1,7 +1,6 @@
-from nonebot import on_command, on_message, on
+from nonebot import on_message
 from nonebot import get_bot, on_notice
 from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, Bot, Event, NoticeEvent
-from nonebot.adapters.onebot.v11.message import MessageSegment
 from datetime import datetime
 from ..utils import *
 from .sql import *
