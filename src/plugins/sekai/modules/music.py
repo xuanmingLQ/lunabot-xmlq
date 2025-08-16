@@ -1837,7 +1837,7 @@ async def new_music_notify():
                     try:
                         group_msg = msg
                         for uid in music_user_sub.get_all(region, group_id):
-                            group_msg += f"[CQ:at,qq={uid}]"
+                            group_msg += f"[CQ:at,qq={uid}] "
                         await send_group_msg_by_bot(bot, group_id, group_msg.strip())
                     except:
                         logger.print_exc(f"发送新曲新曲上线提醒: {region} {music['id']} 到群 {group_id} 失败")
@@ -1909,7 +1909,7 @@ async def new_apd_notify():
                     try:
                         group_msg = msg
                         for uid in apd_user_sub.get_all(region, group_id):
-                            group_msg += f"[CQ:at,qq={uid}]"
+                            group_msg += f"[CQ:at,qq={uid}] "
                         await send_group_msg_by_bot(bot, group_id, group_msg.strip())
                     except:
                         logger.print_exc(f"发送新APPEND上线提醒: {region} {music['id']} 到群 {group_id} 失败")

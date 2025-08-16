@@ -1899,10 +1899,26 @@ class HandlerContext:
         self.block_ids.append(block_id)
 
 
+@dataclass
+class HelpDocCmdPart:
+    doc_name: str
+    cmds: Set[str] = None
+    content: str = ""
+    md5: str = "",
+
+@dataclass
+class HelpDoc:
+    mtime: int
+    parts: List[HelpDocCmdPart] = field(default_factory=list)
+
+
 cmd_history: List[HandlerContext] = []
 MAX_CMD_HISTORY = 100
 
 class CmdHandler:
+    HELP_PART_IMG_CACHE_DIR = "data/utils/help_part_img_cache/"
+    help_docs: Dict[str, HelpDoc] = {}
+
     def __init__(
             self, 
             commands: List[str], 
@@ -1915,6 +1931,9 @@ class CmdHandler:
             banned_cmds: List[str] = None, 
             check_group_enabled=True,
             allow_bot_reply_msg=False,
+            help_command: str=None,
+            disable_help = False,
+            help_trigger_condition: Union[str, Callable] = 'contain',
         ):
         if isinstance(commands, str):
             commands = [commands]
@@ -1935,6 +1954,11 @@ class CmdHandler:
             self.banned_cmds = [self.banned_cmds]
         self.block_set = set()
         self.allow_bot_reply_msg = allow_bot_reply_msg
+        self.help_command = help_command
+        self.disable_help = disable_help
+        if isinstance(help_trigger_condition, str):
+            assert help_trigger_condition in ['contain', 'exact']
+        self.help_trigger_condition = help_trigger_condition
         # utils_logger.info(f'注册指令 {commands[0]}')
 
     def check_group(self):
@@ -1957,6 +1981,90 @@ class CmdHandler:
         self.superuser_check = { "superuser": superuser }
         return self
 
+    @classmethod
+    def update_help_docs(cls):
+        """
+        更新帮助文档列表
+        """
+        HELP_DOC_PATH = "helps/*.md"
+        paths = list(glob.glob(HELP_DOC_PATH))
+        names = set()
+        all_md5 = set()
+
+        def parse_doc(path: str) -> List[HelpDocCmdPart]:
+            help_doc = Path(path).read_text(encoding="utf-8")
+            doc_name = Path(path).stem
+            parts = help_doc.split("---")[2:-1] # 每个小标题
+            ret: List[HelpDocCmdPart] = []   # 每个指令的部分
+            for part in parts:
+                start = part.find("### ")   
+                if start == -1:  continue
+                part = part[start:]
+                for p in part.split("### "):
+                    p = p.strip()
+                    if p:
+                        ret.append(HelpDocCmdPart(
+                            cmds=None,
+                            doc_name=doc_name, 
+                            content="### " + p + f"\n>发送`/help {doc_name}`查看完整帮助",
+                        ))
+            for part in ret:
+                lines = part.content.splitlines()
+                if len(lines) < 2: continue
+                start = lines[1].find("`")
+                if start == -1: continue
+                part.cmds = set(lines[1][start:].replace("` `", "%").replace("`", "").strip().split("%"))
+                part.md5 = get_md5(part.content)
+                # print(f"解析帮助: {part.doc_name} {part.cmds} {truncate(part.content, 50)}")
+            return ret
+
+        for path in paths:
+            try:
+                name = Path(path).stem
+                mtime = int(os.path.getmtime(path))
+                if name not in cls.help_docs or cls.help_docs[name].mtime < mtime:
+                    cls.help_docs[name] = HelpDoc(mtime=mtime)
+                    cls.help_docs[name].parts = parse_doc(path)
+                names.add(name)
+            except:
+                utils_logger.print_exc(f"解析帮助文档 {path} 失败")
+
+        for name in list(cls.help_docs.keys()):
+            if name not in names:
+                del cls.help_docs[name]
+
+        # 删除不在帮助文档中的缓存图片
+        for doc in cls.help_docs.values():
+            for part in doc.parts:
+                if part.md5:
+                    all_md5.add(part.md5)
+        for path in glob.glob(os.path.join(cls.HELP_PART_IMG_CACHE_DIR, "*.png")):
+            name = Path(path).stem
+            if name not in all_md5:
+                try: 
+                    os.remove(path)
+                except Exception as e:
+                    utils_logger.print_exc(f"删除帮助文档图片缓存 {path} 失败: {e}")
+        
+    @classmethod
+    def find_cmd_help_doc(cls, cmd: str) -> Optional[HelpDocCmdPart]:
+        cls.update_help_docs()
+        for doc in cls.help_docs.values():
+            for part in doc.parts:
+                if part.cmds and cmd in part.cmds:
+                    return part
+        return None
+
+    @classmethod
+    async def get_cmd_help_doc_img(cls, part: HelpDocCmdPart, width=600) -> Image.Image:
+        md5 = get_md5(part.content)
+        cache_path = create_parent_folder(os.path.join(cls.HELP_PART_IMG_CACHE_DIR, f"{md5}.png"))
+        if os.path.exists(cache_path):
+            return open_image(cache_path)
+        img = await markdown_to_image(part.content, width=width)
+        img.save(cache_path)
+        return img
+ 
     async def additional_context_process(self, context: HandlerContext):
         return context
 
@@ -2043,6 +2151,29 @@ class CmdHandler:
                     # 额外处理，用于子类自定义
                     context = await self.additional_context_process(context)
                     assert context, "额外处理返回值不能为空"
+
+                    # 帮助文档
+                    if not self.disable_help:
+                        for help_keyword in ('help', '帮助'):
+                            ok = False
+                            if isinstance(self.help_trigger_condition, str):
+                                match self.help_trigger_condition:
+                                    case 'contain':
+                                        ok = help_keyword in context.arg_text
+                                    case 'exact':
+                                        ok = context.arg_text.strip() == help_keyword
+                            else:
+                                ok = self.help_trigger_condition(context.arg_text)
+                            if ok:
+                                cmds = self.commands if not self.help_command else [self.help_command]
+                                for cmd in cmds:
+                                    part = self.find_cmd_help_doc(cmd)
+                                    if part:
+                                        img = await self.get_cmd_help_doc_img(part)
+                                        return await context.asend_reply_msg(await get_image_cq(img, low_quality=True))
+                                raise ReplyException(f"没有找到该指令的帮助\n发送\"/help\"查看完整帮助")
+
+                    # 执行函数
                     return await handler_func(context)
                 
                 except NoReplyException:
@@ -2059,8 +2190,7 @@ class CmdHandler:
                         
             return func
         return decorator
-
-
+  
 
 class SubHelper:
     def __init__(self, name: str, db: FileDB, logger: Logger, key_fn=None, val_fn=None):

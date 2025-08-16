@@ -1,58 +1,46 @@
-# 连接检测服务 (alive)
+# 状态检测服务 (alive)
 
-> 该服务检测bot当前连接情况，当bot断线或恢复时发送邮件提醒。
+该服务的功能用于检测bot当前状态
 
-### 用户指令
+---
 
-- [`/alive` 测试连接](#alive)
+## 指令目录
 
-###  管理指令
+标记 🛠️ 的指令仅限超级管理使用
 
-- [`/killbot` 关闭bot](#killbot)
-- [`@bot /status` 查看bot状态](#bot-status)
-- [`/status_notify_{on|off}` 开启或关闭状态通知](#status-notify-onoff)
+- [快速测试状态](#快速测试状态)
+- [查看bot状态](#查看bot状态)
+- 🛠️ [关闭bot](#关闭bot)
+- 🛠️ [开启bot状态定时通知](#开启bot状态定时通知)
 
---- 
+---
 
-##  `/alive`
 
-> 测试bot连接
+### 快速测试状态
+`戳一戳`
+> 戳一戳bot快速测试bot是否还活着
 
-- **示例**
 
-    `/alive`
+### 查看bot状态
+`状态` `status`
+> 查看当前bot状态图，需要@bot使用
 
---- 
+- `@bot 状态`
 
-##  `/killbot`
 
+### 关闭bot
+🛠️ `/killbot`
 > 关闭bot
 
-- **示例**
 
-    `/killbot`
+### 开启bot状态定时通知
+🛠️ `/status notify on` `/status notify off`
+> 开启或关闭群聊内bot状态通知   
+开启后每天固定时间将推送一次bot状态图   
 
-## `@bot /status`
+- `/status notify on`
+- `/status notify off`
 
-> 查看服务器状态，需要@bot使用
-
-- **指令别名**
-
-    `/状态`
-
-- **示例**
-
-    `@bot /status`
-
-## `/status_notify_{on|off}`
-
-> 开启或关闭群聊内状态通知，开启后每天18:00将推送一次bot状态图
-
-- **示例**
-
-    `/status_notify_on`
-
-    `/status_notify_off`
 
 ---
 

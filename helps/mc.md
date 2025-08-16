@@ -1,250 +1,186 @@
 # Minecraft服务 (mc)
 
-基于 服务端卫星地图插件或日志监听服务 以及 RCON 协议，提供 Minecraft 服务器对接的服务。主要包含以下功能：
+基于服务端卫星地图插件或日志监听服务以及 RCON 协议，提供 Minecraft 服务器对接的服务。  
 - 一个群聊对应一个Minecraft服务器
 - 服务器和玩家状态查询，服务器断线上线提醒
 - 玩家上下线通知，玩家游玩时间统计
 - 服务器聊天和群聊天同步
 - 远程执行服务器指令
 
-监听模式分为卫星地图和日志两种
+监听分为卫星地图和日志两种模式
 - 卫星地图模式通过dynamic map插件获取服务器信息和聊天记录、发送消息
 - 日志模式通过日志文件获取聊天记录，通过rcon获取服务器信息和发送消息
 
+---
 
-###  用户指令
+## 指令目录
 
-- [`/listen` 设置或查询监听模式](#listen)
-- [`/send` 向服务器发送消息](#send)
-- [`/info` 获取服务器信息](#info)
-- [`/geturl` 获取服务器卫星地图链接](#geturl)
-- [`/getrconurl` 获取服务器rcon链接](#getrconurl)
-- [`/seturl` 设置服务器卫星地图链接](#seturl)
-- [`/setinfo` 设置服务器信息](#setinfo)
-- [`/setrconurl` 设置服务器rcon链接](#setrconurl)
-- [`/setrconpw` 设置服务器rcon密码](#setrconpw)
-- [`/oplist` 获取op列表](#oplist)
-- [`/rcon` 向服务器发送rcon命令](#rcon)
-- [`/playtime` 查询玩家游玩时间](#playtime)
-- [`/playtime_clear` 清空玩家游玩时间](#playtime_clear)
-- [`/start_game` 切换到新周目](#start_game)
-- [`/setoffset` 设置请求时间偏移](#setoffset)
-- [`/getoffset` 获取请求时间偏移](#getoffset)
-- [`/setchatprefix` 设置聊天前缀](#setchatprefix)
-- [`/getchatprefix` 获取聊天前缀](#getchatprefix)
-- [`/connect_notify_{on|off}` 开启/关闭服务器连线断线通知](#connect_notify_onoff)
+标记 🛠️ 的指令仅限超级管理使用  
+标记 ⚙️ 的指令仅限超级管理和服务器op使用  
 
-### 管理指令
+- [发送消息](#发送消息)
+- ⚙️ [设置或查询监听模式](#设置或查询监听模式)
+- [获取服务器信息](#获取服务器信息)
+- ⚙️ [设置服务器信息](#设置服务器信息)
+- [获取监听链接](#获取监听链接)
+- ⚙️ [设置监听链接](#设置监听链接)
+- [获取rcon链接](#获取rcon链接)
+- ⚙️ [设置rcon链接](#设置rcon链接)
+- ⚙️ [设置rcon密码](#设置rcon密码)
+- ⚙️ [发送rcon命令](#发送rcon命令)
+- [查询游玩时间](#查询游玩时间)
+- ⚙️ [清空游玩时间](#清空游玩时间)
+- ⚙️ [切换新周目](#切换新周目)
+- [获取请求时间偏移](#获取请求时间偏移)
+- ⚙️ [设置请求时间偏移](#设置请求时间偏移)
+- [获取聊天前缀](#获取聊天前缀)
+- ⚙️ [设置聊天前缀](#设置聊天前缀)
+- ⚙️ [开启/关闭服务器连线断线通知](#开启关闭服务器连线断线通知)
+- [查看op列表](#查看op列表)
+- 🛠️ [添加op](#添加op)
+- 🛠️ [删除op](#删除op)
 
-- [`/opadd` 添加用户为op](#opadd)
-- [`/opdel` 删除用户的op](#opdel)
 
 ---
 
-## `/listen`
-```
-设置或查询群聊中服务器的监听模式，只有超级用户或op可以设置
-可用的模式:
-off: 关闭监听
-dynamicmap: 通过卫星地图监听
-log: 通过日志文件服务端监听
-```
-- **示例**
+### 发送消息
+`/send`
+> 向服务器发送消息，服务器中会显示发送者的群名片
 
-    `/listen` 查询监听模式
-
-    `/listen dynamicmap` 设置监听模式为卫星地图
+- `/send 你好`
 
 
-## `/send`
-```
-向服务器发送消息，服务器中会显示发送者的群名片
-```
-- **示例**
+### 设置或查询监听模式
+⚙️ `/listen`
+> 设置或查询群聊中服务器的监听模式  
+off: 关闭监听  
+dynamicmap: 通过卫星地图监听  
+log: 通过日志文件服务端监听   
 
-    `/send 你好`
-
-
-## `/info`
-```
-获取服务器信息，包括预设的服务器信息以及服务器游戏时间、在线玩家状态
-```
-- **示例**
-
-    `/info`
+- `/listen` 查询监听模式
+- `/listen dynamicmap` 设置监听模式为卫星地图
 
 
-## `/geturl`
-```
-获取服务器监听链接
-```
-- **示例**
-
-    `/geturl`
+### 获取服务器信息
+`/info`
+> 获取服务器信息，包括预设的服务器信息以及服务器游戏时间、在线玩家状态
 
 
-## `/getrconurl`
-```
-获取服务器rcon链接
-```
-- **示例**
+### 设置服务器信息
+⚙️ `/setinfo`
+> 设置服务器信息
 
-    `/getrconurl`
+- `/setinfo 服务器信息`
 
 
-## `/seturl`
-```
-设置服务器监听链接，只有超级用户或op可以设置
-```
-- **示例**
-
-    `/seturl http://x.x.x.x:xxxx`
+### 获取监听链接
+`/geturl`
+> 获取服务器监听链接
 
 
-## `/setinfo`
-```
-设置服务器信息，只有超级用户或op可以设置
-```
-- **使用方式**
+### 设置监听链接
+⚙️ `/seturl`
+> 设置服务器监听链接
 
-    `/setinfo 服务器信息`
+- `/seturl http://x.x.x.x:xxxx`
 
 
-## `/setrconurl`
-```
-设置服务器rcon链接，只有超级用户或op可以设置
-```
-- **示例**
-
-    `/setrconurl http://x.x.x.x:xxxx`
+### 获取rcon链接
+`/getrconurl`
+> 获取服务器rcon链接
 
 
-## `/setrconpw`
-```
-设置服务器rcon密码，只有超级用户或op可以设置
-需要在私聊中使用
-```
+### 设置rcon链接
+⚙️ `/setrconurl`
+> 设置服务器rcon链接
 
-- **示例**
-
-    `/setrconpw 123456 pw` 设置群聊 123456 的 rcon 密码为 pw
+- `/setrconurl http://x.x.x.x:xxxx`
 
 
-## `/oplist`
-```
-获取op列表
-```
-- **示例**
+### 设置rcon密码
+⚙️ `/setrconpw`
+> 设置服务器rcon密码，需要在私聊中使用
 
-    `/oplist`
+- `/setrconpw 12345678 password` 设置群聊12345678的rcon密码为password
 
 
-## `/rcon`
-```
-向服务器发送rcon命令，只有超级用户或op可以操作
-```
-- **示例**
+### 发送rcon命令
+⚙️ `/rcon`
+> 发送rcon命令
 
-    `/rcon /list`
+- `/rcon say hello`
 
 
-## `/playtime`
-```
-查询当前周目玩家游玩时间
-```
-- **示例**
-
-    `/playtime`
+### 查询游玩时间
+`/playtime`
+> 查询当前周目的玩家游玩时间
 
 
-## `/playtime_clear`
-```
-清空当前周目玩家游玩时间，只有超级用户或op可以操作
-```
-- **示例**
-
-    `/playtime_clear`
+### 清空游玩时间
+⚙️ `/playtime clear`
+> 清空当前周目的玩家游玩时间
 
 
-## `/start_game`
-```
-切换到新周目，只有超级用户或op可以操作
-```
-- **示例**
+### 切换新周目
+⚙️ `/start game`
+> 切换到新周目
 
-    `/start_game 周目名`
+- `/start game GameName`
 
 
-## `/setoffset`
-```
-设置请求时间偏移，只有超级用户或op可以操作
-```
-- **示例**
-
-    `/setoffset 100` 设置偏移量为100ms
+### 获取请求时间偏移
+`/getoffset`
+> 获取卫星地图监听的请求时间偏移，单位为ms
 
 
-## `/getoffset`
-```
-获取请求时间偏移
-```
-- **示例**
+### 设置请求时间偏移
+⚙️ `/setoffset`
+> 设置获取卫星地图监听的请求时间偏移，单位为ms
 
-    `/getoffset`
+- `/setoffset 1000`
 
 
-## `/setchatprefix`
-
-设置聊天前缀，只有超级用户或op可以操作
+### 获取聊天前缀
+`/getchatprefix`
+> 获取服务器聊天前缀   
 只有游戏中以前缀开头的消息以及/send发送的消息会被转发到群内
 
-- **示例**
 
-    `/setchatprefix` 设置聊天前缀为空
+### 设置聊天前缀
+⚙️ `/setchatprefix`  
+> 设置服务器聊天前缀   
+只有游戏中以前缀开头的消息以及/send发送的消息会被转发到群内
 
-    `/setchatprefix ##` 设置聊天前缀为##
-
-
-## `/getchatprefix`
-```
-获取聊天前缀
-```
-- **示例**
-
-    `/getchatprefix`
+- `/setchatprefix xxx`
 
 
-## `/connect_notify_{on|off}`
-```
-开启/关闭服务器连线断线通知，只有超级用户或op可以操作
-```
-- **示例**
+### 开启/关闭服务器连线断线通知
+⚙️ `/connect notify on` `/connect notify off`
+> 开启或关闭服务器连线断线通知
 
-    `/connect_notify_on`
+- `/connect notify on` 开启服务器连线断线通知
+- `/connect notify off` 关闭服务器连线断线通知
 
-    `/connect_notify_off`
+
+### 查看op列表
+`/oplist`
+> 查看当前群聊的op列表
+
+
+### 添加op
+🛠️ `/op add`
+> 添加op到当前群聊的op列表，一次可以@一个或多个成员
+
+- `/op add @成员1 @成员2`
+
+
+### 删除op
+🛠️ `/op del`
+> 从当前群聊的op列表中删除op，一次可以@一个或多个成员
+
+- `/op del @成员1 @成员2`
+
 
 ---
-
-
-## `/opadd`
-```
-添加用户为op，一次可以@一个或多个群友
-```
-- **示例**
-
-    `/opadd @用户1 @用户2`
-
-
-## `/opdel`
-```
-删除用户的op，一次可以@一个或多个群友
-```
-- **示例**
-
-    `/opdel @用户1 @用户2`
-
-
---- 
 
 [回到帮助目录](./main.md)

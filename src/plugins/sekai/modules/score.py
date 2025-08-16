@@ -100,7 +100,7 @@ BOOST_BONUS_RANGE = list(range(0, 11))
 MAX_SCORE = 2840000
 
 SHOW_SEG_LEN = 50
-MAX_SHOW_NUM = 250
+MAX_SHOW_NUM = 150
 DEFAULT_MID = 74
 
 @dataclass
@@ -155,15 +155,15 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
 
     if len(valid_scores) == 0:
         msg = "找不到符合条件的分数范围"
-        if target_point % 5 != 0 and target_point > 500:
+        if target_point > 500:
             msg += f"\n大数字的PT一般较难打出，并且数字过大计算可能存在误差，推荐以多次进行控分"
+        if target_point < 100:
+            msg += f"\n每次控分PT至少为100"
         raise ReplyException(msg)
 
     music = await ctx.md.musics.find_by_id(music_id)
     music_title = music['title']
     music_cover = await get_music_cover_thumb(ctx, music_id)
-
-    canvases: List[Canvas] = []
 
     def get_score_str(score: int) -> str:
         score_str = str(score)
@@ -185,8 +185,8 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
                 with HSplit().set_content_align('lb').set_item_align('lb').set_sep(4):
                     TextBox(f"歌曲基础分 {music_basic_score}   目标PT: ", style1)
                     TextBox(f" {target_point}", style3)
-                if target_point > 2000:
-                    TextBox(f"目标PT过大，可能存在误差，推荐以多次控分", style3)
+                if target_point > 3000:
+                    TextBox(f"目标PT过大可能存在误差，推荐以多次控分", style3)
                 TextBox(f"控分教程：选取表中一个活动加成和体力", style1)
                 TextBox(f"游玩歌曲到对应分数范围内放置", style1)
                 TextBox(f"友情提醒：控分前请核对加成和体力设置", style3)
@@ -203,11 +203,12 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
                         with HSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
                             TextBox("加成",  style1).set_bg(bg1).set_size((gw1, gh)).set_content_align('c')
                             TextBox("火",    style1).set_bg(bg1).set_size((gw2, gh)).set_content_align('c')
-                            TextBox("下限",  style1).set_bg(bg1).set_size((gw3, gh)).set_content_align('c')
-                            TextBox("上限",  style1).set_bg(bg1).set_size((gw4, gh)).set_content_align('c')
+                            TextBox("分数下限",  style1).set_bg(bg1).set_size((gw3, gh)).set_content_align('c')
+                            TextBox("分数上限",  style1).set_bg(bg1).set_size((gw4, gh)).set_content_align('c')
                         for i, item in enumerate(scores):
                             bg = bg2 if i % 2 == 0 else bg1
                             score_min = get_score_str(item.score_min)
+                            if score_min == '0': score_min = '0 (放置)'
                             score_max = get_score_str(item.score_max)
                             with HSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
                                 TextBox(f"{item.event_bonus}", style2).set_bg(bg).set_size((gw1, gh)).set_content_align('r')

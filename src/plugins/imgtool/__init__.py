@@ -1258,7 +1258,7 @@ async def _(ctx: HandlerContext):
 
 
 # 用pyzbar扫描图像中所有二维码，返回结果
-scan = CmdHandler(["/scan", "/扫描"], logger)
+scan = CmdHandler(["/scan", "/扫描", "/识别"], logger)
 scan.check_cdrate(cd).check_wblist(gbl)
 @scan.handle()
 async def _(ctx: HandlerContext):
@@ -1297,7 +1297,7 @@ async def _(ctx: HandlerContext):
 
 
 # 生成语录
-gen_saying = CmdHandler(['/saying', '/语录'], logger)
+gen_saying = CmdHandler(['/saying', '/quote', '/语录'], logger)
 gen_saying.check_cdrate(cd).check_wblist(gbl).check_group()
 @gen_saying.handle()
 async def _(ctx: HandlerContext):
@@ -1381,7 +1381,7 @@ def color_card(color, additional_text=None):
     return card
 
 # 颜色显示
-color_show = CmdHandler(['/color'], logger)
+color_show = CmdHandler(['/color', '/颜色'], logger)
 color_show.check_cdrate(cd).check_wblist(gbl)
 @color_show.handle()
 async def _(ctx: HandlerContext):
@@ -1432,7 +1432,7 @@ async def _(ctx: HandlerContext):
     return await ctx.asend_reply_msg(await get_image_cq(img))
 
 # 取色器
-color_picker = CmdHandler(['/pick'], logger, priority=101)
+color_picker = CmdHandler(['/pick', '/取色'], logger, priority=101)
 color_picker.check_cdrate(cd).check_wblist(gbl)
 @color_picker.handle()
 async def _(ctx: HandlerContext):

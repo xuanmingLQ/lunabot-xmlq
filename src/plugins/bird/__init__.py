@@ -38,7 +38,7 @@ async def init_birds():
 
 # ------------------------------------------ 指令 ------------------------------------------ #
         
-bird = CmdHandler(['/bird'], logger)
+bird = CmdHandler(['/bird', '/查鸟', '/鸟'], logger)
 bird.check_cdrate(cd).check_wblist(gbl)
 @bird.handle()
 async def handle_bird(ctx: HandlerContext):

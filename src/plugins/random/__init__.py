@@ -6,17 +6,17 @@ from nonebot.params import CommandArg
 import random
 from ..utils import *
 
-config = get_config('bobing')
-logger = get_logger("Bobing")
-file_db = get_file_db("data/bobing/db.json", logger)
+config = get_config('random')
+logger = get_logger("Random")
+file_db = get_file_db("data/random/db.json", logger)
 cd = ColdDown(file_db, logger, config['cd'])
-gbl = get_group_black_list(file_db, logger, 'bobing')
+gbl = get_group_black_list(file_db, logger, 'random')
 
 
 DICE_SIZE = 32
-dice_images = [f"data/bobing/dice/{i}.png" for i in range(1, 7)]
+dice_images = [f"data/random/dice/{i}.png" for i in range(1, 7)]
 dice_images = [Image.open(d).resize((DICE_SIZE, DICE_SIZE)) for d in dice_images]
-dice_rule_image = Image.open("data/bobing/dice_rule.jpg")
+dice_rule_image = Image.open("data/random/dice_rule.jpg")
 
 
 # 博饼
@@ -44,7 +44,7 @@ async def _(ctx: HandlerContext):
 
 
 # 随机数
-rand = CmdHandler(["/rand", "/roll"], logger)
+rand = CmdHandler(["/rand", "/roll", "/随机数"], logger)
 rand.check_cdrate(cd).check_wblist(gbl)
 @rand.handle()
 async def _(ctx: HandlerContext):
@@ -61,7 +61,7 @@ async def _(ctx: HandlerContext):
 
 
 # 随机选择
-choice = CmdHandler(["/choice", '/choose'], logger)
+choice = CmdHandler(["/choice", '/choose', "/选择"], logger)
 choice.check_cdrate(cd).check_wblist(gbl)
 @choice.handle()
 async def _(ctx: HandlerContext):
@@ -73,7 +73,7 @@ async def _(ctx: HandlerContext):
 
 
 # 打乱
-shuffle = CmdHandler(["/shuffle"], logger)
+shuffle = CmdHandler(["/shuffle", "/洗牌", "/打乱"], logger)
 shuffle.check_cdrate(cd).check_wblist(gbl)
 @shuffle.handle()
 async def _(ctx: HandlerContext):
@@ -86,7 +86,7 @@ async def _(ctx: HandlerContext):
 
 
 # 随机群成员
-randuser = CmdHandler(['/randuser', '/rolluser', '/randmember', '/rollmember'], logger)
+randuser = CmdHandler(['/randuser', '/rolluser', '/randmember', '/rollmember', "/随机群友"], logger)
 randuser.check_cdrate(cd).check_wblist(gbl)
 @randuser.handle()
 async def _(ctx: HandlerContext):

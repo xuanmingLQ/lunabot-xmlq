@@ -57,7 +57,7 @@ async def record_message(bot: Bot, event: GroupMessageEvent):
         try: await hook(bot, event)
         except: logger.print_exc(f"记录消息前hook {hook.__name__} 执行失败")
 
-    if record_msg_gbl.check(event):
+    if record_msg_gbl.check(event) or event.user_id == event.self_id:
         time = datetime.fromtimestamp(event.time)
         msg_obj = await get_msg_obj(bot, event.message_id)
 
@@ -87,14 +87,15 @@ async def record_message(bot: Bot, event: GroupMessageEvent):
         else:
             logger.info(f"[{msg_id}] {group_name}({group_id}) {user_name}({user_id}): {str(msg_for_log)}")
 
-        await insert_msg(
-            group_id=group_id,
-            time=time,
-            msg_id=msg_id,
-            user_id=user_id,
-            nickname=user_name,
-            msg=msg,
-        )
+        if record_msg_gbl.check(event):
+            await insert_msg(
+                group_id=group_id,
+                time=time,
+                msg_id=msg_id,
+                user_id=user_id,
+                nickname=user_name,
+                msg=msg,
+            )
 
     for hook in after_record_hook_funcs:
         try: await hook(bot, event)

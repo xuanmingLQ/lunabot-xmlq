@@ -183,7 +183,7 @@ async def vlive_notify():
                 try:
                     group_msg = deepcopy(msg)
                     for uid in vlive_user_sub.get_all(region, group_id):
-                        group_msg += f"[CQ:at,qq={uid}]"
+                        group_msg += f"[CQ:at,qq={uid}] "
                     await send_group_msg_by_bot(bot, group_id, group_msg.strip())
                 except:
                     logger.print_exc(f'发送 {region} 的 {len(start_vlives)} 个vlive开始提醒到群 {group_id} 失败')
@@ -230,7 +230,7 @@ async def vlive_notify():
                 try:
                     group_msg = deepcopy(msg)
                     for uid in vlive_user_sub.get_all(region, group_id):
-                        group_msg += f"[CQ:at,qq={uid}]"
+                        group_msg += f"[CQ:at,qq={uid}] "
                     await send_group_msg_by_bot(bot, group_id, group_msg.strip())
                 except:
                     logger.print_exc(f'发送 {region} 的 {len(end_vlives)} 个vlive结束提醒到群 {group_id} 失败')

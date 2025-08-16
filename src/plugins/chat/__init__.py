@@ -178,6 +178,12 @@ async def get_forward_msg_text(model: str, forward_seg, indent: int = 0) -> str:
 
 # ------------------------------------------ 模型选择逻辑 ------------------------------------------ #
 
+def trigger_chat_help_condition(text: str) -> bool:
+    if "/chat" not in text:
+        return False
+    text = text.strip().replace("/chat", "")
+    return text in ["help", "帮助"]
+
 # 获取某个群组当前的模型名
 def get_group_model_name(group_id, mode):
     group_model_dict = file_db.get("group_chat_model_dict", {})
@@ -258,7 +264,11 @@ sessions: Dict[str, ChatSession] = {}
 query_msg_ids = set()
 
 # 询问
-chat_request = CmdHandler([""], logger, block=False, priority=0)
+chat_request = CmdHandler(
+    [""], logger, 
+    block=False, priority=0, 
+    help_command="/chat", help_trigger_condition=trigger_chat_help_condition,
+)
 @chat_request.handle()
 async def _(ctx: HandlerContext):
     bot, event = ctx.bot, ctx.event
@@ -554,7 +564,8 @@ async def _(ctx: HandlerContext):
 
 # 获取或修改当前私聊或群聊使用的模型
 change_model = CmdHandler([
-    "/chat_model", "/chat model", "/chatmodel"
+    "/模型", "/聊天模型",
+    "/chat_model", "/chat model", "/chatmodel",
 ], logger)
 change_model.check_cdrate(chat_cd).check_wblist(gwl)
 @change_model.handle()
@@ -612,6 +623,7 @@ async def _(ctx: HandlerContext):
 
 # 清空当前私聊或群聊使用的模型
 clear_model = CmdHandler([
+    "/重置模型", "/清空模型",
     "/clear_model", "/clear model", "/clearmodel"
 ], logger)
 clear_model.check_cdrate(chat_cd).check_wblist(gwl)
@@ -625,6 +637,7 @@ async def _(ctx: HandlerContext):
 
 # 获取所有可用的模型名
 all_model = CmdHandler([
+    "/模型列表",
     "/model_list", "/model list", "/modellist",
     "/allmodel", "/all model", "/all_model",
 ], logger)
@@ -648,7 +661,7 @@ async def _(ctx: HandlerContext):
 
 # 获取所有可用的供应商名
 chat_providers = CmdHandler([
-    "/chat_provider", "/chat provider", "/chatprovider"
+    "/供应商", "/chat_provider", "/chat provider", "/chatprovider"
 ], logger)
 chat_providers.check_cdrate(chat_cd).check_wblist(gwl)
 @chat_providers.handle()
@@ -909,7 +922,7 @@ async def _(ctx: HandlerContext):
         return await ctx.asend_reply_msg(f"已清空群聊 {group_name}({group_id}) 自动聊天自身的历史记录")
 
 
-autochat = CmdHandler([""], logger, block=False, priority=1)
+autochat = CmdHandler([""], logger, block=False, priority=1, disable_help=True)
 autochat.check_group()
 @autochat.handle()
 async def _(ctx: HandlerContext):

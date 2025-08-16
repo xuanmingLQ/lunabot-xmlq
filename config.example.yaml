@@ -1,22 +1,22 @@
-bot_name: ""
+bot_name: "xxx"
 log_level: "INFO"
 superuser:
-  - 12345
+  - 123
 
-msg_rate_limit_per_second: 3  # 每秒限制发送消息的数量
+msg_rate_limit_per_second: 10  # 每秒限制发送消息的数量
 
 cd_verbose_interval: 30 # 冷却中时间隔多少秒输出一次cd信息
 
-font_path: "/root/.fonts/MicrosoftYaHei/Microsoft Yahei.ttf"  # 中文字体路径
-font_name: "Microsoft YaHei"                                  # Matplotlib库使用的中文字体名称
+font_path: "xxx"  # 中文字体路径
+font_name: "xxx"  # Matplotlib库使用的中文字体名称
 
 exception_mail: # 发送异常消息邮件的配置
-  host: "smtp.qq.com"          # 邮箱服务器地址
-  port: 587                    # 邮箱服务器端口
-  user: "123@qq.com"      # 邮箱发送者用户名
-  pass: "abcdefg"     # 邮箱密码
-  receivers:                   # 邮箱接收者列表
-    - 1234@qq.com
+  host: "smtp.qq.com"           # 邮箱服务器地址
+  port: 587                     # 邮箱服务器端口
+  user: "xxx@qq.com"            # 邮箱发送者用户名
+  pass: "xxx"                   # 邮箱密码
+  receivers:                    # 邮箱接收者列表
+    - xxx@qq.com
 
 
 alive:
@@ -37,7 +37,7 @@ bird:
   max_edit_distance: 2              # 模糊查询的最大编辑距离
   
 
-bobing:
+random:
   cd: 3        
 
 
@@ -50,8 +50,8 @@ helper:
 
 
 imgexp:
-  saucenao_apikey: ""
-  serp_apikey: ""
+  saucenao_apikey: "xxx"
+  serp_apikey: "xxx"
   cd: 3
 
 
@@ -63,26 +63,18 @@ llm:
   chat_max_tokens: 2048                    # 聊天最大生成长度
 
   text_embedding_model:                    # 文本嵌入模型
-    provider: "AI-YYDS"
-    id: "text-embedding-ada-002"           
-    input_pricing:  0.00000002             # 每个输入token的价格（美元）
+    provider: "sf"
+    id: "BAAI/bge-m3"
+    input_pricing:  0.00000000             # 每个输入token的价格
 
   tts_model:                               # 文本转语音模型
-    provider: "AI-YYDS"
+    provider: "ay"
     id: "tts-1"
-    input_pricing:  0.000015               # 每个输入字符的价格（美元）
+    input_pricing:  0.000015               # 每个输入字符的价格
     voice: "alloy"                         # TTS语音名称
   
 
 chat:
-  default_private_model_name: # 默认私聊模型名称
-    text: "gpt-4o"
-    mm: "gpt-4o"
-    tool: "gpt-4o"
-  default_group_model_name:   # 默认群聊模型名称
-    text: "deepseek-v3-free"
-    mm: "qwen2.5-vl-72b-instruct-free" 
-    tool: "gpt-4o"
   fold_response_threshold: 400              # 群聊中超过多少字折叠回复
   session_len_limit: 20                     # 会话长度限制
   chat_cd: 10
@@ -91,17 +83,17 @@ chat:
 
 
 cron:
-  model_name: "gpt-4o"            # 使用的模型名称
-  max_retries: 5                  # 最大重试次数
+  max_retries: 1                  # 最大重试次数
   cd: 3  
 
 
-eval:
+math:
   cd: 3
+  oeis_search_num: 3
 
 
 mc:
-  query_interval: 1              # 向卫星地图查询的间隔（秒）
+  query_interval: 2   # 向卫星地图查询的间隔（秒）
   queue_consume_interval: 1      # 队列消费间隔（秒）
   query_offset: -1000            # 查询时间的偏移量
   disconnect_notify_count: 60    # 和服务器断联多少次后提醒
@@ -110,25 +102,20 @@ mc:
   cd: 3
 
 
-oeis:
-  search_num: 3
-  cd: 3
-
-
 record:
   cd: 3
 
 rpc:
   host: "0.0.0.0"
-  port: 24444
+  port: 1234
   
 
-run_code:
+code:
   cd: 3     
 
 
 sekai:
-  cd: 3               
+  cd: 1
 
 
 statistics:
@@ -141,11 +128,6 @@ statistics:
   cd: 3
 
 
-touhou:
-  sc_query_max_num: 5           # 符卡查询显示的最大数量
-  cd: 3
-
-
 water:
   cd: 3                      
 
@@ -155,3 +137,4 @@ welcome:
 
 
 misc:
+  cd: 3

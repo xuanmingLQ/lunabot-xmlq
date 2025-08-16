@@ -65,7 +65,7 @@ async def _(ctx: HandlerContext):
                 # 如果长度过长，截成几段再横向拼接发送
                 max_height = HELP_IMG_WIDTH * 3
                 if image.height > max_height:
-                    n = math.ceil(math.sqrt(image.height * image.width) / image.width)
+                    n = math.floor(math.sqrt(image.height * image.width) / image.width)
                     height = math.ceil(image.height / n)
                     images = []
                     for i in range(0, image.height, height):

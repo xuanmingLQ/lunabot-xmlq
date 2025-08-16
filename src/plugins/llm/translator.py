@@ -44,7 +44,6 @@ class Translator:
         self.merge_prompt_path = "data/llm/translator/prompt_merge.txt"
         self.trans_prompt_path = "data/llm/translator/prompt_trans.txt"
         self.correct_prompt_path = "data/llm/translator/prompt_correct.txt"
-        self.model_name = "gemini-2-flash"
         self.task_id_top = 0
         self.langs = ['ja', 'ko']
         self.max_resolution = 1024 * 768
@@ -119,6 +118,8 @@ class Translator:
         return False
 
     async def translate(self, img: Image.Image, lang=None, debug=False) -> TranslationResult:
+        self.model_name = get_model_preset("translator")
+        
         with Timer() as t_total:
             if not self.model_loaded:
                 raise Exception('OCR模型未加载')

@@ -78,7 +78,7 @@ class ServerData:
     def load(self):
         data = file_db.get(f'{self.group_id}.server_info', {})
         self.url    = data.get('url', '')
-        self.listen_mode = data.get('listen_mode', 'dynamicmap')
+        self.listen_mode = data.get('listen_mode', 'off')
         self.info   = data.get('info', '')
         self.rcon_url = data.get('rcon_url', '')
         self.rcon_password = data.get('rcon_password', '')
@@ -88,7 +88,7 @@ class ServerData:
         self.offset = data.get('offset', 0)
         self.chatprefix = data.get('chatprefix', '')
         self.notify_on = data.get('notify_on', True)
-        logger.info(f'在 {self.group_id} 中加载服务器 url={data["url"]}')
+        logger.info(f'在 {self.group_id} 中加载服务器 url={self.url}')
 
 
     # 向卫星地图请求

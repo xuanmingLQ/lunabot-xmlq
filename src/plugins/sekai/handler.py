@@ -110,16 +110,6 @@ class SekaiCmdHandler(CmdHandler):
             f"该指令不支持 {cmd_region} 服务器，可用的服务器有: {', '.join(self.available_regions)}"
         )
 
-        # 帮助文档
-        HELP_TRIGGER_WORDS = ['help', '帮助']
-        if any(word in context.arg_text for word in HELP_TRIGGER_WORDS):
-            if help_doc := await self.get_help_doc_part():
-                help_doc += f"\n>发送`/help sekai`查看完整帮助"
-                msg = await get_image_cq(await markdown_to_image(help_doc), low_quality=True)
-            else:
-                msg = f"没有找到该指令的帮助\n发送\"/help sekai\"查看完整帮助"
-            raise ReplyException(msg)
-
         # 构造新的上下文
         params = context.__dict__.copy()
         params['region'] = cmd_region
@@ -131,28 +121,6 @@ class SekaiCmdHandler(CmdHandler):
         params['prefix_arg'] = prefix_arg
 
         return SekaiHandlerContext(**params)
-    
-    async def get_help_doc_part(self) -> Optional[str]:
-        try:
-            help_doc = Path(HELP_DOC_PATH).read_text(encoding="utf-8")
-            parts = help_doc.split("---")[2:-1] # 每个小标题
-            cmd_parts: List[str] = []   # 每个指令的部分
-            for part in parts:
-                start = part.find("### ")   
-                part = part[start:]
-                cmd_parts.extend(part.split("### "))
-            for cmd_part in cmd_parts:
-                lines = cmd_part.splitlines()
-                if len(lines) < 2:
-                    continue
-                cmds = lines[1].replace("` `", "%").replace("`", "").replace("🛠️", "").strip().split("%")
-                if any(cmd in cmds for cmd in self.original_commands):
-                    cmd_part = "### " + cmd_part
-                    return cmd_part
-            raise Exception(f"没有找到 {self.original_commands[0]} 的帮助文档")
-        except Exception as e:
-            logger.print_exc(f"获取 {self.original_commands[0]} 的帮助文档失败")
-            return None
 
 
 
