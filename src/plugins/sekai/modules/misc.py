@@ -144,7 +144,7 @@ async def _(ctx: SekaiHandlerContext):
                             Spacer(w, w)
                             continue
 
-                        card = find_by_func(result.cards, lambda c: c.row_idx == row_idx and c.col_idx == col_idx)
+                        card = find_by_predicate(result.cards, lambda c: c.row_idx == row_idx and c.col_idx == col_idx)
                         if card is None:
                             ImageBox(UNKNOWN_IMG, size=(w, w))
                         else:

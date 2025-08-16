@@ -222,12 +222,12 @@ get_cmd_history = CmdHandler(["/cmd_history", "/cmdh"], logger)
 get_cmd_history.check_superuser()
 @get_cmd_history.handle()
 async def _(ctx: HandlerContext):
-    global cmd_history
+    global _cmd_history
     args = ctx.get_args()
     try: limit = int(args)
     except: limit = 10
     msg = "【历史记录】\n"
-    for context in cmd_history:
+    for context in _cmd_history:
         time = context.time.strftime("%Y-%m-%d %H:%M:%S")
         msg += f"[{time}]\n"
         group_id, user_id = context.group_id, context.user_id

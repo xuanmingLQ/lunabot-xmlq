@@ -477,7 +477,7 @@ async def _(ctx: HandlerContext):
                 timeout=300,
             )
 
-            text_len = get_str_appear_length(resp.result)
+            text_len = get_str_display_length(resp.result)
             res_text = ""
             for part in resp.result_list:
                 if isinstance(part, str):
@@ -1000,7 +1000,7 @@ async def _(ctx: HandlerContext):
 
             def process(resp: ChatSessionResponse):
                 text = resp.result
-                appear_len = get_str_appear_length(text)
+                appear_len = get_str_display_length(text)
                 if appear_len > cfg.output_len_limit:
                     raise Exception(f"回复过长: {appear_len} > {cfg.output_len_limit}")
                 start_idx = text.find('{')

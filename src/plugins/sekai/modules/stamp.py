@@ -65,7 +65,7 @@ async def make_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, text: str, for
     text_zoom_ratio = 1.0
     line_count = 0
     for line in text.splitlines():
-        dst_len = get_str_appear_length(line)
+        dst_len = get_str_display_length(line)
         text_zoom_ratio = min(text_zoom_ratio, 0.3 + dst_len * 0.04)
         line_count += 1
     text_y_offset = int(15 - 30 * (1.0 - text_zoom_ratio))

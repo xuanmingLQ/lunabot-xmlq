@@ -880,7 +880,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                 aliases = MusicAliasDB.get_instance().get_aliases(mid)
                 if aliases:
                     alias_text = "，". join(aliases)
-                    font_size = max(10, 24 - get_str_appear_length(alias_text) // 40 * 1)
+                    font_size = max(10, 24 - get_str_display_length(alias_text) // 40 * 1)
                     with HSplit().set_content_align('l').set_item_align('l').set_sep(16).set_padding(16):
                         TextBox("歌曲别名", TextStyle(font=DEFAULT_HEAVY_FONT, size=24, color=(50, 50, 50)))
                         aw = 800

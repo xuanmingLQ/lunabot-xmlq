@@ -209,7 +209,7 @@ async def parse_rankings(ctx: SekaiHandlerContext, event_id: int, data: dict, ig
         border_has_diff = False
         latest_ranks = latest_rankings_cache.get(ctx.region, {}).get(event_id, [])
         for item in border:
-            latest_item = find_by_func(latest_ranks, lambda x: x.rank == item.rank)
+            latest_item = find_by_predicate(latest_ranks, lambda x: x.rank == item.rank)
             if not latest_item or (latest_item.score != item.score or latest_item.uid != item.uid):
                 border_has_diff = True
                 break
@@ -635,13 +635,13 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
         case 'name':
             ranks = await query_ranking(ctx.region, eid, name=qval, start_time=cf_start_time)
         case 'rank':
-            r = find_by_func(latest_ranks, lambda x: x.rank == qval)
+            r = find_by_predicate(latest_ranks, lambda x: x.rank == qval)
             assert_and_reply(r, f"找不到排名 {qval} 的榜线数据")
             ranks = await query_ranking(ctx.region, eid, uid=r.uid, start_time=cf_start_time)
         case 'ranks':
             uid_list = []
             for rank in qval:
-                r = find_by_func(latest_ranks, lambda x: x.rank == rank)
+                r = find_by_predicate(latest_ranks, lambda x: x.rank == rank)
                 assert_and_reply(r, f"找不到排名 {rank} 的榜线数据")
                 uid_list.append(r.uid)
             ranks_list = await batch_gather(*[query_ranking(ctx.region, eid, uid=uid, start_time=cf_start_time) for uid in uid_list])
@@ -681,7 +681,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             'avg_pt': sum(pts[-min(10, len(pts)):]) / min(10, len(pts)),
             'pts': pts,
         }
-        if last_20min_rank := find_by_func(ranks, lambda x: x.time <= ranks[-1].time - timedelta(minutes=20), mode='last'):
+        if last_20min_rank := find_by_predicate(ranks, lambda x: x.time <= ranks[-1].time - timedelta(minutes=20), mode='last'):
             ret['last_20min_speed'] = int((ranks[-1].score - last_20min_rank.score) / (ranks[-1].time - last_20min_rank.time).total_seconds() * 3600)
         if prev_rank := find_prev_ranking(skl_ranks, ret['cur_rank']):
             ret['prev_score'] = prev_rank.score
@@ -771,16 +771,16 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
         case 'name':
             ranks = await query_ranking(ctx.region, eid, name=qval)
         case 'rank':
-            r = find_by_func(latest_ranks, lambda x: x.rank == qval)
+            r = find_by_predicate(latest_ranks, lambda x: x.rank == qval)
             assert_and_reply(r, f"找不到排名 {qval} 的榜线数据")
             ranks = await query_ranking(ctx.region, eid, uid=r.uid)
         case 'ranks':
             assert_and_reply(len(qval) == 2, "最多同时对比两个玩家的追踪数据")
             v1, v2 = qval
-            r = find_by_func(latest_ranks, lambda x: x.rank == v1)
+            r = find_by_predicate(latest_ranks, lambda x: x.rank == v1)
             assert_and_reply(r, f"找不到排名 {v1} 的榜线数据")
             ranks = await query_ranking(ctx.region, eid, uid=r.uid)
-            r = find_by_func(latest_ranks, lambda x: x.rank == v2)
+            r = find_by_predicate(latest_ranks, lambda x: x.rank == v2)
             assert_and_reply(r, f"找不到排名 {v2} 的榜线数据")
             ranks2 = await query_ranking(ctx.region, eid, uid=r.uid)
         case _:
@@ -1293,7 +1293,7 @@ async def update_ranking():
 
                     # 插回本次没有更新的榜线
                     for item in last_rankings:
-                        if not find_by_func(rankings, lambda x: x.rank == item.rank):
+                        if not find_by_predicate(rankings, lambda x: x.rank == item.rank):
                             rankings.append(item)
                     rankings.sort(key=lambda x: x.rank)
                     return True
