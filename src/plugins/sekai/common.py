@@ -41,7 +41,7 @@ UNIT_NAMES = [
     ('idol', 'mmj'),
     ('street', 'vbs'),
     ('theme_park', 'ws'),
-    ('school_refusal', '25'),
+    ('school_refusal', '25h', '25时', '25'),
     ('piapro', 'vs'),
 ]
 CID_UNIT_MAP = {
@@ -223,6 +223,19 @@ def extract_vs_unit(text: str, default=None) -> Tuple[str, str]:
         for name in names:
             all_names.append((names[0], name + "vs"))
             all_names.append((names[0], name + "v"))
+    all_names.sort(key=lambda x: len(x[1]), reverse=True)
+    for first_name, name in all_names:
+        if name in text:
+            return first_name, text.replace(name, "").strip()
+    return default, text
+
+# 从文本提取oc团名 返回(团名, 文本)
+def extract_oc_unit(text: str, default=None) -> Tuple[str, str]:
+    all_names = []
+    for names in UNIT_NAMES:
+        for name in names:
+            all_names.append((names[0], name + "oc"))
+            all_names.append((names[0], "纯" + name))
     all_names.sort(key=lambda x: len(x[1]), reverse=True)
     for first_name, name in all_names:
         if name in text:

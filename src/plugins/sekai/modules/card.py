@@ -118,15 +118,27 @@ async def parse_multi_card_search_args(ctx: SekaiHandlerContext, args: str, card
     supply, args = extract_card_supply(args)
     skill, args = extract_card_skill(args)
     year, args = extract_year(args)
+
     vs_unit, args = extract_vs_unit(args)
+    oc_unit, args = extract_oc_unit(args)
     unit, args = extract_unit(args)
+    target_unit, target_main_unit, target_support_unit = None, None, None
+    if vs_unit is not None:
+        target_unit = None
+        target_main_unit = "piapro"
+        target_support_unit = "none" if vs_unit == "piapro" else vs_unit
+    elif oc_unit is not None:
+        target_unit = None
+        target_main_unit = oc_unit
+        target_support_unit = "none"
+    else:
+        target_unit = unit
+        target_main_unit = None
+        target_support_unit = None
+
     rare, args = extract_card_rare(args)
     nickname, args = extract_nickname_from_args(args)
     chara_id = get_cid_by_nickname(nickname)
-    oc = False
-    if 'oc' in args:
-        args = args.replace('oc', '').strip()
-        oc = True
 
     # 筛选卡牌
     ret = []
@@ -134,6 +146,7 @@ async def parse_multi_card_search_args(ctx: SekaiHandlerContext, args: str, card
         card_id = card["id"]
         card_sid = card["skillId"]
         card_cid = card["characterId"]
+        card_unit = CID_UNIT_MAP.get(card_cid, None)
         card_support_unit = card['supportUnit']
         release_time = datetime.fromtimestamp(card["releaseAt"] / 1000)
 
@@ -160,13 +173,14 @@ async def parse_multi_card_search_args(ctx: SekaiHandlerContext, args: str, card
         if skill is not None:
             if skill_type != skill: continue
 
+        if target_unit is not None and target_unit not in (card_unit, card_support_unit): continue
+        if target_main_unit is not None and card_unit != target_main_unit: continue
+        if target_support_unit is not None and card_support_unit != target_support_unit: continue
+        
         if year is not None and release_time.year != int(year): continue
-        if unit is not None and CID_UNIT_MAP.get(card_cid) != unit: continue
         if vs_unit is not None and card_support_unit != vs_unit: continue
         if rare is not None and card["cardRarityType"] != rare: continue
         if chara_id is not None and card_cid != int(chara_id): continue
-        
-        if oc and card_cid > 20: continue
 
         ret.append(card)
 
