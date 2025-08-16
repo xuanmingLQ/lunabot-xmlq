@@ -328,7 +328,7 @@ async def _(ctx: HandlerContext):
 # ------------------------------------------ Hash记录 ------------------------------------------ #
 
 task_queue = Queue()
-MAX_TASK_NUM = 50
+MAX_TASK_NUM = 10
 
 # 添加HASH记录任务
 @before_record_hook

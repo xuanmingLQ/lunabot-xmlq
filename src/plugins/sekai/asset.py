@@ -33,11 +33,13 @@ class RegionMasterDbSource:
     async def update_version(self):
         version = DEFAULT_VERSION
         try:
-            version_data = await download_json(self.version_url)
+            version_data = await asyncio.wait_for(download_json(self.version_url), 3)
             version = str(get_multi_keys(version_data, ['cdnVersion', 'data_version', 'dataVersion']))
             self.version = version
             self.asset_version = get_multi_keys(version_data, ['asset_version', 'assetVersion'])
             # logger.info(f"MasterDB [{self.name}] 的版本为 {version}")
+        except asyncio.TimeoutError:
+            logger.error(f"获取 MasterDB [{self.name}] 的版本信息超时")
         except Exception as e:
             logger.print_exc(f"获取 MasterDB [{self.name}] 的版本信息失败")
 
@@ -68,7 +70,7 @@ class RegionMasterDbManager:
         self.sources.sort(key=lambda x: get_version_order(x.version), reverse=True)
         self.latest_source = self.sources[0]
         self.version_update_time = datetime.now()
-        if last_version != self.latest_source.version:
+        if last_version != DEFAULT_VERSION and last_version != self.latest_source.version:
             logger.info(f"获取到最新版本的 MasterDB [{self.region}.{self.latest_source.name}] 版本为 {self.latest_source.version}")
             for hook in self._update_hooks:
                 asyncio.create_task(hook(
