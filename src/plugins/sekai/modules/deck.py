@@ -869,11 +869,11 @@ async def do_deck_recommend(
                 deck_src_alg[deck_hash] += "+" + alg
     def key_func(deck: RecommendDeck):
         if options.target == "score":
-            return (deck.score, deck.expect_skill_score_up)
+            return (deck.score, deck.multi_live_score_up)
         elif options.target == "power":
             return deck.total_power
         elif options.target == "skill":
-            return deck.expect_skill_score_up
+            return deck.multi_live_score_up
         elif options.target == "bonus":
             return (-deck.event_bonus_rate, deck.score)
     limit = options.limit if options.target != "bonus" else options.limit * len(options.target_bonus_list)
@@ -1349,7 +1349,7 @@ async def compose_deck_recommend_image(
                                         teammate_text = f"队友 {int(options.multi_live_teammate_score_up)}"
                                         TextBox(teammate_text, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -8-voffset*2))
                                     with Frame().set_content_align('c'):
-                                        TextBox(f"{deck.expect_skill_score_up:.1f}%", tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
+                                        TextBox(f"{deck.multi_live_score_up:.1f}%", tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
 
                     # 综合力和算法
                     if recommend_type not in ["bonus", "wl_bonus"]:
