@@ -839,7 +839,7 @@ async def _(ctx: SekaiHandlerContext):
     if ctx.user_id not in lst[ctx.region]:
         lst[ctx.region].append(ctx.user_id)
     profile_db.set("hide_suite_list", lst)
-    return await ctx.asend_reply_msg("已隐藏抓包信息")
+    return await ctx.asend_reply_msg(f"已隐藏{get_region_name(ctx.region)}抓包信息")
     
 
 # 展示抓包信息
@@ -856,7 +856,7 @@ async def _(ctx: SekaiHandlerContext):
     if ctx.user_id in lst[ctx.region]:
         lst[ctx.region].remove(ctx.user_id)
     profile_db.set("hide_suite_list", lst)
-    return await ctx.asend_reply_msg("已展示抓包信息")
+    return await ctx.asend_reply_msg(f"已展示{get_region_name(ctx.region)}抓包信息")
 
 
 # 隐藏id信息
@@ -873,7 +873,7 @@ async def _(ctx: SekaiHandlerContext):
     if ctx.user_id not in lst[ctx.region]:
         lst[ctx.region].append(ctx.user_id)
     profile_db.set("hide_id_list", lst)
-    return await ctx.asend_reply_msg("已隐藏ID信息")
+    return await ctx.asend_reply_msg(f"已隐藏{get_region_name(ctx.region)}ID信息")
 
 
 # 展示id信息
@@ -891,7 +891,7 @@ async def _(ctx: SekaiHandlerContext):
     if ctx.user_id in lst[ctx.region]:
         lst[ctx.region].remove(ctx.user_id)
     profile_db.set("hide_id_list", lst)
-    return await ctx.asend_reply_msg("已展示ID信息")
+    return await ctx.asend_reply_msg(f"已展示{get_region_name(ctx.region)}ID信息")
 
 
 # 查询个人名片

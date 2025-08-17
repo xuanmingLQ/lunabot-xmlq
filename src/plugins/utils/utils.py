@@ -22,21 +22,6 @@ import io
 import time
 
 
-# 配置文件
-CONFIG_PATH = 'config.yaml'
-_config: Dict[str, Any] = None
-def get_config(name: str=None, default={}):
-    global _config
-    if _config is None:
-        print(f'加载配置文件 {CONFIG_PATH}')
-        with open(CONFIG_PATH, 'r') as f:
-            _config = yaml.load(f, Loader=yaml.FullLoader)
-        print(f'配置文件已加载')
-    if name is not None:
-        return _config.get(name, default)
-    return _config
-
-
 # ============================ 基础 ============================ #
 
 class HttpError(Exception):
@@ -82,6 +67,46 @@ class Timer:
     
     def __exit__(self, exc_type, exc_val, exc_tb): 
         self.end()
+
+
+
+# ============================ 配置 ============================ #
+
+# 配置文件
+CONFIG_PATH = 'config.yaml'
+_config: Dict[str, Any] = None
+def get_config(name: str=None, default={}):
+    global _config
+    if _config is None:
+        print(f'加载配置文件 {CONFIG_PATH}')
+        with open(CONFIG_PATH, 'r') as f:
+            _config = yaml.load(f, Loader=yaml.FullLoader)
+        print(f'配置文件已加载')
+    if name is not None:
+        return _config.get(name, default)
+    return _config
+
+# CONFIG_DIR = "config/"
+
+# @dataclass
+# class ConfigData:
+#     mtime: int
+#     data: dict = field(default_factory=dict)
+    
+# class Config:
+#     _data: Dict[str, ConfigData] = {}
+
+#     def __init__(self, name: str):
+#         """
+#         初始化配置类
+#         name: 配置名称，格式为 "module" 或 "module.submodule"
+#         """
+#         self.name = name
+#         self.path = pjoin(CONFIG_DIR, name.replace('.', '/') + '.yaml')
+        
+#     def _update(self):
+#         if not osp.exists(self.path):
+#             utils_logger.warning(f"没有找到配置文件 {self.path}")
 
 
 

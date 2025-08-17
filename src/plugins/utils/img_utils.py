@@ -15,8 +15,9 @@ from pathlib import Path
 # transparent pixels with black pixels (among other issues) when the GIF is saved using PIL.Image.save().
 # This code works around the issue and allows us to properly generate transparent GIFs.
 
-QUANTIZE_METHOD = Image.Quantize.MAXCOVERAGE
-DITHER = 0
+_QUANTIZE_METHOD = Image.Quantize.MAXCOVERAGE
+_DITHER = 0
+_OPTIMIZED = True
 
 class TransparentAnimatedGifConverter(object):
     _PALETTE_SLOTSET = set(range(256))
@@ -106,7 +107,7 @@ class TransparentAnimatedGifConverter(object):
         """Return the processed mode `P` `Image`."""
         rgb_img = self._img_rgba.convert(mode='RGB')
         pal_img = rgb_img.quantize(256)
-        self._img_p = rgb_img.quantize(palette=pal_img, method=QUANTIZE_METHOD, dither=DITHER)
+        self._img_p = rgb_img.quantize(palette=pal_img, method=_QUANTIZE_METHOD, dither=_DITHER)
         self._img_p_data = bytearray(self._img_p.tobytes())
         self._palette_replaces = dict(idx_from=list(), idx_to=list())
         self._process_pixels()
@@ -134,11 +135,12 @@ def _create_animated_gif(images: List[Image.Image], durations: Union[int, List[i
     save_kwargs.update(
         format='GIF',
         save_all=True,
-        optimize=False,
+        optimize=_OPTIMIZED,
         append_images=new_images[1:],
         duration=durations,
         disposal=2,  # Other disposals don't work
-        loop=0)
+        loop=0,
+    )
     return output_image, save_kwargs
 
 def _save_transparent_gif(images: List[Image.Image], durations: Union[int, List[int]], save_file, alpha_threshold: int = 0):
@@ -235,7 +237,7 @@ def save_transparent_static_gif(img: Image, save_path: str, alpha_threshold: flo
         img.putdata(trans_data)
         img: Image = img.convert("RGB")
         pal_img = img.quantize(256)
-        img = img.quantize(palette=pal_img, method=QUANTIZE_METHOD, dither=DITHER)
+        img = img.quantize(palette=pal_img, method=_QUANTIZE_METHOD, dither=_DITHER)
         palette = img.getpalette()[:768]
         transparent_color_index, min_dist = None, float("inf")
         for i in range(256):
