@@ -29,13 +29,14 @@ SEARCH_SINGLE_CARD_HELP = """
 """.strip()
 
 SEARCH_MULTI_CARD_HELP = """
-查多张卡使用参数的组合，可用的参数有:
-1.角色昵称 2.颜色 3.星级 4.限定 5.技能类型 6.年份 7.团 8.活动id/箱活索引
-示例: 
-mnr 绿 生日 奶卡 今年
-mmj 粉花 wl限定 去年 判
-event10 绿 四星 限定 分卡 今年
-加上 box 参数可只查看保有的卡（需要抓包）
+查询多张卡牌的筛选参数:
+角色昵称：miku
+团/团oc/团vs/纯vs：mmj mmjoc mmjv 纯v
+稀有度/属性/技能：4 四星 生日 蓝 蓝星 判 分 p分
+限定类型: 非限 限定 期间限定 fes
+年份: 2025 去年
+活动id或者箱活缩写: event123 mnr1
+以上参数可以混合使用，用空格分隔
 """.strip()
 
 
@@ -85,8 +86,27 @@ DETAIL_SKILL_KEYWORDS_IDS = [
 
 # ======================= 处理逻辑 ======================= #
 
+# 解析查单张卡的参数
+async def search_single_card(ctx: SekaiHandlerContext, args: str) -> dict:
+    args = args.strip()
+    for nickname, cid in get_all_nicknames():
+        if nickname in args:
+            seq = args.replace(nickname, "").strip()
+            chara_cards = await ctx.md.cards.find_by("characterId", cid, mode="all")
+            chara_cards.sort(key=lambda x: x['releaseAt'])
+            if seq.removeprefix('-').isdigit(): 
+                seq = int(seq)
+                assert_and_reply(seq < 0, "卡牌序号只能为负数")
+                assert_and_reply(-seq <= len(chara_cards), f"角色{nickname}只有{len(chara_cards)}张卡")
+                card = chara_cards[seq]
+                return card
+    assert_and_reply(args.isdigit(), SEARCH_SINGLE_CARD_HELP)
+    card = await ctx.md.cards.find_by_id(int(args))
+    assert_and_reply(card, f"找不到卡牌{ctx.region.upper()}-{args}")
+    return card
+
 # 解析查多张卡的参数 返回筛选后的cards列表和剩余参数
-async def parse_multi_card_search_args(ctx: SekaiHandlerContext, args: str, cards: List[dict]=None, leak=True) -> Tuple[List[dict], str]:
+async def search_multi_cards(ctx: SekaiHandlerContext, args: str, cards: List[dict]=None, leak=True) -> Tuple[List[dict], str]:
     if cards is None:
         cards = await ctx.md.cards.get()
 
@@ -200,26 +220,6 @@ async def get_cards_of_event(ctx: SekaiHandlerContext, event_id: int) -> List[di
     cards = await ctx.md.cards.collect_by_ids(cids)
     return cards
 
-# 根据索引获取卡牌
-async def get_card_by_index(ctx: SekaiHandlerContext, index: str) -> dict:
-    index = index.strip()
-    cards = await ctx.md.cards.get()
-    for nickname, cid in get_all_nicknames():
-        if nickname in index:
-            seq = index.replace(nickname, "").strip()
-            chara_cards = await ctx.md.cards.find_by("characterId", cid, mode="all")
-            chara_cards.sort(key=lambda x: x['releaseAt'])
-            if seq.removeprefix('-').isdigit(): 
-                seq = int(seq)
-                assert_and_reply(seq < 0, "卡牌序号只能为负数")
-                assert_and_reply(-seq <= len(chara_cards), f"角色{nickname}只有{len(chara_cards)}张卡")
-                card = chara_cards[seq]
-                return card
-    assert_and_reply(index.isdigit(), SEARCH_SINGLE_CARD_HELP)
-    card = await ctx.md.cards.find_by_id(int(index))
-    assert_and_reply(card, f"卡牌{index}不存在")
-    return card
-
 # 合成卡牌列表图片
 async def compose_card_list_image(ctx: SekaiHandlerContext, cards: List[Dict], qid: int):
     if qid:
@@ -229,7 +229,7 @@ async def compose_card_list_image(ctx: SekaiHandlerContext, cards: List[Dict], q
             cards = [c for c in cards if c['id'] in box_card_ids]
 
     assert_and_reply(len(cards) > 0,    f"找不到符合条件的卡牌")
-    assert_and_reply(len(cards) < 90,   f"卡牌数量过多({len(cards)}), 请缩小查询范围")
+    assert_and_reply(len(cards) < 90,   f"卡牌数量过多({len(cards)})，请缩小查询范围，或者使用\"/卡牌一览\"")
 
     if len(cards) == 1:
         return await compose_card_detail_image(ctx, cards[0]['id'])
@@ -928,8 +928,12 @@ async def _(ctx: SekaiHandlerContext):
     cards = await ctx.md.cards.get()
     
     ## 尝试解析：单独查某张卡
-    try: card = await get_card_by_index(ctx, args)
-    except: card = None
+    try: 
+        card = await search_single_card(ctx, args)
+    except Exception as e:
+        if '找不到卡牌' in str(e):
+            raise e
+        card = None
     if card:
         logger.info(f"查询卡牌: id={card['id']}")
         return await ctx.asend_reply_msg(await get_image_cq(
@@ -938,7 +942,7 @@ async def _(ctx: SekaiHandlerContext):
         ))
         
     ## 尝试解析：查多张卡
-    res, args = await parse_multi_card_search_args(ctx, args, cards)
+    res, args = await search_multi_cards(ctx, args, cards)
 
     box = False
     if 'box' in args:
@@ -962,7 +966,7 @@ pjsk_card_img = SekaiCmdHandler([
 pjsk_card_img.check_cdrate(cd).check_wblist(gbl)
 @pjsk_card_img.handle()
 async def _(ctx: SekaiHandlerContext):
-    card = await get_card_by_index(ctx, ctx.get_args().strip())
+    card = await search_single_card(ctx, ctx.get_args().strip())
     msg = ""
     if not only_has_after_training(card):
         msg += await get_image_cq(await get_card_image(ctx, card['id'], False, False))
@@ -995,7 +999,7 @@ async def _(ctx: SekaiHandlerContext):
         refresh = True
         save = False
 
-    card = await get_card_by_index(ctx, args)
+    card = await search_single_card(ctx, args)
     await ctx.block_region(str(card['id']))
     return await ctx.asend_multiple_fold_msg(await get_card_story_summary(ctx, card, refresh, model, save))
 
@@ -1009,7 +1013,7 @@ pjsk_box.check_cdrate(cd).check_wblist(gbl)
 @pjsk_box.handle()
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
-    cards, args = await parse_multi_card_search_args(ctx, args, leak=False)
+    cards, args = await search_multi_cards(ctx, args, leak=False)
     assert_and_reply(cards, "没有找到符合条件的卡牌")
 
     show_id = False
