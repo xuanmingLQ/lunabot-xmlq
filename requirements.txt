@@ -18,3 +18,4 @@ imageio[ffmpeg]
 pilmoji[requests]
 zhon
 orjson
+decord

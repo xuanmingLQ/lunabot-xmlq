@@ -3,10 +3,10 @@ from ..record import before_record_hook, after_record_hook
 from .sql import insert_hash, query_by_hash, query_by_unique_id
 from asyncio import CancelledError, Queue
 
-config = get_config("water")
+config = Config("water")
 logger = get_logger("Water")
 file_db = get_file_db("data/water/db.json", logger)
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'water')
 
 autowater_gwls = {

@@ -7,8 +7,10 @@ from .honor import compose_full_honor_image
 from .resbox import get_res_box_info, get_res_icon
 
 SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
-GAMEAPI_CONFIG_PATH = f"{SEKAI_DATA_DIR}/gameapi_config.yaml"
 profile_db = get_file_db(f"{SEKAI_PROFILE_DIR}/db.json", logger)
+
+
+gameapi_config = Config('sekai.gameapi')
 
 @dataclass
 class GameApiConfig:
@@ -171,11 +173,7 @@ def validate_uid(ctx: SekaiHandlerContext, uid: str) -> bool:
 
 # 获取游戏api相关配置
 def get_gameapi_config(ctx: SekaiHandlerContext) -> GameApiConfig:
-    if not os.path.exists(GAMEAPI_CONFIG_PATH):
-        return {}
-    with open(GAMEAPI_CONFIG_PATH, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-    return GameApiConfig(**(config.get(ctx.region) or {}))
+    return GameApiConfig(**(gameapi_config.get(ctx.region, {})))
 
 # 获取qq用户绑定的游戏id
 def get_player_bind_id(ctx: SekaiHandlerContext, qid: int, check_bind=True) -> str:
@@ -508,7 +506,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -
                             t = TextBox(f"CHANLLENGE LIVE", TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50, 255)))
                             t.set_bg(roundrect_bg(radius=6)).set_padding((10, 7))
                             with Frame():
-                                chara_img = ctx.static_imgs.get(f'chara_rank_icon/{CHARACTER_FIRST_NICKNAME[cid]}.png')
+                                chara_img = ctx.static_imgs.get(f'chara_rank_icon/{get_character_first_nickname(cid)}.png')
                                 ImageBox(chara_img, size=(100, 50), use_alphablend=True)
                                 t = TextBox(str(stage_rank), TextStyle(font=DEFAULT_FONT, size=22, color=(40, 40, 40, 255)), overflow='clip')
                                 t.set_size((50, 50)).set_content_align('c').set_offset((40, 5))
@@ -1034,7 +1032,9 @@ async def _(ctx: SekaiHandlerContext):
         msg += f"{upload_time_text}\n"
 
     mode = get_user_data_mode(ctx, ctx.user_id)
-    msg += f"---\n数据获取模式: {mode}，使用\"/{ctx.region}抓包模式\"来切换模式"
+    msg += f"---\n"
+    msg += f"数据获取模式: {mode}，使用\"/{ctx.region}抓包模式\"来切换模式\n"
+    msg += f"发送\"/抓包\"获取抓包教程"
 
     return await ctx.asend_reply_msg(msg)
 

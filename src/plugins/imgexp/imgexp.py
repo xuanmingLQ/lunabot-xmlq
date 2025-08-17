@@ -2,7 +2,7 @@ from ..utils import *
 from urllib.parse import quote
 from PicImageSearch import SauceNAO, Network
 
-config = get_config('imgexp')
+config = Config('imgexp')
 logger = get_logger('ImgExp')
 
 
@@ -43,7 +43,7 @@ async def search_saucenao(
             return ImageSearchResult(source='SauceNAO', results=[])
         logger.info("开始从SauceNAO搜索图片...")
         async with Network(timeout=20, proxies=None) as client:
-            saucenao = SauceNAO(client=client, api_key=config['saucenao_apikey'], numres=limit)
+            saucenao = SauceNAO(client=client, api_key=config.get('saucenao_apikey'), numres=limit)
             results = await saucenao.search(url=img_url)
             results = [
                 item for item in results.raw 
@@ -74,7 +74,7 @@ async def search_googlelens(
             return ImageSearchResult(source='GoogleLens', results=[])
         logger.info("开始从GoogleLens搜索图片...")
 
-        serp_apikey = config['serp_apikey']
+        serp_apikey = config.get('serp_apikey')
         img_url = quote(img_url, safe='')
         serp_url = f'https://serpapi.com/search.json?engine=google_lens&url={img_url}&api_key={serp_apikey}'
         

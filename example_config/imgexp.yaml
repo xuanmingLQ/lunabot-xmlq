@@ -1,0 +1,4 @@
+saucenao_apikey: "xxx"
+serp_apikey: "xxx"
+
+download_video_size_limit: 20.0    # 下载视频大小限制(MB)

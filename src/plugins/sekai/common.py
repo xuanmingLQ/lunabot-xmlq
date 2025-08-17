@@ -4,20 +4,30 @@ from ..utils import *
 # ======================= 基础路径 ======================= #
 
 SEKAI_DATA_DIR = "data/sekai"
+SEKAI_CONFIG_DIR = "config/sekai"
 SEKAI_ASSET_DIR = f"{SEKAI_DATA_DIR}/assets"
 
 
 # ======================= 基础设施 ======================= #
 
-config = get_config('sekai')
+config = Config('sekai.sekai')
 logger = get_logger("Sekai")
 file_db = get_file_db(f"{SEKAI_DATA_DIR}/db.json", logger)
 
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'sekai')
 
 
 # ======================= 通用常量 ======================= #
+
+@dataclass
+class CharacterNicknameData:
+    id: int
+    nicknames: List[str]
+    first_nickname: str
+
+_nickname_data: List[CharacterNicknameData] = []
+_nickname_data_mtime = None
 
 ALL_SERVER_REGIONS = ['jp', 'en', 'tw', 'kr', 'cn']
 ALL_SERVER_REGION_NAMES = ['日服', '国际服', '台服', '韩服', '国服']
@@ -113,11 +123,6 @@ CARD_SKILL_NAMES = [
 
 UNKNOWN_IMG = Image.open(f"{SEKAI_ASSET_DIR}/static_images/unknown.png")
 
-CHARACTER_NICKNAME_DATA: List[Dict[str, Any]] = load_json(f"{SEKAI_DATA_DIR}/character_nicknames.json")
-CHARACTER_FIRST_NICKNAME: Dict[int, str] = {}
-for item in CHARACTER_NICKNAME_DATA:
-    CHARACTER_FIRST_NICKNAME[item['id']] = item['nicknames'][0]
-    item['nicknames'].sort(key=len, reverse=True)
 
 MUSIC_TAG_UNIT_MAP = {
     'light_music_club': 'light_sound',
@@ -131,6 +136,30 @@ MUSIC_TAG_UNIT_MAP = {
 
 # ======================= 通用功能 ======================= #
 
+# 获取角色昵称数据
+def get_character_nickname_data() -> List[CharacterNicknameData]:
+    global _nickname_data, _nickname_data_mtime
+    cfg = Config('sekai.character_nicknames')
+    mtime = cfg.mtime()
+    if mtime != _nickname_data_mtime:
+        _nickname_data = [
+            CharacterNicknameData(
+                id = item['id'],
+                nicknames=sorted(item['nicknames'], key=len, reverse=True),
+                first_nickname=item['nicknames'][0],
+            ) for item in cfg.get('nicknames')
+        ]
+        _nickname_data_mtime = mtime
+    return _nickname_data
+
+# 获取角色首个昵称，如果不存在则返回None
+def get_character_first_nickname(cid: int) -> Optional[str]:
+    data = get_character_nickname_data()
+    for item in data:
+        if item.id == cid:
+            return item.first_nickname
+    return None
+
 # 通过区服名获取区服ID
 def get_region_name(region: str):
     return ALL_SERVER_REGION_NAMES[ALL_SERVER_REGIONS.index(region)]
@@ -140,10 +169,10 @@ def get_nicknames_by_chara_id(cid: int) -> List[str]:
     """
     通过角色ID获取角色昵称，不存在则返回空列表
     """
-    item = find_by(CHARACTER_NICKNAME_DATA, 'id', cid)
-    if not item:
-        return []
-    return item['nicknames']
+    for item in get_character_nickname_data():
+        if item.id == cid:
+            return item.nicknames
+    return []
 
 # 通过角色昵称获取角色ID，不存在则返回None
 def get_cid_by_nickname(nickname: str) -> Optional[int]:
@@ -152,42 +181,39 @@ def get_cid_by_nickname(nickname: str) -> Optional[int]:
     """
     if nickname is None:
         return None
-    for item in CHARACTER_NICKNAME_DATA:
-        if nickname in item['nicknames']:
-            return item['id']
+    for item in get_character_nickname_data():
+        if nickname in item.nicknames:
+            return item.id
     return None
 
 # 从参数中提取角色昵称，返回角色ID和剩余参数
 def extract_nickname_from_args(args: str, default=None) -> Tuple[Optional[str], List[str]]:
-    for item in CHARACTER_NICKNAME_DATA:
-        for nickname in item['nicknames']:
+    for item in get_character_nickname_data():
+        for nickname in item.nicknames:
             if nickname in args:
                 args = args.replace(nickname, "").strip()
                 return nickname, args
     return default, args
 
 # 获取所有(昵称, 角色ID)对
-def get_all_nicknames() -> List[Tuple[str, int]]:
+def get_all_nickname_cid_pairs() -> List[Tuple[str, int]]:
     """
     获取所有(昵称, 角色ID)对
     """
     all_nicknames = []
-    for item in CHARACTER_NICKNAME_DATA:
-        for nickname in item['nicknames']:
-            all_nicknames.append((nickname, item['id']))
+    for item in get_character_nickname_data():
+        for nickname in item.nicknames:
+            all_nicknames.append((nickname, item.id))
     all_nicknames.sort(key=lambda x: len(x[0]), reverse=True)
     return all_nicknames
 
 # 从角色id获取角色团名
 def get_unit_by_chara_id(cid: int) -> str:
-    return find_by(CHARACTER_NICKNAME_DATA, "id", cid)['unit']
+    return CID_UNIT_MAP.get(cid, None)
 
 # 从角色昵称获取角色团名
 def get_unit_by_nickname(nickname: str) -> str:
-    for item in CHARACTER_NICKNAME_DATA:
-        if nickname in item['nicknames']:
-            return item['unit']
-    return None
+    return get_unit_by_chara_id(get_cid_by_nickname(nickname))
 
 
 # 从文本提取年份 返回(年份, 文本)

@@ -30,7 +30,7 @@ class LlmModel:
         return self.model_id or self.name
 
     def get_price_unit(self) -> str:
-        return self.provider.price_unit
+        return self.provider.get_price_unit()
     
     def get_full_name(self) -> str:
         return f"{self.provider.name}:{self.name}"
@@ -51,29 +51,39 @@ class ApiProvider:
         self, 
         name: str, 
         code: str,
-        qps_limit: int, 
-        quota_sync_interval_sec: int, 
-        price_unit: str
     ):
         self.name = name
         self.code = code
 
-        self.model_config_path = f"data/llm/models/{self.name}.yaml"
+        self.config = Config(f'llm.providers.{name}')
         self.models: List[LlmModel] = []
         self.models_mtime = None
 
-        self.qps_limit = qps_limit
         self.cur_query_ts = 0
         self.cur_sec_query_count = 0
 
-        self.local_quota_key = f"api_provider_{self.name}_local_quota"
-        self.quota_sync_interval_sec = quota_sync_interval_sec
-        self.last_quota_sync_time = datetime.now() - timedelta(seconds=self.quota_sync_interval_sec)
+        self.local_quota_key = f"api_provider_{name}_local_quota"
+        self.last_quota_sync_time = datetime.now()
 
-        self.price_unit = price_unit
+
+    def get_qps_limit(self) -> int:
+        return self.config.get('qps_limit')
+    
+    def get_quota_sync_interval_sec(self) -> int:
+        return parse_cfg_num(self.config.get('quota_sync_interval_sec'))
+    
+    def get_price_unit(self) -> str:
+        return self.config.get('price_unit')
+
+    def get_api_key(self) -> str:
+        return self.config.get('api_key')
+    
+    def get_base_url(self) -> str:
+        return self.config.get('base_url')
+
 
     def update_models(self):
-        mtime = int(os.path.getmtime(self.model_config_path))
+        mtime = self.config.mtime()
         if self.models_mtime != mtime:
             def parse_price(d, k):
                 if not isinstance(d.get(k), str):
@@ -84,10 +94,7 @@ class ApiProvider:
                     nums = [d[k], '1']
                 nums = [float(num) for num in nums]
                 d[k] = nums[0] / nums[1]
-
-            with open(self.model_config_path, 'r', encoding='utf-8') as f:
-                model_configs = yaml.safe_load(f)
-            for model_config in model_configs:
+            for model_config in self.config.get('models', []):
                 parse_price(model_config, 'input_pricing')
                 parse_price(model_config, 'output_pricing')
                 self.models.append(LlmModel(**model_config))
@@ -104,9 +111,10 @@ class ApiProvider:
         if now_ts > self.cur_query_ts:
             self.cur_query_ts = now_ts
             self.cur_sec_query_count = 0
-        if self.cur_sec_query_count >= self.qps_limit:
-            logger.warning(f"API供应方 {self.name} QPS限制 {self.qps_limit} 已超出")
-            raise Exception(f"API供应方 {self.name} QPS限制 {self.qps_limit} 已超出，请稍后再试")
+        qps_limit = self.get_qps_limit()
+        if self.cur_sec_query_count >= qps_limit:
+            logger.warning(f"API供应方 {self.name} QPS限制 {qps_limit} 已超出")
+            raise Exception(f"API供应方 {self.name} QPS限制 {qps_limit} 已超出，请稍后再试")
         self.cur_sec_query_count += 1
 
     async def aupdate_quota(self, delta: float) -> float:
@@ -120,19 +128,20 @@ class ApiProvider:
         local_quota += delta
         file_db.set(self.local_quota_key, local_quota)
         new_quota = await self.aget_current_quota()
-        logger.info(f"API供应方 {self.name} 更新剩余额度成功: {last_quota}{self.price_unit} -> {new_quota}{self.price_unit}")
+        price_unit = self.get_price_unit()
+        logger.info(f"API供应方 {self.name} 更新剩余额度成功: {last_quota}{price_unit} -> {new_quota}{price_unit}")
         return new_quota
 
     async def aget_current_quota(self) -> float:
         """
         异步获取当前剩余额度
         """
-        if (datetime.now() - self.last_quota_sync_time).total_seconds() > self.quota_sync_interval_sec:
+        if (datetime.now() - self.last_quota_sync_time).total_seconds() > self.get_quota_sync_interval_sec():
             try:
                 new_quota = await self.sync_quota()
                 if new_quota is not None:
                     file_db.set(self.local_quota_key, new_quota)
-                    logger.info(f"API供应方 {self.name} 同步剩余额度成功: {new_quota}{self.price_unit}")
+                    logger.info(f"API供应方 {self.name} 同步剩余额度成功: {new_quota}{self.get_price_unit()}")
             except:
                 logger.print_exc(f"API供应方 {self.name} 同步剩余额度失败")
             self.last_quota_sync_time = datetime.now()

@@ -61,7 +61,7 @@ async def make_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, text: str, for
     cid = stamp.get('characterId1')
     cid2 = stamp.get('characterId2')
     assert_and_reply(cid and not cid2, f"该表情不支持制作")
-    nickname = CHARACTER_FIRST_NICKNAME[cid]
+    nickname = get_character_first_nickname(cid)
     text_zoom_ratio = 1.0
     line_count = 0
     for line in text.splitlines():
@@ -190,10 +190,10 @@ async def _(ctx: SekaiHandlerContext):
     # 如果存在角色昵称，只返回指定角色昵称的随机表情
     cid = None
     if args:
-        for item in CHARACTER_NICKNAME_DATA:
-            for nickname in item['nicknames']:
+        for item in get_character_nickname_data():
+            for nickname in item.nicknames:
                 if args.startswith(nickname):
-                    cid = item['id']
+                    cid = item.id
                     args = args[len(nickname):].strip()
                     break
 

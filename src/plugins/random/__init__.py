@@ -1,9 +1,9 @@
 from ..utils import *
 
-config = get_config('random')
+config = Config('random')
 logger = get_logger("Random")
 file_db = get_file_db("data/random/db.json", logger)
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'random')
 
 

@@ -1,10 +1,10 @@
 from .run import run
 from ..utils import *
 
-config = get_config("code")
+config = Config("code")
 logger = get_logger("Code")
 file_db = get_file_db("data/code/db.json", logger)
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, "code")
 
 runcode = CmdHandler(['/code', '/run'], logger)

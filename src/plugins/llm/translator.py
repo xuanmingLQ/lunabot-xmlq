@@ -5,7 +5,7 @@ from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 
-config = get_config('llm')
+config = Config('llm.translator.translator')
 logger = get_logger("Llm")
 file_db = get_file_db("data/llm/db.json", logger)
 
@@ -41,12 +41,11 @@ class Translator:
         self.readers = {}
         self.model_loaded = False
         self.font_path = 'data/utils/fonts/SourceHanSansCN-Regular.otf'
-        self.merge_prompt_path = "data/llm/translator/prompt_merge.txt"
-        self.trans_prompt_path = "data/llm/translator/prompt_trans.txt"
-        self.correct_prompt_path = "data/llm/translator/prompt_correct.txt"
+        self.merge_prompt_path = "config/llm/translator/prompt_merge.txt"
+        self.trans_prompt_path = "config/llm/translator/prompt_trans.txt"
+        self.correct_prompt_path = "config/llm/translator/prompt_correct.txt"
         self.task_id_top = 0
         self.langs = ['ja', 'ko']
-        self.max_resolution = 1024 * 768
         self.merge_method = 'alg'   # alg or llm
         self.llm_retry = 1
 
@@ -134,8 +133,9 @@ class Translator:
 
             img = img.convert('RGB')
             w, h = img.size
-            if w * h > self.max_resolution:
-                max_size = self.max_resolution // min(w, h)
+            max_res = parse_cfg_num(config.get('max_resolution'))
+            if w * h > max_res:
+                max_size = max_res // min(w, h)
                 img = resize_keep_ratio(img, max_size)
                 logger.info(f'翻译任务{tid}缩放图片从({w},{h})到{img.size}')
 

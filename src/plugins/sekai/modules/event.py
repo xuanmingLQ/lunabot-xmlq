@@ -227,9 +227,8 @@ async def get_event_banner_img(ctx: SekaiHandlerContext, event: dict) -> Image.I
 # 从文本中提取箱活，返回 (活动，剩余文本）
 async def extract_ban_event(ctx: SekaiHandlerContext, text: str) -> Tuple[Dict, str]:
     all_ban_event_texts = []
-    for item in CHARACTER_NICKNAME_DATA:
-        nicknames = item['nicknames']
-        for nickname in nicknames:
+    for item in get_character_nickname_data():
+        for nickname in item.nicknames:
             for i in range(1, 10):
                 all_ban_event_texts.append(f"{nickname}{i}")
     for ban_event_text in all_ban_event_texts:
@@ -291,7 +290,7 @@ async def get_event_banner_chara_id(ctx: SekaiHandlerContext, event: dict) -> in
 async def get_chara_ban_events(ctx: SekaiHandlerContext, cid: int) -> List[dict]:
     ban_events = await ctx.md.events.collect_by_ids(await get_ban_events_id_set(ctx))
     ban_events = [e for e in ban_events if await get_event_banner_chara_id(ctx, e) == cid]
-    assert_and_reply(ban_events, f"角色{CHARACTER_FIRST_NICKNAME[cid]}没有箱活")  
+    assert_and_reply(ban_events, f"角色{get_character_first_nickname(cid)}没有箱活")  
     ban_events.sort(key=lambda x: x['startAt'])
     for i, e in enumerate(ban_events, 1):
         e['ban_index'] = i
@@ -371,7 +370,7 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
 # 根据"昵称箱数"（比如saki1）获取活动，不存在返回None
 async def get_event_by_ban_name(ctx: SekaiHandlerContext, ban_name: str) -> Optional[dict]:
     idx = None
-    for nickname, cid in get_all_nicknames():
+    for nickname, cid in get_all_nickname_cid_pairs():
         if nickname in ban_name:
             try:
                 idx = int(ban_name.replace(nickname, ""))
@@ -506,10 +505,10 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
             ep_raw_story += "\n"
             raw_stories.append(ep_raw_story)
 
-        prompt_head = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt_head.txt").read_text()
-        prompt_start_template = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt_start.txt").read_text()
-        prompt_ep_template = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt_ep.txt").read_text()
-        prompt_end_template = Path(f"{SEKAI_DATA_DIR}/story_summary/event_story_summary_prompt_end.txt").read_text()
+        prompt_head = Path(f"{SEKAI_CONFIG_DIR}/story_summary/event_story_summary_prompt_head.txt").read_text()
+        prompt_start_template = Path(f"{SEKAI_CONFIG_DIR}/story_summary/event_story_summary_prompt_start.txt").read_text()
+        prompt_ep_template = Path(f"{SEKAI_CONFIG_DIR}/story_summary/event_story_summary_prompt_ep.txt").read_text()
+        prompt_end_template = Path(f"{SEKAI_CONFIG_DIR}/story_summary/event_story_summary_prompt_end.txt").read_text()
         
         @retry(stop=stop_after_attempt(2), wait=wait_fixed(1), reraise=True)
         async def do_summary():

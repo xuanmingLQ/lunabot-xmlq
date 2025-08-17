@@ -1,15 +1,15 @@
 from ..utils import *
 import pandas as pd
 
-config = get_config('bird')
+config = Config('bird')
 logger = get_logger("Bird")
 file_db = get_file_db("data/bird/db.json", logger)
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'bird')
 
-QUERY_TOPK = config['query_topk']
-MAX_EDIT_DISTANCE = config['max_edit_distance']
-FOLK_NAME_MAX = config['folk_name_max']
+QUERY_TOPK_CFG = config.item('query_topk')
+MAX_EDIT_DISTANCE_CFG = config.item('max_edit_distance')
+FOLK_NAME_MAX_CFG = config.item('folk_name_max')
 
 
 # 初始化鸟类列表
@@ -65,13 +65,14 @@ async def handle_bird(ctx: HandlerContext):
         for name in bird_data.keys():
             edit_distance[name] = levenshtein_distance(bird_name, name)
         edit_distance = sorted(edit_distance.items(), key=lambda x:x[1])
-        edit_distance = [x for x in edit_distance if x[1] <= MAX_EDIT_DISTANCE]
-        blur_names += [x[0] for x in edit_distance[:QUERY_TOPK]]
-        blur_names = blur_names[:QUERY_TOPK]
+        edit_distance = [x for x in edit_distance if x[1] <= MAX_EDIT_DISTANCE_CFG.get()]
+        topk = QUERY_TOPK_CFG.get()
+        blur_names += [x[0] for x in edit_distance[:topk]]
+        blur_names = blur_names[:topk]
         
         # 查找俗名里面有的
         folk_names = [key for key, value in bird_data.items() if bird_name in value['俗名']]
-        folk_names = folk_names[:FOLK_NAME_MAX]
+        folk_names = folk_names[:FOLK_NAME_MAX_CFG.get()]
 
         logger.info(f"鸟类查询：{bird_name}，模糊匹配: {blur_names} 俗名匹配: {folk_names}")
         return blur_names, folk_names

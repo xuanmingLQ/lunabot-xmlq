@@ -255,11 +255,10 @@ async def get_mysekai_res_icon(ctx: SekaiHandlerContext, key: str) -> Image.Imag
 # 获取mysekai天气颜色数据
 def get_mysekai_phenomena_color_info(phenomena_id: int) -> dict:
     try:
-        with open(f"{SEKAI_DATA_DIR}/mysekai_phenomena_colors.yaml", "r") as f:
-            phenomena_colors = yaml.safe_load(f)
-        ground = color_code_to_rgb(phenomena_colors[phenomena_id]['ground'])
-        sky1 = color_code_to_rgb(phenomena_colors[phenomena_id]['sky1'])
-        sky2 = color_code_to_rgb(phenomena_colors[phenomena_id]['sky2'])
+        phenomena_colors = Config('sekai.mysekai_phenomena_colors').get(phenomena_id)
+        ground = color_code_to_rgb(phenomena_colors['ground'])
+        sky1 = color_code_to_rgb(phenomena_colors['sky1'])
+        sky2 = color_code_to_rgb(phenomena_colors['sky2'])
 
         ground_bright_factor = 0.5
         ground = lerp_color(ground, WHITE, ground_bright_factor)
@@ -279,7 +278,7 @@ def get_mysekai_phenomena_color_info(phenomena_id: int) -> dict:
 # 合成mysekai资源位置地图图片
 async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_map: dict, show_harvested: bool, phenomena_color_info: dict) -> Image.Image:
     site_id = harvest_map['mysekaiSiteId']
-    site_image_info = load_json(f"{SEKAI_DATA_DIR}/mysekai_site_map_image_info.json")[str(site_id)]
+    site_image_info = Config('sekai.mysekai_site_map_image_info').get(site_id)
     site_image = ctx.static_imgs.get(site_image_info['image'])
     scale = MYSEKAI_HARVEST_MAP_IMAGE_SCALE
     draw_w, draw_h = int(site_image.width * scale), int(site_image.height * scale)
@@ -1822,7 +1821,9 @@ async def _(ctx: SekaiHandlerContext):
         msg += f"{upload_time_text}\n"
 
     mode = get_user_data_mode(ctx, ctx.user_id)
-    msg += f"---\n数据获取模式: {mode}，使用\"/{ctx.region}抓包模式 模式名\"来切换模式"
+    msg += f"---\n"
+    msg += f"数据获取模式: {mode}，使用\"/{ctx.region}抓包模式\"来切换模式\n"
+    msg += f"发送\"/抓包\"获取抓包教程"
 
     return await ctx.asend_reply_msg(msg)
 

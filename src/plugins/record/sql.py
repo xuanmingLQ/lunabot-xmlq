@@ -1,7 +1,7 @@
 from ..utils import *
 import aiosqlite
 
-config = get_config('record')
+config = Config('record')
 logger = get_logger("Record")
 
 

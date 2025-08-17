@@ -2,7 +2,7 @@ from ..utils import *
 from .common import *
 import threading
 
-REGION_ASSET_CONFIG_PATH = f"{SEKAI_DATA_DIR}/asset_config.yaml"
+asset_config = Config('sekai.asset')
 
 # ================================ MasterData资源 ================================ #
 
@@ -33,7 +33,8 @@ class RegionMasterDbSource:
     async def update_version(self):
         version = DEFAULT_VERSION
         try:
-            version_data = await asyncio.wait_for(download_json(self.version_url), 3)
+            timeout = asset_config.get('default_masterdata_update_check_timeout')
+            version_data = await asyncio.wait_for(download_json(self.version_url), timeout)
             version = str(get_multi_keys(version_data, ['cdnVersion', 'data_version', 'dataVersion']))
             self.version = version
             self.asset_version = get_multi_keys(version_data, ['asset_version', 'assetVersion'])
@@ -109,14 +110,13 @@ class RegionMasterDbManager:
     def get(cls, region: str) -> "RegionMasterDbManager":
         if region not in cls._all_mgrs:
             # 从本地配置中获取
-            with open(REGION_ASSET_CONFIG_PATH, "r", encoding="utf-8") as f:
-                config = yaml.safe_load(f)
+            config = asset_config.get_all()
             assert region in config and 'masterdata' in config[region], f"未找到 {region} 的 MasterData 配置"
             region_config = config[region]['masterdata']
             cls._all_mgrs[region] = RegionMasterDbManager(
                 region=region, 
                 sources=[RegionMasterDbSource(**source) for source in region_config["sources"]],
-                version_update_interval=region_config.get("version_update_interval", timedelta(minutes=10))
+                version_update_interval=timedelta(minutes=region_config.get("version_update_interval", 10))
             )
         return cls._all_mgrs[region]
             
@@ -195,10 +195,17 @@ class MasterDataManager:
 
         # 下载数据
         download_fn = self.download_fn.get('all', self.download_fn.get(region))
-        if not download_fn:
-            self.data[region] = await download_json(url)
-        else:
-            self.data[region] = await download_fn(source.base_url)
+        timeout = asset_config.get('default_masterdata_download_timeout')
+        async def _download():
+            if not download_fn:
+                self.data[region] = await download_json(url)
+            else:
+                self.data[region] = await download_fn(source.base_url)
+        try:
+            await asyncio.wait_for(_download(), timeout)
+        except asyncio.TimeoutError:
+            logger.warning(f"下载 MasterData [{region}.{self.name}] 超时")
+            return
         self.version[region] = source.version
         self._build_indices(region)
 
@@ -619,7 +626,7 @@ def ng_words_map_fn(ng_words):
 # ================================ 解包Asset资源 ================================ #
 
 DEFAULT_RIP_ASSET_DIR = f"{SEKAI_ASSET_DIR}/rip"
-DEFAULT_GET_RIP_ASSET_TIMEOUT = 5
+DEFAULT_GET_RIP_ASSET_TIMEOUT_CFG = asset_config.item('default_rip_asset_download_timeout')
 
 ONDEMAND_PREFIXES = ['event', 'gacha', 'music/long', 'mysekai', 'virtual_live']
 STARTAPP_PREFIXES = ['bonds_honor', 'honor', 'thumbnail', 'character', 'music', 'rank_live', 'stamp', 'home/banner']
@@ -740,8 +747,7 @@ class RegionRipAssetManger:
     def get(cls, region: str) -> "RegionRipAssetManger":
         if region not in cls._all_mgrs:
             # 从本地配置中获取
-            with open(REGION_ASSET_CONFIG_PATH, "r", encoding="utf-8") as f:
-                config = yaml.safe_load(f)
+            config = asset_config.get_all()
             assert region in config and 'rip' in config[region], f"未找到 {region} 的 RipAsset 配置"
             region_config = config[region]['rip']
             cls._all_mgrs[region] = RegionRipAssetManger(
@@ -769,7 +775,7 @@ class RegionRipAssetManger:
         allow_error=True, 
         default=None, 
         cache_expire_secs=None, 
-        timeout=DEFAULT_GET_RIP_ASSET_TIMEOUT,
+        timeout: Union[int, ConfigItem]=DEFAULT_GET_RIP_ASSET_TIMEOUT_CFG,
     ) -> bytes:
         """
         获取任意类型解包资源，返回二进制数据，参数：
@@ -803,7 +809,7 @@ class RegionRipAssetManger:
                 if not source.base_url.endswith("/"):
                     source.base_url += "/"
                 url = source.url_map_method(source.base_url + path)
-                data = await self._download_data(url, timeout)
+                data = await self._download_data(url, get_cfg_or_value(timeout))
                 if use_cache:
                     create_parent_folder(cache_path)
                     with open(cache_path, "wb") as f:
@@ -831,7 +837,7 @@ class RegionRipAssetManger:
         allow_error=True, 
         default=None, 
         cache_expire_secs=None, 
-        timeout=DEFAULT_GET_RIP_ASSET_TIMEOUT,
+        timeout: Union[int, ConfigItem]=DEFAULT_GET_RIP_ASSET_TIMEOUT_CFG,
     ) -> str:
         """
         获取任意类型解包资源在本地缓存的路径参数
@@ -862,7 +868,7 @@ class RegionRipAssetManger:
                 if not source.base_url.endswith("/"):
                     source.base_url += "/"
                 url = source.url_map_method(source.base_url + path)
-                data = await self._download_data(url, timeout)
+                data = await self._download_data(url, get_cfg_or_value(timeout))
                 create_parent_folder(cache_path)
                 with open(cache_path, "wb") as f:
                     f.write(data)
@@ -890,7 +896,7 @@ class RegionRipAssetManger:
         allow_error=True, 
         default=UNKNOWN_IMG, 
         cache_expire_secs=None, 
-        timeout=DEFAULT_GET_RIP_ASSET_TIMEOUT,
+        timeout: Union[int, ConfigItem]=DEFAULT_GET_RIP_ASSET_TIMEOUT_CFG,
         use_img_cache=False,
         img_cache_max_res=128,
     ) -> Image.Image:
@@ -908,7 +914,7 @@ class RegionRipAssetManger:
         # 尝试从图片缓存加载
         if use_img_cache and path in self.cached_images:
             return self.cached_images[path].copy()
-        data = await self.get_asset(path, use_cache, allow_error, default, cache_expire_secs, timeout)
+        data = await self.get_asset(path, use_cache, allow_error, default, cache_expire_secs, get_cfg_or_value(timeout))
         try: 
             img = open_image(io.BytesIO(data))
             if use_img_cache:
@@ -929,7 +935,7 @@ class RegionRipAssetManger:
         allow_error=True, 
         default=None, 
         cache_expire_secs=None, 
-        timeout=DEFAULT_GET_RIP_ASSET_TIMEOUT,
+        timeout: Union[int, ConfigItem]=DEFAULT_GET_RIP_ASSET_TIMEOUT_CFG,
     ) -> Any:
         """
         获取json类型解包资源，参数：
@@ -940,7 +946,7 @@ class RegionRipAssetManger:
         - `cache_expire_secs`: 缓存过期时间
         - `timeout`: 超时时间
         """
-        data = await self.get_asset(path, use_cache, allow_error, default, cache_expire_secs, timeout)
+        data = await self.get_asset(path, use_cache, allow_error, default, cache_expire_secs, get_cfg_or_value(timeout))
         try: return loads_json(data)
         except: pass
         if not allow_error:

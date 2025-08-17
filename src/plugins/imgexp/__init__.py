@@ -3,13 +3,11 @@ from .imgexp import search_image
 import yt_dlp
 from tenacity import retry, wait_fixed, stop_after_attempt
 
-config = get_config('imgexp')
+config = Config('imgexp')
 logger = get_logger('ImgExp')
 file_db = get_file_db('data/imgexp/imgexp.json', logger)
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'imgexp')
-
-DOWNLOAD_MAXSIZE = 1024 * 1024 * 10
 
 search = CmdHandler(['/search', '/搜图'], logger)
 search.check_cdrate(cd).check_wblist(gbl)
@@ -106,12 +104,14 @@ async def _(ctx: HandlerContext):
 
         with TempFilePath("mp4") as tmp_save_path:
             await ctx.asend_reply_msg("正在下载视频...")
-            await adownload_video(args.url, tmp_save_path, DOWNLOAD_MAXSIZE, args.low_quality)
+
+            download_size_limit = int(config.get('download_video_size_limit') * 1024 * 1024)
+            await adownload_video(args.url, tmp_save_path, download_size_limit, args.low_quality)
 
             if not os.path.exists(tmp_save_path):
-                return await ctx.asend_reply_msg("视频下载失败，可能是超过大小限制(10MB)或其他原因")
+                return await ctx.asend_reply_msg(f"视频下载失败，可能是超过大小限制({download_size_limit/1024/1024:.1f}MB)或其他原因")
 
-            if os.path.getsize(tmp_save_path) > DOWNLOAD_MAXSIZE:
+            if os.path.getsize(tmp_save_path) > download_size_limit:
                 return await ctx.asend_reply_msg(f"视频大小超过限制")
 
             if args.gif:

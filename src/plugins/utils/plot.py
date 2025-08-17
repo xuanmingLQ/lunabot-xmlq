@@ -1,23 +1,13 @@
-from .painter import *
-from enum import Enum
 from typing import Union, Tuple, List, Optional
-from PIL import Image, ImageFont, ImageDraw, ImageFilter, ImageEnhance, ImageChops
-from PIL.ImageFont import ImageFont as Font
+from PIL import Image, ImageFilter, ImageEnhance
 import threading
 import contextvars
 from dataclasses import dataclass
-import os
-import numpy as np
 from copy import deepcopy
-import math
-from pilmoji import Pilmoji
-from pilmoji import getsize as getsize_emoji
-from pilmoji.source import GoogleEmojiSource
-import emoji
-from datetime import datetime, timedelta
 
+from .painter import *
+from .config import *
 
-DEBUG_MODE = False
 
 DEFAULT_PADDING = 0
 DEFAULT_MARGIN = 0
@@ -282,7 +272,7 @@ class Widget:
         return (cx, cy)
         
     def _draw_self(self, p: Painter):
-        if DEBUG_MODE:
+        if global_config.get('plot.debug', False):
             import random
             color = (random.randint(0, 200), random.randint(0, 200), random.randint(0, 200), 255)
             p.rect((0, 0), (p.w, p.h), TRANSPARENT, stroke=color, stroke_width=2)
@@ -940,8 +930,6 @@ class Spacer(Widget):
 
 
 class Canvas(Frame):
-    log_draw_time: bool = False
-
     def __init__(self, w=None, h=None, bg: WidgetBg=None):
         super().__init__()
         self.set_size((w, h))
@@ -951,13 +939,14 @@ class Canvas(Frame):
     async def get_img(self, scale: float = None, cache_key: str=None):
         t = datetime.now()
         size = self._get_self_size()
-        assert size[0] * size[1] < 4096 * 4096, f'Canvas size is too large ({size[0]} x {size[1]})'
+        size_limit = global_config.get('plot.canvas_size_limit')
+        assert size[0] * size[1] <= size_limit[0] * size_limit[1], f'Canvas size is too large ({size[0]}x{size[1]})'
         p = Painter(size=size)
         self.draw(p)
         img = await p.get(cache_key)
         if scale:
             img = img.resize((int(size[0] * scale), int(size[1] * scale)), Image.Resampling.BILINEAR)
-        if Canvas.log_draw_time:
+        if global_config.get('plot.log_draw_time', False):
             print(f"Canvas drawn in {(datetime.now() - t).total_seconds():.3f}s, size={size}")
         return img
     

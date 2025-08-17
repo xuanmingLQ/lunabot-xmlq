@@ -143,8 +143,8 @@ async def extract_target_event(
     if event_match:
         event_id = int(event_match.group(1))
         args = args.replace(event_match.group(0), "").strip()
-    for item in CHARACTER_NICKNAME_DATA:
-        for nickname in item['nicknames']:
+    for item in get_character_nickname_data():
+        for nickname in item.nicknames:
             if nickname in args:
                 chapter_nickname = nickname
                 args = args.replace(nickname, "").strip()
@@ -513,8 +513,8 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
     
     # 指定角色
     options.challenge_live_character_id = None
-    for item in CHARACTER_NICKNAME_DATA:
-        for nickname in item['nicknames']:
+    for item in get_character_nickname_data():
+        for nickname in item.nicknames:
             if nickname in args:
                 options.challenge_live_character_id = item['id']
                 args = args.replace(nickname, "").strip()
@@ -889,6 +889,12 @@ async def do_deck_recommend(
 
 # 构造顶配profile
 async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
+    try: 
+        await ctx.md.mysekai_gates.get()
+        has_mysekai = True
+    except:
+        has_mysekai = False
+
     p = {
         'userGamedata': {},
         'userDecks': [],
@@ -902,6 +908,9 @@ async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
     }
 
     for card in await ctx.md.cards.get():
+        release_time = datetime.fromtimestamp(card['releaseAt'] / 1000)
+        if release_time > datetime.now():
+            continue
         episodes = await ctx.md.card_episodes.find_by("cardId", card['id'], mode='all')
         p["userCards"].append({
             "cardId": card['id'],
@@ -917,10 +926,11 @@ async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
                 } for ep in episodes
             ]
         })
-        p['userMysekaiCanvases'].append({
-            'cardId': card['id'],
-            "quantity": 1,
-        })
+        if has_mysekai:
+            p['userMysekaiCanvases'].append({
+                'cardId': card['id'],
+                "quantity": 1,
+            })
 
     for honor in await ctx.md.honors.get():
         if honor.get('levels'):
@@ -935,26 +945,27 @@ async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
             "characterRank": 120,
         })
 
-    for gid in range(1, 6):
-        p['userMysekaiGates'].append({
-            "mysekaiGateId": gid,
-            "mysekaiGateLevel": 40,
-        })
-
-    fixture_chara_bonus = { cid: 0 for cid in range(1, 27) }
-    for fixture in await ctx.md.mysekai_fixtures.get():
-        bid = fixture.get('mysekaiFixtureGameCharacterGroupPerformanceBonusId')
-        if bid:
-            cid = (bid - 1) // 3 + 1
-            t = (bid - 1) % 3
-            if t == 0: fixture_chara_bonus[cid] += 1
-            elif t == 1: fixture_chara_bonus[cid] += 3
-            else: fixture_chara_bonus[cid] += 6
-    for cid in range(1, 27):
-        p['userMysekaiFixtureGameCharacterPerformanceBonuses'].append({
-            "gameCharacterId": cid,
-            "totalBonusRate": min(fixture_chara_bonus[cid], 100)
-        })
+    if has_mysekai:
+        for gid in range(1, 6):
+            p['userMysekaiGates'].append({
+                "mysekaiGateId": gid,
+                "mysekaiGateLevel": 40,
+            })
+        
+        fixture_chara_bonus = { cid: 0 for cid in range(1, 27) }
+        for fixture in await ctx.md.mysekai_fixtures.get():
+            bid = fixture.get('mysekaiFixtureGameCharacterGroupPerformanceBonusId')
+            if bid:
+                cid = (bid - 1) // 3 + 1
+                t = (bid - 1) % 3
+                if t == 0: fixture_chara_bonus[cid] += 1
+                elif t == 1: fixture_chara_bonus[cid] += 3
+                else: fixture_chara_bonus[cid] += 6
+        for cid in range(1, 27):
+            p['userMysekaiFixtureGameCharacterPerformanceBonuses'].append({
+                "gameCharacterId": cid,
+                "totalBonusRate": min(fixture_chara_bonus[cid], 100)
+            })
 
     p['userAreas'].append({
         "userAreaStatus": {},
@@ -1047,8 +1058,8 @@ async def compose_deck_recommend_image(
         result_algs = []
         if recommend_type == "challenge_all":
             # 挑战组卡没有指定角色情况下，每角色组1个最强
-            for item in CHARACTER_NICKNAME_DATA:
-                options.challenge_live_character_id = item['id']
+            for cid in range(1, 26 + 1):
+                options.challenge_live_character_id = cid
                 options.limit = 1
                 res, algs, cost_and_wait_times = await do_deck_recommend(ctx, options)
                 result_decks.extend(res.decks)

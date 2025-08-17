@@ -89,7 +89,7 @@ DETAIL_SKILL_KEYWORDS_IDS = [
 # 解析查单张卡的参数
 async def search_single_card(ctx: SekaiHandlerContext, args: str) -> dict:
     args = args.strip()
-    for nickname, cid in get_all_nicknames():
+    for nickname, cid in get_all_nickname_cid_pairs():
         if nickname in args:
             seq = args.replace(nickname, "").strip()
             chara_cards = await ctx.md.cards.find_by("characterId", cid, mode="all")
@@ -374,7 +374,7 @@ async def get_card_story_summary(ctx: SekaiHandlerContext, card: dict, refresh: 
                     raw_story += f"---\n({text})\n"
             raw_story += "\n"
 
-            summary_prompt_template = Path(f"{SEKAI_DATA_DIR}/story_summary/card_story_summary_prompt.txt").read_text()
+            summary_prompt_template = Path(f"{SEKAI_CONFIG_DIR}/story_summary/card_story_summary_prompt.txt").read_text()
             summary_prompt = summary_prompt_template.format(raw_story=raw_story,)
             
             @retry(stop=stop_after_attempt(2), wait=wait_fixed(1), reraise=True)

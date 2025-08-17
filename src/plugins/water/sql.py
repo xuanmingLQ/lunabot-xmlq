@@ -3,7 +3,7 @@ import aiosqlite
 from datetime import datetime
 
 
-config = get_config('water')
+config = Config('water')
 logger = get_logger("Water")
 
 DB_PATH = "data/water/hash.sqlite"

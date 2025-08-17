@@ -6,66 +6,57 @@ import openai
 import copy
 from tenacity import retry, stop_after_attempt, wait_fixed
 from ..record.sql import query_recent_msg
+from ..code.run import run as run_code
 
-config = get_config('chat')
+
+config = Config('chat.chat')
 logger = get_logger("Chat")
 file_db = get_file_db("data/chat/db.json", logger)
-chat_cd = ColdDown(file_db, logger, config['chat_cd'], cold_down_name="chat_cd")
-tts_cd = ColdDown(file_db, logger, config['tts_cd'], cold_down_name="tts_cd")
-img_trans_cd = ColdDown(file_db, logger, config['img_trans_cd'], cold_down_name="img_trans_cd")
-img_trans_rate = RateLimit(file_db, logger, 5, period_type='day', rate_limit_name="img_trans_rate")
 gwl = get_group_white_list(file_db, logger, 'chat')
 
-# CHAT_RETRY_NUM = 3
-# CHAT_RETRY_DELAY_SEC = 1
+chat_cd = ColdDown(file_db, logger, config.item('chat_cd'), cold_down_name="chat_cd")
+tts_cd = ColdDown(file_db, logger, config.item('tts_cd'), cold_down_name="tts_cd")
+img_trans_cd = ColdDown(file_db, logger, config.item('img_trans_cd'), cold_down_name="img_trans_cd")
 
-FOLD_LENGTH_THRESHOLD = config['fold_response_threshold']
-SESSION_LEN_LIMIT = config['session_len_limit']
 
-SYSTEM_PROMPT_PATH       = "data/chat/system_prompt.txt"
-SYSTEM_PROMPT_TOOLS_PATH = "data/chat/system_prompt_tools.txt"
-TOOLS_TRIGGER_WORDS_PATH = "data/chat/tools_trigger_words.txt"
-SYSTEM_PROMPT_PYTHON_RET = "data/chat/system_prompt_python_ret.txt"
+FOLD_LENGTH_THRESHOLD_CFG = config.item('fold_response_threshold')
+SESSION_LEN_LIMIT_CFG = config.item('session_len_limit')
+
+SYSTEM_PROMPT_PATH       = "config/chat/system_prompt.txt"
+SYSTEM_PROMPT_TOOLS_PATH = "config/chat/system_prompt_tools.txt"
+TOOLS_TRIGGER_WORDS_PATH = "config/chat/tools_trigger_words.txt"
+SYSTEM_PROMPT_PYTHON_RET = "config/chat/system_prompt_python_ret.txt"
 
 CLEANCHAT_TRIGGER_WORDS = ["cleanchat", "clean_chat", "cleanmode", "clean_mode"]
 NOTHINK_TRIGGER_WORDS = ['nothink', 'noreason']
 IMAGE_RESPONSE_TRIGGER_WORDS = ['生成图片', '图片生成', 'imagen', 'Imagen', 'IMAGEN']
 
+
 # 使用工具 返回需要添加到回复的额外信息
-async def use_tool(handle, session, type, data, event):
+async def use_tool(ctx: HandlerContext, session: ChatSession, type: str, data: Any) -> str:
     if type == "python":
         logger.info(f"使用python工具, data: {data}")
-
-        notify_msg = f"正在执行python代码:\n\n{data}"
-        if is_group_msg(event):
-            await send_group_fold_msg(get_bot(), event.group_id, [notify_msg])
-        else:
-            await handle.send(notify_msg)
-
-        from ..run_code.run import run as run_code
-        str_code = "py\n" + data
-
+        await ctx.asend_multiple_fold_msg([f"正在执行python代码:\n\n{data}"])
         try:
+            str_code = "py\n" + data
             res = await run_code(str_code)
         except Exception as e:
-            logger.print_exc(f"请求运行代码失败: {e}")
-            res = f"运行代码失败: {e}"
+            logger.print_exc(f"请求运行代码失败")
+            res = f"运行代码失败: {get_exc_desc(e)}"
         logger.info(f"python执行结果: {res}")
-
-        with open(SYSTEM_PROMPT_PYTHON_RET, "r", encoding="utf-8") as f:
-            system_prompt_ret = f.read()
+        system_prompt_ret = Path(SYSTEM_PROMPT_PYTHON_RET).read_text(encoding="utf-8")
         session.append_system_content(system_prompt_ret.format(res=res))
-
         return res
+    
     else:
         raise Exception(f"unknown tool type")
 
 # ------------------------------------------ 聊天记录总结逻辑 ------------------------------------------ #
 
 image_caption_db = get_file_db("data/chat/image_caption_db.json", logger)
-IMAGE_CAPTION_TIMEOUT_SEC = 10
-IMAGE_CAPTION_LIMIT = 2048
-IMAGE_CAPTION_TEMPLATE_PATH = "data/chat/image_caption_prompt.txt"
+IMAGE_CAPTION_LIMIT_CFG = config.item('image_caption.limit')
+IMAGE_CAPTION_TIMEOUT_SEC_CFG = config.item('image_caption.timeout_sec')
+IMAGE_CAPTION_TEMPLATE_PATH = "config/chat/image_caption_prompt.txt"
 
 # 获取图片caption
 async def get_image_caption(mdata: dict, model_name: str, timeout: int, use_llm: bool):
@@ -85,14 +76,7 @@ async def get_image_caption(mdata: dict, model_name: str, timeout: int, use_llm:
             img = await download_image_to_b64(url)
             session = ChatSession()
             session.append_user_content(prompt, imgs=[img], verbose=False)
-            resp = await asyncio.wait_for(
-                session.get_response(
-                    model_name=model_name, 
-                    enable_reasoning=False,
-                    timeout=60,
-                ), 
-                timeout=timeout
-            )
+            resp = session.get_response(model_name=model_name, enable_reasoning=False, timeout=timeout)
             caption = truncate(resp.result.strip(), 512)
             assert caption, "图片总结为空"
 
@@ -100,7 +84,7 @@ async def get_image_caption(mdata: dict, model_name: str, timeout: int, use_llm:
             image_caption_db.set(file_unique, caption)
             keys = image_caption_db.get('keys', [])
             keys.append(file_unique)
-            while len(keys) > IMAGE_CAPTION_LIMIT:
+            while len(keys) > IMAGE_CAPTION_LIMIT_CFG.get():
                 key = keys.pop(0)
                 image_caption_db.delete(key)
                 logger.info(f"删除图片caption: {key}")
@@ -151,7 +135,7 @@ async def get_forward_msg_text(model: str, forward_seg, indent: int = 0) -> str:
             elif mtype == "face":
                 text += f"[表情]"
             elif mtype == "image":
-                text += await get_image_caption(mdata, model, IMAGE_CAPTION_TIMEOUT_SEC, use_llm=True)
+                text += await get_image_caption(mdata, model, IMAGE_CAPTION_TIMEOUT_SEC_CFG.get(), use_llm=True)
             elif mtype == "video":
                 text += f"[视频]"
             elif mtype == "audio":
@@ -267,6 +251,7 @@ chat_request = CmdHandler(
 @chat_request.handle()
 async def _(ctx: HandlerContext):
     bot, event = ctx.bot, ctx.event
+    bot_name = BOT_NAME_CFG.get()
     global sessions, query_msg_ids, autochat_msg_ids
     session = None
     try:
@@ -296,7 +281,7 @@ async def _(ctx: HandlerContext):
                 return
 
         # 空消息不回复
-        if query_text.replace(f"@{BOT_NAME}", "").strip() == "" or query_text is None:
+        if query_text.replace(f"@{bot_name}", "").strip() == "" or query_text is None:
             return
         
         # /开头的消息不回复
@@ -316,7 +301,7 @@ async def _(ctx: HandlerContext):
                     break
         if "text" in query_cqs:
             for cq in query_cqs["text"]:
-                if f"@{BOT_NAME}" in cq['text']:
+                if f"@{bot_name}" in cq['text']:
                     has_text_at = True
                     break
         if not triggered_by_chat_cmd and (is_group_msg(event) or check_self(event)):
@@ -334,7 +319,7 @@ async def _(ctx: HandlerContext):
 
         # 清除文本形式的at
         if has_text_at:
-            query_text = query_text.replace(f"@{BOT_NAME}", "")
+            query_text = query_text.replace(f"@{BOT_NAME_CFG.get()}", "")
 
         # 如果在对话中指定模型名
         if "model:" in query_text:
@@ -367,7 +352,7 @@ async def _(ctx: HandlerContext):
             system_prompt_path = SYSTEM_PROMPT_TOOLS_PATH if need_tools else SYSTEM_PROMPT_PATH
             with open(system_prompt_path, "r", encoding="utf-8") as f:
                 system_prompt = f.read().format(
-                    bot_name=BOT_NAME,
+                    bot_name=bot_name,
                     current_date=datetime.now().strftime("%Y-%m-%d")
                 )
 
@@ -496,7 +481,7 @@ async def _(ctx: HandlerContext):
             try:
                 # 调用工具
                 tool_args = loads_json(res_text)
-                tool_ret = await use_tool(chat_request, session, tool_args["tool"], tool_args["data"], event)
+                tool_ret = await use_tool(ctx, session, tool_args["tool"], tool_args["data"])
                 tools_additional_info += f"[工具{tool_args['tool']}返回结果: {tool_ret.strip()}]\n" 
             except Exception as exc:
                 logger.info(f"工具调用失败: {exc}")
@@ -527,7 +512,7 @@ async def _(ctx: HandlerContext):
     # 添加额外信息
     additional_info = f"{resp_model.get_full_name()} | {total_seconds:.1f}s, {total_ptokens}+{total_ctokens} tokens"
     if rest_quota > 0:
-        price_unit = resp_model.provider.price_unit
+        price_unit = resp_model.get_price_unit()
         if total_cost == 0.0:
             additional_info += f" | 0/{rest_quota:.2f}{price_unit}"
         elif total_cost >= 0.0001:
@@ -540,12 +525,12 @@ async def _(ctx: HandlerContext):
     # 进行回复
     ret = await ctx.asend_fold_msg_adaptive(
         final_text, 
-        threshold=FOLD_LENGTH_THRESHOLD * 2, 
+        threshold=FOLD_LENGTH_THRESHOLD_CFG.get() * 2, 
         text_len=text_len
     )
 
     # 加入会话历史
-    if ret and len(session) < SESSION_LEN_LIMIT:
+    if ret and len(session) < SESSION_LEN_LIMIT_CFG.get():
         ret_id = str(ret["message_id"])
         sessions[ret_id] = session
         logger.info(f"会话{session.id}加入会话历史:{ret_id}, 长度:{len(session)}")
@@ -619,7 +604,7 @@ async def _(ctx: HandlerContext):
 # 清空当前私聊或群聊使用的模型
 clear_model = CmdHandler([
     "/重置模型", "/清空模型",
-    "/clear_model", "/clear model", "/clearmodel"
+    "/clear model", "/reset model", "/model reset", "/model clear",
 ], logger)
 clear_model.check_cdrate(chat_cd).check_wblist(gwl)
 @clear_model.handle()
@@ -665,7 +650,7 @@ async def _(ctx: HandlerContext):
     msg = ""
     for provider in providers:
         quota = await provider.aget_current_quota()
-        msg += f"{provider.name}({provider.code}) {quota:.4f}{provider.price_unit}\n"
+        msg += f"{provider.name}({provider.code}) {quota:.4f}{provider.get_price_unit()}\n"
     return await ctx.asend_reply_msg(msg.strip())
 
 
@@ -689,7 +674,7 @@ translator = Translator()
 
 # 翻译图片
 trans = CmdHandler(["/trans", "/translate", "/翻译"], logger)
-trans.check_cdrate(img_trans_cd).check_cdrate(img_trans_rate).check_wblist(gwl)
+trans.check_cdrate(img_trans_cd).check_wblist(gwl)
 @trans.handle()
 async def _(ctx: HandlerContext):
     reply_msg_obj = await ctx.aget_reply_msg_obj()
@@ -758,7 +743,7 @@ async def _(ctx: HandlerContext):
 
 # 浪费时间，不想再写了
 
-AUTO_CHAT_CONFIG_PATH = "autochat_config.yaml"
+autochat_config = Config('chat.autochat')
 autochat_sub = SubHelper("自动聊天", file_db, logger)
 autochat_msg_ids = set()
 replying_group_ids = set()
@@ -769,32 +754,6 @@ class SchedulerItem:
     start_time: datetime
     end_time: datetime
     prob: float
-
-@dataclass
-class AutoChatConfig:
-    model_names: list[str]
-    reasoning: bool
-    input_record_num: int
-    prompt_template: str
-    retry_num: int
-    retry_delay_sec: int
-    chat_prob: float
-    group_chat_probs: dict[str, float]
-    self_history_num: int
-    output_len_limit: int
-    image_caption_model_name: str
-    image_caption_timeout_sec: int
-    image_caption_prompt: str
-    image_caption_limit: int
-    image_caption_prob: float
-    trigger_keywords: dict[str, float]
-
-    @staticmethod
-    def get_config():
-        import yaml
-        with open(AUTO_CHAT_CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-        return AutoChatConfig(**config)
 
 @dataclass
 class AutoChatGroupMemory:
@@ -863,7 +822,7 @@ async def _(ctx: HandlerContext):
 
 
 # 将消息段转换为纯文本
-async def msg_to_readable_text(cfg: AutoChatConfig, group_id: int, msg: dict):
+async def autochat_msg_to_readable_text(cfg: Dict[str, Any], group_id: int, msg: dict):
     try:
         bot = get_bot()
         text = f"{get_readable_datetime(msg['time'])} msg_id={msg['msg_id']} {msg['nickname']}({msg['user_id']}):\n"
@@ -874,11 +833,11 @@ async def msg_to_readable_text(cfg: AutoChatConfig, group_id: int, msg: dict):
             elif mtype == "face":
                 text += f"[表情]"
             elif mtype == "image":
-                if random.random() < cfg.image_caption_prob:
+                if random.random() < cfg['image_caption_prob']:
                     text += await get_image_caption(
                         mdata, 
-                        cfg.image_caption_model_name,
-                        cfg.image_caption_timeout_sec,
+                        cfg['image_caption']['model'],
+                        cfg['image_caption']['timeout_sec'],
                         use_llm=True,
                     )
             elif mtype == "video":
@@ -924,13 +883,13 @@ async def _(ctx: HandlerContext):
     bot, event = ctx.bot, ctx.event
     need_remove_group_id = False
     try:
-        group_id = event.group_id
+        group_id = ctx.group_id
         self_id = int(bot.self_id)
         msg = await get_msg(bot, event.message_id)
         cqs = extract_cq_code(msg)
         msg_text = extract_text(msg).strip()
         reply_msg_obj = await get_reply_msg_obj(bot, msg)
-
+        
         if not autochat_sub.is_subbed(group_id): return
         # if not gwl.check(event): return
 
@@ -940,7 +899,7 @@ async def _(ctx: HandlerContext):
         if msg_text.startswith("/"): return
 
         # 设置和群组记忆、全局记忆
-        cfg = AutoChatConfig.get_config()
+        cfg: Dict[str, Any] = autochat_config.get_all()
         global_memory = AutoChatGlobalMemory.load()
         group_memory = AutoChatGroupMemory.load(group_id)
 
@@ -948,7 +907,7 @@ async def _(ctx: HandlerContext):
         is_trigger = False
         has_at_self = 'at' in cqs and int(cqs['at'][0]['qq']) == self_id
         has_reply_self = reply_msg_obj and reply_msg_obj["sender"]["user_id"] == self_id
-        chat_prob = cfg.group_chat_probs.get(str(group_id), cfg.chat_prob)
+        chat_prob = cfg.get('group_chat_probs', {}).get(str(group_id), cfg['chat_prob'])
         # 回复和at必定触发
         if has_at_self or has_reply_self:
             is_trigger = True
@@ -956,7 +915,7 @@ async def _(ctx: HandlerContext):
         elif random.random() <= chat_prob: 
             is_trigger = True
         # 关键词触发
-        for keyword, prob in cfg.trigger_keywords.items():
+        for keyword, prob in cfg['trigger_keywords'].items():
             if keyword in msg_text and random.random() <= prob:
                 is_trigger = True
                 break
@@ -971,16 +930,16 @@ async def _(ctx: HandlerContext):
 
         # 获取内容
         await asyncio.sleep(2)
-        recent_msgs = await query_recent_msg(group_id, cfg.input_record_num)
+        recent_msgs = await query_recent_msg(group_id, cfg['input_record_num'])
         # 清空不在自动回复列表的自己的消息
         recent_msgs = [msg for msg in recent_msgs if msg['user_id'] != self_id or msg['msg_id'] in autochat_msg_ids]
         if not recent_msgs: return
-        recent_texts = [await msg_to_readable_text(cfg, group_id, msg) for msg in recent_msgs]
+        recent_texts = [await autochat_msg_to_readable_text(cfg, group_id, msg) for msg in recent_msgs]
         recent_texts = [text for text in recent_texts if text]
         recent_texts.reverse()
             
         # 填入prompt
-        prompt_template = cfg.prompt_template
+        prompt_template = cfg['prompt_template']
         prompt = prompt_template.format(
             group_name=await get_group_name(bot, group_id),
             recent_msgs="\n".join(recent_texts),
@@ -988,7 +947,7 @@ async def _(ctx: HandlerContext):
         ).strip()
 
         # 生成回复
-        @retry(stop=stop_after_attempt(cfg.retry_num), wait=wait_fixed(cfg.retry_delay_sec), reraise=True)
+        @retry(stop=stop_after_attempt(cfg['retry_num']), wait=wait_fixed(cfg['retry_delay_sec']), reraise=True)
         async def chat():
             session = ChatSession()
             session.append_user_content(prompt, verbose=False)
@@ -996,8 +955,8 @@ async def _(ctx: HandlerContext):
             def process(resp: ChatSessionResponse):
                 text = resp.result
                 appear_len = get_str_display_length(text)
-                if appear_len > cfg.output_len_limit:
-                    raise Exception(f"回复过长: {appear_len} > {cfg.output_len_limit}")
+                if appear_len > cfg['output_len_limit']:
+                    raise Exception(f"回复过长: {appear_len} > {cfg['output_len_limit']}")
                 start_idx = text.find('{')
                 end_idx = text.rfind('}')
                 if start_idx == -1 or end_idx == -1:
@@ -1011,8 +970,8 @@ async def _(ctx: HandlerContext):
                 return text
 
             return await session.get_response(
-                cfg.model_names, 
-                enable_reasoning=cfg.reasoning,
+                cfg['model'], 
+                enable_reasoning=cfg['reasoning'],
                 process_func=process,
                 timeout=300,
             )
@@ -1032,7 +991,7 @@ async def _(ctx: HandlerContext):
             res_text = res_text.replace(reply_match.group(0), "")
             res_text = f"[CQ:reply,id={reply_id}]{res_text}"
 
-        res_text = truncate(res_text, cfg.output_len_limit)
+        res_text = truncate(res_text, cfg['output_len_limit'])
         logger.info(f"群聊 {group_id} 自动聊天生成回复: {res_text} at_id={at_id} reply_id={reply_id}")
 
         if not res_text.strip():
@@ -1044,7 +1003,7 @@ async def _(ctx: HandlerContext):
         if msg:
             autochat_msg_ids.add(int(msg['message_id']))
             group_memory.self_history.append(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} msg_id={msg['message_id']}: {res_text}")
-            while len(group_memory.self_history) > cfg.self_history_num:
+            while len(group_memory.self_history) > cfg['self_history_num']:
                 group_memory.self_history.pop(0)
             group_memory.save()
             global_memory.save()

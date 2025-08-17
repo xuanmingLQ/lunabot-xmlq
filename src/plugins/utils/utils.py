@@ -20,6 +20,7 @@ import re
 import math
 import io
 import time
+from .config import *
 
 
 # ============================ 基础 ============================ #
@@ -67,47 +68,6 @@ class Timer:
     
     def __exit__(self, exc_type, exc_val, exc_tb): 
         self.end()
-
-
-
-# ============================ 配置 ============================ #
-
-# 配置文件
-CONFIG_PATH = 'config.yaml'
-_config: Dict[str, Any] = None
-def get_config(name: str=None, default={}):
-    global _config
-    if _config is None:
-        print(f'加载配置文件 {CONFIG_PATH}')
-        with open(CONFIG_PATH, 'r') as f:
-            _config = yaml.load(f, Loader=yaml.FullLoader)
-        print(f'配置文件已加载')
-    if name is not None:
-        return _config.get(name, default)
-    return _config
-
-# CONFIG_DIR = "config/"
-
-# @dataclass
-# class ConfigData:
-#     mtime: int
-#     data: dict = field(default_factory=dict)
-    
-# class Config:
-#     _data: Dict[str, ConfigData] = {}
-
-#     def __init__(self, name: str):
-#         """
-#         初始化配置类
-#         name: 配置名称，格式为 "module" 或 "module.submodule"
-#         """
-#         self.name = name
-#         self.path = pjoin(CONFIG_DIR, name.replace('.', '/') + '.yaml')
-        
-#     def _update(self):
-#         if not osp.exists(self.path):
-#             utils_logger.warning(f"没有找到配置文件 {self.path}")
-
 
 
 # ============================ 集合操作 ============================ #
@@ -634,9 +594,7 @@ async def download_json(url: str) -> dict:
 
 # ============================ 日志 ============================ #
 
-LOG_LEVEL = get_config()['log_level']
 LOG_LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR']
-print(f'日志等级: {LOG_LEVEL}')
 
 # 日志输出
 class Logger:
@@ -646,7 +604,8 @@ class Logger:
     def log(self, msg, flush=True, end='\n', level='INFO'):
         if level not in LOG_LEVELS:
             raise Exception(f'未知日志等级 {level}')
-        if LOG_LEVELS.index(level) < LOG_LEVELS.index(LOG_LEVEL):
+        log_level = global_config.get('log_level').upper()
+        if LOG_LEVELS.index(level) < LOG_LEVELS.index(log_level):
             return
         time = datetime.now().strftime("%m-%d %H:%M:%S.%f")[:-3]
         print(f'{time} {level} [{self.name}] {msg}', flush=flush, end=end)
@@ -740,7 +699,7 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-WEB_DRIVER_NUM = 2
+WEB_DRIVER_NUM = global_config.get('web_driver_num')
 _webdrivers: asyncio.Queue[webdriver.Firefox] = None
 
 class WebDriver:
@@ -1034,7 +993,7 @@ async def asend_exception_mail(title: str, content: str, logger: 'Logger'):
     """
     通用发送异常通知函数
     """
-    mail_config = get_config("exception_mail")
+    mail_config = global_config.get("exception_mail")
     if not content:
         content = ""
     content = content + f"\n({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"

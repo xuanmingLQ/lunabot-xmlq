@@ -1,0 +1,11 @@
+# 日服
+jp:
+  api_status_url:               "https://xxx"
+  profile_api_url:              "https://xxx"
+  suite_api_url:                "https://xxx"
+  mysekai_api_url:              "https://xxx"
+  mysekai_photo_api_url:        "https://xxx"
+  mysekai_upload_time_api_url:  "https://xxx"
+  update_msr_sub_api_url:       "https://xxx"
+  ranking_api_url:              "https://xxx"
+  send_boost_api_url:           "https://xxx"

@@ -4,12 +4,12 @@ from ..record import before_record_hook
 from ..utils import *
 import aiorpcx
 
-config = get_config('rpc')
+config = Config('rpc')
 logger = get_logger("Rpc")
 file_db = get_file_db("data/rpc/db.json", logger)
 
-SERVER_HOST = config['host']
-SERVER_PORT = config['port']
+SERVER_HOST = config.get('host')
+SERVER_PORT = config.get('port')
 
 def process_msg(msg):
     if isinstance(msg['time'], datetime):

@@ -1,18 +1,18 @@
 from .rcon import AsyncMCRcon
 from ..utils import *
 
-config = get_config('mc')
+config = Config('mc')
 logger = get_logger('MC')
 file_db = get_file_db('data/mc/db.json', logger)
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 
 
-QUERY_INTERVAL = config['query_interval'] 
-QUEUE_CONSUME_INTERVAL = config['queue_consume_interval']
-OFFSET = config['query_offset']
-DISCONNECT_NOTIFY_COUNT = config['disconnect_notify_count']
-ASCII_ART_WIDTH = config['ascii_art_width']
-PLAYER_TIME_UPDATE_INTERVAL = config['player_time_update_interval']
+QUERY_INTERVAL = config.get('query_interval')
+QUEUE_CONSUME_INTERVAL = config.get('queue_consume_interval')
+
+OFFSET_CFG = config.item('query_offset')
+DISCONNECT_NOTIFY_COUNT_CFG = config.item('disconnect_notify_count')
+PLAYER_TIME_UPDATE_INTERVAL_CFG = config.item('player_time_update_interval')
 
 
 def timedelta2hour(td):
@@ -203,7 +203,7 @@ class ServerData:
 
             data = await self.query_dynamicmap(self.next_query_ts)
             current_ts = int(data['timestamp'])
-            self.next_query_ts = int(current_ts + QUERY_INTERVAL * 1000 + OFFSET + self.offset) 
+            self.next_query_ts = int(current_ts + QUERY_INTERVAL * 1000 + OFFSET_CFG.get() + self.offset) 
 
             # 更新全局信息
             self.time       = data['servertime']
@@ -250,7 +250,7 @@ class ServerData:
             # 定期更新玩家游玩时间
             player_time_updated = False
             for account in self.player_login_time:
-                if datetime.now() - self.player_login_time[account] > timedelta(seconds=PLAYER_TIME_UPDATE_INTERVAL):
+                if datetime.now() - self.player_login_time[account] > timedelta(seconds=PLAYER_TIME_UPDATE_INTERVAL_CFG.get()):
                     self.inc_player_time(account, timedelta2hour(datetime.now() - self.player_login_time[account]))
                     self.player_login_time[account] = datetime.now()
                     player_time_updated = True
@@ -334,7 +334,7 @@ async def query_server(server: ServerData):
     if server.listen_mode != 'off':
         try:
             await server.update()
-            if server.failed_count >= DISCONNECT_NOTIFY_COUNT:
+            if server.failed_count >= DISCONNECT_NOTIFY_COUNT_CFG.get():
                 logger.info(f'发送重连通知到 {server.group_id}')
                 if server.notify_on:
                     server.queue.append('重新建立服务器监听连接')
@@ -342,9 +342,9 @@ async def query_server(server: ServerData):
             server.last_failed_reason = None
             server.has_sucess_query = True
         except Exception as e:
-            if server.failed_count <= DISCONNECT_NOTIFY_COUNT:
+            if server.failed_count <= DISCONNECT_NOTIFY_COUNT_CFG.get():
                 pass
-            if server.failed_count == DISCONNECT_NOTIFY_COUNT:
+            if server.failed_count == DISCONNECT_NOTIFY_COUNT_CFG.get():
                 if server.has_sucess_query:
                     if server.notify_on:
                         server.queue.append(f'监听服务器连接断开: {e}')

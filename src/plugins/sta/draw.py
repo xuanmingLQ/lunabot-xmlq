@@ -10,12 +10,12 @@ import colorsys
 import io
 from ..utils import *
 
-config = get_config("statistics")
+config = Config("sta")
 logger = get_logger("Sta")
-file_db = get_file_db("data/statistics/db.json", logger)
+file_db = get_file_db("data/sta/db.json", logger)
 
-FONT_NAME = "Source Han Sans CN"
-FONT_PATH = "data/utils/fonts/SourceHanSansCN-Regular.otf"
+FONT_NAME = global_config.get("font.name")
+FONT_PATH = global_config.get("font.path")
 
 plt.switch_backend('agg')
 matplotlib.rcParams['font.family'] = [FONT_NAME]

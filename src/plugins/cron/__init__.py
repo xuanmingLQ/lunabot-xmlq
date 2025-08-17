@@ -2,13 +2,11 @@ from ..utils import *
 from ..llm import ChatSession, get_model_preset, ChatSessionResponse
 
 
-config = get_config('cron')
+config = Config('cron.cron')
 logger = get_logger('Cron')
 file_db = get_file_db('data/cron/cron.json', logger)
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'cron')
-
-MAX_RETIRES = config['max_retries']
 
 # 获取下次提醒时间描述
 def get_task_next_run_time_str(group_id, task_id):
@@ -71,7 +69,7 @@ def update_task(task):
 
 # 解析用户指示
 async def parse_instruction(group_id, user_id, user_instruction):
-    with open('data/cron/system_prompt.txt', 'r', encoding='utf-8') as f:
+    with open('config/cron/system_prompt.txt', 'r', encoding='utf-8') as f:
         system_prompt = f.read()
     system_prompt = system_prompt.format(time=datetime.now().strftime('%Y-%m-%d %H:%M:%S %A'))
     # print(system_prompt)
@@ -81,7 +79,8 @@ async def parse_instruction(group_id, user_id, user_instruction):
 
     model_name = get_model_preset('cron')
 
-    for retry_count in range(MAX_RETIRES):
+    max_retries = config.get('max_retries')
+    for retry_count in range(max_retries):
         try:
             def process(resp: ChatSessionResponse):
                 task = loads_json(resp.result)
@@ -96,7 +95,7 @@ async def parse_instruction(group_id, user_id, user_instruction):
                 return task
             return await session.get_response(model_name, process_func=process)
         except Exception as e:
-            if retry_count < MAX_RETIRES - 1:
+            if retry_count < max_retries - 1:
                 logger.warning(f"分析用户指示失败: {e}")
                 continue
             else:
@@ -209,7 +208,7 @@ async def check_expired_tasks():
 
 
 # 添加cron任务
-cron_add = CmdHandler(["/添加提醒", "/cron_add", "/cron add"], logger)
+cron_add = CmdHandler(["/cron", "/添加提醒", "/cron_add", "/cron add"], logger)
 cron_add.check_cdrate(cd).check_wblist(gbl).check_group()
 @cron_add.handle()
 async def _(ctx: HandlerContext):

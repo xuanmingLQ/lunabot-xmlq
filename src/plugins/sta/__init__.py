@@ -3,24 +3,22 @@ from .draw import draw_all, reset_jieba, draw_date_count_plot, draw_word_count_p
 from ..record.sql import query_msg_by_range, query_msg_count
 
 
-config = get_config("statistics")
+config = Config("sta")
 logger = get_logger("Sta")
-file_db = get_file_db("data/statistics/db.json", logger)
+file_db = get_file_db("data/sta/db.json", logger)
 gbl = get_group_black_list(file_db, logger, "sta")
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 
 notify_gwl = get_group_white_list(file_db, logger, "sta_notify", is_service=False)
 
 
-STATICSTIC_TIME = config['statistic_time']
-NAME_LEN_LIMIT = config['name_len_limit']
+STATICSTIC_TIME = config.get('statistic_time')
 
-PLOT_TOPK1 = config['pie_topk']
-PLOT_TOPK2 = config['plot_topk']
-PLOT_INTERVAL = config['plot_interval']
-PLOT_PATH = "./data/statistics/plots/"
-STA_WORD_TOPK = config['sta_word_topk']
-
+NAME_LEN_LIMIT_CFG = config.item('name_len_limit')
+PLOT_TOPK1_CFG = config.item('pie_topk')
+PLOT_TOPK2_CFG = config.item('plot_topk')
+PLOT_INTERVAL_CFG = config.item('plot_interval')
+STA_WORD_TOPK_CFG = config.item('sta_word_topk')
 
 
 # 获取某天统计图数据
@@ -44,13 +42,13 @@ async def get_day_statistic(bot, group_id, date=None):
     topk_name = []
     for user in topk_user:
         try:
-            name = truncate(await get_group_member_name(bot, group_id, user), NAME_LEN_LIMIT)
+            name = truncate(await get_group_member_name(bot, group_id, user), NAME_LEN_LIMIT_CFG.get())
             topk_name.append(name)
         except:
             topk_name.append(str(user))
     # 发送图片
     return await get_image_cq(
-        await draw_all(group_id, recs, PLOT_INTERVAL, PLOT_TOPK1, PLOT_TOPK2, topk_user, topk_name, date),
+        await draw_all(group_id, recs, PLOT_INTERVAL_CFG.get(), PLOT_TOPK1_CFG.get(), PLOT_TOPK2_CFG.get(), topk_user, topk_name, date),
     )
 
 # 获取长时间统计数据
@@ -75,14 +73,14 @@ async def get_long_statistic(bot, group_id, start_date: datetime, end_date: date
     topk_name = []
     for user in topk_user:
         try:
-            name = truncate(await get_group_member_name(bot, group_id, user), NAME_LEN_LIMIT)
+            name = truncate(await get_group_member_name(bot, group_id, user), NAME_LEN_LIMIT_CFG.get())
             topk_name.append(name)
         except:
             topk_name.append(str(user))
     # 画图
     date = f"{start_date.strftime('%Y-%m-%d')}~{end_date.strftime('%Y-%m-%d')}"
     return await get_image_cq(
-        draw_all_long(group_id, recs, PLOT_INTERVAL, PLOT_TOPK1, PLOT_TOPK2, topk_user, topk_name, date),
+        draw_all_long(group_id, recs, PLOT_INTERVAL_CFG.get(), PLOT_TOPK1_CFG.get(), PLOT_TOPK2_CFG.get(), topk_user, topk_name, date),
     )
 
 # 获取总消息量关于时间的统计图数据
@@ -105,9 +103,9 @@ async def get_date_count_statistic(bot, group_id, days, user_id=None):
             user_counts.append(user_cnt)
         dates.append(datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S"))
         counts.append(cnt)
-    save_path = PLOT_PATH + f"plot_{group_id}_date_count.jpg"
-    draw_date_count_plot(dates, counts, save_path, user_counts)
-    return await get_image_cq(save_path)
+    with TempFilePath(".png") as save_path:
+        draw_date_count_plot(dates, counts, save_path, user_counts)
+        return await get_image_cq(save_path)
 
 # 获取某个词的统计图
 async def get_word_statistic(bot, group_id, days, word):
@@ -130,7 +128,7 @@ async def get_word_statistic(bot, group_id, days, word):
                 user_date_counts[i].inc(str(msg['user_id']))
         dates.append(datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S"))
     sorted_user_counts = sorted(user_counts.items(), key=lambda x: x[1], reverse=True)
-    topk_user = [str(user) for user, _ in sorted_user_counts[:STA_WORD_TOPK]]
+    topk_user = [str(user) for user, _ in sorted_user_counts[:STA_WORD_TOPK_CFG.get()]]
     topk_name = []
     for user in topk_user:
         try:
@@ -138,9 +136,9 @@ async def get_word_statistic(bot, group_id, days, word):
             topk_name.append(name)
         except:
             topk_name.append(str(user))
-    save_path = PLOT_PATH + f"plot_{group_id}_word_count.jpg"
-    draw_word_count_plot(dates, topk_user, topk_name, user_counts, user_date_counts, word, save_path)
-    return await get_image_cq(save_path)
+    with TempFilePath(".png") as save_path:
+        draw_word_count_plot(dates, topk_user, topk_name, user_counts, user_date_counts, word, save_path)
+        return await get_image_cq(save_path)
 
 # ------------------------------------------------ 聊天逻辑 ------------------------------------------------
 

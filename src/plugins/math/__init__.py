@@ -2,16 +2,16 @@ from ..utils import *
 from asteval import Interpreter
 from .oeis import oeis_query
 
-config = get_config('math')
+config = Config('math')
 logger = get_logger("Math")
 file_db = get_file_db("data/math/db.json", logger)
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'math')
 
 
 aeval = Interpreter()
 
-eval = CmdHandler(["/eval"], logger)
+eval = CmdHandler(["/eval", "/计算"], logger)
 eval.check_cdrate(cd).check_wblist(gbl)
 @eval.handle()
 async def _(ctx: HandlerContext):
@@ -23,14 +23,12 @@ async def _(ctx: HandlerContext):
     return await ctx.asend_reply_msg(str(result))
 
 
-NUM_SEARCH = config['oeis_search_num']
-
 query = CmdHandler(["/oeis"], logger)
 query.check_cdrate(cd).check_wblist(gbl)
 @query.handle()
 async def _(ctx: HandlerContext):
     args = ctx.get_args().strip()
-    sequences = await oeis_query(args, n=NUM_SEARCH)
+    sequences = await oeis_query(args, n=config.get('oeis_search_num'))
     logger.info(f"查询 OEIS 序列: {args} 共 {len(sequences)} 条结果")
     assert_and_reply(sequences, "未找到相关序列")
     msg = ""

@@ -55,7 +55,7 @@ upload_help = SekaiCmdHandler([
 upload_help.check_cdrate(cd).check_wblist(gbl)
 @upload_help.handle()
 async def _(ctx: SekaiHandlerContext):
-    text = Path(f"{SEKAI_DATA_DIR}/upload_help.txt").read_text(encoding="utf-8")
+    text = Path(f"{SEKAI_CONFIG_DIR}/upload_help.txt").read_text(encoding="utf-8")
     return await ctx.asend_msg(text.strip())
 
 

@@ -1,0 +1,38 @@
+bot_name: "xxx"
+log_level: "INFO"
+superuser:
+  - 123
+  - 456
+
+msg_send:
+  rate_limit:
+    second: 10  # 每秒限制发送消息的数量
+    day: 4000   # 每天限制发送消息的数量
+  failed_mail_interval: 600  # 发送消息发送异常邮件的间隔（秒）
+
+font:
+  path: "xxx"  # 中文字体路径
+  name: "xxx"  # Matplotlib库使用的中文字体名称
+
+default_cd: 2             # 默认指令处理冷却时间（秒）
+cd_verbose_interval: 30   # 间隔多少秒输出一次"当前正在冷却"提示
+
+exception_mail:   # 发送异常消息邮件的配置
+  host: "smtp.qq.com"          # 邮箱服务器地址
+  port: 587                    # 邮箱服务器端口
+  user: "xxx@qq.com"           # 邮箱发送者用户名
+  pass: "xxx"                  # 邮箱密码
+  receivers:                   # 邮箱接收者列表
+    - xxx@qq.com
+
+painter:
+  debug: False
+  process_num: 4
+
+plot:
+  debug: False
+  log_draw_time: False
+  canvas_size_limit: [4096, 4096]
+
+web_driver_num: 2
+

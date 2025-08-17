@@ -7,8 +7,8 @@ from argparse import ArgumentParser
 import requests
 
 
-SUPERUSER = get_config()['superuser']   
-BOT_NAME  = get_config()['bot_name']
+SUPERUSER_CFG = global_config.item('superuser')
+BOT_NAME_CFG  = global_config.item('bot_name')
 
 
 # ============================ 消息处理 ============================ #
@@ -361,12 +361,13 @@ def check_self(event):
     """
     return event.user_id == event.self_id
 
-def check_superuser(event, superuser: List[int]=SUPERUSER):
+def check_superuser(event, superuser: Union[List[int], ConfigItem]=SUPERUSER_CFG):
     """ 
     检查事件是否是超级用户发送
     """
-    if superuser is None: return False
-    return event.user_id in superuser
+    if not superuser: 
+        return False
+    return event.user_id in get_cfg_or_value(superuser)
 
 def check_self_reply(event):
     """
@@ -378,13 +379,10 @@ def check_self_reply(event):
 
 # ============================ 消息发送 ============================ #
 
-SEND_MSG_DAILY_LIMIT = 4000
-MSG_RATE_LIMIT_PER_SECOND = get_config()['msg_rate_limit_per_second']
 _bot_reply_msg_ids = set()
 _current_msg_count = 0
 _current_msg_second = -1
 _send_msg_failed_last_mail_time = datetime.fromtimestamp(0)
-_send_msg_failed_mail_interval = timedelta(minutes=10)
 
 def check_send_msg_daily_limit() -> bool:
     """
@@ -397,7 +395,7 @@ def check_send_msg_daily_limit() -> bool:
         send_msg_count = {'date': date, 'count': 0}
         utils_file_db.set('send_msg_count', send_msg_count)
         count = 0
-    return count < SEND_MSG_DAILY_LIMIT
+    return count < global_config.get('msg_send.rate_limit.day')
 
 def record_daily_msg_send():
     """
@@ -413,8 +411,9 @@ def record_daily_msg_send():
     count += 1
     send_msg_count['count'] = count
     utils_file_db.set('send_msg_count', send_msg_count)
-    if count == SEND_MSG_DAILY_LIMIT:
-        utils_logger.warning(f'达到每日发送消息上限 {SEND_MSG_DAILY_LIMIT}')
+    daily_limit = global_config.get('msg_send.rate_limit.day')
+    if count == daily_limit:
+        utils_logger.warning(f'达到每日发送消息上限 {daily_limit}')
 
 def get_send_msg_daily_count() -> int:
     """
@@ -441,7 +440,7 @@ def send_msg_func(func):
         if cur_ts != _current_msg_second:
             _current_msg_count = 0
             _current_msg_second = cur_ts
-        if _current_msg_count >= MSG_RATE_LIMIT_PER_SECOND:
+        if _current_msg_count >= global_config.get('msg_send.rate_limit.second'):
             utils_logger.warning(f'消息达到发送频率，取消消息发送')
             return
         _current_msg_count += 1
@@ -451,7 +450,7 @@ def send_msg_func(func):
         except Exception as e:
             # 失败发送邮件通知
             global _send_msg_failed_last_mail_time
-            if datetime.now() - _send_msg_failed_last_mail_time > _send_msg_failed_mail_interval:
+            if datetime.now() - _send_msg_failed_last_mail_time > timedelta(seconds=global_config.get('msg_send.failed_mail_interval')):
                 _send_msg_failed_last_mail_time = datetime.now()
                 asyncio.create_task(asend_exception_mail("消息发送失败", traceback.format_exc(), utils_logger))
             raise
@@ -532,7 +531,7 @@ async def send_group_fold_msg(bot, group_id: int, contents: List[str], fallback_
         "type": "node",
         "data": {
             "user_id": bot.self_id,
-            "nickname": BOT_NAME,
+            "nickname": BOT_NAME_CFG.get(),
             "content": content
         }
     } for content in contents]
@@ -551,7 +550,7 @@ async def send_multiple_fold_msg(bot, event, contents: List[str], fallback_metho
         "type": "node",
         "data": {
             "user_id": bot.self_id,
-            "nickname": BOT_NAME,
+            "nickname": BOT_NAME_CFG.get(),
             "content": content
         }
     } for content in contents if content]
@@ -596,7 +595,7 @@ async def send_multiple_fold_msg_by_bot(bot, group_id: int, contents: List[str],
         "type": "node",
         "data": {
             "user_id": bot.self_id,
-            "nickname": BOT_NAME,
+            "nickname": BOT_NAME_CFG.get(),
             "content": content
         }
     } for content in contents if content]
@@ -625,13 +624,21 @@ async def send_fold_msg_adaptive(bot, handler, event, content: str, threshold: i
 
 # ============================ 聊天控制 ============================ #
 
-CD_VERBOSE_INTERVAL = get_config()['cd_verbose_interval']
+DEFAULT_CD_CFG = global_config.item('default_cd')
 
 class ColdDown:
     """
     冷却时间
     """
-    def __init__(self, db: FileDB, logger: Logger, default_interval: int, superuser=SUPERUSER, cold_down_name=None, group_seperate=False):
+    def __init__(
+        self, 
+        db: FileDB, 
+        logger: Logger, 
+        default_interval: Union[int, ConfigItem]=DEFAULT_CD_CFG, 
+        superuser: Union[List[int], ConfigItem]=SUPERUSER_CFG, 
+        cold_down_name: str=None, 
+        group_seperate: bool=False
+    ):
         self.default_interval = default_interval
         self.superuser = superuser
         self.db = db
@@ -643,7 +650,7 @@ class ColdDown:
         if allow_super and check_superuser(event, self.superuser):
             self.logger.debug(f'{self.cold_down_name}检查: 超级用户{event.user_id}')
             return True
-        if interval is None: interval = self.default_interval
+        if interval is None: interval = get_cfg_or_value(self.default_interval)
         key = str(event.user_id)
         if isinstance(event, GroupMessageEvent) and self.group_seperate:
             key = f'{event.group_id}-{key}'
@@ -661,7 +668,7 @@ class ColdDown:
                     verbose_key = f'verbose_{key}'
                     if verbose_key not in last_use:
                         last_use[verbose_key] = 0
-                    if now - last_use[verbose_key] > CD_VERBOSE_INTERVAL:
+                    if now - last_use[verbose_key] > global_config.get('cd_verbose_interval'):
                         last_use[verbose_key] = now
                         self.db.set(self.cold_down_name, last_use)
                         rest_time = timedelta(seconds=interval - (now - last_use[key]))
@@ -690,14 +697,21 @@ class RateLimit:
     """
     频率限制
     """
-    def __init__(self, db: FileDB, logger: Logger, limit: int, period_type: str, superuser=SUPERUSER, rate_limit_name=None, group_seperate=False):
+    def __init__(
+        self, 
+        db: FileDB, 
+        logger: Logger, 
+        limit: Union[int, ConfigItem], 
+        period_type: Union[str, ConfigItem], 
+        superuser: Union[List[int], ConfigItem]=SUPERUSER_CFG, 
+        rate_limit_name: str=None,
+        group_seperate: bool=False
+    ):
         """
         period_type: "minute", "hour", "day" or "m", "h", "d"
         """
         self.limit = limit
-        self.period_type = period_type[:1]
-        if self.period_type not in ['m', 'h', 'd']:
-            raise Exception(f'未知的时间段类型 {self.period_type}')
+        self.period_type = period_type
         self.superuser = superuser
         self.db = db
         self.logger = logger
@@ -705,11 +719,12 @@ class RateLimit:
         self.rate_limit_name = f'default' if rate_limit_name is None else f'{rate_limit_name}'
 
     def get_period_time(self, t: datetime) -> datetime:
-        if self.period_type == "m":
+        period_type = get_cfg_or_value(self.period_type)[0].lower()
+        if period_type == "m":
             return t.replace(second=0, microsecond=0)
-        if self.period_type == "h":
+        if period_type == "h":
             return t.replace(minute=0, second=0, microsecond=0)
-        if self.period_type == "d":
+        if period_type == "d":
             return t.replace(hour=0, minute=0, second=0, microsecond=0)
         raise Exception(f'未知的时间段类型 {self.period_type}')
 
@@ -727,16 +742,17 @@ class RateLimit:
         if self.get_period_time(datetime.now()) > self.get_period_time(last_check_time):
             count = {}
             self.logger.debug(f'{self.rate_limit_name}检查: 额度已重置')
-        if count.get(key, 0) >= self.limit:
+        limit = get_cfg_or_value(self.limit)
+        if count.get(key, 0) >= limit:
             self.logger.debug(f'{self.rate_limit_name}检查: {key} 频率超限')
             if verbose:
                 reply_msg = "达到{period}使用次数限制({limit})"
                 if self.period_type == "m":
-                    reply_msg = reply_msg.format(period="分钟", limit=self.limit)
+                    reply_msg = reply_msg.format(period="分钟", limit=limit)
                 elif self.period_type == "h":
-                    reply_msg = reply_msg.format(period="小时", limit=self.limit)
+                    reply_msg = reply_msg.format(period="小时", limit=limit)
                 elif self.period_type == "d":
-                    reply_msg = reply_msg.format(period="天", limit=self.limit)
+                    reply_msg = reply_msg.format(period="天", limit=limit)
                 try:
                     if hasattr(event, 'message_id'):
                         if hasattr(event, 'group_id'):
@@ -748,7 +764,7 @@ class RateLimit:
             ok = False
         else:
             count[key] = count.get(key, 0) + 1
-            self.logger.debug(f'{self.rate_limit_name}检查: {key} 通过 当前次数 {count[key]}/{self.limit}')
+            self.logger.debug(f'{self.rate_limit_name}检查: {key} 通过 当前次数 {count[key]}/{limit}')
             ok = True
         self.db.set(count_key, count)
         self.db.set(last_check_time_key, datetime.now().timestamp())
@@ -758,7 +774,15 @@ class GroupWhiteList:
     """
     群白名单：默认关闭
     """
-    def __init__(self, db: FileDB, logger: Logger, name: str, superuser=SUPERUSER, on_func=None, off_func=None):
+    def __init__(
+        self, 
+        db: FileDB, 
+        logger: Logger, 
+        name: str, 
+        superuser: Union[List[int], ConfigItem]=SUPERUSER_CFG,
+        on_func=None, 
+        off_func=None
+    ):
         self.superuser = superuser
         self.name = name
         self.logger = logger
@@ -769,7 +793,7 @@ class GroupWhiteList:
 
         # 开启命令
         switch_on = CmdHandler([f'/{name} on'], utils_logger, help_command='/{服务名} on')
-        switch_on.check_superuser()
+        switch_on.check_superuser(superuser)
         @switch_on.handle()
         async def _(ctx: HandlerContext):
             group_id = ctx.group_id
@@ -784,7 +808,7 @@ class GroupWhiteList:
         
         # 关闭命令
         switch_off = CmdHandler([f'/{name} off'], utils_logger, help_command='/{服务名} off')
-        switch_off.check_superuser()
+        switch_off.check_superuser(superuser)
         @switch_off.handle()
         async def _(ctx: HandlerContext):
             group_id = ctx.group_id
@@ -850,7 +874,15 @@ class GroupBlackList:
     """
     群黑名单：默认开启
     """
-    def __init__(self, db: FileDB, logger: Logger, name: str, superuser=SUPERUSER, on_func=None, off_func=None):
+    def __init__(
+        self, 
+        db: FileDB, 
+        logger: Logger, 
+        name: str, 
+        superuser: Union[List[int], ConfigItem]=SUPERUSER_CFG,
+        on_func=None, 
+        off_func=None
+    ):
         self.superuser = superuser
         self.name = name
         self.logger = logger
@@ -861,7 +893,7 @@ class GroupBlackList:
 
         # 关闭命令
         switch_on = CmdHandler([f'/{name} on'], utils_logger, help_command='/{服务名} on')
-        switch_on.check_superuser()
+        switch_on.check_superuser(superuser)
         @switch_on.handle()
         async def _(ctx: HandlerContext):
             group_id = ctx.group_id
@@ -876,7 +908,7 @@ class GroupBlackList:
         
         # 开启命令
         switch_off = CmdHandler([f'/{name} off'], utils_logger, help_command='/{服务名} off')
-        switch_off.check_superuser()
+        switch_off.check_superuser(superuser)
         @switch_off.handle()
         async def _(ctx: HandlerContext):
             group_id = ctx.group_id
@@ -940,7 +972,15 @@ class GroupBlackList:
     
 
 _gwls: Dict[str, GroupWhiteList] = {}
-def get_group_white_list(db: FileDB, logger: Logger, name: str, superuser=SUPERUSER, on_func=None, off_func=None, is_service=True) -> GroupWhiteList:
+def get_group_white_list(
+    db: FileDB, 
+    logger: Logger, 
+    name: str, 
+    superuser: Union[List[int], ConfigItem]=SUPERUSER_CFG,
+    on_func=None, 
+    off_func=None, 
+    is_service=True
+) -> GroupWhiteList:
     if is_service:
         global _gwls
         if name not in _gwls:
@@ -949,7 +989,15 @@ def get_group_white_list(db: FileDB, logger: Logger, name: str, superuser=SUPERU
     return GroupWhiteList(db, logger, name, superuser, on_func, off_func)
 
 _gbls: Dict[str, GroupBlackList] = {}
-def get_group_black_list(db: FileDB, logger: Logger, name: str, superuser=SUPERUSER, on_func=None, off_func=None, is_service=True) -> GroupBlackList:
+def get_group_black_list(
+    db: FileDB, 
+    logger: Logger, 
+    name: str, 
+    superuser: Union[List[int], ConfigItem]=SUPERUSER_CFG,
+    on_func=None, 
+    off_func=None, 
+    is_service=True
+) -> GroupBlackList:
     if is_service:
         global _gbls
         if name not in _gbls:
@@ -1205,7 +1253,7 @@ class CmdHandler:
         self.cdrate_checks.append((cd_rate, { "allow_super": allow_super, "verbose": verbose }))
         return self
 
-    def check_superuser(self, superuser=SUPERUSER):
+    def check_superuser(self, superuser: Union[List[int], ConfigItem]=SUPERUSER_CFG):
         self.superuser_check = { "superuser": superuser }
         return self
 
@@ -1556,18 +1604,6 @@ _handler.check_superuser()
 async def _(ctx: HandlerContext):
     count = get_send_msg_daily_count()
     return await ctx.asend_reply_msg(f'今日已发送消息数量: {count}')
-
-# 画图调试
-_handler = CmdHandler(['/draw time', '/画图时间'], utils_logger)
-_handler.check_superuser()
-@_handler.handle()
-async def _(ctx: HandlerContext):
-    if Canvas.log_draw_time:
-        Canvas.log_draw_time = False
-        return await ctx.asend_reply_msg("已关闭画图时间日志")
-    else:
-        Canvas.log_draw_time = True
-        return await ctx.asend_reply_msg("已开启画图时间日志")
 
 # 删除Painter缓存
 _handler = CmdHandler(['/clear_pcache', '/clear pcache', '/pcache clear', '/pcache_clear'], utils_logger)

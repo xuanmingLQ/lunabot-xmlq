@@ -289,9 +289,7 @@ class SyncMusicAliasConfig:
 
     @classmethod
     def get(cls) -> 'SyncMusicAliasConfig':
-        with open(MUSIC_ALIAS_SYNC_CONFIG_PATH, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        return cls(**config)
+        return cls(**(Config('sekai.music_alias_sync').get_all()))
 
 
 # 通过haruki api，同步歌曲别名

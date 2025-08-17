@@ -20,18 +20,17 @@ import pickle
 import glob
 import io
 
+from .config import *
 from .img_utils import mix_image_by_color, adjust_image_alpha_inplace
 from .process_pool import *
 
-DEBUG = False
-
 
 def debug_print(*args, **kwargs):
-    if DEBUG:
+    if global_config.get('debug.painter', False):
         print(*args, **kwargs, flush=True)
 
 def get_memo_usage():
-    if DEBUG:
+    if global_config.get('debug.painter', False):
         import psutil
         process = psutil.Process(os.getpid())
         mem_info = process.memory_info()
@@ -152,7 +151,7 @@ def deterministic_hash(obj: Any) -> str:
 
 PAINTER_CACHE_DIR = "data/utils/painter_cache/"
 
-PAINTER_PROCESS_NUM = 4
+PAINTER_PROCESS_NUM = global_config.get('painter.process_num')
 
 Color = Tuple[int, int, int, int]
 Position = Tuple[int, int]

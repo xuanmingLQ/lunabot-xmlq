@@ -5,10 +5,11 @@ from nonebot.adapters.onebot.v11.message import Message as OutMessage
 import asyncio
 
 
-config = get_config('welcome')
+config = Config('welcome')
 logger = get_logger("Welcome")
 file_db = get_file_db("data/welcome/db.json", logger)
 gwl = get_group_white_list(file_db, logger, 'welcome')
+cd = ColdDown(file_db, logger)
 
 
 # 防止神秘原因导致的重复通知
@@ -115,14 +116,15 @@ async def _(bot: Bot, event: NoticeEvent):
 
 
 # 定时更新
-GROUP_INFO_UPDATE_INTERVAL = config['group_info_update_interval'] * 60
-start_repeat_with_interval(GROUP_INFO_UPDATE_INTERVAL, update_member_info, logger, 
-                           '群成员信息更新', start_offset=10)
+start_repeat_with_interval(
+    config.get('group_info_update_interval'), 
+    update_member_info, logger, '群成员信息更新',
+)
 
 
 # 设置入群欢迎信息
 welcome_info = CmdHandler(["/welcome info", "/入群信息", "/欢迎信息"], logger)
-welcome_info.check_wblist(gwl).check_superuser()
+welcome_info.check_wblist(gwl).check_superuser().check_cdrate(cd)
 @welcome_info.handle()
 async def _(ctx: HandlerContext):
     text = ctx.get_args().strip()

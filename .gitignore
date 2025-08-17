@@ -143,8 +143,5 @@ dmypy.json
 data/
 logs/
 sandbox/
+config/
 
-src/plugins/llm/api_providers/
-
-autochat_config.yaml
-config.yaml

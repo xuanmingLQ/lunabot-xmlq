@@ -6,23 +6,14 @@ import numpy as np
 from .api_provider import ApiProvider, LlmModel
 from .api_provider_manager import api_provider_mgr
 
-config = get_config('llm')
+config = Config('llm.llm')
 logger = get_logger("Llm")
 file_db = get_file_db("data/llm/db.json", logger)
 
 # -------------------------------- 获取模型预设 -------------------------------- #
 
-MODEL_PRESET_PATH = "data/llm/model_preset.yaml"
-
 def get_model_preset(key: str) -> Union[str, List[str], dict]:
-    with open(MODEL_PRESET_PATH, "r", encoding="utf-8") as f:
-        model_preset = yaml.safe_load(f)
-    key = key.split('.')
-    ret = model_preset
-    for k in key:
-        ret = ret.get(k)
-        if ret is None:
-            raise ValueError(f"模型预设 {key} 不存在")
+    ret = Config('llm.model_preset').get(key)
     def parse_ref(s: str):
         return get_model_preset(s[1:]) if s.startswith("&") else s
     if isinstance(ret, str):
@@ -34,10 +25,11 @@ def get_model_preset(key: str) -> Union[str, List[str], dict]:
     return ret
 
 
-# -------------------------------- GPT聊天相关 -------------------------------- #
+# -------------------------------- 聊天相关 -------------------------------- #
 
-CHAT_TIMEOUT = 300
-CHAT_MAX_TOKENS = config['chat_max_tokens']
+CHAT_TIMEOUT_CFG = config.item('chat_timeout')
+CHAT_MODEL_SWITCH_INTERVAL_CFG = config.item('chat_model_switch_interval')
+CHAT_MAX_TOKENS_CFG = config.item('chat_max_tokens')
 session_id_top = 0
 
 # ChatSeesion回复结果类型
@@ -144,11 +136,12 @@ class ChatSession:
     async def get_response(
         self, 
         model_name: Union[str, List[str]],
-        process_func = None,
+        process_func=None,
         enable_reasoning=False, 
         image_response=False,
-        timeout=180,
-        model_interval=1,
+        timeout: Union[int, ConfigItem]=CHAT_TIMEOUT_CFG,
+        model_switch_interval: Union[int, ConfigItem]=CHAT_MODEL_SWITCH_INTERVAL_CFG,
+        max_tokens: Union[int, ConfigItem]=CHAT_MAX_TOKENS_CFG,
     ):
         if isinstance(model_name, str):
             model_name = [model_name]
@@ -169,8 +162,7 @@ class ChatSession:
                 use_reasoning = enable_reasoning and model.include_reasoning
                 content = self.content.copy()
                 if use_reasoning:
-                    with open("data/llm/reasoning_prompt.txt", "r", encoding="utf-8") as f:
-                        reasoning_prompt = f.read()
+                    reasoning_prompt = Path("config/llm/reasoning_prompt.txt").read_text(encoding='utf-8')
                     if isinstance(content[-1]['content'], str):
                         content[-1]['content'] += reasoning_prompt
                     else:
@@ -202,8 +194,9 @@ class ChatSession:
                             model=model.get_model_id(),
                             messages=content,
                             extra_body=extra_body,
+                            max_tokens=get_cfg_or_value(max_tokens),
                         ), 
-                        timeout=timeout
+                        timeout=get_cfg_or_value(timeout),
                     )
                 except TimeoutError:
                     raise Exception(f"等待回复超时")
@@ -283,7 +276,7 @@ class ChatSession:
             except Exception as e:
                 logger.warning(f"会话{self.id}获取回复失败, 使用模型 {name}: {get_exc_desc(e)}")
                 errs.append((name, truncate(get_exc_desc(e), 64)))
-                await asyncio.sleep(model_interval)
+                await asyncio.sleep(get_cfg_or_value(model_switch_interval))
 
         if len(errs) == 1:
             raise Exception(f"调用模型{errs[0][0]}失败: {errs[0][1]}")
@@ -294,22 +287,21 @@ class ChatSession:
 
 # -------------------------------- TextEmbedding相关 -------------------------------- #
 
-TEXT_EMBEDDING_MODEL = config['text_embedding_model']
-
 # 获取文本嵌入
 async def get_text_embedding(texts: List[str]) -> List[List[float]]:
     logger.info(f"获取文本嵌入: {texts}")
 
-    provider = api_provider_mgr.get_provider(TEXT_EMBEDDING_MODEL['provider'])
+    model = config.get('text_embedding_model')
+    provider = api_provider_mgr.get_provider(model['provider'])
 
     response = await provider.get_client().embeddings.create(
         input=texts, 
-        model=TEXT_EMBEDDING_MODEL['id'],
+        model=model['id'],
         encoding_format='float',
     )
     embeddings = [d.embedding for d in response.data]
     tokens = response.usage.prompt_tokens
-    cost = TEXT_EMBEDDING_MODEL['input_pricing'] * tokens
+    cost = model['input_pricing'] * tokens
 
     await provider.aupdate_quota(-cost)
     return embeddings
@@ -486,14 +478,14 @@ def get_text_retriever(name) -> TextRetriever:
 # TTS
 async def tts(text):
     logger.info(f"TTS: {text}")
-    model_meta = config['tts_model']
+    model = config.get('tts_model')
     audio_save_dir = "data/llm/tts/"
-    provider = api_provider_mgr.get_provider(model_meta['provider'])
+    provider = api_provider_mgr.get_provider(model['provider'])
     provider.check_qps_limit()
 
     response = await provider.get_client().audio.speech.create(
-        model = model_meta['id'],
-        voice = model_meta['voice'],
+        model = model['id'],
+        voice = model['voice'],
         input = text,
     )
 

@@ -1,11 +1,11 @@
 from ..utils import *
 import glob
 
-config = get_config('helper')
+config = Config('helper')
 logger = get_logger('Helper')
 file_db = get_file_db('data/helper/db.json', logger)
 gbl = get_group_black_list(file_db, logger, 'helper')
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 
 
 HELP_DOCS_WEB_URL = "https://github.com/NeuraXmy/lunabot/blob/master/helps/{name}.md"
@@ -39,7 +39,7 @@ async def _(ctx: HandlerContext):
         msg += "发送 \"/help 英文服务名\" 查看各服务的详细帮助\n"
         msg += f"例如发送 \"/help alive\" 查看\"连接检测服务\"的帮助\n"
         msg += "\n可查询的服务列表:\n"
-        for name, desc in zip(help_names, help_decs):
+        for name, desc in sorted(zip(help_names, help_decs)):
             msg += f"{name} - {desc}\n"
         msg += f"\n或前往网页查看帮助文档:\n"
         msg += HELP_DOCS_WEB_URL.format(name='main')

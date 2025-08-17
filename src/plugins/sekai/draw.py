@@ -8,7 +8,7 @@ def get_chara_icon_by_chara_id(cid: int, size: int = None, raise_exc=True, defau
     """
     通过角色ID获取角色头像
     """
-    nickname = CHARACTER_FIRST_NICKNAME.get(cid)
+    nickname = get_character_first_nickname(cid)
     if not nickname:
         if raise_exc: raise Exception(f"要获取的icon的角色ID={cid}错误")
         else: return default

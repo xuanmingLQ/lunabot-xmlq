@@ -6,17 +6,18 @@ import sys
 import numpy as np
 
 
-config = get_config('imgtool')
+config = Config('imgtool')
 logger = get_logger("ImgTool")
 file_db = get_file_db("data/imgtool/db.json", logger)
-cd = ColdDown(file_db, logger, config['cd'])
+cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'imgtool')
 
 
 # ============================= 基础设施 ============================= # 
 
-IMAGE_LIST_CLEAN_INTERVAL = 3 * 60 * 60  # 图片列表失效时间
-MULTI_IMAGE_MAX_NUM = 64  # 多张图片最大数量
+IMAGE_LIST_CLEAN_INTERVAL_CFG = config.item('image_list_clean_interval')  # 图片列表清理间隔(s)
+MULTI_IMAGE_MAX_NUM_CFG = config.item('multi_image_max_num')  # 多张图片操作的最大数量
+
 
 # 图片类型
 class ImageType(Enum):
@@ -78,7 +79,7 @@ class ImageOperation:
         self.output_type = output_type
         self.process_type = process_type
         self.help = ""
-        self.input_limit = 1024 * 1024 * 32
+        self.input_limit = parse_cfg_num(config.get('input_res_limit.default'))
         ImageOperation.all_ops[name] = self
         assert_and_reply(process_type in ['single', 'batch'], f"图片操作类型{process_type}错误")
         assert_and_reply(not (input_type == ImageType.Multiple and process_type == 'batch'), f"多张图片操作不能以批量方式处理")
@@ -180,7 +181,7 @@ def get_image_list(user_id):
     
     # 判断过期
     last_edit_time = datetime.fromtimestamp(image_list_edit_time[user_id])
-    if (datetime.now() - last_edit_time).total_seconds() > IMAGE_LIST_CLEAN_INTERVAL:
+    if (datetime.now() - last_edit_time).total_seconds() > IMAGE_LIST_CLEAN_INTERVAL_CFG.get():
         logger.info(f"用户 {user_id} 的图片列表已过期")
         image_list[user_id] = []
         file_db.set('image_list', image_list)
@@ -197,6 +198,8 @@ async def add_image_to_list(ctx: HandlerContext, reply=True):
     user_id = str(ctx.user_id)
     image_list = get_image_list(user_id)
 
+    max_num = MULTI_IMAGE_MAX_NUM_CFG.get()
+
     # 回复转发多张图片
     reply_msg = await ctx.aget_reply_msg()
     assert_and_reply(reply_msg, "请回复带有图片的消息/带有图片的折叠消息")
@@ -207,14 +210,14 @@ async def add_image_to_list(ctx: HandlerContext, reply=True):
             msg = msg_obj['message']
             img_urls.extend(extract_image_url(msg))
         assert_and_reply(img_urls, "回复的转发消息中不包含图片")
-        assert_and_reply(len(img_urls) <= MULTI_IMAGE_MAX_NUM, f"最多只能处理{MULTI_IMAGE_MAX_NUM}张图片")
+        assert_and_reply(len(img_urls) <= max_num, f"最多只能处理{max_num}张图片")
     # 回复的消息有图片
     else:
         img_urls = extract_image_url(reply_msg)
         assert_and_reply(img_urls, "回复的消息中不包含图片")
 
-    assert_and_reply(len(image_list[user_id]) + len(img_urls) <= MULTI_IMAGE_MAX_NUM, 
-                     f"图片列表已满，当前有{len(image_list[user_id])}张图片，最多只能处理{MULTI_IMAGE_MAX_NUM}张图片")
+    assert_and_reply(len(image_list[user_id]) + len(img_urls) <= max_num, 
+                     f"图片列表已满，当前有{len(image_list[user_id])}张图片，最多只能处理{max_num}张图片")
 
     if 'r' in args:
         img_urls = img_urls[::-1]
@@ -261,6 +264,7 @@ async def reverse_image_list(ctx: HandlerContext, reply=True):
 
 # 获取多张图片
 async def get_multi_images(ctx: HandlerContext) -> List[Image.Image]:
+    max_num = MULTI_IMAGE_MAX_NUM_CFG.get()
     reply_msg = await ctx.aget_reply_msg()
     # 使用回复消息
     if reply_msg:
@@ -273,7 +277,7 @@ async def get_multi_images(ctx: HandlerContext) -> List[Image.Image]:
             for msg_obj in forward_msg['messages']:
                 img_urls.extend(extract_image_url(msg_obj['message']))
             assert_and_reply(img_urls, "回复的转发消息中不包含图片")
-            assert_and_reply(len(img_urls) <= MULTI_IMAGE_MAX_NUM, f"最多只能处理{MULTI_IMAGE_MAX_NUM}张图片")
+            assert_and_reply(len(img_urls) <= max_num, f"最多只能处理{max_num}张图片")
         # 回复的消息有图片
         else:
             img_urls = extract_image_url(reply_msg)
@@ -1182,8 +1186,8 @@ cutout ai: 使用AI模型抠图
                 ret['tolerance'] = int(arg)
                 assert_and_reply(0 <= ret['tolerance'] <= 255, "容差值只能在0-255之间（默认容差为20）")
         method_limit = {
-            'floodfill': 1024 * 1024 * 32,
-            'ai': 1024 * 1024,
+            'floodfill': parse_cfg_num(config.get('input_res_limit.cutout.floodfill')),
+            'ai': parse_cfg_num(config.get('input_res_limit.cutout.ai')),
         }
         self.input_limit = method_limit.get(ret['method'], None)
         return ret
@@ -1459,10 +1463,10 @@ async def _(ctx: HandlerContext):
     img = np.array(img)
 
     args = ctx.get_args().strip()
-    top_k = 10
+    top_k = config.get('color_pick_topk')
     if args:
         top_k = int(args)
-        assert_and_reply(1 <= top_k <= 10, "取色数量只能在1-10之间")
+        assert_and_reply(1 <= top_k <= 20, "取色数量只能在1-20之间")
 
     # K聚类提取主色
     def k_means(arr: np.ndarray, k: int):
@@ -1494,9 +1498,9 @@ video_to_gif.check_cdrate(cd).check_wblist(gbl)
 @video_to_gif.handle()
 async def _(ctx: HandlerContext):
     parser = ctx.get_argparser()
-    parser.add_argument('--max_size', '-s', type=int, default=256)
-    parser.add_argument('--max_fps', '-f', type=int, default=10)
-    parser.add_argument('--max_frame_num', '-n', type=int, default=200)
+    parser.add_argument('--max_size', '-s', type=int, default=config.get('video_to_gif.default_max_size'))
+    parser.add_argument('--max_fps', '-f', type=int, default=config.get('video_to_gif.default_max_fps'))
+    parser.add_argument('--max_frame_num', '-n', type=int, default=config.get('video_to_gif.default_max_frame_num'))
     args = await parser.parse_args(error_reply="""
     使用方式: (回复一个视频) /gif [--max_size/-s <最大尺寸>] [--max_fps/-f <最大帧率>] [--max_frame_num/-n <最大帧数>]
     --max_size/-s: 图像的长边超过该尺寸时会将视频保持分辨率缩小 默认为256
@@ -1514,7 +1518,8 @@ async def _(ctx: HandlerContext):
     video = cqs['video'][0]
     video_url = video['url']
     filesize = int(video['file_size'])
-    assert_and_reply(filesize <= 1024 * 1024 * 10, "视频文件过大，无法处理")
+    size_limit = int(config.get('video_to_gif.size_limit') * 1024 * 1024)
+    assert_and_reply(filesize <= size_limit, "视频文件过大，无法处理")
     async with TempNapcatFilePath('video', video['file']) as video_path:
         with TempFilePath("gif") as gif_path:
             await run_in_pool(convert_video_to_gif, video_path, gif_path, args.max_fps, args.max_size, args.max_frame_num)
