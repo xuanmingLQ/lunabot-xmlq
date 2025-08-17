@@ -758,12 +758,6 @@ from .plot import *
 from .img_utils import *
 import decord
 
-def open_image(file_path: Union[str, Path], load=True) -> Image.Image:
-    img = Image.open(file_path)
-    if load:
-        img.load()
-    return img
-
 def get_image_b64(image: Image.Image) -> str:
     """
     转化PIL图片为带 "data:image/jpeg;base64," 前缀的base64字符串
@@ -863,16 +857,6 @@ async def markdown_to_image(markdown_text: str, width: int = 600) -> Image.Image
                 utils_logger.print_exc(f'markdown转图片失败')
         return await run_in_pool(draw)
 
-def is_gif(image: Union[str, Image.Image]) -> bool:
-    """
-    检查图片是否为动图
-    """
-    if isinstance(image, str):
-        return image.endswith(".gif")
-    if isinstance(image, Image.Image):
-        return hasattr(image, 'is_animated') and image.is_animated
-    return False
-
 def convert_video_to_gif(video_path: str, save_path: str, max_fps=10, max_size=256, max_frame_num=200):
     """
     将视频转换为GIF格式
@@ -936,6 +920,13 @@ def concat_images(images: List[Image.Image], mode) -> Image.Image:
     else:
         raise Exception('concat mode must be v/h/g')
 
+def frames_to_gif(frames: List[Image.Image], duration: int = 100, alpha_threshold: float = 0.5) -> Image.Image:
+    """
+    将帧列表转换为透明GIF图像
+    """
+    with TempFilePath('gif') as path:
+        save_transparent_gif(frames, duration, path, alpha_threshold)
+        return open_image(path)
 
 
 # ============================= 其他 ============================ #

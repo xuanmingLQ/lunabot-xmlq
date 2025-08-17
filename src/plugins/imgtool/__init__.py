@@ -1,6 +1,6 @@
 from ..utils import *
 from .mirage import generate_mirage
-from PIL import Image, ImageSequence, ImageOps, ImageEnhance
+from PIL import Image, ImageOps, ImageEnhance
 from enum import Enum
 import sys
 import numpy as np
@@ -100,23 +100,30 @@ class ImageOperation:
             raise ReplyException(msg.strip())
         
         def apply_limit(img: Union[Image.Image, List[Image.Image]]):
-            if isinstance(img, Image.Image):
+            if isinstance(img, Image.Image) and not is_gif(img):
                 w, h = img.size
                 limit = self.input_limit
                 if w * h > limit:
                     new_w = int((limit / (w * h)) ** 0.5 * w)
                     new_h = int((limit / (w * h)) ** 0.5 * h)
                     img = img.resize((new_w, new_h), Image.Resampling.BILINEAR)
-                    logger.info(f"{self.name} 对超限输入进行缩放 {w}x{h} -> {new_w}x{new_h}")
+                    logger.info(f"图片操作 {self.name} 对超限输入进行缩放 {w}x{h} -> {new_w}x{new_h}")
             else:
+                is_single_gif = False
+                if isinstance(img, Image.Image):
+                    is_single_gif = True
+                    duration = get_gif_duration(img)
+                    img = gif_to_frames(img)
                 w, h = img[0].size
                 n = len(img)
-                limit = self.input_limit // next
+                limit = self.input_limit // n
                 if w * h > limit:
                     new_w = int((limit / (w * h)) ** 0.5 * w)
                     new_h = int((limit / (w * h)) ** 0.5 * h)
                     img = [i.resize((new_w, new_h), Image.Resampling.BILINEAR) for i in img]
-                    logger.info(f"{self.name} 对超限输入进行缩放 {n}x{w}x{h} -> {n}x{new_w}x{new_h}")
+                    logger.info(f"图片操作 {self.name} 对超限输入进行缩放 {n}x{w}x{h} -> {n}x{new_w}x{new_h}")
+                if is_single_gif:
+                    img = frames_to_gif(img, duration)
             return img
 
         def process_image(img):
@@ -125,16 +132,10 @@ class ImageOperation:
                 return self.operate(apply_limit(img), args)
             elif self.process_type == 'batch':
                 if img_type == ImageType.Animated:
-                    tmp_save_path = f"data/imgtool/tmp/{rand_filename('gif')}"
-                    try:
-                        create_parent_folder(tmp_save_path)
-                        frames = get_frames_from_gif(img)
-                        frames = [self.operate(f, args, img_type, i, img.n_frames) for i, f in enumerate(frames)]
-                        save_transparent_gif(apply_limit(frames), get_gif_duration(img), tmp_save_path)
-                        return Image.open(tmp_save_path)
-                    finally:
-                        if os.path.exists(tmp_save_path):
-                            os.remove(tmp_save_path)
+                    frames = gif_to_frames(img)
+                    frames = apply_limit(frames)
+                    frames = [self.operate(f, args, img_type, i, img.n_frames) for i, f in enumerate(frames)]
+                    return frames_to_gif(frames, get_gif_duration(img))
                 else:
                     return self.operate(apply_limit(img), args, img_type)
         
@@ -371,6 +372,7 @@ img_op = CmdHandler("/img", logger, priority=100)
 img_op.check_cdrate(cd).check_wblist(gbl)
 @img_op.handle()
 async def _(ctx: HandlerContext):
+    await ctx.block(f"{ctx.user_id}", 5)
     await operate_image(ctx)
 
 # push图片列表Handler
@@ -444,7 +446,7 @@ gif 0.8 使用优化算法以80%不透明度阈值生成GIF
             return img
         with TempFilePath("gif") as tmp_path:
             if args['opt']:
-                save_high_quality_static_gif(img, tmp_path, args['threshold'])
+                save_transparent_static_gif(img, tmp_path, args['threshold'])
             else:
                 img.convert('RGBA').save(tmp_path, save_all=True, append_images=[], duration=0, loop=0)
             return open_image(tmp_path)
@@ -568,14 +570,9 @@ class BackOperation(ImageOperation):
         return None
     
     def operate(self, img: Image.Image, args: dict=None, image_type: ImageType=None, frame_idx: int=0, total_frame: int=1) -> Image.Image:
-        try:
-            frames = [frame.copy() for frame in ImageSequence.Iterator(img)]
-            frames.reverse()
-            tmp_path = create_parent_folder(f"data/imgtool/tmp/{rand_filename('gif')}")
-            save_transparent_gif(frames, get_gif_duration(img), tmp_path)
-            return Image.open(tmp_path)
-        finally:
-            remove_file(tmp_path)
+        frames = gif_to_frames(img)
+        frames.reverse()
+        return frames_to_gif(frames, get_gif_duration(img))
 
 class SpeedOperation(ImageOperation):
     def __init__(self):
@@ -625,18 +622,14 @@ speed 100 设置动图帧间隔为100ms
             max_rate = img.info['duration'] / (20 / (frame_num - 1))
             raise ReplyException(f"加速倍率过大！该图像最多只能加速{max_rate:.2f}倍")
 
-        try:
-            tmp_path = create_parent_folder(f"data/imgtool/tmp/{rand_filename('gif')}")
-            frames = [frame.copy() for frame in ImageSequence.Iterator(img)]
-            new_frames = []
-            for i in range(0, frame_num, interval):
-                new_frames.append(frames[i])
-            if args.get('back', False):
-                new_frames.reverse()
-            save_transparent_gif(new_frames, duration, tmp_path)
-            return Image.open(tmp_path)
-        finally:
-            remove_file(tmp_path)
+        frames = gif_to_frames(img)
+        new_frames = []
+        for i in range(0, frame_num, interval):
+            new_frames.append(frames[i])
+        if args.get('back', False):
+            new_frames.reverse()
+        return frames_to_gif(new_frames, duration)
+
 
 class GrayOperation(ImageOperation):
     def __init__(self):
@@ -923,7 +916,7 @@ extract 2: 以间隔2帧拆分
     
     def operate(self, img: Image.Image, args: dict, image_type: ImageType=None, frame_idx: int=0, total_frame: int=1) -> List[Image.Image]: 
         interval = args['interval']
-        frames = [frame.copy() for frame in ImageSequence.Iterator(img)]
+        frames = gif_to_frames(img)
         n_frames = len(frames)
         max_frame_num = 32
         if interval: 
@@ -1190,14 +1183,14 @@ cutout ai: 使用AI模型抠图
                 assert_and_reply(0 <= ret['tolerance'] <= 255, "容差值只能在0-255之间（默认容差为20）")
         method_limit = {
             'floodfill': 1024 * 1024 * 32,
-            'ai': 512 * 512,
+            'ai': 1024 * 1024,
         }
         self.input_limit = method_limit.get(ret['method'], None)
         return ret
     
     def operate(self, img: Image.Image, args: dict=None, image_type: ImageType=None, frame_idx: int=0, total_frame: int=1) -> Image.Image:
         if is_gif(img):
-            frames = [frame.copy() for frame in ImageSequence.Iterator(img)]
+            frames = gif_to_frames(img)
         else:
             frames = [img]
 
@@ -1232,12 +1225,11 @@ cutout ai: 使用AI模型抠图
             for i in range(len(frames)):
                 frames[i] = remove(frames[i])
 
-        if len(frames) == 1:
-            return frames[0]
+        if is_gif(img):
+            return frames_to_gif(frames, get_gif_duration(img))
         else:
-            with TempFilePath('gif') as gif_path:
-                save_transparent_gif(frames, get_gif_duration(img), gif_path)
-                return Image.open(gif_path)
+            return frames[0]
+            
             
 
 # 注册所有图片操作

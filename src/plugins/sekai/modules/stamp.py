@@ -24,7 +24,7 @@ async def get_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, format: str) ->
         with TempFilePath("gif") as path:
             img = await get_stamp_image(ctx, sid)
             img = img.resize((int(img.width * GIF_STAMP_SCALE), int(img.height * GIF_STAMP_SCALE)), Image.Resampling.LANCZOS)
-            save_high_quality_static_gif(img, path)
+            save_transparent_static_gif(img, path)
             return await get_image_cq(path)
     else:
         return await get_image_cq(await get_stamp_image(ctx, sid))
@@ -85,7 +85,7 @@ async def make_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, text: str, for
     if format == 'gif':
         img = img.resize((int(img.width * GIF_STAMP_SCALE), int(img.height * GIF_STAMP_SCALE)), Image.Resampling.LANCZOS)
         with TempFilePath("gif") as path:
-            save_high_quality_static_gif(img, path)
+            save_transparent_static_gif(img, path)
             return await get_image_cq(path)
     else:
         return await get_image_cq(img)

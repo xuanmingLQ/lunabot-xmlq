@@ -1,16 +1,19 @@
-# This code adapted from https://github.com/python-pillow/Pillow/issues/4644 to resolve an issue
-# described in https://github.com/python-pillow/Pillow/issues/4640
-#
-# There is a long-standing issue with the Pillow library that messes up GIF transparency by replacing the
-# transparent pixels with black pixels (among other issues) when the GIF is saved using PIL.Image.save().
-# This code works around the issue and allows us to properly generate transparent GIFs.
-
 from typing import Tuple, List, Union
 from collections import defaultdict
 from random import randrange
 from itertools import chain
 from PIL import Image, ImageSequence
 import numpy as np
+from pathlib import Path
+
+
+# ============================ 透明GIF处理 ============================ #
+# This code adapted from https://github.com/python-pillow/Pillow/issues/4644 to resolve an issue
+# described in https://github.com/python-pillow/Pillow/issues/4640
+#
+# There is a long-standing issue with the Pillow library that messes up GIF transparency by replacing the
+# transparent pixels with black pixels (among other issues) when the GIF is saved using PIL.Image.save().
+# This code works around the issue and allows us to properly generate transparent GIFs.
 
 QUANTIZE_METHOD = Image.Quantize.MAXCOVERAGE
 DITHER = 0
@@ -154,24 +157,54 @@ def _save_transparent_gif(images: List[Image.Image], durations: Union[int, List[
     root_frame, save_args = _create_animated_gif(images, durations, alpha_threshold)
     root_frame.save(save_file, **save_args)
 
-# 从GIF获取帧间隔
-def get_gif_duration(img: Image.Image):
+
+# ============================ 工具函数 ============================ #
+
+def open_image(file_path: Union[str, Path], load=True) -> Image.Image:
+    """
+    打开图片文件并返回PIL Image对象，默认直接load
+    """
+    img = Image.open(file_path)
+    if load:
+        img.load()
+    return img
+
+def is_gif(image: Union[str, Image.Image]) -> bool:
+    """
+    检查图片是否为动图
+    """
+    if isinstance(image, str):
+        return image.endswith(".gif")
+    if isinstance(image, Image.Image):
+        return hasattr(image, 'is_animated') and image.is_animated
+    return False
+
+def get_gif_duration(img: Image.Image) -> int:
+    """
+    获取GIF的帧间隔
+    """
     return img.info.get('duration', 50)
 
-# 从GIF获取帧序列
-def get_frames_from_gif(img: Image.Image):
+def gif_to_frames(img: Image.Image) -> List[Image.Image]:
+    """
+    从GIF图像中提取所有帧
+    """
     return [frame.copy() for frame in ImageSequence.Iterator(img)]
 
-# 从帧序列保存透明GIF
 def save_transparent_gif(frames: Union[Image.Image, List[Image.Image]], duration: int, save_path: str, alpha_threshold: float = 0.5):
+    """
+    从帧序列保存透明GIF
+    """
     alpha_threshold = max(0.0, min(1.0, alpha_threshold))
     alpha_threshold = int(alpha_threshold * 255)
     if isinstance(frames, Image.Image):
         frames = [frames]
     _save_transparent_gif(frames, duration, save_path, alpha_threshold)
 
-# 保存高质量静态GIF
-def save_high_quality_static_gif(img: Image, save_path: str, alpha_threshold: float=0.5):
+def save_transparent_static_gif(img: Image, save_path: str, alpha_threshold: float=0.5):
+    """
+    保存静态透明GIF图像
+    """
     return save_transparent_gif(img, duration=50, save_path=save_path, alpha_threshold=alpha_threshold)
     import random
     import os
@@ -217,7 +250,6 @@ def save_high_quality_static_gif(img: Image, save_path: str, alpha_threshold: fl
         img.save(save_path, save_all=True, append_images=[img], duration=100, loop=0, transparency=transparent_color_index)
         break
 
-# 从帧序列保存APNG
 def save_apng(images: List[Image.Image], save_path: str, duration=50, loop=0):
     """
     将RGBA图像列表保存为APNG文件
@@ -242,8 +274,10 @@ def save_apng(images: List[Image.Image], save_path: str, duration=50, loop=0):
         loop=loop
     )
 
-# 图像乘颜色
-def multiply_image_by_color(img: Image.Image, color: tuple):
+def multiply_image_by_color(img: Image.Image, color: tuple) -> Image.Image:
+    """
+    将图像的每个像素乘以指定颜色的RGB值，A通道保持不变
+    """
     if img.mode.upper() not in ['RGB', 'RGBA']:
         img = img.convert('RGBA')
     channel = 4 if img.mode.upper() == 'RGBA' else 3
@@ -255,8 +289,10 @@ def multiply_image_by_color(img: Image.Image, color: tuple):
     img_np = np.clip(img_np, 0, 255).astype(np.uint8)
     return Image.fromarray(img_np, mode=img.mode)
 
-# 图像混合颜色
-def mix_image_by_color(img: Image.Image, color: tuple):
+def mix_image_by_color(img: Image.Image, color: tuple) -> Image.Image:
+    """
+    将图像与指定颜色混合，使用颜色的A通道作为混合因子
+    """
     if img.mode.upper() not in ['RGB', 'RGBA']:
         img = img.convert('RGBA')
     assert len(color) == 4, "Color must be a tuple of 4 elements (R, G, B, A)"
@@ -268,8 +304,10 @@ def mix_image_by_color(img: Image.Image, color: tuple):
     img_np = np.clip(img_np, 0, 255).astype(np.uint8)
     return Image.fromarray(img_np, mode=img.mode)
 
-# 图像调整透明度（原地）
 def adjust_image_alpha_inplace(img: Image.Image, value: Union[int, float], method: str):
+    """
+    调整图像的透明度（原地修改）
+    """
     assert method in ('set', 'multiply')
     if isinstance(value, float):
         value = int(value * 255)
@@ -281,3 +319,5 @@ def adjust_image_alpha_inplace(img: Image.Image, value: Union[int, float], metho
     elif method == 'multiply':
         alpha_channel = Image.eval(alpha_channel, lambda a: int(a * value / 255))
     img.putalpha(alpha_channel)
+
+

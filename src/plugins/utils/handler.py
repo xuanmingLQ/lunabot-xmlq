@@ -225,7 +225,7 @@ async def get_image_cq(
         ext = 'gif' if is_gif_img else ('jpg' if low_quality else 'png')
         with TempFilePath(ext) as tmp_path:
             if ext == 'gif':
-                save_transparent_gif(get_frames_from_gif(image), get_gif_duration(image), tmp_path)
+                save_transparent_gif(gif_to_frames(image), get_gif_duration(image), tmp_path)
             elif ext == 'jpg':
                 image = image.convert('RGB')
                 image.save(tmp_path, format='JPEG', quality=quality, optimize=True, subsampling=1, progressive=True)

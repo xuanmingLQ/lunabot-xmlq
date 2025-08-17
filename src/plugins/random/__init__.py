@@ -23,7 +23,7 @@ async def _(ctx: HandlerContext):
     for i, dice in enumerate(dices):
         image.paste(dice_images[dice - 1], (i * DICE_SIZE, DICE_SIZE // 2))
     with TempFilePath('gif') as save_path:
-        save_high_quality_static_gif(image, save_path)
+        save_transparent_static_gif(image, save_path)
         await ctx.asend_reply_msg(await get_image_cq(save_path))
 
 
