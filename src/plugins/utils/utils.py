@@ -407,19 +407,31 @@ def get_readable_datetime(t: datetime, show_original_time=True, use_en_unit=Fals
         text = f"{t.strftime('%Y-%m-%d %H:%M:%S')} ({text})"
     return text
 
-def get_readable_timedelta(delta: timedelta):
+def get_readable_timedelta(delta: timedelta, precision: str = 'm', use_en_unit=False) -> str:
     """
     将时间段转换为可读字符串
     """
-    if delta.total_seconds() < 0:
-        return f"0秒"
-    if delta.total_seconds() < 60:
-        return f"{int(delta.total_seconds())}秒"
-    if delta.total_seconds() < 60 * 60:
-        return f"{int(delta.total_seconds() / 60)}分钟"
-    if delta.total_seconds() < 60 * 60 * 24:
-        return f"{int(delta.total_seconds() / 60 / 60)}小时{int(delta.total_seconds() / 60 % 60)}分钟"
-    return f"{delta.days}天{int(delta.seconds / 60 / 60)}小时{int(delta.seconds / 60 % 60)}分钟"
+    match precision:
+        case 's': precision = 3
+        case 'm': precision = 2
+        case 'h': precision = 1
+        case 'd': precision = 0
+
+    s = int(delta.total_seconds())
+    if s < 0: return "0秒" if not use_en_unit else "0s"
+    d = s // (24 * 3600)
+    s %= (24 * 3600)
+    h = s // 3600
+    s %= 3600
+    m = s // 60
+    s %= 60
+
+    ret = ""
+    if d > 0: ret += f"{d}天" if not use_en_unit else f"{d}d"
+    if h > 0 and precision >= 1: ret += f"{h}小时" if not use_en_unit else f"{h}h"
+    if m > 0 and precision >= 2: ret += f"{m}分钟" if not use_en_unit else f"{m}m"
+    if s > 0 and precision >= 3: ret += f"{s}秒"   if not use_en_unit else f"{s}s"
+    return ret
 
 def truncate(s: str, limit: int) -> str:
     """
