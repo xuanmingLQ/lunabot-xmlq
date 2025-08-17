@@ -1094,7 +1094,7 @@ async def _(ctx: SekaiHandlerContext):
 # 查询整体榜线
 pjsk_skl = SekaiCmdHandler([
     "/pjsk sk line", "/pjsk_sk_line", "/pjsk board line", "/pjsk_board_line",
-    "/sk线", "/skl",
+    "/sk线", "/skl", "/榜线",
 ], prefix_args=['', 'wl'])
 pjsk_skl.check_cdrate(cd).check_wblist(gbl)
 @pjsk_skl.handle()

@@ -78,6 +78,7 @@ class ImageOperation:
         self.output_type = output_type
         self.process_type = process_type
         self.help = ""
+        self.input_limit = 1024 * 1024 * 32
         ImageOperation.all_ops[name] = self
         assert_and_reply(process_type in ['single', 'batch'], f"图片操作类型{process_type}错误")
         assert_and_reply(not (input_type == ImageType.Multiple and process_type == 'batch'), f"多张图片操作不能以批量方式处理")
@@ -97,11 +98,31 @@ class ImageOperation:
             else:
                 msg = f"参数错误\n{self.help}"
             raise ReplyException(msg.strip())
+        
+        def apply_limit(img: Union[Image.Image, List[Image.Image]]):
+            if isinstance(img, Image.Image):
+                w, h = img.size
+                limit = self.input_limit
+                if w * h > limit:
+                    new_w = int((limit / (w * h)) ** 0.5 * w)
+                    new_h = int((limit / (w * h)) ** 0.5 * h)
+                    img = img.resize((new_w, new_h), Image.Resampling.BILINEAR)
+                    logger.info(f"{self.name} 对超限输入进行缩放 {w}x{h} -> {new_w}x{new_h}")
+            else:
+                w, h = img[0].size
+                n = len(img)
+                limit = self.input_limit // next
+                if w * h > limit:
+                    new_w = int((limit / (w * h)) ** 0.5 * w)
+                    new_h = int((limit / (w * h)) ** 0.5 * h)
+                    img = [i.resize((new_w, new_h), Image.Resampling.BILINEAR) for i in img]
+                    logger.info(f"{self.name} 对超限输入进行缩放 {n}x{w}x{h} -> {n}x{new_w}x{new_h}")
+            return img
 
         def process_image(img):
             img_type = ImageType.get_type(img)
             if self.process_type == 'single':
-                return self.operate(img, args)
+                return self.operate(apply_limit(img), args)
             elif self.process_type == 'batch':
                 if img_type == ImageType.Animated:
                     tmp_save_path = f"data/imgtool/tmp/{rand_filename('gif')}"
@@ -109,13 +130,13 @@ class ImageOperation:
                         create_parent_folder(tmp_save_path)
                         frames = get_frames_from_gif(img)
                         frames = [self.operate(f, args, img_type, i, img.n_frames) for i, f in enumerate(frames)]
-                        save_transparent_gif(frames, get_gif_duration(img), tmp_save_path)
+                        save_transparent_gif(apply_limit(frames), get_gif_duration(img), tmp_save_path)
                         return Image.open(tmp_save_path)
                     finally:
                         if os.path.exists(tmp_save_path):
                             os.remove(tmp_save_path)
                 else:
-                    return self.operate(img, args, img_type)
+                    return self.operate(apply_limit(img), args, img_type)
         
         img_type = ImageType.get_type(img)
         logger.info(f"执行图片操作:{self.name} 输入类型:{img_type} 参数:{args}")
@@ -1167,6 +1188,11 @@ cutout ai: 使用AI模型抠图
             elif arg.isdigit():
                 ret['tolerance'] = int(arg)
                 assert_and_reply(0 <= ret['tolerance'] <= 255, "容差值只能在0-255之间（默认容差为20）")
+        method_limit = {
+            'floodfill': 1024 * 1024 * 32,
+            'ai': 512 * 512,
+        }
+        self.input_limit = method_limit.get(ret['method'], None)
         return ret
     
     def operate(self, img: Image.Image, args: dict=None, image_type: ImageType=None, frame_idx: int=0, total_frame: int=1) -> Image.Image:
