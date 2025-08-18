@@ -897,13 +897,13 @@ class Painter:
         aa_resize_method = Image.Resampling.BILINEAR if aa_scale < 2 else Image.Resampling.BICUBIC
 
         alpha = fill[3] if isinstance(fill, tuple) and len(fill) == 4 else 0
-        bg_offset = int(28 * max(blur / 4, alpha / 150)) + 4
+        bg_offset = int(32 * min(blur / 4, alpha / 150))
         bg_offset = min(bg_offset, draw_size[0] - bg_offset, draw_size[1] - bg_offset)
         bg_region = (
             pos[0],
             pos[1],
-            pos[0] + draw_size[0] - bg_offset,
-            pos[1] + draw_size[1] - bg_offset,
+            pos[0] + size[0] - bg_offset,
+            pos[1] + size[1] - bg_offset,
         )
         
         if isinstance(fill, Gradient):
