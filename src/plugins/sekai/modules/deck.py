@@ -166,7 +166,9 @@ async def extract_target_event(
         event = ok_events[0]
     else:
         event = await ctx.md.events.find_by_id(event_id)
-        assert_and_reply(event, f"活动 {ctx.region}-{event_id} 不存在")
+        assert_and_reply(event, f"""
+活动{ctx.region}-{event_id}不存在，使用\"/组卡\"指定团队&属性组卡
+""".strip())
 
     wl_events = await get_wl_events(ctx, event['id'])
     if wl_events:
