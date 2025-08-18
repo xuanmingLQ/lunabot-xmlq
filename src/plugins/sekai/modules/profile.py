@@ -800,7 +800,7 @@ async def verify_user_game_account(ctx: SekaiHandlerContext):
         raise ReplyException(f"""
 {err_msg}请在你当前绑定的{get_region_name(ctx.region)}帐号({process_hide_uid(ctx, info.uid, keep=6)})的个人信息留言(word)的末尾输入该验证码(编辑后退出个人信息界面以保存):
 {info.verify_code}
-然后在{get_readable_timedelta(VERIFY_CODE_EXPIRE_TIME)}内重新发送一次\"{ctx.original_trigger_cmd}\"以完成验证
+{get_readable_timedelta(VERIFY_CODE_EXPIRE_TIME)}内重新发送一次\"{ctx.original_trigger_cmd}\"以完成验证
 """.strip())
     
     profile = await get_basic_profile(ctx, info.uid, use_cache=False, use_remote_cache=False)
@@ -1404,15 +1404,15 @@ async def _(ctx: SekaiHandlerContext):
     except:
         raise ReplyException(HELP)
     
-    msg = ""
     if blur is not None:
         assert_and_reply(0 <= blur <= 10, "模糊度必须在0到10之间")
-        msg += f"成功设置模糊度为: {blur}\n"
     if alpha is not None:
         assert_and_reply(0 <= alpha <= 255, "透明度必须在0到100之间")
-        msg += f"成功设置透明度为: {100 - int(alpha * 100 // 255)}\n"
     
     set_profile_bg_settings(ctx, blur=blur, alpha=alpha, force=force)
+    settings = get_profile_bg_settings(ctx)
+
+    msg = f"当前设置: 透明度{100 - int(settings.alpha * 100 / 255)} 模糊度{settings.blur}\n"
 
     try:
         img_cq = await get_image_cq(
