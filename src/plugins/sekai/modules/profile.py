@@ -5,6 +5,7 @@ from ..asset import *
 from ..draw import *
 from .honor import compose_full_honor_image
 from .resbox import get_res_box_info, get_res_icon
+from ...utils.safety import *
 
 SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
 profile_db = get_file_db(f"{SEKAI_PROFILE_DIR}/db.json", logger)
@@ -45,7 +46,18 @@ class VerifyCode:
 
 VERIFY_CODE_EXPIRE_TIME = timedelta(minutes=30)
 _region_qid_verify_codes: Dict[str, Dict[str, VerifyCode]] = {}
-verify_rate_limit = RateLimit(file_db, logger, 5, 'd', rate_limit_name='pjsk验证')
+verify_rate_limit = RateLimit(file_db, logger, 10, 'd', rate_limit_name='pjsk验证')
+
+
+@dataclass
+class ProfileBgSettings:
+    image: Image.Image
+    blur: int = 4
+    alpha: int = 150
+
+PROFILE_BG_IMAGE_PATH = f"{SEKAI_PROFILE_DIR}/profile_bg/" + "{region}/{uid}.jpg"
+profile_bg_settings_db = get_file_db(f"{SEKAI_PROFILE_DIR}/profile_bg_settings.json", logger)
+profile_bg_upload_rate_limit = RateLimit(file_db, logger, 10, 'd', rate_limit_name='个人信息背景上传')
 
 
 # ======================= 卡牌逻辑（防止循环依赖） ======================= #
@@ -392,17 +404,22 @@ def get_register_time(region: str, uid: str) -> datetime:
 
 # 合成个人信息图片
 async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -> Image.Image:
+    bg_settings = get_profile_bg_settings(ctx)
+
     decks = basic_profile['userDeck']
     pcards = [find_by(basic_profile['userCards'], 'cardId', decks[f'member{i}']) for i in range(1, 6)]
     for pcard in pcards:
         pcard['after_training'] = pcard['defaultImage'] == "special_training" and pcard['specialTrainingStatus'] == "done"
     avatar_info = await get_player_avatar_info_by_basic_profile(ctx, basic_profile)
 
-    with Canvas(bg=random_unit_bg(avatar_info.unit)).set_padding(BG_PADDING) as canvas:
+    bg = ImageBg(bg_settings.image, blur=False, fade=0) if bg_settings.image else random_unit_bg(avatar_info.unit)
+    ui_bg = roundrect_bg(fill=(255, 255, 255, bg_settings.alpha), blurglass=True, blurglass_kwargs={'blur': bg_settings.blur})
+
+    with Canvas(bg=bg).set_padding(BG_PADDING) as canvas:
         # 个人信息部分
         with HSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
             ## 左侧
-            with VSplit().set_bg(roundrect_bg()).set_content_align('c').set_item_align('c').set_sep(32).set_padding((32, 35)):
+            with VSplit().set_bg(ui_bg).set_content_align('c').set_item_align('c').set_sep(32).set_padding((32, 35)):
                 # 名片
                 with HSplit().set_content_align('c').set_item_align('c').set_sep(32).set_padding((32, 0)):
                     ImageBox(avatar_info.img, size=(128, 128), image_size_mode='fill')
@@ -422,7 +439,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -
                 with Frame().set_content_align('l').set_w(450):
                     tw_id = basic_profile['userProfile'].get('twitterId', '')
                     tw_id_box = TextBox('        @ ' + tw_id, TextStyle(font=DEFAULT_FONT, size=20, color=BLACK), line_count=1)
-                    tw_id_box.set_wrap(False).set_bg(roundrect_bg()).set_line_sep(2).set_padding(10).set_w(300).set_content_align('l')
+                    tw_id_box.set_wrap(False).set_bg(ui_bg).set_line_sep(2).set_padding(10).set_w(300).set_content_align('l')
                     x_icon = ctx.static_imgs.get("x_icon.png").resize((24, 24)).convert('RGBA')
                     ImageBox(x_icon, image_size_mode='original').set_offset((16, 0))
 
@@ -430,7 +447,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -
                 user_word = basic_profile['userProfile']['word']
                 user_word = re.sub(r'<#.*?>', '', user_word)
                 user_word_box = TextBox(user_word, TextStyle(font=DEFAULT_FONT, size=20, color=BLACK), line_count=3)
-                user_word_box.set_wrap(True).set_bg(roundrect_bg()).set_line_sep(2).set_padding((18, 16)).set_w(450)
+                user_word_box.set_wrap(True).set_bg(ui_bg).set_line_sep(2).set_padding((18, 16)).set_w(450)
 
                 # 头衔
                 with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding((16, 0)):
@@ -463,7 +480,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -
             with VSplit().set_content_align('c').set_item_align('c').set_sep(16):
                 # 打歌情况
                 hs, vs, gw, gh = 8, 12, 90, 25
-                with HSplit().set_content_align('c').set_item_align('t').set_sep(vs).set_bg(roundrect_bg()).set_padding(32):
+                with HSplit().set_content_align('c').set_item_align('t').set_sep(vs).set_bg(ui_bg).set_padding(32):
                     with VSplit().set_sep(vs):
                         Spacer(gh, gh)
                         ImageBox(ctx.static_imgs.get(f"icon_clear.png"), size=(gh, gh))
@@ -478,7 +495,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -
                         play_result = ['clear', 'fc', 'ap']
                         for i, score in enumerate(scores):
                             for j, diff in enumerate(DIFF_COLORS.keys()):
-                                bg_color = (255, 255, 255, 100) if j % 2 == 0 else (255, 255, 255, 50)
+                                bg_color = (255, 255, 255, 150) if j % 2 == 0 else (255, 255, 255, 75)
                                 count = find_by(diff_count, 'musicDifficultyType', diff)[score]
                                 draw_shadowed_text(str(count), DEFAULT_FONT, 20, 
                                                 PLAY_RESULT_COLORS['not_clear'], PLAY_RESULT_COLORS[play_result[i]], 
@@ -487,7 +504,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -
                 with Frame().set_content_align('rb'):
                     hs, vs, gw, gh = 8, 7, 96, 48
                     # 角色等级
-                    with Grid(col_count=6).set_sep(hsep=hs, vsep=vs).set_bg(roundrect_bg()).set_padding(32):
+                    with Grid(col_count=6).set_sep(hsep=hs, vsep=vs).set_bg(ui_bg).set_padding(32):
                         chara_list = [
                             "miku", "rin", "len", "luka", "meiko", "kaito", 
                             "ick", "saki", "hnm", "shiho", None, None,
@@ -530,6 +547,8 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -
 
     update_time = datetime.fromtimestamp(basic_profile['update_time'] / 1000)
     text = f"Updated at {update_time.strftime('%Y-%m-%d %H:%M:%S')}        " + DEFAULT_WATERMARK
+    if bg_settings.image:
+        text = text + f"        This background is user-uploaded and does not represent developer intent."
     add_watermark(canvas, text)
     return await canvas.get_img(1.5)
 
@@ -793,21 +812,75 @@ async def verify_user_game_account(ctx: SekaiHandlerContext):
         verify_accounts = profile_db.get(f"verify_accounts_{ctx.region}", {})
         verify_accounts.setdefault(str(qid), []).append(info.uid)
         profile_db.set(f"verify_accounts_{ctx.region}", verify_accounts)
-        raise ReplyException(f"验证成功！使用\"{ctx.region}pjsk验证列表\"可以查看你验证过的游戏ID")
+        raise ReplyException(f"验证成功！使用\"/{ctx.region}pjsk验证列表\"可以查看你验证过的游戏ID")
     finally:
         _region_qid_verify_codes[ctx.region].pop(qid, None)
 
 # 获取用户验证过的游戏ID列表
-async def get_user_verified_uids(ctx: SekaiHandlerContext) -> List[str]:
+def get_user_verified_uids(ctx: SekaiHandlerContext) -> List[str]:
     return profile_db.get(f"verify_accounts_{ctx.region}", {}).get(str(ctx.user_id), [])
 
 # 获取游戏id并检查用户是否验证过当前的游戏id，失败抛出异常
-def get_uid_and_check_verified(ctx: SekaiHandlerContext) -> str:
+def get_uid_and_check_verified(ctx: SekaiHandlerContext, force: bool = False) -> str:
     uid = get_player_bind_id(ctx, ctx.user_id, check_bind=True)
-    verified_uids = get_user_verified_uids(ctx)
-    assert_and_reply(uid in verified_uids, f"该功能需要验证你的游戏帐号，请使用\"{ctx.region}pjsk验证\"进行验证，使用\"{ctx.region}pjsk验证列表\"查看你验证过的游戏ID")
+    if not force:
+        verified_uids = get_user_verified_uids(ctx)
+        assert_and_reply(uid in verified_uids, f"""
+该功能需要验证你的游戏帐号
+请使用"/{ctx.region}pjsk验证"进行验证，使用"/{ctx.region}pjsk验证列表"查看你验证过的游戏ID
+""".strip())
     return uid
+
+# 个人信息背景设置
+def set_profile_bg_settings(
+    ctx: SekaiHandlerContext,
+    image: Optional[Image.Image] = None,
+    remove_image: bool = False,
+    blur: Optional[int] = None,
+    alpha: Optional[int] = None,
+    force: bool = False
+):
+    uid = get_uid_and_check_verified(ctx, force)
+    region = ctx.region
+    image_path = PROFILE_BG_IMAGE_PATH.format(region=region, uid=uid)
     
+    if remove_image:
+        if os.path.exists(image_path):
+            os.remove(image_path)
+    elif image:
+        target_w, target_h = config.get('profile_bg_image_size')
+        image = image.convert('RGB')
+        image = center_crop_by_aspect_ratio(image, target_w / target_h)
+        if image.width > target_w:
+            image = image.resize((target_w, target_h), Image.LANCZOS)
+        save_kwargs = config.get('profile_bg_image_save_kwargs', {})
+        create_parent_folder(image_path)
+        image.save(image_path, **save_kwargs)
+
+    settings: Dict[str, Dict[str, Any]] = profile_bg_settings_db.get(region, {})
+
+    if blur is not None:
+        blur = max(0, min(10, blur))
+        settings.setdefault(uid, {})['blur'] = blur
+
+    if alpha is not None:
+        alpha = max(0, min(255, alpha))
+        settings.setdefault(uid, {})['alpha'] = alpha
+
+    profile_bg_settings_db.set(region, settings)
+
+# 个人信息背景设置获取
+def get_profile_bg_settings(ctx: SekaiHandlerContext) -> ProfileBgSettings:
+    uid = get_player_bind_id(ctx, ctx.user_id, check_bind=True)
+    region = ctx.region
+    try:
+        image = open_image(PROFILE_BG_IMAGE_PATH.format(region=region, uid=uid))
+    except:
+        image = None
+    settings = profile_bg_settings_db.get(region, {}).get(uid, {})
+    return ProfileBgSettings(image=image, **settings)
+
+
 
 # ======================= 指令处理 ======================= #
 
@@ -1195,6 +1268,7 @@ verify_game_account = SekaiCmdHandler([
 verify_game_account.check_cdrate(cd).check_wblist(gbl).check_cdrate(verify_rate_limit)
 @verify_game_account.handle()
 async def _(ctx: SekaiHandlerContext):
+    await ctx.block_region(key=str(ctx.user_id))
     await verify_user_game_account(ctx)
 
 
@@ -1205,7 +1279,7 @@ get_verified_uids = SekaiCmdHandler([
 get_verified_uids.check_cdrate(cd).check_wblist(gbl)
 @get_verified_uids.handle()
 async def _(ctx: SekaiHandlerContext):
-    uids = await get_user_verified_uids(ctx)
+    uids = get_user_verified_uids(ctx)
     msg = ""
     region_name = get_region_name(ctx.region)
     if not uids:
@@ -1217,3 +1291,136 @@ async def _(ctx: SekaiHandlerContext):
     msg += f"---\n"
     msg += f"使用\"/{ctx.region}pjsk验证\"进行验证"
     return await ctx.asend_reply_msg(msg)
+
+
+# 上传个人信息背景图片
+upload_profile_bg = SekaiCmdHandler([
+    "/pjsk upload profile bg", "/pjsk upload profile background",
+    "/上传个人信息背景", 
+])
+upload_profile_bg.check_cdrate(cd).check_wblist(gbl).check_cdrate(profile_bg_upload_rate_limit)
+@upload_profile_bg.handle()
+async def _(ctx: SekaiHandlerContext):
+    await ctx.block_region(key=str(ctx.user_id))
+
+    args = ctx.get_args().strip()
+    force = False
+    if 'force' in args and check_superuser(ctx.event):
+        force = True
+        args = args.replace('force', '').strip()
+
+    uid = get_uid_and_check_verified(ctx, force)
+    img_url = await ctx.aget_image_urls(return_first=True)
+    res = await image_safety_check(img_url)
+    if res.suggest_block():
+        raise ReplyException(f"图片审核结果: {res.message}")
+    img = await download_image(img_url)
+    set_profile_bg_settings(ctx, image=img, force=force)
+
+    msg = f"背景设置成功，使用\"/{ctx.region}调整个人信息\"可以调整界面模糊和透明度\n"
+    if res.suggest_review():
+        msg += f"图片审核结果: {res.message}"
+        logger.warning(f"用户 {ctx.user_id} 上传的个人信息背景图片需要人工审核: {res.message}")
+        review_log_path = f"{SEKAI_PROFILE_DIR}/profile_bg_review.log"
+        with open(review_log_path, 'a', encoding='utf-8') as f:
+            f.write(f"{datetime.now().isoformat()} {ctx.user_id} set {ctx.region} {uid}\n")
+
+    try:
+        img_cq = await get_image_cq(
+            await compose_profile_image(ctx, await get_basic_profile(ctx, uid)),
+            low_quality=True,
+        )
+        msg = img_cq + msg.strip()
+    except Exception as e:
+        logger.print_exc(f"绘制个人信息背景图片失败: {get_exc_desc(e)}")
+        msg += f"绘制个人信息背景图片失败: {get_exc_desc(e)}"
+
+    return await ctx.asend_reply_msg(msg)
+
+
+# 清空个人信息背景图片
+clear_profile_bg = SekaiCmdHandler([
+    "/pjsk clear profile bg", "/pjsk clear profile background",
+    "/清空个人信息背景", "/清除个人信息背景", 
+])
+clear_profile_bg.check_cdrate(cd).check_wblist(gbl)
+@clear_profile_bg.handle()
+async def _(ctx: SekaiHandlerContext):
+    await ctx.block_region(key=str(ctx.user_id))
+
+    args = ctx.get_args().strip()
+    force = False
+    if 'force' in args and check_superuser(ctx.event):
+        force = True
+        args = args.replace('force', '').strip()
+
+    set_profile_bg_settings(ctx, remove_image=True, force=force)
+    return await ctx.asend_reply_msg(f"已清空{get_region_name(ctx.region)}个人信息背景图片")
+
+
+# 调整个人信息背景模糊和透明度
+adjust_profile_bg = SekaiCmdHandler([
+    "/pjsk adjust profile", "/pjsk adjust profile bg", "/pjsk adjust profile background",
+    "/调整个人信息背景", "/调整个人信息", 
+])
+adjust_profile_bg.check_cdrate(cd).check_wblist(gbl)
+@adjust_profile_bg.handle()
+async def _(ctx: SekaiHandlerContext):
+    await ctx.block_region(key=str(ctx.user_id))
+
+    args = ctx.get_args().strip()
+    force = False
+    if 'force' in args and check_superuser(ctx.event):
+        force = True
+        args = args.replace('force', '').strip()
+
+    uid = get_uid_and_check_verified(ctx, force)
+    HELP = f"""
+调整界面模糊度(0为无模糊):
+{ctx.original_trigger_cmd} 模糊 0~10
+调整界面透明度(0为不透明):
+{ctx.original_trigger_cmd} 透明 0~100
+""".strip()
+    
+    args = ctx.get_args().strip()
+    if not args:
+        settings = get_profile_bg_settings(ctx)
+        msg = f"当前{get_region_name(ctx.region)}个人信息背景设置:\n"
+        msg += f"模糊度: {settings.blur}\n"
+        msg += f"透明度: {100 - int(settings.alpha * 100 // 255)}\n"
+        msg += f"---\n"
+        msg += HELP
+        return await ctx.asend_reply_msg(msg.strip())
+
+    blur, alpha = None, None
+    try:
+        args = args.replace('度', '').replace('%', '')
+        if '模糊' in args:
+            blur = int(args.replace('模糊', ''))
+        elif '透明' in args:
+            alpha = (100 - int(args.replace('透明', ''))) * 255 // 100
+        else:
+            raise Exception()
+    except:
+        raise ReplyException(HELP)
+    
+    msg = ""
+    if blur is not None:
+        assert_and_reply(0 <= blur <= 10, "模糊度必须在0到10之间")
+        msg += f"成功设置模糊度为: {blur}\n"
+    if alpha is not None:
+        assert_and_reply(0 <= alpha <= 255, "透明度必须在0到100之间")
+        msg += f"成功设置透明度为: {100 - int(alpha * 100 // 255)}\n"
+    
+    set_profile_bg_settings(ctx, blur=blur, alpha=alpha, force=force)
+
+    try:
+        img_cq = await get_image_cq(
+            await compose_profile_image(ctx, await get_basic_profile(ctx, uid)),
+            low_quality=True,
+        )
+        msg = img_cq + msg.strip()
+    except Exception as e:
+        logger.print_exc(f"绘制个人信息背景图片失败: {get_exc_desc(e)}")
+        msg += f"绘制个人信息背景图片失败: {get_exc_desc(e)}"
+    return await ctx.asend_reply_msg(msg.strip())

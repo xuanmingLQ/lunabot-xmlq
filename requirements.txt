@@ -19,3 +19,4 @@ pilmoji[requests]
 zhon
 orjson
 decord
+tencentcloud

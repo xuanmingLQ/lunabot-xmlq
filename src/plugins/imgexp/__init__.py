@@ -14,16 +14,8 @@ search.check_cdrate(cd).check_wblist(gbl)
 @search.handle()
 async def _(ctx: HandlerContext):
     bot, event = ctx.bot, ctx.event
-
-    reply_msg = await get_reply_msg(bot, await get_msg(bot, event.message_id))
-    assert_and_reply(reply_msg, f"请使用 /search 回复一张图片")
-
-    cqs = extract_cq_code(reply_msg)
-    assert_and_reply('image' in cqs, f"请使用 /search 回复一张图片")
-  
-    img_url = cqs['image'][0]['url']
+    img_url = await ctx.aget_image_urls(return_first=True)
     img, results = await search_image(img_url)
-    
     msg = ""
     for result in results:
         if result.results:

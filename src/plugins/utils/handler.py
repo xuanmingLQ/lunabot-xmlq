@@ -107,6 +107,11 @@ def has_image(msg) -> bool:
     cqs = extract_cq_code(msg)
     return "image" in cqs and len(cqs["image"]) > 0
 
+def extract_image_data(msg) -> List[dict]:
+    cqs = extract_cq_code(msg)
+    if "image" not in cqs or len(cqs["image"]) == 0: return []
+    return [cq for cq in cqs["image"]]
+
 def extract_image_url(msg) -> List[str]:
     """
     从消息段中提取所有图片链接
@@ -192,6 +197,82 @@ async def get_reply_msg_obj(bot, msg) -> Optional[dict]:
     if "reply" not in cqs or len(cqs["reply"]) == 0: return None
     reply_id = cqs["reply"][0]["id"]
     return await get_msg_obj(bot, reply_id)
+
+async def get_image_datas_from_msg(
+    bot: Bot,
+    message_id: int,
+    parse_reply: bool = True,
+    parse_forward: bool = True,
+    return_first: bool = False,
+    min_count: int = 1,
+    max_count: int = None,
+) -> Union[List[dict], dict]:
+    """
+    从消息中获取所有图片数据
+    """
+    msg_obj = await get_msg_obj(bot, message_id)
+    msg = msg_obj['message']
+
+    if int(bot.self_id) == int(msg_obj['user_id']):
+        cqs = extract_cq_code(msg)
+        if cqs.get('json'):
+            raise ReplyException(f'暂时无法读取Bot发送的折叠消息中的图片，可以先手动转发该消息')
+
+    ret = extract_image_data(msg)
+    if parse_forward:
+        cqs = extract_cq_code(msg)
+        if 'forward' in cqs:
+            for msg_obj in cqs['forward'][0]['content']:
+                msg = msg_obj['message']
+                ret.extend(extract_image_data(msg))
+    if parse_reply:
+        reply_msg_obj = await get_reply_msg_obj(bot, msg)
+        if reply_msg_obj:
+            ret.extend(await get_image_datas_from_msg(
+                bot, 
+                reply_msg_obj['message_id'], 
+                parse_reply=False, 
+                parse_forward=parse_forward,
+                return_first=False,
+                min_count=None,
+                max_count=None,
+            ))
+
+    sources = "消息本身"
+    if parse_forward:   sources += "/折叠消息"
+    if parse_reply:     sources += "/回复消息"
+
+    if return_first:
+        assert_and_reply(ret, f'该指令需要输入一张图片，在{sources}中没有找到图片')
+        return ret[0]
+    
+    if min_count:
+        assert_and_reply(len(ret) >= min_count, f'该指令至少输入{min_count}张图片，在{sources}中仅找到{len(ret)}张图片')
+    if max_count:
+        assert_and_reply(len(ret) <= max_count, f'该指令最多输入{max_count}张图片，在{sources}中找到{len(ret)}张图片')
+    return ret
+
+async def get_image_urls_from_msg(
+    bot: Bot,
+    message_id: int,
+    parse_reply: bool = True,
+    parse_forward: bool = True,
+    return_first: bool = False,
+    min_count: int = 1,
+    max_count: int = None,
+) -> Union[List[str], str]:
+    ret = await get_image_datas_from_msg(
+        bot, 
+        message_id, 
+        parse_reply=parse_reply, 
+        parse_forward=parse_forward,
+        return_first=return_first,
+        min_count=min_count,
+        max_count=max_count,
+    )
+    if return_first:
+        return ret['url']
+    return [item['url'] for item in ret]  
 
 
 async def get_image_cq(
@@ -1086,6 +1167,43 @@ class HandlerContext:
     
     async def aget_reply_msg_obj(self):
         return await get_reply_msg_obj(self.bot, await self.aget_msg())
+    
+    def aget_image_datas(
+        self,
+        parse_reply: bool = True,
+        parse_forward: bool = True,
+        return_first: bool = False,
+        min_count: int = 1,
+        max_count: int = None,
+    ):
+        return get_image_datas_from_msg(
+            self.bot, 
+            self.message_id,
+            parse_reply=parse_reply, 
+            parse_forward=parse_forward, 
+            return_first=return_first, 
+            min_count=min_count, 
+            max_count=max_count
+        )
+
+    def aget_image_urls(
+        self,
+        parse_reply: bool = True,
+        parse_forward: bool = True,
+        return_first: bool = False,
+        min_count: int = 1,
+        max_count: int = None,
+    ):
+        return get_image_urls_from_msg(
+            self.bot, 
+            self.message_id,
+            parse_reply=parse_reply, 
+            parse_forward=parse_forward, 
+            return_first=return_first, 
+            min_count=min_count, 
+            max_count=max_count
+        )
+
     
     # -------------------------- 消息发送 -------------------------- # 
 

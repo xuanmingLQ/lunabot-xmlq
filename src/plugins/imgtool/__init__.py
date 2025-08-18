@@ -151,11 +151,7 @@ class ImageOperation:
                 
 # 从回复消息获取第一张图片
 async def get_reply_fst_image(ctx: HandlerContext, return_url=False):
-    reply_msg = await ctx.aget_reply_msg()
-    assert_and_reply(reply_msg, "请回复一张图片")
-    imgs = extract_image_url(reply_msg)
-    assert_and_reply(imgs, "回复的消息中不包含图片")
-    img_url = imgs[0]   
+    img_url = await ctx.aget_image_urls(return_first=True)
     if return_url: return img_url
     try:
         img = await download_image(img_url)
@@ -199,23 +195,7 @@ async def add_image_to_list(ctx: HandlerContext, reply=True):
     image_list = get_image_list(user_id)
 
     max_num = MULTI_IMAGE_MAX_NUM_CFG.get()
-
-    # 回复转发多张图片
-    reply_msg = await ctx.aget_reply_msg()
-    assert_and_reply(reply_msg, "请回复带有图片的消息/带有图片的折叠消息")
-    reply_cqs = extract_cq_code(reply_msg)
-    if 'forward' in reply_cqs:
-        img_urls = []
-        for msg_obj in reply_cqs['forward'][0]['content']:
-            msg = msg_obj['message']
-            img_urls.extend(extract_image_url(msg))
-        assert_and_reply(img_urls, "回复的转发消息中不包含图片")
-        assert_and_reply(len(img_urls) <= max_num, f"最多只能处理{max_num}张图片")
-    # 回复的消息有图片
-    else:
-        img_urls = extract_image_url(reply_msg)
-        assert_and_reply(img_urls, "回复的消息中不包含图片")
-
+    img_urls = await ctx.aget_image_urls(min_count=1, max_count=None)
     assert_and_reply(len(image_list[user_id]) + len(img_urls) <= max_num, 
                      f"图片列表已满，当前有{len(image_list[user_id])}张图片，最多只能处理{max_num}张图片")
 
@@ -265,26 +245,9 @@ async def reverse_image_list(ctx: HandlerContext, reply=True):
 # 获取多张图片
 async def get_multi_images(ctx: HandlerContext) -> List[Image.Image]:
     max_num = MULTI_IMAGE_MAX_NUM_CFG.get()
-    reply_msg = await ctx.aget_reply_msg()
-    # 使用回复消息
-    if reply_msg:
-        reply_cqs = extract_cq_code(reply_msg)
-        # 回复转发多张图片
-        if 'forward' in reply_cqs:
-            forward_id = reply_cqs['forward'][0]['id']
-            forward_msg = await get_forward_msg(ctx.bot, forward_id)
-            img_urls = []
-            for msg_obj in forward_msg['messages']:
-                img_urls.extend(extract_image_url(msg_obj['message']))
-            assert_and_reply(img_urls, "回复的转发消息中不包含图片")
-            assert_and_reply(len(img_urls) <= max_num, f"最多只能处理{max_num}张图片")
-        # 回复的消息有图片
-        else:
-            img_urls = extract_image_url(reply_msg)
-            assert_and_reply(img_urls, "回复的消息中不包含图片")
-
-    # 使用图片列表
-    else:
+    img_urls = await ctx.aget_image_urls(min_count=None, max_count=max_num)
+    # 使用消息本身带有的图片，如果本身不带图片则使用图片列表
+    if not img_urls:
         user_id = str(ctx.user_id)
         img_urls = get_image_list(user_id).get(user_id, [])
         assert_and_reply(img_urls, """
@@ -1265,8 +1228,7 @@ async def _(ctx: HandlerContext):
             fps = 1000 / img.info['duration']
             msg += f"\nFPS: {fps:.2f}"
 
-    cqs = extract_cq_code(await ctx.aget_reply_msg())
-    data = cqs['image'][0]
+    data = await ctx.aget_image_datas(return_first=True)
     if 'file_size' in data:
         msg += f"\n文件大小: {get_readable_file_size(int(data['file_size']))}"
     if 'file' in data:

@@ -30,17 +30,19 @@ class FillBg(WidgetBg):
         p.rect((0, 0), p.size, self.fill, self.stroke, self.stroke_width)
 
 class RoundRectBg(WidgetBg):
-    def __init__(self, fill: Color, radius: int, stroke: Color=None, stroke_width: int=1, corners = (True, True, True, True), blurglass=False):
+    def __init__(self, fill: Color, radius: int, stroke: Color=None, stroke_width: int=1, 
+                 corners = (True, True, True, True), blurglass=False, blurglass_kwargs: dict = {}):
         self.fill = fill
         self.radius = radius
         self.stroke = stroke
         self.stroke_width = stroke_width
         self.corners = corners
         self.blurglass = blurglass
+        self.blurglass_kwargs = blurglass_kwargs
     
     def draw(self, p: Painter):
         if self.blurglass:
-            p.blurglass_roundrect((0, 0), p.size, self.fill, self.radius, corners=self.corners)
+            p.blurglass_roundrect((0, 0), p.size, self.fill, self.radius, corners=self.corners, **self.blurglass_kwargs)
         else:
             p.roundrect((0, 0), p.size, self.fill, self.radius, self.stroke, self.stroke_width, self.corners)
 

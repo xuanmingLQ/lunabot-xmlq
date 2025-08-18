@@ -199,7 +199,7 @@ from nonebot_plugin_apscheduler import scheduler
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 from concurrent.futures import ThreadPoolExecutor
-_default_pool_executor = ThreadPoolExecutor()
+_default_pool_executor = ThreadPoolExecutor(max_workers=global_config.get('default_thread_pool_size'))
 
 async def run_in_pool(func, *args, pool=None):
     if pool is None:

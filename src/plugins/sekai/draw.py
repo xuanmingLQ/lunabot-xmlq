@@ -73,7 +73,7 @@ def get_blurglass_enabled() -> bool:
     return blurglass_enabled
 
 # 统一的半透明白色圆角矩形背景
-def roundrect_bg(fill=WIDGET_BG_COLOR, radius=WIDGET_BG_RADIUS, alpha=None, blurglass=None):
+def roundrect_bg(fill: Color=WIDGET_BG_COLOR, radius: int=WIDGET_BG_RADIUS, alpha: int=None, blurglass: bool=None, blurglass_kwargs: dict={}):
     """
     统一的半透明白色圆角矩形背景
     """
@@ -82,7 +82,7 @@ def roundrect_bg(fill=WIDGET_BG_COLOR, radius=WIDGET_BG_RADIUS, alpha=None, blur
         blurglass = blurglass_enabled
     if alpha is not None:
         fill = (*fill[:3], alpha)
-    return RoundRectBg(fill, radius, blurglass=blurglass)
+    return RoundRectBg(fill, radius, blurglass=blurglass, blurglass_kwargs=blurglass_kwargs)
 
 
 COMMON_BG_NAMES = [

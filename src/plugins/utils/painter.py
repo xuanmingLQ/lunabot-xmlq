@@ -896,7 +896,8 @@ class Painter:
         aa_r = radius * aa_size[0] / draw_size[0] if draw_size[0] > 0 else radius
         aa_resize_method = Image.Resampling.BILINEAR if aa_scale < 2 else Image.Resampling.BICUBIC
 
-        bg_offset = 32
+        alpha = fill[3] if isinstance(fill, tuple) and len(fill) == 4 else 0
+        bg_offset = int(28 * max(blur / 4, alpha / 150)) + 4
         bg_offset = min(bg_offset, draw_size[0] - bg_offset, draw_size[1] - bg_offset)
         bg_region = (
             pos[0],
@@ -915,7 +916,8 @@ class Painter:
         else:
             # 复制pos位置的size大小的原图模糊并混合颜色
             bg = self.img.crop(bg_region)
-            bg = bg.filter(ImageFilter.GaussianBlur(radius=blur))
+            if blur > 0:
+                bg = bg.filter(ImageFilter.GaussianBlur(radius=blur))
             bg = mix_image_by_color(bg, fill)
 
         # 超分绘制圆角矩形，缩放到目标大小

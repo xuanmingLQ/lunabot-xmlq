@@ -17,7 +17,7 @@ from pathlib import Path
 
 _QUANTIZE_METHOD = Image.Quantize.MAXCOVERAGE
 _DITHER = 0
-_OPTIMIZED = True
+_OPTIMIZED = False
 
 class TransparentAnimatedGifConverter(object):
     _PALETTE_SLOTSET = set(range(256))
@@ -322,4 +322,21 @@ def adjust_image_alpha_inplace(img: Image.Image, value: Union[int, float], metho
         alpha_channel = Image.eval(alpha_channel, lambda a: int(a * value / 255))
     img.putalpha(alpha_channel)
 
+def center_crop_by_aspect_ratio(img: Image.Image, aspect_ratio: float):
+    """
+    根据给定的宽高比裁剪图像中心部分
+    """
+    if img.mode.upper() not in ['RGB', 'RGBA']:
+        img = img.convert('RGBA')
+    width, height = img.size
+    target_width = width
+    target_height = int(width / aspect_ratio)
+    if target_height > height:
+        target_height = height
+        target_width = int(height * aspect_ratio)
+    left = (width - target_width) // 2
+    top = (height - target_height) // 2
+    right = left + target_width
+    bottom = top + target_height
+    return img.crop((left, top, right, bottom))
 

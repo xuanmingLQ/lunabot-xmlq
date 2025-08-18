@@ -185,6 +185,8 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
                 with HSplit().set_content_align('lb').set_item_align('lb').set_sep(4):
                     TextBox(f"歌曲基础分 {music_basic_score}   目标PT: ", style1)
                     TextBox(f" {target_point}", style3)
+                if music_basic_score != 100 and target_point > 1000:
+                    TextBox(f"基础分非100有误差风险，不推荐控较大PT", style3)
                 if target_point > 3000:
                     TextBox(f"目标PT过大可能存在误差，推荐以多次控分", style3)
                 TextBox(f"控分教程：选取表中一个活动加成和体力", style1)

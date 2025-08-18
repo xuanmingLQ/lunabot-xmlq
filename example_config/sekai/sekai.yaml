@@ -1,0 +1,7 @@
+profile_bg_image_size: [1300, 650]
+profile_bg_image_save_kwargs:
+  format: JPEG
+  quality: 75
+  subsampling: 1
+  optimize: true
+  progressive: true
