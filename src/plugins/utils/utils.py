@@ -740,7 +740,8 @@ class WebDriver:
 
 from .plot import *
 from .img_utils import *
-import decord
+import ffmpeg
+
 
 def get_image_b64(image: Image.Image) -> str:
     """
@@ -846,19 +847,29 @@ def convert_video_to_gif(video_path: str, save_path: str, max_fps=10, max_size=2
     将视频转换为GIF格式
     """
     utils_logger.info(f'转换视频为GIF: {video_path}')
-    reader = decord.VideoReader(video_path)
-    frame_num, fps = len(reader), reader.get_avg_fps()
+    probe = ffmpeg.probe(video_path)
+    video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
+    frame_num = int(video_stream['nb_frames'])
+    fps = float(video_stream['avg_frame_rate'].split('/')[0]) / float(video_stream['avg_frame_rate'].split('/')[1])
     duration = frame_num / fps
     max_fps = max(min(max_fps, int(max_frame_num / duration)), 1)
-    indices = np.linspace(0, frame_num - 1, min(frame_num, int(duration * max_fps)), dtype=int)
-    frames = reader.get_batch(indices).asnumpy()
-    resized_frames = []
-    for frame in frames:
-        img = Image.fromarray(frame).convert('RGB')
-        img.thumbnail((max_size, max_size), Image.Resampling.BILINEAR)
-        resized_frames.append(img)
-    resized_frames[0].save(save_path, save_all=True, append_images=resized_frames[1:], duration=1000 / max_fps, loop=0)
+    width, height = video_stream['width'], video_stream['height']
+    if width > height:
+        if width > max_size:
+            height = int(height * max_size / width)
+            width = max_size
+    else:
+        if height > max_size:
+            width = int(width * max_size / height)
+            height = max_size
 
+    palette_stream = ffmpeg.input(video_path).filter_multi_output('split')[0].filter('palettegen')
+    video_stream = ffmpeg.input(video_path)
+    filtered_video_stream = video_stream.filter('fps', fps=fps).filter('scale', width=width, height=-1, flags='lanczos')
+    stream = ffmpeg.filter([filtered_video_stream, palette_stream], 'paletteuse')
+    stream = ffmpeg.output(stream, save_path)
+    ffmpeg.run(stream, overwrite_output=True, quiet=True)
+    
 def concat_images(images: List[Image.Image], mode) -> Image.Image:
     """
     拼接图片，mode: 'v' 垂直拼接 'h' 水平拼接 'g' 网格拼接
@@ -912,17 +923,16 @@ def frames_to_gif(frames: List[Image.Image], duration: int = 100, alpha_threshol
         save_transparent_gif(frames, duration, path, alpha_threshold)
         return open_image(path)
 
-def read_video_first_frame(video_path: str) -> Image.Image:
+def save_video_first_frame(video_path: str, save_path: str):
     """
-    读取视频的第一帧
+    读取视频的第一帧并保存为图片
     """
-    if not osp.exists(video_path):
-        raise Exception(f'视频文件 {video_path} 不存在')
-    reader = decord.VideoReader(video_path)
-    if len(reader) == 0:
-        raise Exception(f'视频 {video_path} 没有帧')
-    frame = reader[0].asnumpy()
-    return Image.fromarray(frame).convert('RGB')
+    probe = ffmpeg.probe(video_path)
+    video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
+    if not video_stream:
+        raise Exception(f'视频 {video_path} 没有视频流')
+    width, height = video_stream['width'], video_stream['height']
+    ffmpeg.input(video_path, ss=0).output(save_path, vframes=1, vf=f'scale={width}:{height}').run(overwrite_output=True, quiet=True)
 
 
 # ============================= 其他 ============================ #

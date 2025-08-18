@@ -2,7 +2,6 @@ from ..utils import *
 from .imgexp import search_image
 import yt_dlp
 from tenacity import retry, wait_fixed, stop_after_attempt
-import ffmpeg
 
 config = Config('imgexp')
 logger = get_logger('ImgExp')

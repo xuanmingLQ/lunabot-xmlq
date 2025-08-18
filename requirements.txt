@@ -18,5 +18,5 @@ imageio[ffmpeg]
 pilmoji[requests]
 zhon
 orjson
-decord
 tencentcloud
+ffmpeg-python

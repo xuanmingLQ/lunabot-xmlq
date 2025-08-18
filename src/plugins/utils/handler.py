@@ -1229,7 +1229,23 @@ class HandlerContext:
         return await send_multiple_fold_msg(self.bot, self.event, contents, fallback_method)
 
     async def asend_video(self, path: str):
-        await self.asend_msg(f"[CQ:video,file=file://{path}]")
+        video = await run_in_pool(read_file_as_base64, path)
+        try:
+            await self.asend_msg(f"[CQ:video,file=base64://{video}]")
+        except ActionFailed as e:
+            try:
+                err_msg = str(e)
+                start = err_msg.find('/root/.config/QQ/')
+                if start == -1: raise
+                err_msg = err_msg[start:]
+                end = err_msg.find('.png')
+                if end == -1: raise
+                err_msg = err_msg[:end + 4]
+                await run_in_pool(save_video_first_frame, path, err_msg)
+                utils_logger.warning(f'发送视频 {path} 失败，尝试手动保存第一帧后重试')
+            except:
+                raise e
+            await self.asend_msg(f"[CQ:video,file=base64://{video}]")
 
 
     # -------------------------- 其他 -------------------------- # 
