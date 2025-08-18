@@ -12,6 +12,11 @@
 import re
 import httpx
 
+
+from ..utils import *
+config = Config('code')
+
+
 codeType = {
     'py': ['python', 'py'],
     'cpp': ['cpp', 'cpp'],
@@ -63,10 +68,11 @@ codeType = {
 async def run(strcode):
     strcode = strcode.replace('&amp;', '&').replace('&#91;', '[').replace('&#93;', ']')
     try:
-        a = re.match(r'(py|php|java|cpp|js|c#|c|go|asm|ats|bash|clisp|clojure|cobol|coffeescript|crystal|d|elixir|elm|erlang|fsharp|groovy|guide|hare|haskell|idris|julia|kotlin|lua|mercury|nim|nix|ocaml|pascal|perl|raku|ruby|rust|sac|scala|swift|typescript|zig|plaintext)\b ?(.*)\n((?:.|\n)+)', strcode)
+        pattern = r'(' + '|'.join(codeType.keys()) + r')\b ?(.*)\n((?:.|\n)+)'
+        a = re.match(pattern, strcode)
         lang, stdin, code = a.group(1), a.group(2).replace(' ', '\n'), a.group(3)
     except:
-        return "输入有误，目前仅支持py/php/java/cpp/js/c#/c/go/asm/ats/bash/clisp/clojure/cobol/coffeescript/crystal/d/elixir/elm/erlang/fsharp/groovy/guide/hare/haskell/idris/julia/kotlin/lua/mercury/nim/nix/ocaml/pascal/perl/raku/ruby/rust/sac/scala/swift/typescript/zig/plaintext"
+        return f"目前仅支持{'/'.join(codeType.keys())}"
     dataJson = {
         "files": [
             {
@@ -77,11 +83,13 @@ async def run(strcode):
         "stdin": stdin,
         "command": ""
     }
-    headers = {"Authorization": "Token 0123456-789a-bcde-f012-3456789abcde",
-               "content-type": "application/"}
+    headers = {
+        "Authorization": f"Token {config.get('token')}",
+        "content-type": "application/json"
+    }
     
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout=config.get('timeout'))) as client:
             res = await client.post(url=f'https://glot.io/run/{codeType[lang][0]}?version=latest', headers=headers, json=dataJson)
     except httpx.ReadTimeout:
         raise Exception("请求超时")

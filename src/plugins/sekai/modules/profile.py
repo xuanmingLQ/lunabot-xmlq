@@ -35,6 +35,19 @@ class PlayerAvatarInfo:
 DEFAULT_DATA_MODE = 'latest'
 
 
+@dataclass
+class VerifyCode:
+    region: str
+    qid: int
+    uid: int
+    expire_time: datetime
+    verify_code: str
+
+VERIFY_CODE_EXPIRE_TIME = timedelta(minutes=30)
+_region_qid_verify_codes: Dict[str, Dict[str, VerifyCode]] = {}
+verify_rate_limit = RateLimit(file_db, logger, 5, 'd', rate_limit_name='pjsk验证')
+
+
 # ======================= 卡牌逻辑（防止循环依赖） ======================= #
 
 # 判断卡牌是否有after_training模式
@@ -252,8 +265,10 @@ def is_user_hide_id(region: str, qid: int) -> bool:
     return qid in hide_list
 
 # 如果ctx的用户隐藏id则返回隐藏的uid，否则原样返回
-def process_hide_uid(ctx: SekaiHandlerContext, uid: int) -> bool:
+def process_hide_uid(ctx: SekaiHandlerContext, uid: int, keep: int=0) -> bool:
     if is_user_hide_id(ctx.region, ctx.user_id):
+        if keep:
+            return "*" * (16 - keep) + str(uid)[-keep:]
         return "*" * 16
     return uid
 
@@ -723,6 +738,76 @@ async def compose_power_bonus_detail_image(ctx: SekaiHandlerContext, qid: int) -
     add_watermark(canvas)
     return await canvas.get_img()
 
+# 验证用户游戏帐号
+async def verify_user_game_account(ctx: SekaiHandlerContext):
+    def generate_verify_code() -> str:
+        while True:
+            code = str(random.randint(1000, 9999))
+            if '69' in code:
+                continue
+            hit = False
+            for codes in _region_qid_verify_codes.values():
+                if any(info.verify_code == code for info in codes.values()):
+                    hit = True
+                    break
+            if hit:
+                continue
+            return code
+    
+    qid = ctx.user_id
+    if ctx.region not in _region_qid_verify_codes:
+        _region_qid_verify_codes[ctx.region] = {}
+
+    info = None
+    err_msg = ""
+    if qid in _region_qid_verify_codes[ctx.region]:
+        info = _region_qid_verify_codes[ctx.region][qid]
+        if info.expire_time < datetime.now():
+            err_msg = f"你的上次验证已过期\n"
+        if err_msg:
+            _region_qid_verify_codes[ctx.region].pop(qid, None)
+            info = None
+    
+    if not info:
+        # 首次验证
+        info = VerifyCode(
+            region=ctx.region,
+            qid=qid,
+            uid=get_player_bind_id(ctx, qid, check_bind=True),
+            verify_code=generate_verify_code(),
+            expire_time=datetime.now() + VERIFY_CODE_EXPIRE_TIME,
+        )
+        _region_qid_verify_codes[ctx.region][qid] = info
+        raise ReplyException(f"""
+{err_msg}请在你当前绑定的{get_region_name(ctx.region)}帐号({process_hide_uid(ctx, info.uid, keep=6)})的个人信息留言(word)的末尾输入该验证码(编辑后退出个人信息界面以保存):
+{info.verify_code}
+然后在{get_readable_timedelta(VERIFY_CODE_EXPIRE_TIME)}内重新发送一次\"{ctx.original_trigger_cmd}\"以完成验证
+""".strip())
+    
+    profile = await get_basic_profile(ctx, info.uid, use_cache=False, use_remote_cache=False)
+    word: str = profile['userProfile'].get('word', '').strip()
+
+    try:
+        assert_and_reply(word.endswith(info.verify_code), f"验证失败，从留言末尾没有获取到验证码\"{info.verify_code}\"")
+        # 验证成功
+        verify_accounts = profile_db.get(f"verify_accounts_{ctx.region}", {})
+        verify_accounts.setdefault(str(qid), []).append(info.uid)
+        profile_db.set(f"verify_accounts_{ctx.region}", verify_accounts)
+        raise ReplyException(f"验证成功！使用\"{ctx.region}pjsk验证列表\"可以查看你验证过的游戏ID")
+    finally:
+        _region_qid_verify_codes[ctx.region].pop(qid, None)
+
+# 获取用户验证过的游戏ID列表
+async def get_user_verified_uids(ctx: SekaiHandlerContext) -> List[str]:
+    return profile_db.get(f"verify_accounts_{ctx.region}", {}).get(str(ctx.user_id), [])
+
+# 获取游戏id并检查用户是否验证过当前的游戏id，失败抛出异常
+def get_uid_and_check_verified(ctx: SekaiHandlerContext) -> str:
+    uid = get_player_bind_id(ctx, ctx.user_id, check_bind=True)
+    verified_uids = get_user_verified_uids(ctx)
+    assert_and_reply(uid in verified_uids, f"该功能需要验证你的游戏帐号，请使用\"{ctx.region}pjsk验证\"进行验证，使用\"{ctx.region}pjsk验证列表\"查看你验证过的游戏ID")
+    return uid
+    
 
 # ======================= 指令处理 ======================= #
 
@@ -1101,3 +1186,34 @@ async def _(ctx: SekaiHandlerContext):
         await compose_power_bonus_detail_image(ctx, ctx.user_id),
         low_quality=True,
     ))
+
+
+# 验证用户游戏帐号
+verify_game_account = SekaiCmdHandler([
+    "/pjsk verify", "/pjsk验证",
+])
+verify_game_account.check_cdrate(cd).check_wblist(gbl).check_cdrate(verify_rate_limit)
+@verify_game_account.handle()
+async def _(ctx: SekaiHandlerContext):
+    await verify_user_game_account(ctx)
+
+
+# 查询用户验证过的游戏ID列表
+get_verified_uids = SekaiCmdHandler([
+    "/pjsk verify list", "/pjsk验证列表", 
+])
+get_verified_uids.check_cdrate(cd).check_wblist(gbl)
+@get_verified_uids.handle()
+async def _(ctx: SekaiHandlerContext):
+    uids = await get_user_verified_uids(ctx)
+    msg = ""
+    region_name = get_region_name(ctx.region)
+    if not uids:
+        msg += f"你还没有验证过任何{region_name}游戏ID\n"
+    else:
+        msg += f"你验证过的{region_name}游戏ID:\n"
+        for uid in uids:
+            msg += process_hide_uid(ctx, uid, keep=6) + "\n"
+    msg += f"---\n"
+    msg += f"使用\"/{ctx.region}pjsk验证\"进行验证"
+    return await ctx.asend_reply_msg(msg)

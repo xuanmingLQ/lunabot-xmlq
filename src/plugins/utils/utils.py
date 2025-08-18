@@ -690,7 +690,6 @@ def get_file_db(path: str, logger: Logger) -> FileDB:
 utils_file_db = get_file_db('data/utils/db.json', utils_logger)
 
 
-
 # ============================ WebDriver ============================ #
 
 from selenium import webdriver

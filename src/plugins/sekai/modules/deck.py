@@ -516,7 +516,7 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
     for item in get_character_nickname_data():
         for nickname in item.nicknames:
             if nickname in args:
-                options.challenge_live_character_id = item['id']
+                options.challenge_live_character_id = item.id
                 args = args.replace(nickname, "").strip()
                 break
     # 不指定角色情况下每个角色都组1个最强卡
