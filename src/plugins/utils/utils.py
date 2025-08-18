@@ -324,10 +324,11 @@ def clean_name(s: str) -> str:
     s = zhconv.convert(s, 'zh-cn')
     return s
 
-def get_md5(s: str) -> str:
+def get_md5(s: Union[str, bytes]) -> str:
     import hashlib
     m = hashlib.md5()
-    m.update(s.encode())
+    if isinstance(s, str): s = s.encode()
+    m.update(s)
     return m.hexdigest()
 
 def levenshtein_distance(s1: str, s2: str) -> int:
@@ -910,6 +911,18 @@ def frames_to_gif(frames: List[Image.Image], duration: int = 100, alpha_threshol
     with TempFilePath('gif') as path:
         save_transparent_gif(frames, duration, path, alpha_threshold)
         return open_image(path)
+
+def read_video_first_frame(video_path: str) -> Image.Image:
+    """
+    读取视频的第一帧
+    """
+    if not osp.exists(video_path):
+        raise Exception(f'视频文件 {video_path} 不存在')
+    reader = decord.VideoReader(video_path)
+    if len(reader) == 0:
+        raise Exception(f'视频 {video_path} 没有帧')
+    frame = reader[0].asnumpy()
+    return Image.fromarray(frame).convert('RGB')
 
 
 # ============================= 其他 ============================ #

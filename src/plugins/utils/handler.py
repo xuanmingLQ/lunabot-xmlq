@@ -1,7 +1,7 @@
 from .utils import *
 from nonebot import on_command, get_bot
 from nonebot.rule import to_me as rule_to_me
-from nonebot.adapters.onebot.v11 import GroupMessageEvent, Bot, MessageEvent
+from nonebot.adapters.onebot.v11 import GroupMessageEvent, Bot, MessageEvent, ActionFailed
 from nonebot.adapters.onebot.v11.message import Message as OutMessage
 from argparse import ArgumentParser
 import requests
@@ -530,11 +530,11 @@ def send_msg_func(func):
             ret = await func(*args, **kwargs)
         except Exception as e:
             # 失败发送邮件通知
-            global _send_msg_failed_last_mail_time
-            if datetime.now() - _send_msg_failed_last_mail_time > timedelta(seconds=global_config.get('msg_send.failed_mail_interval')):
-                _send_msg_failed_last_mail_time = datetime.now()
-                asyncio.create_task(asend_exception_mail("消息发送失败", traceback.format_exc(), utils_logger))
-            raise
+            # global _send_msg_failed_last_mail_time
+            # if datetime.now() - _send_msg_failed_last_mail_time > timedelta(seconds=global_config.get('msg_send.failed_mail_interval')):
+            #     _send_msg_failed_last_mail_time = datetime.now()
+            #     asyncio.create_task(asend_exception_mail("消息发送失败", traceback.format_exc(), utils_logger))
+            raise e
 
         # 记录自身对指令的回复消息id集合
         try:
@@ -1227,6 +1227,10 @@ class HandlerContext:
                 cmd_msg = f'{user_name}: {cmd_msg}'
             contents = [cmd_msg] + contents
         return await send_multiple_fold_msg(self.bot, self.event, contents, fallback_method)
+
+    async def asend_video(self, path: str):
+        await self.asend_msg(f"[CQ:video,file=file://{path}]")
+
 
     # -------------------------- 其他 -------------------------- # 
 

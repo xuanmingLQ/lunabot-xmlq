@@ -2,6 +2,7 @@ from ..utils import *
 from .imgexp import search_image
 import yt_dlp
 from tenacity import retry, wait_fixed, stop_after_attempt
+import ffmpeg
 
 config = Config('imgexp')
 logger = get_logger('ImgExp')
@@ -32,12 +33,12 @@ async def aget_video_info(url):
             info = ydl.extract_info(url, download=False)
             info = ydl.sanitize_info(info)
         return info
-    return await asyncio.to_thread(get_video_info, url)
+    return await run_in_pool(get_video_info, url)
 
 async def adownload_video(url, path, maxsize, lowq):
     def download_video(url, path, maxsize):
         opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best' if not lowq else 'worst',
+            'format': config.get('ytdlp.best_format') if not lowq else config.get('ytdlp.worst_format'),
             'outtmpl': path,
             'noplaylist': True,
             'progress_hooks': [],
@@ -45,7 +46,7 @@ async def adownload_video(url, path, maxsize, lowq):
         }
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([url])
-    return await asyncio.to_thread(download_video, url, path, maxsize)
+    return await run_in_pool(download_video, url, path, maxsize)
 
 
 
@@ -97,7 +98,7 @@ async def _(ctx: HandlerContext):
         with TempFilePath("mp4") as tmp_save_path:
             await ctx.asend_reply_msg("正在下载视频...")
 
-            download_size_limit = int(config.get('download_video_size_limit') * 1024 * 1024)
+            download_size_limit = int(config.get('ytdlp.size_limit') * 1024 * 1024)
             await adownload_video(args.url, tmp_save_path, download_size_limit, args.low_quality)
 
             if not os.path.exists(tmp_save_path):
@@ -110,10 +111,8 @@ async def _(ctx: HandlerContext):
                 with TempFilePath("gif") as gif_path:
                     await run_in_pool(convert_video_to_gif, tmp_save_path, gif_path)
                     await ctx.asend_msg(await get_image_cq(gif_path))
-    
             else:
-                video = await run_in_pool(read_file_as_base64, tmp_save_path)
-                await ctx.asend_msg(f"[CQ:video,file=base64://{video}]")
+                await ctx.asend_video(tmp_save_path)
 
 
 
