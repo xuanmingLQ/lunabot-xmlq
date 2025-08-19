@@ -778,6 +778,10 @@ async def compose_power_bonus_detail_image(ctx: SekaiHandlerContext, qid: int) -
 
 # 验证用户游戏帐号
 async def verify_user_game_account(ctx: SekaiHandlerContext):
+    verified_uids = get_user_verified_uids(ctx)
+    uid = get_player_bind_id(ctx, ctx.user_id, check_bind=True)
+    assert_and_reply(uid not in verified_uids, f"你当前绑定的{get_region_name(ctx.region)}帐号已经验证过")
+
     def generate_verify_code() -> str:
         while True:
             code = str(random.randint(1000, 9999))
