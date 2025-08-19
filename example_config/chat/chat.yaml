@@ -1,5 +1,6 @@
-fold_response_threshold: 400    # 群聊中超过多少字折叠回复
-session_len_limit: 40           # 会话长度限制
+fold_response_threshold: 400      # 群聊中超过多少字折叠回复
+session_len_limit: 40             # 会话长度限制
+output_reasoning_content: false   # 是否输出推理内容
 
 chat_cd: 10
 tts_cd: 30

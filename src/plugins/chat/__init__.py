@@ -445,7 +445,6 @@ async def _(ctx: HandlerContext):
         tools_additional_info = ""
         rest_quota = 0
         reasoning = None
-        text_len = 0
         resp_model = None
 
         for _ in range(3):
@@ -457,7 +456,6 @@ async def _(ctx: HandlerContext):
                 timeout=300,
             )
 
-            text_len = get_str_display_length(resp.result)
             res_text = ""
             for part in resp.result_list:
                 if isinstance(part, str):
@@ -507,7 +505,10 @@ async def _(ctx: HandlerContext):
     # 思考内容
     reasoning_text = ""
     if reasoning and reasoning.strip():
-        reasoning_text = f"【思考】\n{reasoning}\n【回答】\n"
+        if config.get('output_reasoning_content'):
+            reasoning_text = f"【思考】\n{reasoning}\n【回答】\n"
+        else:
+            reasoning_text = f"(已思考{len(reasoning)}字)\n"
     
     # 添加额外信息
     additional_info = f"{resp_model.get_full_name()} | {total_seconds:.1f}s, {total_ptokens}+{total_ctokens} tokens"
@@ -526,14 +527,14 @@ async def _(ctx: HandlerContext):
     ret = await ctx.asend_fold_msg_adaptive(
         final_text, 
         threshold=FOLD_LENGTH_THRESHOLD_CFG.get() * 2, 
-        text_len=text_len
     )
 
     # 加入会话历史
-    if ret and len(session) < SESSION_LEN_LIMIT_CFG.get():
+    if ret:
         ret_id = str(ret["message_id"])
         sessions[ret_id] = session
         logger.info(f"会话{session.id}加入会话历史:{ret_id}, 长度:{len(session)}")
+        session.limit_length(SESSION_LEN_LIMIT_CFG.get())
 
     # 检查过期会话
     for k, v in list(sessions.items()):

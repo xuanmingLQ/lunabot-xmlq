@@ -117,6 +117,23 @@ class ChatSession:
     def append_bot_content(self, text, imgs=None, verbose=True):
         self.append_content("assistant", text, imgs, verbose=verbose)
 
+    # 限制会话长度
+    def limit_length(self, limit: int, drop='oldest'):
+        assert drop in ['oldest', 'newest']
+        system_content = None
+        if self.content[0]['role'] == 'system':
+            system_content = self.content[0]
+            self.content = self.content[1:]
+        if len(self.content) >= limit:
+            if drop == 'oldest':
+                logger.info(f"会话{self.id}长度超过限制({len(self.content)}>{limit}), 删除最旧的消息")
+                self.content = self.content[-limit:]
+            else:
+                logger.info(f"会话{self.id}长度超过限制({len(self.content)}>{limit}), 删除最新的消息")
+                self.content = self.content[:limit]
+        if system_content:
+            self.content.insert(0, system_content)
+
     # 会话长度
     def __len__(self):
         return len(self.content)

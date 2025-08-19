@@ -426,7 +426,7 @@ async def compose_sks_image(ctx: SekaiHandlerContext, unit: str, event: dict = N
     for s_rank in s_ranks:
         for t_rank in t_ranks:
             if s_rank.rank == t_rank.rank:
-                speeds.append((s_rank.rank, t_rank.score - s_rank.score, t_rank.time - s_rank.time, t_rank.time))
+                speeds.append((s_rank.rank, t_rank.score, t_rank.score - s_rank.score, t_rank.time - s_rank.time, t_rank.time))
                 break
     speeds.sort(key=lambda x: x[0])
 
@@ -455,24 +455,27 @@ async def compose_sks_image(ctx: SekaiHandlerContext, unit: str, event: dict = N
                 bg2 = FillBg((255, 255, 255, 100))
                 title_style = TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK)
                 item_style  = TextStyle(font=DEFAULT_FONT,      size=20, color=BLACK)
-                with VSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(8):
+                with VSplit().set_content_align('l').set_item_align('l').set_sep(8).set_padding(8):
                     
                     TextBox(f"近{get_readable_timedelta(period)}换算{unit_text}速", title_style).set_size((420, None)).set_padding((8, 8))
 
                     with HSplit().set_content_align('c').set_item_align('c').set_sep(5).set_padding(0):
-                        TextBox("排名", title_style).set_bg(bg1).set_size((140, gh)).set_content_align('c')
-                        TextBox(f"{unit_text}速", title_style).set_bg(bg1).set_size((180, gh)).set_content_align('c')
-                        TextBox("RT",  title_style).set_bg(bg1).set_size((180, gh)).set_content_align('c')
-                    for i, (rank, dscore, dtime, rt) in enumerate(speeds):
+                        TextBox("排名", title_style).set_bg(bg1).set_size((100, gh)).set_content_align('c')
+                        TextBox("分数", title_style).set_bg(bg1).set_size((160, gh)).set_content_align('c')
+                        TextBox(f"{unit_text}速", title_style).set_bg(bg1).set_size((140, gh)).set_content_align('c')
+                        TextBox("RT",  title_style).set_bg(bg1).set_size((160, gh)).set_content_align('c')
+                    for i, (rank, score, dscore, dtime, rt) in enumerate(speeds):
                         with HSplit().set_content_align('c').set_item_align('c').set_sep(5).set_padding(0):
                             bg = bg2 if i % 2 == 0 else bg1
                             r = get_board_rank_str(rank)
                             dtime = dtime.total_seconds()
                             speed = get_board_score_str(int(dscore * unit_period.total_seconds() / dtime)) if dtime > 0 else "-"
+                            score = get_board_score_str(score)
                             rt = get_readable_datetime(rt, show_original_time=False, use_en_unit=False)
-                            TextBox(r,          item_style, overflow='clip').set_bg(bg).set_size((140, gh)).set_content_align('r').set_padding((16, 0))
-                            TextBox(speed,      item_style,                ).set_bg(bg).set_size((180, gh)).set_content_align('r').set_padding((8,  0))
-                            TextBox(rt,         item_style, overflow='clip').set_bg(bg).set_size((180, gh)).set_content_align('r').set_padding((16, 0))
+                            TextBox(r,          item_style, overflow='clip').set_bg(bg).set_size((100, gh)).set_content_align('r').set_padding((16, 0))
+                            TextBox(score,      item_style, overflow='clip').set_bg(bg).set_size((160, gh)).set_content_align('r').set_padding((16, 0))
+                            TextBox(speed,      item_style,                ).set_bg(bg).set_size((140, gh)).set_content_align('r').set_padding((8,  0))
+                            TextBox(rt,         item_style, overflow='clip').set_bg(bg).set_size((160, gh)).set_content_align('r').set_padding((16, 0))
             else:
                 TextBox("暂无时速数据", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)).set_padding(32)
     
