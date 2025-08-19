@@ -825,8 +825,11 @@ async def verify_user_game_account(ctx: SekaiHandlerContext):
     profile = await get_basic_profile(ctx, info.uid, use_cache=False, use_remote_cache=False)
     word: str = profile['userProfile'].get('word', '').strip()
 
+    assert_and_reply(word.endswith(info.verify_code), f"""
+验证失败，从你绑定的{get_region_name(ctx.region)}帐号留言末尾没有获取到验证码\"{info.verify_code}\"，请重试（验证码未改变）
+""".strip())
+
     try:
-        assert_and_reply(word.endswith(info.verify_code), f"验证失败，从留言末尾没有获取到验证码\"{info.verify_code}\"")
         # 验证成功
         verify_accounts = profile_db.get(f"verify_accounts_{ctx.region}", {})
         verify_accounts.setdefault(str(qid), []).append(info.uid)

@@ -19,6 +19,10 @@ HONOR_DIFF_SCORE_MAP = {
 
 # ======================= 处理逻辑 ======================= #
 
+# 从cuid获取cid
+async def get_cid_by_cuid(ctx: SekaiHandlerContext, cuid: int):
+    return (await ctx.md.game_character_units.find_by_id(cuid))['gameCharacterId']
+
 # 获取某个vs对应团的cuid
 async def get_vs_cuid(ctx: SekaiHandlerContext, cid: int, unit: str):
     for item in await ctx.md.game_character_units.get():
@@ -132,28 +136,28 @@ async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict
     elif htype == 'bonds':
         # 羁绊牌子
         bhonor = await ctx.md.bonds_honnors.find_by_id(hid)
-        cid1 = bhonor['gameCharacterUnitId1']
-        cid2 = bhonor['gameCharacterUnitId2']
+        cuid1 = bhonor['gameCharacterUnitId1']
+        cuid2 = bhonor['gameCharacterUnitId2']
         rarity = bhonor['honorRarity']
         view_type = profile_honor['bondsHonorViewType'] 
         rev = 'reverse' in view_type
 
-        img = get_bond_bg(cid1, cid2, is_main, rev)
+        img = get_bond_bg(cuid1, cuid2, is_main, rev)
 
         if 'unit_virtual_singer' in view_type:
             # 先将vs的id换到第一个
             swapped = False
-            if cid2 > 20:
-                cid1, cid2 = cid2, cid1
+            if cuid2 > 20:
+                cuid1, cuid2 = cuid2, cuid1
                 swapped = True
             # 找到vs对应的cuid
-            cid1 = await get_vs_cuid(ctx, cid1, CID_UNIT_MAP[cid2])
+            cuid1 = await get_vs_cuid(ctx, cuid1, CID_UNIT_MAP[cuid2])
             # 换回去
             if swapped:
-                cid1, cid2 = cid2, cid1
+                cuid1, cuid2 = cuid2, cuid1
 
-        c1_img = await ctx.rip.img(f"bonds_honor/character/chr_sd_{cid1:02d}_01.png")
-        c2_img = await ctx.rip.img(f"bonds_honor/character/chr_sd_{cid2:02d}_01.png")
+        c1_img = await ctx.rip.img(f"bonds_honor/character/chr_sd_{cuid1:02d}_01.png")
+        c2_img = await ctx.rip.img(f"bonds_honor/character/chr_sd_{cuid2:02d}_01.png")
 
         if rev: c1_img, c2_img = c2_img, c1_img
 
@@ -184,13 +188,15 @@ async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict
         await add_frame(img, rarity)
 
         if is_main:
+            cid1 = await get_cid_by_cuid(ctx, cuid1)
+            cid2 = await get_cid_by_cuid(ctx, cuid2)
             if abs(hid - hwid) < 100:
                 wordbundlename = f"honorname_{cid1:02d}{cid2:02d}_{(hwid%100):02d}_01"
             else:
                 if hwid % 10 == 1:
-                    wordbundlename = f"honorname_{cid1:02d}{cid2:02d}_default_{cid1:02d}{cid2:02d}_01"
+                    wordbundlename = f"honorname_{cid1:02d}{cid2:02d}_default_{cuid1:02d}{cid2:02d}_01"
                 else:
-                    wordbundlename = f"honorname_{cid1:02d}{cid2:02d}_default_{cid2:02d}{cid1:02d}_01"
+                    wordbundlename = f"honorname_{cid1:02d}{cid2:02d}_default_{cid2:02d}{cuid1:02d}_01"
             word_img = await ctx.rip.img(f"bonds_honor/word/{wordbundlename}_rip/{wordbundlename}.png")
             img.paste(word_img, (int(190-(word_img.size[0]/2)), int(40-(word_img.size[1]/2))), word_img)
 
