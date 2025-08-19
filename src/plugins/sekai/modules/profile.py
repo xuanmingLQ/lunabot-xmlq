@@ -54,6 +54,7 @@ class ProfileBgSettings:
     image: Image.Image
     blur: int = 4
     alpha: int = 150
+    vertical: bool = False
 
 PROFILE_BG_IMAGE_PATH = f"{SEKAI_PROFILE_DIR}/profile_bg/" + "{region}/{uid}.jpg"
 profile_bg_settings_db = get_file_db(f"{SEKAI_PROFILE_DIR}/profile_bg_settings.json", logger)
@@ -403,7 +404,7 @@ def get_register_time(region: str, uid: str) -> datetime:
         return None
 
 # 合成个人信息图片
-async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -> Image.Image:
+async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, vertical: bool=None) -> Image.Image:
     bg_settings = get_profile_bg_settings(ctx)
 
     decks = basic_profile['userDeck']
@@ -415,140 +416,158 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict) -
     bg = ImageBg(bg_settings.image, blur=False, fade=0) if bg_settings.image else random_unit_bg(avatar_info.unit)
     ui_bg = roundrect_bg(fill=(255, 255, 255, bg_settings.alpha), blurglass=True, blurglass_kwargs={'blur': bg_settings.blur})
 
-    with Canvas(bg=bg).set_padding(BG_PADDING) as canvas:
-        # 个人信息部分
-        with HSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
-            ## 左侧
-            with VSplit().set_bg(ui_bg).set_content_align('c').set_item_align('c').set_sep(32).set_padding((32, 35)):
-                # 名片
-                with HSplit().set_content_align('c').set_item_align('c').set_sep(32).set_padding((32, 0)):
-                    ImageBox(avatar_info.img, size=(128, 128), image_size_mode='fill')
-                    with VSplit().set_content_align('c').set_item_align('l').set_sep(16):
-                        game_data = basic_profile['user']
-                        colored_text_box(
-                            truncate(game_data['name'], 64),
-                            TextStyle(font=DEFAULT_BOLD_FONT, size=32, color=BLACK),
-                            use_shadow=True,
-                        )
-                        TextBox(f"{ctx.region.upper()}: {process_hide_uid(ctx, game_data['userId'])}", TextStyle(font=DEFAULT_FONT, size=20, color=BLACK))
-                        with Frame():
-                            ImageBox(ctx.static_imgs.get("lv_rank_bg.png"), size=(180, None))
-                            TextBox(f"{game_data['rank']}", TextStyle(font=DEFAULT_FONT, size=30, color=WHITE)).set_offset((110, 0))
+    # 个人信息部分
+    async def draw_info():
+        with VSplit().set_bg(ui_bg).set_content_align('c').set_item_align('c').set_sep(32).set_padding((32, 35)) as ret:
+            # 名片
+            with HSplit().set_content_align('c').set_item_align('c').set_sep(32).set_padding((32, 0)):
+                ImageBox(avatar_info.img, size=(128, 128), image_size_mode='fill')
+                with VSplit().set_content_align('c').set_item_align('l').set_sep(16):
+                    game_data = basic_profile['user']
+                    colored_text_box(
+                        truncate(game_data['name'], 64),
+                        TextStyle(font=DEFAULT_BOLD_FONT, size=32, color=BLACK),
+                        use_shadow=True,
+                    )
+                    TextBox(f"{ctx.region.upper()}: {process_hide_uid(ctx, game_data['userId'])}", TextStyle(font=DEFAULT_FONT, size=20, color=BLACK))
+                    with Frame():
+                        ImageBox(ctx.static_imgs.get("lv_rank_bg.png"), size=(180, None))
+                        TextBox(f"{game_data['rank']}", TextStyle(font=DEFAULT_FONT, size=30, color=WHITE)).set_offset((110, 0))
+
+            # 推特
+            with Frame().set_content_align('l').set_w(450):
+                tw_id = basic_profile['userProfile'].get('twitterId', '')
+                tw_id_box = TextBox('        @ ' + tw_id, TextStyle(font=DEFAULT_FONT, size=20, color=BLACK), line_count=1)
+                tw_id_box.set_wrap(False).set_bg(ui_bg).set_line_sep(2).set_padding(10).set_w(300).set_content_align('l')
+                x_icon = ctx.static_imgs.get("x_icon.png").resize((24, 24)).convert('RGBA')
+                ImageBox(x_icon, image_size_mode='original').set_offset((16, 0))
+
+            # 留言
+            user_word = basic_profile['userProfile']['word']
+            user_word = re.sub(r'<#.*?>', '', user_word)
+            user_word_box = TextBox(user_word, TextStyle(font=DEFAULT_FONT, size=20, color=BLACK), line_count=3)
+            user_word_box.set_wrap(True).set_bg(ui_bg).set_line_sep(2).set_padding((18, 16)).set_w(450)
+
+            # 头衔
+            with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding((16, 0)):
+                honors = basic_profile["userProfileHonors"]
+                async def compose_honor_image_nothrow(*args):
+                    try: return await compose_full_honor_image(*args)
+                    except: 
+                        logger.print_exc("合成头衔图片失败")
+                        return None
+                honor_imgs = await asyncio.gather(*[
+                    compose_honor_image_nothrow(ctx, find_by(honors, 'seq', 1), True, basic_profile),
+                    compose_honor_image_nothrow(ctx, find_by(honors, 'seq', 2), False, basic_profile),
+                    compose_honor_image_nothrow(ctx, find_by(honors, 'seq', 3), False, basic_profile)
+                ])
+                for img in honor_imgs:
+                    if img: 
+                        ImageBox(img, size=(None, 48))
+            # 卡组
+            with HSplit().set_content_align('c').set_item_align('c').set_sep(6).set_padding((16, 0)):
+                card_ids = [pcard['cardId'] for pcard in pcards]
+                cards = await ctx.md.cards.collect_by_ids(card_ids)
+                card_imgs = [
+                    await get_card_full_thumbnail(ctx, card, pcard=pcard)
+                    for card, pcard in zip(cards, pcards)
+                ]
+                for i in range(len(card_imgs)):
+                    ImageBox(card_imgs[i], size=(90, 90), image_size_mode='fill')
+        return ret
+
+    # 打歌部分
+    async def draw_play(): 
+        with HSplit().set_content_align('c').set_item_align('t').set_sep(12).set_bg(ui_bg).set_padding(32) as ret:
+            hs, vs, gw, gh = 8, 12, 90, 25
+            with VSplit().set_sep(vs):
+                Spacer(gh, gh)
+                ImageBox(ctx.static_imgs.get(f"icon_clear.png"), size=(gh, gh))
+                ImageBox(ctx.static_imgs.get(f"icon_fc.png"), size=(gh, gh))
+                ImageBox(ctx.static_imgs.get(f"icon_ap.png"), size=(gh, gh))
+            with Grid(col_count=6).set_sep(hsep=hs, vsep=vs):
+                for diff, color in DIFF_COLORS.items():
+                    t = TextBox(diff.upper(), TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=WHITE))
+                    t.set_bg(RoundRectBg(fill=color, radius=3)).set_size((gw, gh)).set_content_align('c')
+                diff_count = basic_profile['userMusicDifficultyClearCount']
+                scores = ['liveClear', 'fullCombo', 'allPerfect']
+                play_result = ['clear', 'fc', 'ap']
+                for i, score in enumerate(scores):
+                    for j, diff in enumerate(DIFF_COLORS.keys()):
+                        bg_color = (255, 255, 255, 150) if j % 2 == 0 else (255, 255, 255, 75)
+                        count = find_by(diff_count, 'musicDifficultyType', diff)[score]
+                        draw_shadowed_text(str(count), DEFAULT_FONT, 20, 
+                                        PLAY_RESULT_COLORS['not_clear'], PLAY_RESULT_COLORS[play_result[i]], 
+                                        offset=1, w=gw, h=gh).set_bg(RoundRectBg(fill=bg_color, radius=3))
+        return ret
     
-                # 推特
-                with Frame().set_content_align('l').set_w(450):
-                    tw_id = basic_profile['userProfile'].get('twitterId', '')
-                    tw_id_box = TextBox('        @ ' + tw_id, TextStyle(font=DEFAULT_FONT, size=20, color=BLACK), line_count=1)
-                    tw_id_box.set_wrap(False).set_bg(ui_bg).set_line_sep(2).set_padding(10).set_w(300).set_content_align('l')
-                    x_icon = ctx.static_imgs.get("x_icon.png").resize((24, 24)).convert('RGBA')
-                    ImageBox(x_icon, image_size_mode='original').set_offset((16, 0))
-
-                # 留言
-                user_word = basic_profile['userProfile']['word']
-                user_word = re.sub(r'<#.*?>', '', user_word)
-                user_word_box = TextBox(user_word, TextStyle(font=DEFAULT_FONT, size=20, color=BLACK), line_count=3)
-                user_word_box.set_wrap(True).set_bg(ui_bg).set_line_sep(2).set_padding((18, 16)).set_w(450)
-
-                # 头衔
-                with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding((16, 0)):
-                    honors = basic_profile["userProfileHonors"]
-                    async def compose_honor_image_nothrow(*args):
-                        try: return await compose_full_honor_image(*args)
-                        except: 
-                            logger.print_exc("合成头衔图片失败")
-                            return None
-                    honor_imgs = await asyncio.gather(*[
-                        compose_honor_image_nothrow(ctx, find_by(honors, 'seq', 1), True, basic_profile),
-                        compose_honor_image_nothrow(ctx, find_by(honors, 'seq', 2), False, basic_profile),
-                        compose_honor_image_nothrow(ctx, find_by(honors, 'seq', 3), False, basic_profile)
-                    ])
-                    for img in honor_imgs:
-                        if img: 
-                            ImageBox(img, size=(None, 48))
-                # 卡组
-                with HSplit().set_content_align('c').set_item_align('c').set_sep(6).set_padding((16, 0)):
-                    card_ids = [pcard['cardId'] for pcard in pcards]
-                    cards = await ctx.md.cards.collect_by_ids(card_ids)
-                    card_imgs = [
-                        await get_card_full_thumbnail(ctx, card, pcard=pcard)
-                        for card, pcard in zip(cards, pcards)
-                    ]
-                    for i in range(len(card_imgs)):
-                        ImageBox(card_imgs[i], size=(90, 90), image_size_mode='fill')
-
-            ## 右侧
-            with VSplit().set_content_align('c').set_item_align('c').set_sep(16):
-                # 打歌情况
-                hs, vs, gw, gh = 8, 12, 90, 25
-                with HSplit().set_content_align('c').set_item_align('t').set_sep(vs).set_bg(ui_bg).set_padding(32):
-                    with VSplit().set_sep(vs):
-                        Spacer(gh, gh)
-                        ImageBox(ctx.static_imgs.get(f"icon_clear.png"), size=(gh, gh))
-                        ImageBox(ctx.static_imgs.get(f"icon_fc.png"), size=(gh, gh))
-                        ImageBox(ctx.static_imgs.get(f"icon_ap.png"), size=(gh, gh))
-                    with Grid(col_count=6).set_sep(hsep=hs, vsep=vs):
-                        for diff, color in DIFF_COLORS.items():
-                            t = TextBox(diff.upper(), TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=WHITE))
-                            t.set_bg(RoundRectBg(fill=color, radius=3)).set_size((gw, gh)).set_content_align('c')
-                        diff_count = basic_profile['userMusicDifficultyClearCount']
-                        scores = ['liveClear', 'fullCombo', 'allPerfect']
-                        play_result = ['clear', 'fc', 'ap']
-                        for i, score in enumerate(scores):
-                            for j, diff in enumerate(DIFF_COLORS.keys()):
-                                bg_color = (255, 255, 255, 150) if j % 2 == 0 else (255, 255, 255, 75)
-                                count = find_by(diff_count, 'musicDifficultyType', diff)[score]
-                                draw_shadowed_text(str(count), DEFAULT_FONT, 20, 
-                                                PLAY_RESULT_COLORS['not_clear'], PLAY_RESULT_COLORS[play_result[i]], 
-                                                offset=1, w=gw, h=gh).set_bg(RoundRectBg(fill=bg_color, radius=3))
+    # 养成部分
+    async def draw_chara():
+        with Frame().set_content_align('rb').set_bg(ui_bg) as ret:
+            hs, vs, gw, gh = 8, 7, 96, 48
+            # 角色等级
+            with Grid(col_count=6).set_sep(hsep=hs, vsep=vs).set_padding(32):
+                chara_list = [
+                    "miku", "rin", "len", "luka", "meiko", "kaito", 
+                    "ick", "saki", "hnm", "shiho", None, None,
+                    "mnr", "hrk", "airi", "szk", None, None,
+                    "khn", "an", "akt", "toya", None, None,
+                    "tks", "emu", "nene", "rui", None, None,
+                    "knd", "mfy", "ena", "mzk", None, None,
+                ]
+                for chara in chara_list:
+                    if chara is None:
+                        Spacer(gw, gh)
+                        continue
+                    cid = int(get_cid_by_nickname(chara))
+                    rank = find_by(basic_profile['userCharacters'], 'characterId', cid)['characterRank']
+                    with Frame().set_size((gw, gh)):
+                        chara_img = ctx.static_imgs.get(f'chara_rank_icon/{chara}.png')
+                        ImageBox(chara_img, size=(gw, gh), use_alphablend=True)
+                        t = TextBox(str(rank), TextStyle(font=DEFAULT_FONT, size=20, color=(40, 40, 40, 255)))
+                        t.set_size((60, 48)).set_content_align('c').set_offset((36, 4))
+            
+            # 挑战Live等级
+            if 'userChallengeLiveSoloResult' in basic_profile:
+                solo_live_result = basic_profile['userChallengeLiveSoloResult']
+                if isinstance(solo_live_result, list):
+                    solo_live_result = sorted(solo_live_result, key=lambda x: x['highScore'], reverse=True)[0]
+                cid, score = solo_live_result['characterId'], solo_live_result['highScore']
+                stages = find_by(basic_profile['userChallengeLiveSoloStages'], 'characterId', cid, mode='all')
+                stage_rank = max([stage['rank'] for stage in stages])
                 
-                with Frame().set_content_align('rb'):
-                    hs, vs, gw, gh = 8, 7, 96, 48
-                    # 角色等级
-                    with Grid(col_count=6).set_sep(hsep=hs, vsep=vs).set_bg(ui_bg).set_padding(32):
-                        chara_list = [
-                            "miku", "rin", "len", "luka", "meiko", "kaito", 
-                            "ick", "saki", "hnm", "shiho", None, None,
-                            "mnr", "hrk", "airi", "szk", None, None,
-                            "khn", "an", "akt", "toya", None, None,
-                            "tks", "emu", "nene", "rui", None, None,
-                            "knd", "mfy", "ena", "mzk", None, None,
-                        ]
-                        for chara in chara_list:
-                            if chara is None:
-                                Spacer(gw, gh)
-                                continue
-                            cid = int(get_cid_by_nickname(chara))
-                            rank = find_by(basic_profile['userCharacters'], 'characterId', cid)['characterRank']
-                            with Frame().set_size((gw, gh)):
-                                chara_img = ctx.static_imgs.get(f'chara_rank_icon/{chara}.png')
-                                ImageBox(chara_img, size=(gw, gh), use_alphablend=True)
-                                t = TextBox(str(rank), TextStyle(font=DEFAULT_FONT, size=20, color=(40, 40, 40, 255)))
-                                t.set_size((60, 48)).set_content_align('c').set_offset((36, 4))
-                    
-                    # 挑战Live等级
-                    if 'userChallengeLiveSoloResult' in basic_profile:
-                        solo_live_result = basic_profile['userChallengeLiveSoloResult']
-                        if isinstance(solo_live_result, list):
-                            solo_live_result = sorted(solo_live_result, key=lambda x: x['highScore'], reverse=True)[0]
-                        cid, score = solo_live_result['characterId'], solo_live_result['highScore']
-                        stages = find_by(basic_profile['userChallengeLiveSoloStages'], 'characterId', cid, mode='all')
-                        stage_rank = max([stage['rank'] for stage in stages])
-                        
-                        with VSplit().set_content_align('c').set_item_align('c').set_padding((32, 64)).set_sep(12):
-                            t = TextBox(f"CHANLLENGE LIVE", TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50, 255)))
-                            t.set_bg(roundrect_bg(radius=6)).set_padding((10, 7))
-                            with Frame():
-                                chara_img = ctx.static_imgs.get(f'chara_rank_icon/{get_character_first_nickname(cid)}.png')
-                                ImageBox(chara_img, size=(100, 50), use_alphablend=True)
-                                t = TextBox(str(stage_rank), TextStyle(font=DEFAULT_FONT, size=22, color=(40, 40, 40, 255)), overflow='clip')
-                                t.set_size((50, 50)).set_content_align('c').set_offset((40, 5))
-                            t = TextBox(f"SCORE {score}", TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50, 255)))
-                            t.set_bg(roundrect_bg(radius=6)).set_padding((10, 7))
+                with VSplit().set_content_align('c').set_item_align('c').set_padding((32, 64)).set_sep(12):
+                    t = TextBox(f"CHANLLENGE LIVE", TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50, 255)))
+                    t.set_bg(roundrect_bg(radius=6)).set_padding((10, 7))
+                    with Frame():
+                        chara_img = ctx.static_imgs.get(f'chara_rank_icon/{get_character_first_nickname(cid)}.png')
+                        ImageBox(chara_img, size=(100, 50), use_alphablend=True)
+                        t = TextBox(str(stage_rank), TextStyle(font=DEFAULT_FONT, size=22, color=(40, 40, 40, 255)), overflow='clip')
+                        t.set_size((50, 50)).set_content_align('c').set_offset((40, 5))
+                    t = TextBox(f"SCORE {score}", TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50, 255)))
+                    t.set_bg(roundrect_bg(radius=6)).set_padding((10, 7))
+        return ret
+
+    if vertical is None:
+        vertical = bg_settings.vertical
+
+    with Canvas(bg=bg).set_padding(BG_PADDING) as canvas:
+        if not vertical:
+            with HSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
+                await draw_info()
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(16):
+                    await draw_play()
+                    await draw_chara()
+        else:
+            with VSplit().set_content_align('c').set_item_align('c').set_sep(16).set_item_bg(ui_bg):
+                (await draw_info()).set_bg(None)
+                (await draw_play()).set_bg(None)
+                (await draw_chara()).set_bg(None)
 
     update_time = datetime.fromtimestamp(basic_profile['update_time'] / 1000)
-    text = f"Updated at {update_time.strftime('%Y-%m-%d %H:%M:%S')}        " + DEFAULT_WATERMARK
+    text = f"DT: {update_time.strftime('%Y-%m-%d %H:%M:%S')}  " + DEFAULT_WATERMARK
     if bg_settings.image:
-        text = text + f"        This background is user-uploaded and does not represent developer intent."
+        text = text + f"  This background is user-uploaded."
     add_watermark(canvas, text)
     return await canvas.get_img(1.5)
 
@@ -838,6 +857,7 @@ def set_profile_bg_settings(
     remove_image: bool = False,
     blur: Optional[int] = None,
     alpha: Optional[int] = None,
+    vertical: Optional[bool] = None,
     force: bool = False
 ):
     uid = get_uid_and_check_verified(ctx, force)
@@ -848,9 +868,19 @@ def set_profile_bg_settings(
         if os.path.exists(image_path):
             os.remove(image_path)
     elif image:
-        target_w, target_h = config.get('profile_bg_image_size')
+        w, h = image.size
+        w1, h1 = config.get('profile_bg_image_size.horizontal')
+        w2, h2 = config.get('profile_bg_image_size.vertical')
+        scale = -1
+        if w > w1 and h > h1:
+            scale = max(scale, w1 / w, h1 / h)
+        if w > w2 and h > h2:
+            scale = max(scale, w2 / w, h2 / h)
+        if scale < 0:
+            scale = 1
+        target_w, target_h = int(w * scale), int(h * scale)
+        assert_and_reply(min(target_w, target_h) < 10000, "上传图片的横纵比过大或过小")
         image = image.convert('RGB')
-        image = center_crop_by_aspect_ratio(image, target_w / target_h)
         if image.width > target_w:
             image = image.resize((target_w, target_h), Image.LANCZOS)
         save_kwargs = config.get('profile_bg_image_save_kwargs', {})
@@ -866,6 +896,9 @@ def set_profile_bg_settings(
     if alpha is not None:
         alpha = max(0, min(255, alpha))
         settings.setdefault(uid, {})['alpha'] = alpha
+
+    if vertical is not None:
+        settings.setdefault(uid, {})['vertical'] = vertical
 
     profile_bg_settings_db.set(region, settings)
 
@@ -1059,14 +1092,21 @@ pjsk_info.check_cdrate(cd).check_wblist(gbl)
 @pjsk_info.handle()
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
+    vertical = None
     try:
+        if '横屏' in args:
+            vertical = False
+            args = args.replace('横屏', '').strip()
+        elif '竖屏' in args:
+            vertical = True
+            args = args.replace('竖屏', '').strip()
         uid = int(args)
     except:
         uid = get_player_bind_id(ctx, ctx.user_id)
     profile = await get_basic_profile(ctx, uid, use_cache=False, use_remote_cache=False)
     logger.info(f"绘制名片 region={ctx.region} uid={uid}")
     return await ctx.asend_reply_msg(await get_image_cq(
-        await compose_profile_image(ctx, profile),
+        await compose_profile_image(ctx, profile, vertical=vertical),
         low_quality=True,
     ))
 
@@ -1274,7 +1314,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # 查询用户验证过的游戏ID列表
 get_verified_uids = SekaiCmdHandler([
-    "/pjsk verify list", "/pjsk验证列表", 
+    "/pjsk verify list", "/pjsk验证列表", "/pjsk验证状态", 
 ])
 get_verified_uids.check_cdrate(cd).check_wblist(gbl)
 @get_verified_uids.handle()
@@ -1296,7 +1336,7 @@ async def _(ctx: SekaiHandlerContext):
 # 上传个人信息背景图片
 upload_profile_bg = SekaiCmdHandler([
     "/pjsk upload profile bg", "/pjsk upload profile background",
-    "/上传个人信息背景", 
+    "/上传个人信息背景", "/上传个人信息图片", 
 ])
 upload_profile_bg.check_cdrate(cd).check_wblist(gbl).check_cdrate(profile_bg_upload_rate_limit)
 @upload_profile_bg.handle()
@@ -1317,7 +1357,7 @@ async def _(ctx: SekaiHandlerContext):
     img = await download_image(img_url)
     set_profile_bg_settings(ctx, image=img, force=force)
 
-    msg = f"背景设置成功，使用\"/{ctx.region}调整个人信息\"可以调整界面模糊和透明度\n"
+    msg = f"背景设置成功，使用\"/{ctx.region}调整个人信息\"可以调整界面方向、模糊、透明度\n"
     if res.suggest_review():
         msg += f"图片审核结果: {res.message}"
         logger.warning(f"用户 {ctx.user_id} 上传的个人信息背景图片需要人工审核: {res.message}")
@@ -1341,7 +1381,7 @@ async def _(ctx: SekaiHandlerContext):
 # 清空个人信息背景图片
 clear_profile_bg = SekaiCmdHandler([
     "/pjsk clear profile bg", "/pjsk clear profile background",
-    "/清空个人信息背景", "/清除个人信息背景", 
+    "/清空个人信息背景", "/清除个人信息背景",  "/清空个人信息图片", "/清除个人信息图片", 
 ])
 clear_profile_bg.check_cdrate(cd).check_wblist(gbl)
 @clear_profile_bg.handle()
@@ -1358,10 +1398,10 @@ async def _(ctx: SekaiHandlerContext):
     return await ctx.asend_reply_msg(f"已清空{get_region_name(ctx.region)}个人信息背景图片")
 
 
-# 调整个人信息背景模糊和透明度
+# 调整个人信息背景设置
 adjust_profile_bg = SekaiCmdHandler([
     "/pjsk adjust profile", "/pjsk adjust profile bg", "/pjsk adjust profile background",
-    "/调整个人信息背景", "/调整个人信息", 
+    "/调整个人信息背景", "/调整个人信息", "/设置个人信息", "/设置个人信息背景",
 ])
 adjust_profile_bg.check_cdrate(cd).check_wblist(gbl)
 @adjust_profile_bg.handle()
@@ -1376,6 +1416,8 @@ async def _(ctx: SekaiHandlerContext):
 
     uid = get_uid_and_check_verified(ctx, force)
     HELP = f"""
+调整横屏/竖屏:
+{ctx.original_trigger_cmd} 竖屏
 调整界面模糊度(0为无模糊):
 {ctx.original_trigger_cmd} 模糊 0~10
 调整界面透明度(0为不透明):
@@ -1386,16 +1428,22 @@ async def _(ctx: SekaiHandlerContext):
     if not args:
         settings = get_profile_bg_settings(ctx)
         msg = f"当前{get_region_name(ctx.region)}个人信息背景设置:\n"
+        msg += f"ID: {process_hide_uid(ctx, uid, keep=6)}\n"
+        msg += f"方向: {'竖屏' if settings.vertical else '横屏'}\n"
         msg += f"模糊度: {settings.blur}\n"
         msg += f"透明度: {100 - int(settings.alpha * 100 // 255)}\n"
         msg += f"---\n"
         msg += HELP
         return await ctx.asend_reply_msg(msg.strip())
 
-    blur, alpha = None, None
+    vertical, blur, alpha = None, None, None
     try:
         args = args.replace('度', '').replace('%', '')
-        if '模糊' in args:
+        if '竖屏' in args:
+            vertical = True
+        elif '横屏' in args:
+            vertical = False
+        elif '模糊' in args:
             blur = int(args.replace('模糊', ''))
         elif '透明' in args:
             alpha = (100 - int(args.replace('透明', ''))) * 255 // 100
@@ -1409,10 +1457,10 @@ async def _(ctx: SekaiHandlerContext):
     if alpha is not None:
         assert_and_reply(0 <= alpha <= 255, "透明度必须在0到100之间")
     
-    set_profile_bg_settings(ctx, blur=blur, alpha=alpha, force=force)
+    set_profile_bg_settings(ctx, vertical=vertical, blur=blur, alpha=alpha, force=force)
     settings = get_profile_bg_settings(ctx)
 
-    msg = f"当前设置: 透明度{100 - int(settings.alpha * 100 / 255)} 模糊度{settings.blur}\n"
+    msg = f"当前设置: {'竖屏' if settings.vertical else '横屏'} 透明度{100 - int(settings.alpha * 100 / 255)} 模糊度{settings.blur}\n"
 
     try:
         img_cq = await get_image_cq(

@@ -45,7 +45,7 @@ async def image_safety_check(image: Union[Image.Image, str]) -> SafetyCheckResul
     """
     try:
         def check():
-            data = {}
+            data = { 'BizType': 'bot' }
             if isinstance(image, str):
                 data['FileUrl'] = image
             else:

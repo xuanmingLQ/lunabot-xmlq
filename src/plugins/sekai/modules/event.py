@@ -509,8 +509,13 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
         prompt_start_template = Path(f"{SEKAI_CONFIG_DIR}/story_summary/event_story_summary_prompt_start.txt").read_text()
         prompt_ep_template = Path(f"{SEKAI_CONFIG_DIR}/story_summary/event_story_summary_prompt_ep.txt").read_text()
         prompt_end_template = Path(f"{SEKAI_CONFIG_DIR}/story_summary/event_story_summary_prompt_end.txt").read_text()
-        
-        @retry(stop=stop_after_attempt(2), wait=wait_fixed(1), reraise=True)
+
+        timeout = config.get('story_summary.event.timeout')
+        retry_num = config.get('story_summary.event.retry')
+        output_len_limit = config.get('story_summary.event.output_len_limit')
+        limit = config.get('story_summary.event.target_len_short') if len(eps) >= 10 else config.get('story_summary.event.target_len_long')
+
+        @retry(stop=stop_after_attempt(retry_num), wait=wait_fixed(1), reraise=True)
         async def do_summary():
             try:
                 summary = {}
@@ -518,8 +523,8 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
                 def get_process_func(phase: str):
                     def process(resp: ChatSessionResponse):
                         resp_text = resp.result
-                        if len(resp_text) > 650:
-                            raise Exception(f"生成文本超过长度限制({len(resp_text)}>500)")
+                        if len(resp_text) > output_len_limit:
+                            raise Exception(f"生成文本超过长度限制({len(resp_text)}>{output_len_limit})")
                     
                         start_idx = resp_text.find("{")
                         end_idx = resp_text.rfind("}") + 1
@@ -555,9 +560,6 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
                                 additional_info += f" | <0.0001/{resp.quota:.2f}{price_unit}"
                         summary[f'{phase}_additional_info'] = additional_info
                     return process
-                
-                timeout = 300
-                limit = 80 if len(eps) >= 10 else 100
                 
                 progress = "第1章"
                 prompt_start = prompt_head + prompt_start_template.format(title=title, outline=outline, raw_story=raw_stories[0], limit=limit)

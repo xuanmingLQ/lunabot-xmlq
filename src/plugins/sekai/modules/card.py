@@ -376,8 +376,12 @@ async def get_card_story_summary(ctx: SekaiHandlerContext, card: dict, refresh: 
 
             summary_prompt_template = Path(f"{SEKAI_CONFIG_DIR}/story_summary/card_story_summary_prompt.txt").read_text()
             summary_prompt = summary_prompt_template.format(raw_story=raw_story,)
+
+            timeout = config.get('story_summary.card.timeout')
+            retry_num = config.get('story_summary.card.retry')
+            output_len_limit = config.get('story_summary.card.output_len_limit')
             
-            @retry(stop=stop_after_attempt(2), wait=wait_fixed(1), reraise=True)
+            @retry(stop=stop_after_attempt(retry_num), wait=wait_fixed(1), reraise=True)
             async def do_summary():
                 try:
                     session = ChatSession()
@@ -385,8 +389,8 @@ async def get_card_story_summary(ctx: SekaiHandlerContext, card: dict, refresh: 
                     
                     def process(resp: ChatSessionResponse):
                         resp_text = resp.result
-                        if len(resp_text) > 1024:
-                            raise Exception(f"生成文本超过长度限制({len(resp_text)}>1024)")
+                        if len(resp_text) > output_len_limit:
+                            raise Exception(f"生成文本超过长度限制({len(resp_text)}>{output_len_limit})")
                         start_idx = resp_text.find("{")
                         end_idx = resp_text.rfind("}") + 1
                         data = loads_json(resp_text[start_idx:end_idx])
@@ -406,7 +410,7 @@ async def get_card_story_summary(ctx: SekaiHandlerContext, card: dict, refresh: 
                         ep_summary['additional_info'] = additional_info
                         return ep_summary
                     
-                    return await session.get_response(summary_model, process_func=process, timeout=300)
+                    return await session.get_response(summary_model, process_func=process, timeout=timeout)
 
                 except Exception as e:
                     logger.warning(f"生成剧情总结失败: {e}")
