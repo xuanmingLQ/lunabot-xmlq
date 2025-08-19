@@ -9,6 +9,7 @@ from google.genai.types import (
     SafetySetting,
     HarmCategory,
     HarmBlockThreshold,
+    ThinkingConfig,
 )
 import asyncio
 import json
@@ -31,7 +32,14 @@ class GenaiCompletions:
             threshold=HarmBlockThreshold.BLOCK_NONE,
         ) for category in safety_categories]
     
-    async def create(self, model: str, messages: list, extra_body: dict = None):
+    async def create(
+        self,
+        model: str, 
+        messages: list, 
+        extra_body: dict = None, 
+        max_tokens: int = None,
+        include_thoughts: bool = None,
+    ):
         image_response = extra_body.get("image_response", False)
 
         # 转换内容格式
@@ -64,8 +72,11 @@ class GenaiCompletions:
             response_modalities=['Text', 'Image'] if image_response else ['Text'],
             system_instruction=system_prompt,
             safety_settings=self.safety_settings,
-            max_output_tokens=128000,
+            max_output_tokens=max_tokens,
         )
+        if include_thoughts is not None:
+            config.thinking_config = ThinkingConfig(include_thoughts=include_thoughts)
+
         def gen():
             return self.genai_client.models.generate_content(
                 model=model,
@@ -86,6 +97,7 @@ class GenaiCompletions:
             "choices": [{
                 "message": {
                     "content": [],
+                    "reasoning_content": "",
                 }
             }],
             "usage": {
@@ -95,12 +107,15 @@ class GenaiCompletions:
         }
 
         for part in candidate.content.parts:
-            if part.text is not None:
-                result["choices"][0]["message"]['content'].append(part.text)
-            elif part.inline_data is not None:
-                img = Image.open(BytesIO(part.inline_data.data))
-                result["choices"][0]["message"]['content'].append(img)
-
+            if not part.thought:
+                if part.text is not None:
+                    result["choices"][0]["message"]['content'].append(part.text)
+                elif part.inline_data is not None:
+                    img = Image.open(BytesIO(part.inline_data.data))
+                    result["choices"][0]["message"]['content'].append(img)
+            else:
+                if part.text is not None:
+                    result["choices"][0]["message"]['reasoning_content'] += part.text
         return result
 
 class GenaiChat:

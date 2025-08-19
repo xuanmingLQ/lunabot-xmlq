@@ -195,6 +195,7 @@ class ChatSession:
                             messages=content,
                             extra_body=extra_body,
                             max_tokens=get_cfg_or_value(max_tokens),
+                            **model.client_kwargs,
                         ), 
                         timeout=get_cfg_or_value(timeout),
                     )
