@@ -11,10 +11,20 @@ story_summary:
   card:
     retry: 2
     timeout: 300
-    output_len_limit: 1600
+    output_len_limit: 2000
   event:
     retry: 2
     timeout: 300
-    output_len_limit: 800
+    output_len_limit: 1000
     target_len_long: 200
-    target_len_short: 80
+    target_len_short: 200
+    output_progress: true
+
+
+deck:
+  default_algs: ['dfs', 'ga']
+  timeout:
+    default: 5
+    no_event: 10
+    single_alg: 60
+    bonus_target: 20

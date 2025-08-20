@@ -37,7 +37,7 @@ async def _(ctx: HandlerContext):
     if not args or args not in help_names:
         msg = "【Lunabot使用帮助】\n"
         msg += "发送 \"/help 英文服务名\" 查看各服务的详细帮助\n"
-        msg += f"例如发送 \"/help alive\" 查看\"连接检测服务\"的帮助\n"
+        msg += f"例如发送 \"/help {help_names[0]}\" 查看\"{help_decs[0]}\"的帮助\n"
         msg += "\n可查询的服务列表:\n"
         for name, desc in sorted(zip(help_names, help_decs)):
             msg += f"{name} - {desc}\n"
@@ -80,4 +80,4 @@ async def _(ctx: HandlerContext):
             logger.print_exc(f"渲染 {doc_path} 帮助文档失败")
             return await ctx.asend_reply_msg(f"帮助文档渲染失败, 前往网页获取帮助文档:\n{HELP_DOCS_WEB_URL.format(name=args)}")
             
-            
+

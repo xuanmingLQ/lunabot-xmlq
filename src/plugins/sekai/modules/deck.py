@@ -24,11 +24,11 @@ from sekai_deck_recommend import (
 import multiprocessing
 
 
-RECOMMEND_TIMEOUT = timedelta(seconds=5)
-NO_EVENT_RECOMMEND_TIMEOUT = timedelta(seconds=10)
-SINGLE_ALG_RECOMMEND_TIMEOUT = timedelta(seconds=60)
-BONUS_RECOMMEND_TIMEOUT = timedelta(seconds=20)
-RECOMMEND_ALGS = ['dfs', 'ga']
+RECOMMEND_TIMEOUT_CFG = config.item('deck.timeout.default')
+NO_EVENT_RECOMMEND_TIMEOUT_CFG = config.item('deck.timeout.no_event')
+SINGLE_ALG_RECOMMEND_TIMEOUT_CFG = config.item('deck.timeout.single_alg')
+BONUS_RECOMMEND_TIMEOUT_CFG = config.item('deck.timeout.bonus_target')
+RECOMMEND_ALGS_CFG = config.item('deck.default_algs')
 RECOMMEND_ALG_NAMES = {
     'dfs': '暴力搜索',
     'sa': '模拟退火',
@@ -462,11 +462,11 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
 
     # 算法
     options.algorithm = "all"
-    options.timeout_ms = int(RECOMMEND_TIMEOUT.total_seconds() * 1000)
+    options.timeout_ms = int(RECOMMEND_TIMEOUT_CFG.get() * 1000)
     if "dfs" in args:
         options.algorithm = "dfs"
         args = args.replace("dfs", "").strip()
-        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT.total_seconds() * 1000)
+        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT_CFG.get() * 1000)
 
     # 活动id
     event, wl_cid, args = await extract_target_event(ctx, args, need_event_prefix=False)
@@ -507,11 +507,11 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
 
     # 算法
     options.algorithm = "all"
-    options.timeout_ms = int(RECOMMEND_TIMEOUT.total_seconds() * 1000)
+    options.timeout_ms = int(RECOMMEND_TIMEOUT_CFG.get() * 1000)
     if "dfs" in args:
         options.algorithm = "dfs"
         args = args.replace("dfs", "").strip()
-        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT.total_seconds() * 1000)
+        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT_CFG.get() * 1000)
     
     # 指定角色
     options.challenge_live_character_id = None
@@ -570,11 +570,11 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
 
     # 算法
     options.algorithm = "all"
-    options.timeout_ms = int(NO_EVENT_RECOMMEND_TIMEOUT.total_seconds() * 1000)
+    options.timeout_ms = int(NO_EVENT_RECOMMEND_TIMEOUT_CFG.get() * 1000)
     if "dfs" in args:
         options.algorithm = "dfs"
         args = args.replace("dfs", "").strip()
-        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT.total_seconds() * 1000)
+        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT_CFG.get() * 1000)
 
     # 活动id
     options.event_id = None
@@ -625,11 +625,11 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
 
     # 算法
     options.algorithm = "all"
-    options.timeout_ms = int(RECOMMEND_TIMEOUT.total_seconds() * 1000)
+    options.timeout_ms = int(RECOMMEND_TIMEOUT_CFG.get() * 1000)
     if "dfs" in args:
         options.algorithm = "dfs"
         args = args.replace("dfs", "").strip()
-        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT.total_seconds() * 1000)
+        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT_CFG.get() * 1000)
 
     # 5v5
     if "5v5" in args or "5V5" in args:
@@ -678,7 +678,7 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     additional, args = extract_addtional_options(args)
 
     options.algorithm = "dfs"
-    options.timeout_ms = int(BONUS_RECOMMEND_TIMEOUT.total_seconds() * 1000)
+    options.timeout_ms = int(BONUS_RECOMMEND_TIMEOUT_CFG.get() * 1000)
     options.target = "bonus"
     options.live_type = "solo"
 
@@ -820,7 +820,7 @@ async def do_deck_recommend(
 
     # 算法选择
     if options.algorithm == "all": 
-        algs = RECOMMEND_ALGS
+        algs = RECOMMEND_ALGS_CFG.get()
     else:
         algs = [options.algorithm]
 
