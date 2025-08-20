@@ -19,7 +19,6 @@ tts_cd = ColdDown(file_db, logger, config.item('tts_cd'), cold_down_name="tts_cd
 img_trans_cd = ColdDown(file_db, logger, config.item('img_trans_cd'), cold_down_name="img_trans_cd")
 
 
-FOLD_LENGTH_THRESHOLD_CFG = config.item('fold_response_threshold')
 SESSION_LEN_LIMIT_CFG = config.item('session_len_limit')
 
 SYSTEM_PROMPT_PATH       = "config/chat/system_prompt.txt"
@@ -36,7 +35,7 @@ IMAGE_RESPONSE_TRIGGER_WORDS = ['生成图片', '图片生成', 'imagen', 'Image
 async def use_tool(ctx: HandlerContext, session: ChatSession, type: str, data: Any) -> str:
     if type == "python":
         logger.info(f"使用python工具, data: {data}")
-        await ctx.asend_multiple_fold_msg([f"正在执行python代码:\n\n{data}"])
+        await ctx.asend_fold_msg_adaptive(f"正在执行python代码:\n\n{data}")
         try:
             str_code = "py\n" + data
             res = await run_code(str_code)
@@ -524,10 +523,7 @@ async def _(ctx: HandlerContext):
     final_text = tools_additional_info + reasoning_text + res_text + additional_info
 
     # 进行回复
-    ret = await ctx.asend_fold_msg_adaptive(
-        final_text, 
-        threshold=FOLD_LENGTH_THRESHOLD_CFG.get() * 2, 
-    )
+    ret = await ctx.asend_fold_msg_adaptive(final_text)
 
     # 加入会话历史
     if ret:

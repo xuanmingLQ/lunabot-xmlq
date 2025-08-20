@@ -491,7 +491,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
 
     ## 获取总结
     if not summary or refresh or story_has_update:
-        await ctx.asend_reply_msg(f"{banner_img_cq}正在生成活动剧情总结...")
+        await ctx.asend_reply_msg(f"{banner_img_cq}正在生成活动{eid}剧情总结...")
 
         # 获取剧情文本
         raw_stories = []
@@ -514,6 +514,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
         retry_num = config.get('story_summary.event.retry')
         output_len_limit = config.get('story_summary.event.output_len_limit')
         limit = config.get('story_summary.event.target_len_short') if len(eps) >= 10 else config.get('story_summary.event.target_len_long')
+        output_progress = config.get('story_summary.event.output_progress')
 
         @retry(stop=stop_after_attempt(retry_num), wait=wait_fixed(1), reraise=True)
         async def do_summary():
@@ -575,6 +576,8 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
                     await session.get_response(summary_model, process_func=get_process_func(f'ep{i}'), timeout=timeout)
                     if i % 3 == 0:
                         await asyncio.sleep(3) 
+                    if i == len(eps) // 2 and output_progress:
+                        await ctx.asend_reply_msg(f"已生成50%...")
 
                 progress = f"最终"
                 prompt_end = prompt_head + prompt_end_template.format(limit=limit, prev_summary=summary['previous'])
@@ -972,7 +975,7 @@ async def _(ctx: SekaiHandlerContext):
     except:
         event = await get_current_event(ctx, mode='next_first')
     await ctx.block_region(str(event['id']))
-    return await ctx.asend_multiple_fold_msg(await get_event_story_summary(ctx, event, refresh, model, save))
+    return await ctx.asend_fold_msg(await get_event_story_summary(ctx, event, refresh, model, save))
 
 
 # 5v5自动送火

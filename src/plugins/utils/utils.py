@@ -629,6 +629,69 @@ class Logger:
         print(f'{time} ERROR [{self.name}] ', flush=True, end='')
         traceback.print_exc()
 
+
+class NumLimitLogger(Logger):
+    """
+    发送一定次数后会停止发送的Logger
+    """
+    _last_log_time_and_count: Dict[str, Tuple[datetime, int]] = {}
+
+    def __init__(
+        self, 
+        name: str, 
+        key: str, 
+        limit: int = 5, 
+        recover_after: timedelta = timedelta(minutes=10),
+    ):
+        super().__init__(name)
+        self.key = f"{name}__{key}"
+        self.limit = limit
+        self.recover_after = recover_after
+
+    def _check_can_log(self, update: bool) -> str:
+        """
+        检查是否可以发送日志，并更新最后发送时间
+        返回 'ok' 表示可以发送，'limit' 表示达到限制，'final' 表示最后一次发送
+        """
+        last_time, last_count = self._last_log_time_and_count.get(self.key, (None, 0))
+        if self.recover_after is not None and last_time is not None \
+            and datetime.now() - last_time > self.recover_after:
+            # 如果超过恢复时间，则重置计数
+            last_time, last_count = None, 0
+            self._last_log_time_and_count.pop(self.key, None)
+        if update:
+            self._last_log_time_and_count[self.key] = (datetime.now(), last_count + 1)
+        if last_count > self.limit:
+            return 'limit'
+        if last_count == self.limit:
+            return 'final'
+        return 'ok'
+
+    def recover(self, verbose=True):
+        """
+        立刻恢复日志发送
+        """
+        can_log = self._check_can_log(update=False)
+        if can_log == 'limit':
+            self._last_log_time_and_count.pop(self.key, None)
+            if verbose:
+                super().info(f"{self.key} 日志发送限制已恢复")
+
+    def log(self, msg, flush=True, end='\n', level='INFO'):
+        can_log = self._check_can_log(update=True)
+        if can_log == 'limit': return
+        if can_log == 'final':
+            msg += f" (已达到发送限制{self.limit}次，暂停发送)"
+        super().log(msg, flush=flush, end=end, level=level)
+    
+    def print_exc(self, msg=None):
+        can_log = self._check_can_log(update=True)
+        if can_log == 'limit': return
+        if can_log == 'final':
+            msg += f" (已达到发送限制{self.limit}次，暂停发送)"
+        super().print_exc(msg)
+
+
 _loggers: Dict[str, Logger] = {}
 def get_logger(name: str) -> Logger:
     global _loggers

@@ -1005,7 +1005,7 @@ async def _(ctx: SekaiHandlerContext):
 
     card = await search_single_card(ctx, args)
     await ctx.block_region(str(card['id']))
-    return await ctx.asend_multiple_fold_msg(await get_card_story_summary(ctx, card, refresh, model, save))
+    return await ctx.asend_fold_msg(await get_card_story_summary(ctx, card, refresh, model, save))
 
 
 # 查询卡牌一览

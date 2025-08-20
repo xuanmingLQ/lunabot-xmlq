@@ -806,6 +806,8 @@ async def verify_user_game_account(ctx: SekaiHandlerContext):
         info = _region_qid_verify_codes[ctx.region][qid]
         if info.expire_time < datetime.now():
             err_msg = f"你的上次验证已过期\n"
+        if info.uid != uid:
+            err_msg = f"开始验证时绑定的帐号与当前绑定帐号不一致\n"
         if err_msg:
             _region_qid_verify_codes[ctx.region].pop(qid, None)
             info = None
@@ -815,7 +817,7 @@ async def verify_user_game_account(ctx: SekaiHandlerContext):
         info = VerifyCode(
             region=ctx.region,
             qid=qid,
-            uid=get_player_bind_id(ctx, qid, check_bind=True),
+            uid=uid,
             verify_code=generate_verify_code(),
             expire_time=datetime.now() + VERIFY_CODE_EXPIRE_TIME,
         )
@@ -870,6 +872,8 @@ def set_profile_bg_settings(
     uid = get_uid_and_check_verified(ctx, force)
     region = ctx.region
     image_path = PROFILE_BG_IMAGE_PATH.format(region=region, uid=uid)
+
+    settings: Dict[str, Dict[str, Any]] = profile_bg_settings_db.get(region, {})
     
     if remove_image:
         if os.path.exists(image_path):
@@ -893,8 +897,7 @@ def set_profile_bg_settings(
         save_kwargs = config.get('profile_bg_image_save_kwargs', {})
         create_parent_folder(image_path)
         image.save(image_path, **save_kwargs)
-
-    settings: Dict[str, Dict[str, Any]] = profile_bg_settings_db.get(region, {})
+        settings.setdefault(uid, {})['vertical'] = target_w < target_h
 
     if blur is not None:
         blur = max(0, min(10, blur))

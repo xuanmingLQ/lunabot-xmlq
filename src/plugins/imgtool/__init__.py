@@ -330,7 +330,7 @@ async def operate_image(ctx: HandlerContext) -> Image.Image:
 
     if isinstance(img, list):
         msgs = [f"{await get_image_cq(item)}#{i}" for i, item in enumerate(img)]
-        return await ctx.asend_multiple_fold_msg(msgs)
+        return await ctx.asend_fold_msg(msgs)
     else:
         return await ctx.asend_reply_msg(await get_image_cq(img))
 

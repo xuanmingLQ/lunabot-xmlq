@@ -797,6 +797,10 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
         case _:
             raise ReplyException(f"不支持的查询类型: {qtype}")
         
+    ranks = [r for r in ranks if r.rank <= 100]
+    if ranks2 is not None:
+        ranks2 = [r for r in ranks2 if r.rank <= 100]
+        
     if len(ranks) < 1:
         raise ReplyException(f"{format_sk_query_params(qtype, qval)}的榜线记录过少，无法查询")
     if ranks2 is not None and len(ranks2) < 1:
@@ -823,13 +827,9 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
 
         min_score = min(scores)
         max_score = max(scores) 
-        max_rank = max(rs)
-        min_rank = min(rs)
         if ranks2 is not None:
             min_score = min(min_score, min(scores2))
             max_score = max(max_score, max(scores2))
-            max_rank = max(max_rank, max(rs2))
-            min_rank = min(min_rank, min(rs2))
 
         lines = []
 
@@ -864,9 +864,8 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
             plt.annotate(f"{int(rs2[-1])}", xy=(times2[-1], rs2[-1] * 1.02), xytext=(times2[-1], rs2[-1] * 1.02),
                             color=color_p2[1], fontsize=12, ha='right')
 
-        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x))))
-        rank_range = max_rank - min_rank
-        ax2.set_ylim(max_rank + rank_range * 0.2, min_rank - rank_range * 0.2)
+        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x)) if 1 <= int(x) <= 100 else ''))
+        ax2.set_ylim(110, -10)
 
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
         ax.xaxis.set_major_locator(mdates.AutoDateLocator())

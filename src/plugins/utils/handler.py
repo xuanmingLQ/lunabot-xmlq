@@ -1,7 +1,7 @@
 from .utils import *
 from nonebot import on_command, get_bot
 from nonebot.rule import to_me as rule_to_me
-from nonebot.adapters.onebot.v11 import GroupMessageEvent, Bot, MessageEvent, ActionFailed
+from nonebot.adapters.onebot.v11 import GroupMessageEvent, PrivateMessageEvent, Bot, MessageEvent, ActionFailed
 from nonebot.adapters.onebot.v11.message import Message as OutMessage
 from argparse import ArgumentParser
 import requests
@@ -274,7 +274,9 @@ async def get_image_urls_from_msg(
         return ret['url']
     return [item['url'] for item in ret]  
 
-
+def get_event_sender_name(event: MessageEvent) -> str:
+    return event.sender.card or event.sender.nickname
+        
 async def get_image_cq(
     image: Union[str, Image.Image, bytes],
     allow_error: bool = False, 
@@ -551,6 +553,7 @@ def send_msg_func(func):
         
     return wrapper
     
+# -------- event内发送 -------- #
 
 @send_msg_func
 async def send_msg(handler, event, message):
@@ -576,73 +579,7 @@ async def send_at_msg(handler, event, message):
     if check_group_disabled_by_event(event): return None
     return await handler.send(OutMessage(f'[CQ:at,qq={event.user_id}]{message}'))
 
-
-async def fold_msg_fallback(bot, group_id: int, contents: List[str], e: Exception, method: str):
-    """
-    发送折叠消息失败的fallback
-    """
-    utils_logger.warning(f'发送折叠消息失败，fallback为发送普通消息: {get_exc_desc(e)}')
-    if method == 'seperate':
-        contents[0] = "（发送折叠消息失败）\n" + contents[0]
-        for content in contents:
-            ret = await send_group_msg_by_bot(bot, group_id, content)
-    elif method == 'join_newline':
-        contents = ["（发送折叠消息失败）"] + contents
-        msg = "\n".join(contents)
-        ret = await send_group_msg_by_bot(bot, group_id, msg)
-    elif method == 'join':
-        contents = ["（发送折叠消息失败）\n"] + contents
-        msg = "".join(contents)
-        ret = await send_group_msg_by_bot(bot, group_id, msg)
-    elif method == 'none':
-        ret = await send_group_msg_by_bot(bot, group_id, "发送折叠消息失败")
-    else:
-        raise Exception(f'未知折叠消息fallback方法 {method}')
-    return ret
-
-@send_msg_func
-async def send_group_fold_msg(bot, group_id: int, contents: List[str], fallback_method='none'):
-    """
-    发送群聊折叠消息 其中contents是text的列表
-    """
-    if check_group_disabled(group_id):
-        utils_logger.warning(f'取消发送消息到被全局禁用的群 {group_id}')
-        return
-    msg_list = [{
-        "type": "node",
-        "data": {
-            "user_id": bot.self_id,
-            "nickname": BOT_NAME_CFG.get(),
-            "content": content
-        }
-    } for content in contents]
-    try:
-        return await bot.send_group_forward_msg(group_id=group_id, messages=msg_list)
-    except Exception as e:
-        return await fold_msg_fallback(bot, group_id, contents, e, fallback_method)
-
-@send_msg_func
-async def send_multiple_fold_msg(bot, event, contents: List[str], fallback_method='none'):
-    """
-    发送多条消息折叠消息
-    """
-    if check_group_disabled_by_event(event): return None
-    msg_list = [{
-        "type": "node",
-        "data": {
-            "user_id": bot.self_id,
-            "nickname": BOT_NAME_CFG.get(),
-            "content": content
-        }
-    } for content in contents if content]
-    if is_group_msg(event):
-        try:
-            return await bot.send_group_forward_msg(group_id=event.group_id, messages=msg_list)
-        except Exception as e:
-            return await fold_msg_fallback(bot, event.group_id, contents, e, fallback_method)
-    else:
-        return await bot.send_private_forward_msg(user_id=event.user_id, messages=msg_list)
-    
+# -------- event外发送 -------- #
 
 @send_msg_func
 async def send_group_msg_by_bot(bot, group_id: int, content: str):
@@ -664,43 +601,281 @@ async def send_private_msg_by_bot(bot, user_id: int, content: str):
     """
     return await bot.send_private_msg(user_id=int(user_id), message=content)
 
+# -------- 折叠消息处理 -------- #
+
+MAX_FOLD_MSG_SEGMENT_COUNT = global_config.item('msg_send.max_fold_msg_segment_count')
+DEFAULT_FOLD_THRESHOLD_CFG = global_config.item('msg_send.default_fold_threshold')
+MAX_FOLD_MSG_LEN_CFG = global_config.item('msg_send.max_fold_msg_len')
+DEFAULT_FOLD_FALLBACK_METHOD_CFG = global_config.item('msg_send.default_fold_fallback_method')
+
+@dataclass
+class FoldMsgPart:
+    type: str
+    content: str
+
+    def get_linecount(self) -> int:
+        if self.type == 'text':
+            ret = 0
+            for part in self.content.split('\n'):
+                ret += get_str_display_length(part) // 40 + 1  # 每40个字符算一行
+            return ret
+        else:
+            return 4    # 其他类型消息长度估计为4行
+        
+    def get_text_length(self) -> int:
+        if self.type == 'text':
+            return len(self.content)
+        else:
+            return 0
+        
+def contents_to_parts(contents: Union[str, List[str]]) -> List[List[FoldMsgPart]]:
+    """
+    获取折叠消息文本和CQ码片段
+    """
+    if isinstance(contents, str):
+        contents = [contents]
+    ret = []
+    for content in contents:
+        parts = []
+        cur = 0
+        while cur < len(content):
+            cq_start = content.find('[CQ:', cur)
+            if cq_start == -1:
+                if cur < len(content):
+                    parts.append(FoldMsgPart('text', content[cur:]))
+                break
+            if cur < cq_start:
+                parts.append(FoldMsgPart('text', content[cur:cq_start]))
+            cq_end = content.find(']', cq_start)
+            cq_type_end = content.find(',', cq_start)
+            if cq_end == -1 or cq_type_end == -1:
+                raise ValueError(f'折叠消息内容格式错误')
+            parts.append(FoldMsgPart(
+                content[cq_start + 4:cq_type_end],
+                content[cq_start:cq_end + 1]
+            ))
+            cur = cq_end + 1
+        ret.append(parts)
+    return ret
+
+def parts_to_contents(parts: List[List[FoldMsgPart]]) -> List[str]:
+    """
+    将折叠消息片段转换回折叠消息
+    """
+    ret = []
+    for part_list in parts:
+        ret.append(''.join(part.content for part in part_list))
+    return ret
+
+def apply_limit_to_parts(fold_parts: List[List[FoldMsgPart]], limit: int, seq: int = 1) -> List[List[List[FoldMsgPart]]]:
+    """
+    将折叠消息片段应用长度限制，返回分割后的片段列表
+    """
+    if seq > MAX_FOLD_MSG_SEGMENT_COUNT.get():
+        raise ValueError(f'折叠消息分段超过最大限制 {MAX_FOLD_MSG_SEGMENT_COUNT.get()}')
+    assert limit > 64
+    if not fold_parts:
+        return []
+    if seq > 1:
+        fold_parts = [[FoldMsgPart('limit_text', f'[分段折叠消息Part.{seq}]')]] + fold_parts
+    cur_len = 0
+    cur_fold: List[List[FoldMsgPart]] = []
+    for i, msg in enumerate(fold_parts):
+        msg_len = sum(part.get_text_length() for part in msg)
+        cur_msg: List[FoldMsgPart] = []
+
+        if msg_len > limit:
+            # 单条消息超过长度限制，需要在消息内分割
+            rest_limit, parts_len = limit - cur_len, 0
+            for part in msg:
+                part_len = part.get_text_length()
+                if part.type == 'text' and parts_len + part_len > rest_limit:
+                    # 找到分割点，分割当前part
+                    part1 = FoldMsgPart(part.type, part.content[:rest_limit - parts_len])
+                    part2 = FoldMsgPart(part.type, part.content[rest_limit - parts_len:])
+                    # part1加入cur_msg，当前的cur_msg加入cur_fold，然后作为一个新的折叠消息
+                    cur_msg.append(part1)
+                    cur_msg = [p for p in cur_msg if p.content]
+                    cur_fold.append(cur_msg)
+                    cur_fold.append([FoldMsgPart('limit_text', f'[消息过长已自动分段]')])
+                    cur_fold = [m for m in cur_fold if m]
+                    # part2加入剩余部分
+                    rest_fold_parts = [[part2]] + fold_parts[i + 1:]
+                    # 递归处理剩余部分
+                    return [cur_fold] + apply_limit_to_parts(rest_fold_parts, limit, seq + 1)
+                else:
+                    cur_msg.append(part)
+                    parts_len += part_len
+                
+        elif cur_len + msg_len > limit:
+            # 当前总长度超过限制，将之前的作为一个折叠消息
+            cur_fold.append([FoldMsgPart('limit_text', f'[消息过长已自动分段]')])
+            return [cur_fold] + apply_limit_to_parts(fold_parts[i:], limit, seq + 1)
+        
+        else:
+            # 没有超过长度限制，直接添加到当前折叠消息
+            cur_msg = msg
+
+        # 当前消息添加到当前折叠消息，更新总长度
+        cur_msg = [p for p in cur_msg if p.content]
+        cur_fold.append(cur_msg)
+        cur_len += sum(part.get_text_length() for part in cur_msg)
+    cur_fold = [m for m in cur_fold if m]
+    return [cur_fold] if cur_fold else []
+
 @send_msg_func
-async def send_multiple_fold_msg_by_bot(bot, group_id: int, contents: List[str], fallback_method='none'):
+async def send_fold_msg(bot, group_id: Optional[int], user_id: Optional[int], contents: Union[str, List[str]], fallback_method=None):
     """
-    在event外发送多条消息折叠消息
+    发送私聊或群聊折叠消息
+    fallback_method in ['seperate', 'join_newline', 'join', 'none']
     """
-    if check_group_disabled(group_id):
-        utils_logger.warning(f'取消发送消息到被全局禁用的群 {group_id}')
-        return
-    msg_list = [{
-        "type": "node",
-        "data": {
-            "user_id": bot.self_id,
-            "nickname": BOT_NAME_CFG.get(),
-            "content": content
-        }
-    } for content in contents if content]
-    try:
-        return await bot.send_group_forward_msg(group_id=group_id, messages=msg_list)
-    except Exception as e:
-        return await fold_msg_fallback(bot, group_id, contents, e, fallback_method)
+    parts = contents_to_parts(contents)
+    if not parts:
+        raise ValueError('发送的折叠消息为空')
+    all_parts = apply_limit_to_parts(parts, MAX_FOLD_MSG_LEN_CFG.get())
+    ret = None
+    for parts in all_parts:
+        contents = parts_to_contents(parts)
+        if group_id and check_group_disabled(group_id):
+            utils_logger.warning(f'取消发送消息到被全局禁用的群 {group_id}')
+            return
+        msg_list = [{
+            "type": "node",
+            "data": {
+                "user_id": bot.self_id,
+                "nickname": BOT_NAME_CFG.get(),
+                "content": content
+            }
+        } for content in contents]
+        try:
+            if group_id:
+                ret = await bot.send_group_forward_msg(group_id=group_id, messages=msg_list)
+            else:
+                ret = await bot.send_private_forward_msg(user_id=user_id, messages=msg_list)
+        except Exception as e:
+            ret = await fold_msg_fallback(bot, group_id, user_id, contents, e, fallback_method)
+    return ret
 
+async def fold_msg_fallback(bot, group_id: Optional[int], user_id: Optional[int], contents: List[str], e: Exception, method: Optional[str]):
+    """
+    发送折叠消息失败的fallback
+    method: 为None使用默认fallback方法
+    """
+    if method is None:
+        method = DEFAULT_FOLD_FALLBACK_METHOD_CFG.get()
+    def send(msg: str):
+        if user_id:
+            return send_private_msg_by_bot(bot, user_id, msg)
+        return send_group_msg_by_bot(bot, group_id, msg)
+    utils_logger.warning(f'发送折叠消息失败，fallback为发送普通消息(method={method}): {get_exc_desc(e)}')
+    if method == 'seperate':
+        contents[0] = "（发送折叠消息失败）\n" + contents[0]
+        for content in contents:
+            ret = await send(content)
+    elif method == 'join_newline':
+        contents = ["（发送折叠消息失败）"] + contents
+        msg = "\n".join(contents)
+        ret = await send(msg)
+    elif method == 'join':
+        contents = ["（发送折叠消息失败）\n"] + contents
+        msg = "".join(contents)
+        ret = await send(msg)
+    elif method == 'none':
+        ret = await send("发送折叠消息失败")
+    else:
+        raise Exception(f'未知折叠消息fallback方法 {method}')
+    return ret
 
-async def send_fold_msg_adaptive(bot, handler, event, content: str, threshold: int=200, need_reply=True, text_len=None, fallback_method='none'):
+async def send_fold_msg_adaptive(
+    bot, 
+    group_id: Optional[int], 
+    user_id: Optional[int], 
+    contents: Union[str, List[str]], 
+    not_fold_contents: Optional[List[str]]=None,
+    threshold: Union[int, ConfigItem]=DEFAULT_FOLD_THRESHOLD_CFG,
+    need_reply: bool=True, 
+    reply_message_id: int=None,
+    fallback_method: str=None,
+):
     """
-    根据消息长度以及是否是群聊消息动态判断是否需要折叠消息
+    根据消息长度以及是否是群聊消息动态判断是否需要发送折叠消息
+    not_fold_contents: 指定不折叠发送的内容，None则发送相同内容
+    threshold: 折叠消息的行数阈值
+    need_reply: 不折叠的情况是否需要回复消息
     """
-    if text_len is None: 
-        text_len = get_str_display_length(content)
-    if is_group_msg(event) and text_len > threshold:
-        contents = [content]
-        if need_reply and event.group_id:
-            user_name = await get_group_member_name(bot, event.group_id, event.user_id)
-            contents = [f'{user_name}: {event.get_plaintext()}', content]
-        return await send_group_fold_msg(bot, event.group_id, contents, fallback_method)
-    if need_reply:
-        return await send_reply_msg(handler, event, content)
-    return await send_msg(handler, event, content)
+    if isinstance(contents, str):
+        contents = [contents]
+    all_parts = contents_to_parts(contents)
+    linecount = len(all_parts) - 1  # 每条消息之间间隔看作一行
+    for parts in all_parts:
+        for part in parts:
+            linecount += part.get_linecount()
+    utils_logger.debug(f'折叠消息行数: {linecount}')
+    if linecount < get_cfg_or_value(threshold):
+        # 不折叠消息
+        if not_fold_contents:
+            if isinstance(not_fold_contents, str):
+                not_fold_contents = [not_fold_contents]
+            contents = not_fold_contents
+        reply_cq = ""
+        if need_reply: 
+            assert reply_message_id is not None, "需要回复消息时reply_message_id不能为空"
+            reply_cq = f'[CQ:reply,id={reply_message_id}]'
+        ret = None
+        if group_id:
+            for content in contents:
+                ret = await send_group_msg_by_bot(bot, group_id, f'{reply_cq}{content}')
+        else:
+            for content in contents:
+                ret = await send_private_msg_by_bot(bot, user_id, f'{reply_cq}{content}')
+        return ret
+    else:
+        # 折叠消息
+        return await send_fold_msg(bot, group_id, user_id, contents, fallback_method=fallback_method)
+  
+async def send_private_fold_msg_adaptive_by_bot(
+    bot,
+    user_id: int,
+    contents: Union[str, List[str]], 
+    threshold: Union[int, ConfigItem]=DEFAULT_FOLD_THRESHOLD_CFG,
+    fallback_method: str=None,
+):
+    """
+    根据消息长度以及是否是群聊消息动态判断是否需要发送私聊折叠消息（不通过事件）
+    threshold: 折叠消息的行数阈值
+    """
+    return await send_fold_msg_adaptive(
+        bot, 
+        None, 
+        user_id, 
+        contents, 
+        threshold=threshold,
+        need_reply=False, 
+        reply_message_id=None,
+        fallback_method=fallback_method
+    )
+
+async def send_group_fold_msg_adaptive_by_bot(
+    bot,
+    group_id: int,
+    contents: Union[str, List[str]], 
+    threshold: Union[int, ConfigItem]=DEFAULT_FOLD_THRESHOLD_CFG,
+    fallback_method: str=None,
+):
+    """
+    根据消息长度以及是否是群聊消息动态判断是否需要发送群聊折叠消息（不通过事件）
+    threshold: 折叠消息的行数阈值
+    """
+    return await send_fold_msg_adaptive(
+        bot, 
+        group_id, 
+        None, 
+        contents, 
+        threshold=threshold,
+        need_reply=False, 
+        reply_message_id=None,
+        fallback_method=fallback_method
+    )
 
 
 # ============================ 聊天控制 ============================ #
@@ -729,7 +904,7 @@ class ColdDown:
     
     async def check(self, event, interval: int=None, allow_super=True, verbose=True):
         if allow_super and check_superuser(event, self.superuser):
-            self.logger.debug(f'{self.cold_down_name}检查: 超级用户{event.user_id}')
+            # self.logger.debug(f'{self.cold_down_name}检查: 超级用户{event.user_id}')
             return True
         if interval is None: interval = get_cfg_or_value(self.default_interval)
         key = str(event.user_id)
@@ -740,10 +915,10 @@ class ColdDown:
         if key not in last_use:
             last_use[key] = now
             self.db.set(self.cold_down_name, last_use)
-            self.logger.debug(f'{self.cold_down_name}检查: {key} 未使用过')
+            # self.logger.debug(f'{self.cold_down_name}检查: {key} 未使用过')
             return True
         if now - last_use[key] < interval:
-            self.logger.debug(f'{self.cold_down_name}检查: {key} CD中')
+            # self.logger.debug(f'{self.cold_down_name}检查: {key} CD中')
             if verbose:
                 try:
                     verbose_key = f'verbose_{key}'
@@ -764,7 +939,7 @@ class ColdDown:
             return False
         last_use[key] = now
         self.db.set(self.cold_down_name, last_use)
-        self.logger.debug(f'{self.cold_down_name}检查: {key} 通过')
+        # self.logger.debug(f'{self.cold_down_name}检查: {key} 通过')
         return True
 
     def get_last_use(self, user_id: int, group_id: int=None):
@@ -811,7 +986,7 @@ class RateLimit:
 
     async def check(self, event, allow_super=True, verbose=True):
         if allow_super and check_superuser(event, self.superuser):
-            self.logger.debug(f'{self.rate_limit_name}检查: 超级用户{event.user_id}')
+            # self.logger.debug(f'{self.rate_limit_name}检查: 超级用户{event.user_id}')
             return True
         key = str(event.user_id)
         if isinstance(event, GroupMessageEvent) and self.group_seperate:
@@ -822,10 +997,10 @@ class RateLimit:
         count = self.db.get(count_key, {})
         if self.get_period_time(datetime.now()) > self.get_period_time(last_check_time):
             count = {}
-            self.logger.debug(f'{self.rate_limit_name}检查: 额度已重置')
+            # self.logger.debug(f'{self.rate_limit_name}检查: 额度已重置')
         limit = get_cfg_or_value(self.limit)
         if count.get(key, 0) >= limit:
-            self.logger.debug(f'{self.rate_limit_name}检查: {key} 频率超限')
+            # self.logger.debug(f'{self.rate_limit_name}检查: {key} 频率超限')
             if verbose:
                 reply_msg = "达到{period}使用次数限制({limit})"
                 if self.period_type == "m":
@@ -845,7 +1020,7 @@ class RateLimit:
             ok = False
         else:
             count[key] = count.get(key, 0) + 1
-            self.logger.debug(f'{self.rate_limit_name}检查: {key} 通过 当前次数 {count[key]}/{limit}')
+            # self.logger.debug(f'{self.rate_limit_name}检查: {key} 通过 当前次数 {count[key]}/{limit}')
             ok = True
         self.db.set(count_key, count)
         self.db.set(last_check_time_key, datetime.now().timestamp())
@@ -939,16 +1114,16 @@ class GroupWhiteList:
             
     def check_id(self, group_id):
         white_list = self.db.get(self.white_list_name, [])
-        self.logger.debug(f'白名单{self.white_list_name}检查{group_id}: {"允许通过" if group_id in white_list else "不允许通过"}')
+        # self.logger.debug(f'白名单{self.white_list_name}检查{group_id}: {"允许通过" if group_id in white_list else "不允许通过"}')
         return group_id in white_list
 
     def check(self, event, allow_private=False, allow_super=False):
         if is_group_msg(event):
             if allow_super and check_superuser(event, self.superuser): 
-                self.logger.debug(f'白名单{self.white_list_name}检查: 允许超级用户{event.user_id}')
+                # self.logger.debug(f'白名单{self.white_list_name}检查: 允许超级用户{event.user_id}')
                 return True
             return self.check_id(event.group_id)
-        self.logger.debug(f'白名单{self.white_list_name}检查: {"允许私聊" if allow_private else "不允许私聊"}')
+        # self.logger.debug(f'白名单{self.white_list_name}检查: {"允许私聊" if allow_private else "不允许私聊"}')
         return allow_private
     
 class GroupBlackList:
@@ -1038,7 +1213,7 @@ class GroupBlackList:
     
     def check_id(self, group_id):
         black_list = self.db.get(self.black_list_name, [])
-        self.logger.debug(f'黑名单{self.black_list_name}检查{group_id}: {"允许通过" if group_id not in black_list else "不允许通过"}')
+        # self.logger.debug(f'黑名单{self.black_list_name}检查{group_id}: {"允许通过" if group_id not in black_list else "不允许通过"}')
         return group_id not in black_list
     
     def check(self, event, allow_private=False, allow_super=False):
@@ -1046,9 +1221,9 @@ class GroupBlackList:
             if allow_super and check_superuser(event, self.superuser): 
                 self.logger.debug(f'黑名单{self.black_list_name}检查: 允许超级用户{event.user_id}')
                 return True
-            self.logger.debug(f'黑名单{self.black_list_name}检查: {"允许通过" if self.check_id(event.group_id) else "不允许通过"}')
+            # self.logger.debug(f'黑名单{self.black_list_name}检查: {"允许通过" if self.check_id(event.group_id) else "不允许通过"}')
             return self.check_id(event.group_id)
-        self.logger.debug(f'黑名单{self.black_list_name}检查: {"允许私聊" if allow_private else "不允许私聊"}')
+        # self.logger.debug(f'黑名单{self.black_list_name}检查: {"允许私聊" if allow_private else "不允许私聊"}')
         return allow_private
     
 
@@ -1216,17 +1391,47 @@ class HandlerContext:
     def asend_at_msg(self, msg: str):
         return send_at_msg(self.nonebot_handler, self.event, msg)
 
-    def asend_fold_msg_adaptive(self, content: str, threshold=200, need_reply=True, text_len=None, fallback_method='none'):
-        return send_fold_msg_adaptive(self.bot, self.nonebot_handler, self.event, content, threshold, need_reply, text_len, fallback_method)
+    def asend_fold_msg(
+        self, 
+        contents: Union[str, List[str]], 
+        show_command: bool=True,
+        fallback_method: Optional[str]=None,
+    ):
+        if isinstance(contents, str):
+            contents = [contents]
+        if show_command:
+            contents = [f"{get_event_sender_name(self.event)}: {self.event.get_plaintext()}"] + contents
+        return send_fold_msg(
+            bot=self.bot,
+            group_id=self.group_id,
+            user_id=self.user_id,
+            contents=contents,
+            fallback_method=fallback_method
+        )
 
-    async def asend_multiple_fold_msg(self, contents: List[str], show_cmd=True, fallback_method='none'):
-        if show_cmd:
-            cmd_msg = self.trigger_cmd + self.arg_text
-            if self.group_id:
-                user_name = await get_group_member_name(self.bot, self.group_id, self.user_id)
-                cmd_msg = f'{user_name}: {cmd_msg}'
-            contents = [cmd_msg] + contents
-        return await send_multiple_fold_msg(self.bot, self.event, contents, fallback_method)
+    def asend_fold_msg_adaptive(
+        self, 
+        contents: Union[str, List[str]], 
+        threshold: Union[int, ConfigItem]=DEFAULT_FOLD_THRESHOLD_CFG,
+        need_reply: bool=True,
+        fallback_method: Optional[str]=None,
+    ):
+        if isinstance(contents, str):
+            contents = [contents]
+        fold_contents = contents
+        if need_reply:
+            fold_contents = [f"{get_event_sender_name(self.event)}: {self.event.get_plaintext()}"] + contents
+        return send_fold_msg_adaptive(
+            bot=self.bot,
+            group_id=self.group_id,
+            user_id=self.user_id,
+            contents=fold_contents,
+            not_fold_contents=contents,
+            threshold=threshold,
+            need_reply=need_reply,
+            reply_message_id=self.message_id,
+            fallback_method=fallback_method
+        )
 
     async def asend_video(self, path: str):
         video = await run_in_pool(read_file_as_base64, path)

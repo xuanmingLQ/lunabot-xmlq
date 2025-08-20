@@ -43,7 +43,7 @@ async def _(ctx: HandlerContext):
             msg += f"{name} - {desc}\n"
         msg += f"\n或前往网页查看帮助文档:\n"
         msg += HELP_DOCS_WEB_URL.format(name='main')
-        return await ctx.asend_fold_msg_adaptive(msg, threshold=0, need_reply=False)
+        return await ctx.asend_fold_msg_adaptive(msg, need_reply=False)
     else:
         try:
             # 尝试从缓存读取

@@ -23,7 +23,7 @@ async def _(ctx: HandlerContext):
             for i, item in enumerate(result.results):
                 msg += f"#{i+1}\n{item.url}\n"
 
-    return await ctx.asend_multiple_fold_msg([await get_image_cq(img), msg.strip()])
+    return await ctx.asend_fold_msg([await get_image_cq(img), msg.strip()])
 
 
 async def aget_video_info(url):
@@ -89,7 +89,7 @@ async def _(ctx: HandlerContext):
             msg += f"{await get_image_cq(thumbnail, allow_error=True, logger=logger)}\n" 
         if video_url:
             msg += f"{video_url}"
-        return await ctx.asend_reply_msg(msg.strip())
+        return await ctx.asend_fold_msg_adaptive(msg.strip())
 
     else:
         logger.info(f'下载视频: {args.url}')
@@ -182,7 +182,7 @@ async def _(ctx: HandlerContext):
         msg = await get_image_cq(concated_image)
 
     if args.fold:
-        return await ctx.asend_fold_msg_adaptive(msg, 0, need_reply=True)
+        return await ctx.asend_fold_msg(msg)
     else:
         return await ctx.asend_reply_msg(msg)
 

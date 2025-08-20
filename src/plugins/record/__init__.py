@@ -161,7 +161,7 @@ async def _(ctx: HandlerContext):
     for time, name in nicknames:
         msg += f"({time}) {name}\n"
     
-    return await ctx.asend_fold_msg_adaptive(msg.strip(), 0, True)
+    return await ctx.asend_fold_msg_adaptive(msg.strip())
 
 
 # 私聊转发
@@ -240,7 +240,7 @@ async def _(ctx: HandlerContext):
             msg += f"<{user_name}({user_id})>\n"
         msg += f"{context.trigger_cmd} {context.arg_text}"
         msg += "\n\n"
-    return await ctx.asend_fold_msg_adaptive(msg.strip(), 100, True)
+    return await ctx.asend_fold_msg_adaptive(msg.strip())
 
 
 # 聊天记录转文本

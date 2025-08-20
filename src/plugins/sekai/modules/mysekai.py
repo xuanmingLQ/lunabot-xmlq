@@ -1908,7 +1908,7 @@ async def msr_auto_push():
                 async with aiohttp.ClientSession() as session:
                     async with session.put(update_msr_sub_url, json=uid_modes, verify_ssl=False) as resp:
                         if resp.status != 200:
-                            logger.error(f"更新{region_name}Mysekai订阅信息失败: HTTP {resp.status}")
+                            logger.warning(f"更新{region_name}Mysekai订阅信息失败: HTTP {resp.status}")
             except Exception as e:
                 logger.warning(f"更新{region_name}Mysekai订阅信息失败: {get_exc_desc(e)}")
 

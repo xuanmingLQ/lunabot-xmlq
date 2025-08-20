@@ -10,6 +10,10 @@ msg_send:
     day: 4000   # 每天限制发送消息的数量
   failed_mail_interval: 600  # 发送消息发送异常邮件的间隔（秒）
 
+  default_fold_threshold: 25            # 默认折叠行数阈值
+  default_fold_fallback_method: "none"  # 默认发送折叠消息失败时的回退方法
+  max_fold_msg_len: 4096                # 单层折叠消息长度限制 
+
 font:
   path: "xxx"  # 中文字体路径
   name: "xxx"  # Matplotlib库使用的中文字体名称
