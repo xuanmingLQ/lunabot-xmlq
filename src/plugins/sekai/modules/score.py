@@ -4,7 +4,7 @@ from ..handler import *
 from ..asset import *
 from ..draw import *
 from .deck import musicmetas_json
-from .music import get_music_cover_thumb, search_music, extract_diff
+from .music import get_music_cover_thumb, search_music
 from decimal import Decimal, ROUND_DOWN
 
 # ==================== 活动点数计算 ==================== #
@@ -95,9 +95,10 @@ def calc(score: int, event_bonus: int, basic_point: int, live_bonus: int) -> int
 
 # ==================== 处理逻辑 ==================== #
 
-EVENT_BONUS_RANGE = list(range(0, 431))
 BOOST_BONUS_RANGE = list(range(0, 11))
 MAX_SCORE = 2840000
+MAX_EVENT_BONUS = 435
+MAX_WL_EVENT_BONUS = 600
 
 SHOW_SEG_LEN = 50
 MAX_SHOW_NUM = 150
@@ -111,9 +112,9 @@ class ScoreData:
     score_max: int
 
 # 查找指定歌曲基础分获取指定活动PT的所有可能分数
-def get_valid_scores(target_point: int, music_basic_score: int) -> List[ScoreData]:
+def get_valid_scores(target_point: int, music_basic_score: int, max_event_bonus: int) -> List[ScoreData]:
     ret: List[ScoreData] = []
-    for event_bonus in EVENT_BONUS_RANGE:
+    for event_bonus in range(0, max_event_bonus+1):
         for boost in BOOST_BONUS_RANGE:
             # 二分搜索查找calc计算出的PT为target_point的分数范围
             # 首先二分上界，顺便判断解是否存在
@@ -145,11 +146,16 @@ def get_valid_scores(target_point: int, music_basic_score: int) -> List[ScoreDat
     return ret
 
 # 合成控分图片
-async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: int, music_id: int) -> Image.Image:
+async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: int, music_id: int, wl: bool) -> Image.Image:
     meta = find_by(await musicmetas_json.get(), "music_id", music_id)
     assert_and_reply(meta, f"找不到歌曲ID={music_id}的基础分数据")
     music_basic_score = int(meta['event_rate'])
-    valid_scores = await run_in_pool(get_valid_scores, target_point, music_basic_score)
+    valid_scores = await run_in_pool(
+        get_valid_scores, 
+        target_point, 
+        music_basic_score,
+        MAX_WL_EVENT_BONUS if wl else MAX_EVENT_BONUS,
+    )
     valid_scores.sort(key=lambda x: (x.event_bonus, x.boost))
     valid_scores = valid_scores[:MAX_SHOW_NUM]
 
@@ -229,7 +235,7 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
 pjsk_score_control = SekaiCmdHandler([
     "/pjsk score", "/pjsk_score",
     "/控分",
-], regions=["jp"])
+], regions=["jp"], prefix_args=['wl'])
 pjsk_score_control.check_cdrate(cd).check_wblist(gbl)
 @pjsk_score_control.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -242,7 +248,8 @@ async def _(ctx: SekaiHandlerContext):
         assert 0 < target_pt
     except:
         raise ReplyException(f"""
-使用方式: {ctx.original_trigger_cmd} 目标活动点数 歌曲ID/歌曲名
+使用方式:
+{ctx.original_trigger_cmd} 活动pt 歌曲名(可选)
 """.strip())
 
     music = (await search_music(ctx, args)).music if args else None
@@ -250,7 +257,7 @@ async def _(ctx: SekaiHandlerContext):
 
     return await ctx.asend_reply_msg(
         await get_image_cq(
-            await compose_score_control_image(ctx, target_pt, mid),
+            await compose_score_control_image(ctx, target_pt, mid, ctx.prefix_arg == 'wl'),
             low_quality=True,
         )
     )
