@@ -1174,7 +1174,7 @@ async def compose_music_brief_list_image(
     diff_infos = [await get_music_diff_info(ctx, m['id']) for m in musics_or_mids]
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
+        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
             if title and title_style:
                 if title_shadow:
                     draw_shadowed_text(title, title_style.font, title_style.size, title_style.color, padding=8)
@@ -1183,7 +1183,8 @@ async def compose_music_brief_list_image(
 
             for m, cover, diff_info in zip(musics_or_mids, covers, diff_infos):
                 mid, music_name = m['id'], m['title']
-                publish_time = datetime.fromtimestamp(m['publishedAt'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+                publish_time = datetime.fromtimestamp(m['publishedAt'] / 1000)
+                publish_dlt = get_readable_timedelta(publish_time - datetime.now(), precision='d')
                 diffs    = ['easy', 'normal', 'hard', 'expert', 'master', 'append']
                 diff_lvs = [diff_info.level.get(diff, None) for diff in diffs]
 
@@ -1191,11 +1192,11 @@ async def compose_music_brief_list_image(
                 style2 = TextStyle(font=DEFAULT_FONT, size=16, color=(70, 70, 70))
                 style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=WHITE)
 
-                with HSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(16):
+                with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(16):
                     ImageBox(cover, size=(80, 80))
                     with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
                         TextBox(f"【{mid}】{music_name}", style1).set_w(250)
-                        TextBox(f"  {publish_time}", style2)
+                        TextBox(f"  {publish_time.strftime('%Y-%m-%d %H:%M:%S')} ({publish_dlt}后)", style2)
                         with HSplit().set_content_align('c').set_item_align('c').set_sep(4):
                             Spacer(w=2)
                             for diff, level in zip(diffs, diff_lvs):

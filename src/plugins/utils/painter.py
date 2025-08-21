@@ -1044,7 +1044,7 @@ class Painter:
             p1=(0, 0), p2=(1, 1)
         ).get_img((w // s, h // s)))
         bg.alpha_composite(Image.new("RGBA", (w // s, h // s), (255, 255, 255, 100)))
-        bg = bg.resize((w, h), Image.LANCZOS)
+        bg = bg.resize((w, h), Image.Resampling.LANCZOS)
 
         tri1 = Image.new("RGBA", (64, 64), (255, 255, 255, 0))
         draw = ImageDraw.Draw(tri1)
@@ -1056,7 +1056,7 @@ class Painter:
 
         def draw_tri(x, y, rot, size, color, type):
             img = tri1 if type == 0 else tri2
-            img = img.resize((size, size), Image.BILINEAR)
+            img = img.resize((size, size), Image.Resampling.BILINEAR)
             img = img.rotate(rot, expand=True)
             img = ImageChops.multiply(img, Image.new("RGBA", img.size, color))
             bg.alpha_composite(img, (int(x) - img.width // 2, int(y) - img.height // 2))
