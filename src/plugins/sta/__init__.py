@@ -1,5 +1,5 @@
 from ..utils import *
-from .draw import draw_all, reset_jieba, draw_date_count_plot, draw_word_count_plot, draw_all_long
+from .draw import draw_sta, reset_jieba, draw_date_count_plot, draw_word_count_plot, draw_sta_sum
 from ..record.sql import query_msg_by_range, query_msg_count
 
 
@@ -48,7 +48,7 @@ async def get_day_statistic(bot, group_id, date=None):
             topk_name.append(str(user))
     # 发送图片
     return await get_image_cq(
-        await draw_all(group_id, recs, PLOT_INTERVAL_CFG.get(), PLOT_TOPK1_CFG.get(), PLOT_TOPK2_CFG.get(), topk_user, topk_name, date),
+        await draw_sta(group_id, recs, PLOT_INTERVAL_CFG.get(), PLOT_TOPK1_CFG.get(), PLOT_TOPK2_CFG.get(), topk_user, topk_name, date),
     )
 
 # 获取长时间统计数据
@@ -80,7 +80,7 @@ async def get_long_statistic(bot, group_id, start_date: datetime, end_date: date
     # 画图
     date = f"{start_date.strftime('%Y-%m-%d')}~{end_date.strftime('%Y-%m-%d')}"
     return await get_image_cq(
-        draw_all_long(group_id, recs, PLOT_INTERVAL_CFG.get(), PLOT_TOPK1_CFG.get(), PLOT_TOPK2_CFG.get(), topk_user, topk_name, date),
+        draw_sta_sum(group_id, recs, PLOT_INTERVAL_CFG.get(), PLOT_TOPK1_CFG.get(), PLOT_TOPK2_CFG.get(), topk_user, topk_name, date),
     )
 
 # 获取总消息量关于时间的统计图数据

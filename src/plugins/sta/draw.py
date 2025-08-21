@@ -62,8 +62,8 @@ def get_cmap(gid, date, n=10, hue_range=0.2):
         ret.append(c)
     return ret
 
-# 绘制饼图
-async def draw_pie(gid, date_str, recs, topk_user, topk_name):
+# 饼图Frame控件
+async def get_pie_frame(gid, date_str, recs, topk_user, topk_name) -> Frame:
     logger.info(f"开始绘制饼图")
 
     # 统计数量
@@ -106,7 +106,7 @@ async def draw_pie(gid, date_str, recs, topk_user, topk_name):
         cur_angle -= rates[i] * 360
 
     canvas_w, canvas_h = 800, 400
-    with Canvas(w=canvas_w, h=canvas_h) as canvas:
+    with Frame().set_size((canvas_w, canvas_h)) as frame:
         cx, cy = int(canvas_w / 2), int(canvas_h / 2)
         radius = int(canvas_h * 0.8 / 2)
         cmap = get_cmap(gid, date_str)
@@ -150,14 +150,15 @@ async def draw_pie(gid, date_str, recs, topk_user, topk_name):
                 offset_anchor = 'rb'
                 x += 20
                 y += 20
-
+            
+            label_bg = RoundRectBg(fill=(255, 255, 255, 50), radius=4, blurglass=True, blurglass_kwargs={ 'blur': 1 })
             with HSplit().set_offset_anchor(offset_anchor).set_offset((x, y)).set_sep(0) as hs:
                 if topk_user[i] != "其他":
                     try:
                         ImageBox(download_avatar(topk_user[i], circle=True), size=(None, 40))
                     except:
                         logger.print_exc(f"获取{topk_user[i]}头像失败")
-                with Frame().set_bg(RoundRectBg(fill=(255, 255, 255, 255), radius=4)).set_padding(5).set_content_align('l'):
+                with Frame().set_bg(label_bg).set_padding(5).set_content_align('l'):
                     color = cmap[i]
                     h, l, s = colorsys.rgb_to_hls(*color)
                     r, g, b = colorsys.hls_to_rgb(h, l * 0.7, s)
@@ -166,8 +167,7 @@ async def draw_pie(gid, date_str, recs, topk_user, topk_name):
                 if offset_anchor == 'rb':
                     hs.items.reverse()
 
-    return await canvas.get_img()
-
+    return frame
 
 # 绘制折线图
 def draw_plot(gid, date_str, ax, recs, interval, topk_user, topk_name):
@@ -339,12 +339,11 @@ def draw_wordcloud(gid, date_str, recs, users, names) -> Tuple[Image.Image, str]
     return img, text
 
 
-# 绘制所有图
-async def draw_all(gid, recs, interval, topk1, topk2, user, name, date_str):
+
+# 绘制sta图
+async def draw_sta(gid, recs, interval, topk1, topk2, user, name, date_str):
     logger.info(f"开始绘制所有sta统计图")
     plt.subplots_adjust(wspace=0.0, hspace=0.0)
-
-    pie_image = await draw_pie(gid, date_str, recs, user[:topk1], name[:topk1])
 
     fig, ax = plt.subplots(figsize=(8, 4), nrows=1, ncols=1)
     fig.tight_layout()
@@ -363,7 +362,7 @@ async def draw_all(gid, recs, interval, topk1, topk2, user, name, date_str):
             title.set_bg(bg).set_padding(10).set_w(850)
             title.set_style(TextStyle(size=24, color=(0, 0, 0, 255), font=DEFAULT_FONT))
 
-            ImageBox(pie_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_w(850)
+            (await get_pie_frame(gid, date_str, recs, user[:topk1], name[:topk1])).set_bg(bg).set_w(850)
             ImageBox(wordcloud_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(32).set_w(850)
 
             wrt = TextBox(word_rank_text, line_count=3)
@@ -374,6 +373,51 @@ async def draw_all(gid, recs, interval, topk1, topk2, user, name, date_str):
 
     logger.info(f"绘制完成")
     return await canvas.get_img()
+
+
+# 绘制sta图（长时间统计版本）
+async def draw_sta_sum(gid, recs, interval, topk1, topk2, user, name, date_str):
+    logger.info(f"开始绘制所有sta统计图")
+    plt.subplots_adjust(wspace=0.0, hspace=0.0)
+
+    fig, ax = plt.subplots(figsize=(8, 4), nrows=1, ncols=1)
+    fig.tight_layout()
+    draw_plot(gid, date_str, ax, recs, interval, user[:topk2], name[:topk2])
+    plot_image = plt_fig_to_image(fig)
+
+    fig, ax = plt.subplots(figsize=(8, 5), nrows=1, ncols=1)
+    fig.tight_layout()
+    draw_long_sta_date_count_plot(gid, date_str, ax, user[:topk2], name[:topk2], recs)
+    date_count_image = plt_fig_to_image(fig)
+
+    wordcloud_image, word_rank_text = draw_wordcloud(gid, date_str, recs, user, name)
+
+    c1, c2 = get_theme_color_info(gid, date_str)["colors"]
+    bg_color = LinearGradient(c1=c1, c2=c2, p1=(1, 1), p2=(0, 0))
+    with Canvas(bg=FillBg(bg_color)).set_padding(10) as canvas:
+        with VSplit().set_sep(10).set_padding(10):
+            bg = RoundRectBg(fill=(255, 255, 255, 200), radius=10, blurglass=True)
+
+            title = TextBox(f"{date_str} 群聊消息统计 总消息数: {len(recs)}条")
+            title.set_bg(bg).set_padding(10).set_w(850 + 850 + 10)
+            title.set_style(TextStyle(size=24, color=(0, 0, 0, 255), font=DEFAULT_FONT))
+
+            with HSplit().set_sep(10):
+                with VSplit().set_sep(10):
+                    (await get_pie_frame(gid, date_str, recs, user[:topk1], name[:topk1])).set_bg(bg).set_w(850)
+                    ImageBox(wordcloud_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(32).set_w(850)
+
+                    wrt = TextBox(word_rank_text, line_count=3)
+                    wrt.set_bg(bg).set_padding(16).set_w(850)
+                    wrt.set_style(TextStyle(size=20, color=(100, 100, 100, 255), font=DEFAULT_FONT))
+                
+                with VSplit().set_sep(10):
+                    ImageBox(plot_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(16).set_w(850)
+                    ImageBox(date_count_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(16).set_w(850)
+
+    logger.info(f"绘制完成")
+    return await canvas.get_img()
+
 
 
 # 绘制群总聊天数关于时间的折线图 
@@ -467,48 +511,3 @@ def draw_long_sta_date_count_plot(gid, date_str, ax: plt.Axes, topk_user, topk_n
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     ax.legend(fontsize=8)
 
-
-# 绘制所有图（长时间统计版本）
-async def draw_all_long(gid, recs, interval, topk1, topk2, user, name, date_str):
-    logger.info(f"开始绘制所有sta统计图")
-    plt.subplots_adjust(wspace=0.0, hspace=0.0)
-
-    pie_image = await draw_pie(gid, date_str, recs, user[:topk1], name[:topk1])
-
-    fig, ax = plt.subplots(figsize=(8, 4), nrows=1, ncols=1)
-    fig.tight_layout()
-    draw_plot(gid, date_str, ax, recs, interval, user[:topk2], name[:topk2])
-    plot_image = plt_fig_to_image(fig)
-
-    fig, ax = plt.subplots(figsize=(8, 5), nrows=1, ncols=1)
-    fig.tight_layout()
-    draw_long_sta_date_count_plot(gid, date_str, ax, user[:topk2], name[:topk2], recs)
-    date_count_image = plt_fig_to_image(fig)
-
-    wordcloud_image, word_rank_text = draw_wordcloud(gid, date_str, recs, user, name)
-
-    c1, c2 = get_theme_color_info(gid, date_str)["colors"]
-    bg_color = LinearGradient(c1=c1, c2=c2, p1=(1, 1), p2=(0, 0))
-    with Canvas(bg=FillBg(bg_color)).set_padding(10) as canvas:
-        with VSplit().set_sep(10).set_padding(10):
-            bg = RoundRectBg(fill=(255, 255, 255, 200), radius=10, blurglass=True)
-
-            title = TextBox(f"{date_str} 群聊消息统计 总消息数: {len(recs)}条")
-            title.set_bg(bg).set_padding(10).set_w(850 + 850 + 10)
-            title.set_style(TextStyle(size=24, color=(0, 0, 0, 255), font=DEFAULT_FONT))
-
-            with HSplit().set_sep(10):
-                with VSplit().set_sep(10):
-                    ImageBox(pie_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_w(850)
-                    ImageBox(wordcloud_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(32).set_w(850)
-
-                    wrt = TextBox(word_rank_text, line_count=3)
-                    wrt.set_bg(bg).set_padding(16).set_w(850)
-                    wrt.set_style(TextStyle(size=20, color=(100, 100, 100, 255), font=DEFAULT_FONT))
-                
-                with VSplit().set_sep(10):
-                    ImageBox(plot_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(16).set_w(850)
-                    ImageBox(date_count_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(16).set_w(850)
-
-    logger.info(f"绘制完成")
-    return await canvas.get_img()

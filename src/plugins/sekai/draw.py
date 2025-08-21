@@ -62,24 +62,15 @@ WIDGET_BG_COLOR = (255, 255, 255, 150)
 WIDGET_BG_RADIUS = 10
 
 
-blurglass_enabled = True
-
-def set_blurglass_enabled(enabled: bool):
-    global blurglass_enabled
-    blurglass_enabled = enabled
-
-def get_blurglass_enabled() -> bool:
-    global blurglass_enabled
-    return blurglass_enabled
+BLURGLASS_CFG = config.item("blurglass")
 
 # 统一的半透明白色圆角矩形背景
 def roundrect_bg(fill: Color=WIDGET_BG_COLOR, radius: int=WIDGET_BG_RADIUS, alpha: int=None, blurglass: bool=None, blurglass_kwargs: dict={}):
     """
     统一的半透明白色圆角矩形背景
     """
-    global blurglass_enabled
     if blurglass is None:
-        blurglass = blurglass_enabled
+        blurglass = BLURGLASS_CFG.get()
     if alpha is not None:
         fill = (*fill[:3], alpha)
     return RoundRectBg(fill, radius, blurglass=blurglass, blurglass_kwargs=blurglass_kwargs)
