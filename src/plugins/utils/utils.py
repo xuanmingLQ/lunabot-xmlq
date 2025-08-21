@@ -413,10 +413,14 @@ def get_readable_timedelta(delta: timedelta, precision: str = 'm', use_en_unit=F
     s %= 60
 
     ret = ""
-    if d > 0: ret += f"{d}天" if not use_en_unit else f"{d}d"
-    if h > 0 and precision >= 1: ret += f"{h}小时" if not use_en_unit else f"{h}h"
-    if m > 0 and precision >= 2: ret += f"{m}分钟" if not use_en_unit else f"{m}m"
-    if s > 0 and precision >= 3: ret += f"{s}秒"   if not use_en_unit else f"{s}s"
+    if d > 0: 
+        ret += f"{d}天" if not use_en_unit else f"{d}d"
+    if h > 0 and (precision >= 1 or not ret): 
+        ret += f"{h}小时" if not use_en_unit else f"{h}h"
+    if m > 0 and (precision >= 2 or not ret):
+        ret += f"{m}分钟" if not use_en_unit else f"{m}m"
+    if s > 0 and (precision >= 3 or not ret):
+        ret += f"{s}秒"   if not use_en_unit else f"{s}s"
     return ret
 
 def truncate(s: str, limit: int) -> str:
