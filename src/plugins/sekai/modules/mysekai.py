@@ -1253,46 +1253,37 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
                         item['sum_quantity'] = f"{user_quantity_text}/{sum_quantity}"
     
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
+        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
             if profile:
                 await get_detailed_profile_card(ctx, profile, pmsg)
 
-            async def draw_col(gid, lv_materials):
-                gate_icon = ctx.static_imgs.get(f'mysekai/gate_icon/gate_{gid}.png')
-                with VSplit().set_content_align('c').set_item_align('c').set_sep(8).set_item_bg(roundrect_bg()).set_padding(8) as ret:
-                    spec_lv = spec_lvs.get(gid, 0)
-                    with HSplit().set_content_align('c').set_item_align('c').set_omit_parent_bg(True):
-                        ImageBox(gate_icon, size=(None, 40))
-                        if spec_lv:
-                            TextBox(f"Lv.{spec_lv}", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75)))
-                    lv_color = (50, 50, 50) if not profile else green_color
-                    for level, items in enumerate(lv_materials, spec_lv + 1):
-                        for item in items:
-                            if any(i['color'] == red_color for i in items):
-                                lv_color = red_color
-                        with HSplit().set_content_align('l').set_item_align('l').set_sep(4).set_padding(8):
-                            TextBox(f"{level}", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=lv_color), overflow='clip').set_w(32)
+            with HSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_bg(roundrect_bg()).set_padding(8):
+                for gid, lv_materials in gate_materials.items():
+                    gate_icon = ctx.static_imgs.get(f'mysekai/gate_icon/gate_{gid}.png')
+                    with VSplit().set_content_align('c').set_item_align('c').set_sep(8).set_item_bg(roundrect_bg()).set_padding(8):
+                        with HSplit().set_content_align('c').set_item_align('c').set_omit_parent_bg(True):
+                            ImageBox(gate_icon, size=(None, 40))
+                            if spec_lv:
+                                color = lerp_color(UNIT_COLORS[gid - 1], BLACK, 0.2)
+                                TextBox(f"Lv.{spec_lv}", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=color))
+                        lv_color = (50, 50, 50) if not profile else green_color
+                        for level, items in enumerate(lv_materials, spec_lvs.get(gid, 0) + 1):
                             for item in items:
-                                mid, quantity, color, sum_quantity = item['mid'], item['quantity'], item['color'], item['sum_quantity']
-                                with VSplit().set_content_align('c').set_item_align('c').set_sep(2):
-                                    img = await get_mysekai_res_icon(ctx, f"mysekai_material_{mid}")
-                                    with Frame():
-                                        sz = 50
-                                        ImageBox(img, size=(sz, sz))
-                                        TextBox(f"x{quantity}", TextStyle(font=DEFAULT_BOLD_FONT, size=14, color=(50, 50, 50))) \
-                                            .set_offset((sz, sz)).set_offset_anchor('rb')
-                                    TextBox(sum_quantity, TextStyle(font=DEFAULT_BOLD_FONT, size=12, color=color))
-                return ret
-            
-            if len(gate_materials) > 1:
-                with HSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_bg(roundrect_bg()).set_padding(8):
-                    for gid, lv_materials in gate_materials.items():
-                        await draw_col(gid, lv_materials)
-            else:
-                vs.set_content_align('c').set_item_align('c').set_item_bg(roundrect_bg())
-                await draw_col(gid, lv_materials)
+                                if any(i['color'] == red_color for i in items):
+                                    lv_color = red_color
 
-                    
+                            with HSplit().set_content_align('l').set_item_align('l').set_sep(4).set_padding(8):
+                                TextBox(f"{level}", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=lv_color), overflow='clip').set_w(32)
+                                for item in items:
+                                    mid, quantity, color, sum_quantity = item['mid'], item['quantity'], item['color'], item['sum_quantity']
+                                    with VSplit().set_content_align('c').set_item_align('c').set_sep(2):
+                                        img = await get_mysekai_res_icon(ctx, f"mysekai_material_{mid}")
+                                        with Frame():
+                                            sz = 50
+                                            ImageBox(img, size=(sz, sz))
+                                            TextBox(f"x{quantity}", TextStyle(font=DEFAULT_BOLD_FONT, size=14, color=(50, 50, 50))) \
+                                                .set_offset((sz, sz)).set_offset_anchor('rb')
+                                        TextBox(sum_quantity, TextStyle(font=DEFAULT_BOLD_FONT, size=12, color=color))
     add_watermark(canvas)
     
     # 缓存full查询
