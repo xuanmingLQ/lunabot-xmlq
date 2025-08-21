@@ -106,7 +106,7 @@ async def get_pie_frame(gid, date_str, recs, topk_user, topk_name) -> Frame:
         cur_angle -= rates[i] * 360
 
     canvas_w, canvas_h = 800, 400
-    with Frame().set_size((canvas_w, canvas_h)) as frame:
+    with Frame().set_size((canvas_w, canvas_h)).set_padding((20, 0)) as frame:
         cx, cy = int(canvas_w / 2), int(canvas_h / 2)
         radius = int(canvas_h * 0.8 / 2)
         cmap = get_cmap(gid, date_str)
@@ -362,7 +362,7 @@ async def draw_sta(gid, recs, interval, topk1, topk2, user, name, date_str):
             title.set_bg(bg).set_padding(10).set_w(850)
             title.set_style(TextStyle(size=24, color=(0, 0, 0, 255), font=DEFAULT_FONT))
 
-            (await get_pie_frame(gid, date_str, recs, user[:topk1], name[:topk1])).set_bg(bg).set_w(850)
+            (await get_pie_frame(gid, date_str, recs, user[:topk1], name[:topk1])).set_bg(bg).set_w(850).set_h(440)
             ImageBox(wordcloud_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(32).set_w(850)
 
             wrt = TextBox(word_rank_text, line_count=3)
@@ -404,7 +404,7 @@ async def draw_sta_sum(gid, recs, interval, topk1, topk2, user, name, date_str):
 
             with HSplit().set_sep(10):
                 with VSplit().set_sep(10):
-                    (await get_pie_frame(gid, date_str, recs, user[:topk1], name[:topk1])).set_bg(bg).set_w(850)
+                    (await get_pie_frame(gid, date_str, recs, user[:topk1], name[:topk1])).set_bg(bg).set_w(850).set_h(440)
                     ImageBox(wordcloud_image, image_size_mode='fit', use_alphablend=True).set_bg(bg).set_padding(32).set_w(850)
 
                     wrt = TextBox(word_rank_text, line_count=3)
