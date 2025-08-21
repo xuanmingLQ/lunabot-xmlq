@@ -1261,13 +1261,14 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
                 for gid, lv_materials in gate_materials.items():
                     gate_icon = ctx.static_imgs.get(f'mysekai/gate_icon/gate_{gid}.png')
                     with VSplit().set_content_align('c').set_item_align('c').set_sep(8).set_item_bg(roundrect_bg()).set_padding(8):
+                        spec_lv = spec_lvs.get(gid, 0)
                         with HSplit().set_content_align('c').set_item_align('c').set_omit_parent_bg(True):
                             ImageBox(gate_icon, size=(None, 40))
                             if spec_lv:
                                 color = lerp_color(UNIT_COLORS[gid - 1], BLACK, 0.2)
                                 TextBox(f"Lv.{spec_lv}", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=color))
                         lv_color = (50, 50, 50) if not profile else green_color
-                        for level, items in enumerate(lv_materials, spec_lvs.get(gid, 0) + 1):
+                        for level, items in enumerate(lv_materials, spec_lv + 1):
                             for item in items:
                                 if any(i['color'] == red_color for i in items):
                                     lv_color = red_color
