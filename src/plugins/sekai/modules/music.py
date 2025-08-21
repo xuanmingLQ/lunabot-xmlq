@@ -774,13 +774,36 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
     mv_info         = music['categories']
     publish_time    = datetime.fromtimestamp(music['publishedAt'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
 
-    audio_len = await get_music_audio_length(ctx, mid)
-    if not audio_len:
-        audio_len = "?"
-    else:
-        secs = audio_len.total_seconds()
-        audio_len = f"  {secs:.1f}秒（{int(secs) // 60}分{secs % 60.:.1f}秒）"
-    
+    if music['isFullLength']:
+        name += " [FULL]"
+
+    async def get_audio_len():
+        try:
+            audio_len = await get_music_audio_length(ctx, mid)
+            if not audio_len:
+                return "?"
+            else:
+                secs = audio_len.total_seconds()
+                return f"  {secs:.1f}秒（{int(secs) // 60}分{secs % 60.:.1f}秒）"
+        except Exception as e:
+            logger.warning(f"获取歌曲{mid}音频长度失败: {get_exc_desc(e)}")
+            return "?"
+
+    async def get_main_bpm():
+        try:
+            bpm_info = await get_chart_bpm(ctx, mid)
+            if not bpm_info:
+                return "?"
+            if bpm_info.bpm_main.is_integer():
+                return str(int(bpm_info.bpm_main))
+            else:
+                return f"{bpm_info.bpm_main:.2f}"
+        except Exception as e:
+            logger.warning(f"获取歌曲{mid}BPM信息失败: {get_exc_desc(e)}")
+            return "?"
+        
+    audio_len, bpm_main = await batch_gather(get_audio_len(), get_main_bpm())
+
     diff_info   = await get_music_diff_info(ctx, mid)
     diffs       = ['easy', 'normal', 'hard', 'expert', 'master', 'append']
     diff_lvs    = [diff_info.level.get(diff, None) for diff in diffs]
@@ -838,6 +861,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                             TextBox(f"MV", style1)
                             TextBox(f"时长", style1)
                             TextBox(f"发布时间", style1)
+                            TextBox(f"BPM", style1)
 
                         with VSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(0):
                             TextBox(composer, style2)
@@ -853,6 +877,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                             TextBox(mv_text, style2)
                             TextBox(audio_len, style2)
                             TextBox(publish_time, style2)
+                            TextBox(bpm_main, style2)
                 
                  # 难度等级/物量
                 hs, vs, gw = 8, 12, 180 if not has_append else 150
@@ -882,9 +907,9 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                     with HSplit().set_content_align('l').set_item_align('l').set_sep(16).set_padding(16):
                         TextBox("歌曲别名", TextStyle(font=DEFAULT_HEAVY_FONT, size=24, color=(50, 50, 50)))
                         aw = 800
-                        TextBox(alias_text, TextStyle(font=DEFAULT_FONT, size=font_size, color=(70, 70, 70)), use_real_line_count=True).set_w(aw)            
+                        TextBox(alias_text, TextStyle(font=DEFAULT_FONT, size=font_size, color=(70, 70, 70)), use_real_line_count=True).set_w(aw)    
 
-                with HSplit().set_omit_parent_bg(True).set_item_bg(roundrect_bg()).set_padding(0).set_sep(16):
+                def draw_vocal():
                     # 歌手
                     with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16):
                         for caption, vocals in sorted(caption_vocals.items(), key=lambda x: len(x[1])):
@@ -899,15 +924,21 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                                             for img in vocal['chara_imgs']:
                                                 ImageBox(img, size=(32, 32), use_alphablend=True)
                                     Spacer(w=8)
+                def draw_event():
                     # 活动
-                    if event:
-                        with HSplit().set_sep(8):
-                            with VSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(16):
-                                TextBox("关联活动", TextStyle(font=DEFAULT_HEAVY_FONT, size=24, color=(50, 50, 50)))
-                                TextBox(f"ID: {event_id}", TextStyle(font=DEFAULT_FONT, size=24, color=(70, 70, 70)))
-                            ImageBox(event_banner, size=(None, 100)).set_padding(16)
+                    with HSplit().set_sep(8):
+                        with VSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(16):
+                            TextBox("关联活动", TextStyle(font=DEFAULT_HEAVY_FONT, size=24, color=(50, 50, 50)))
+                            TextBox(f"ID: {event_id}", TextStyle(font=DEFAULT_FONT, size=24, color=(70, 70, 70)))
+                        ImageBox(event_banner, size=(None, 100)).set_padding(16)        
 
-               
+                if event:
+                    with HSplit().set_omit_parent_bg(True).set_item_bg(roundrect_bg()).set_padding(0).set_sep(16):
+                        draw_vocal()
+                        draw_event()
+                else:
+                    draw_vocal()
+                    
     add_watermark(canvas)
     return await canvas.get_img()    
 
@@ -1160,7 +1191,7 @@ async def compose_music_brief_list_image(
                 style2 = TextStyle(font=DEFAULT_FONT, size=16, color=(70, 70, 70))
                 style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=WHITE)
 
-                with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(16):
+                with HSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(16):
                     ImageBox(cover, size=(80, 80))
                     with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
                         TextBox(f"【{mid}】{music_name}", style1).set_w(250)
