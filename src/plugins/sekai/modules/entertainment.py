@@ -12,7 +12,19 @@ from .music import (
     get_music_diff_info,
 )
 from .chart import generate_music_chart
-from .card import get_card_image, has_after_training, only_has_after_training, get_character_name_by_id, get_unit_by_card_id
+from .card import (
+    get_card_image, 
+    has_after_training, 
+    only_has_after_training, 
+    get_character_name_by_id, 
+    get_unit_by_card_id,
+)
+from .gacha import (
+    spin_gacha,
+    parse_search_gacha_args,
+    compose_gacha_spin_image,
+    SINGLE_GACHA_HELP,
+)
 from PIL.Image import Transpose
 from PIL import ImageOps
 import pydub
@@ -621,3 +633,33 @@ async def _(ctx: SekaiHandlerContext):
             get_guess_music_check_fn('听歌识曲'), get_guess_music_stop_fn('听歌识曲'),
             send_guess_music_hint
         )
+
+
+# 模拟抽卡
+pjsk_spin_gacha = SekaiCmdHandler([
+    "/单抽", "/十连", *[f"/{x}连" for x in (10, 50, 100, 150, 200)],
+])
+pjsk_spin_gacha.check_cdrate(cd).check_wblist(gbl)
+@pjsk_spin_gacha.handle()
+async def _(ctx: SekaiHandlerContext):
+    check_daily_entertainment_limit(ctx)
+
+    args = ctx.get_args().strip()
+    if not args:
+        args = "-1"
+    gacha = await parse_search_gacha_args(ctx, args)
+    assert_and_reply(gacha, f"参数错误，{SINGLE_GACHA_HELP}")
+
+    if "单抽" in ctx.trigger_cmd:
+        count = 1
+    elif "十连" in ctx.trigger_cmd:
+        count = 10
+    else:
+        count = int(ctx.trigger_cmd.split("连")[0][1:])
+
+    cards = await spin_gacha(ctx, gacha, count)
+    return await ctx.asend_reply_msg(await get_image_cq(
+        await compose_gacha_spin_image(ctx, gacha, cards), 
+        low_quality=True
+    ))
+    

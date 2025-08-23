@@ -16,12 +16,20 @@ async def get_res_icon(ctx: SekaiHandlerContext, res_type: str, res_id: int = No
     """
     获取资源图标
     """
-    if res_type in ['jewel', 'virtual_coin', 'coin']:
+    res_image = UNKNOWN_IMG
+    if res_type in ['jewel', 'paid_jewel', 'virtual_coin', 'coin']:
+        if res_type == 'paid_jewel': res_type = 'jewel'
         res_image = await ctx.rip.img(f"thumbnail/common_material_rip/{res_type}.png", use_img_cache=True)
     elif res_type == 'boost_item':
         res_image = await ctx.rip.img(f"thumbnail/boost_item_rip/boost_item{res_id}.png", use_img_cache=True)               
     elif res_type == 'material':
         res_image = await ctx.rip.img(f"thumbnail/material_rip/material{res_id}.png", use_img_cache=True)
+    elif res_type == 'gacha_ticket':
+        asset_name = (await ctx.md.gacha_tickets.find_by_id(res_id))['assetbundleName']
+        res_image = await ctx.rip.img(f"thumbnail/gacha_ticket/gacha_ticket.png", use_img_cache=True)
+    elif res_type == 'gacha_item':
+        asset_name = (await ctx.md.gacha_ceil_items.find_by_id(res_id))['assetbundleName']
+        res_image = await ctx.rip.img(f"thumbnail/gacha_item/{asset_name}.png", use_img_cache=True)
     elif res_type == 'honor':
         asset_name = (await ctx.md.honors.find_by_id(res_id))['assetbundleName']
         res_image = await ctx.rip.img(f"honor/{asset_name}_rip/degree_main.png")

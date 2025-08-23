@@ -5,13 +5,6 @@ from ..asset import *
 from ..draw import *
 from .honor import compose_full_honor_image
 from .resbox import get_res_box_info, get_res_icon
-from .card import (
-    get_card_thumbnail,
-    get_card_full_thumbnail,
-    get_unit_by_card_id,
-    get_chara_icon_by_chara_id,
-    get_cid_by_nickname,
-)
 from ...utils.safety import *
 
 SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
@@ -66,6 +59,127 @@ class ProfileBgSettings:
 PROFILE_BG_IMAGE_PATH = f"{SEKAI_PROFILE_DIR}/profile_bg/" + "{region}/{uid}.jpg"
 profile_bg_settings_db = get_file_db(f"{SEKAI_PROFILE_DIR}/profile_bg_settings.json", logger)
 profile_bg_upload_rate_limit = RateLimit(file_db, logger, 10, 'd', rate_limit_name='个人信息背景上传')
+
+
+# ======================= 卡牌逻辑（防止循环依赖） ======================= #
+
+# 判断卡牌是否有after_training模式
+def has_after_training(card):
+    return card['cardRarityType'] in ["rarity_3", "rarity_4"]
+
+# 判断卡牌是否只有after_training模式
+def only_has_after_training(card):
+    return card.get('initialSpecialTrainingStatus') == 'done'
+
+# 获取角色卡牌缩略图
+async def get_card_thumbnail(ctx: SekaiHandlerContext, cid: int, after_training: bool):
+    image_type = "after_training" if after_training else "normal"
+    card = await ctx.md.cards.find_by_id(cid)
+    assert_and_reply(card, f"找不到ID为{cid}的卡牌")
+    return await ctx.rip.img(f"thumbnail/chara_rip/{card['assetbundleName']}_{image_type}.png", use_img_cache=True)
+
+# 获取角色卡牌完整缩略图（包括边框、星级等）
+async def get_card_full_thumbnail(
+    ctx: SekaiHandlerContext, 
+    card_or_card_id: Dict, 
+    after_training: bool=None, 
+    pcard: Dict=None, 
+    custom_text: str=None,
+):
+    if isinstance(card_or_card_id, int):
+        card = await ctx.md.cards.find_by_id(card_or_card_id)
+        assert_and_reply(card, f"找不到ID为{card_or_card_id}的卡牌")
+    else:
+        card = card_or_card_id
+    cid = card['id']
+
+    if not pcard:
+        after_training = after_training and has_after_training(card)
+        rare_image_type = "after_training" if after_training else "normal"
+    else:
+        after_training = pcard['defaultImage'] == "special_training"
+        rare_image_type = "after_training" if pcard['specialTrainingStatus'] == "done" else "normal"
+
+    # 如果没有指定pcard则尝试使用缓存
+    if not pcard:
+        image_type = "after_training" if after_training else "normal"
+        cache_path = f"{SEKAI_ASSET_DIR}/card_full_thumbnail/{ctx.region}/{cid}_{image_type}.png"
+        try: return open_image(cache_path)
+        except: pass
+
+    img = await get_card_thumbnail(ctx, cid, after_training)
+    ok_to_cache = (img != UNKNOWN_IMG)
+    img = img.copy()
+
+    def draw(img: Image.Image, card):
+        attr = card['attr']
+        rare = card['cardRarityType']
+        frame_img = ctx.static_imgs.get(f"card/frame_{rare}.png")
+        attr_img = ctx.static_imgs.get(f"card/attr_{attr}.png")
+        if rare == "rarity_birthday":
+            rare_img = ctx.static_imgs.get(f"card/rare_birthday.png")
+            rare_num = 1
+        else:
+            rare_img = ctx.static_imgs.get(f"card/rare_star_{rare_image_type}.png") 
+            rare_num = int(rare.split("_")[1])
+
+        img_w, img_h = img.size
+
+        # 如果是profile卡片则绘制等级/加成
+        if pcard:
+            if custom_text is not None:
+                draw = ImageDraw.Draw(img)
+                draw.rectangle((0, img_h - 24, img_w, img_h), fill=(70, 70, 100, 255))
+                draw.text((6, img_h - 31), custom_text, font=get_font(DEFAULT_BOLD_FONT, 20), fill=WHITE)
+            else:
+                level = pcard['level']
+                draw = ImageDraw.Draw(img)
+                draw.rectangle((0, img_h - 24, img_w, img_h), fill=(70, 70, 100, 255))
+                draw.text((6, img_h - 31), f"Lv.{level}", font=get_font(DEFAULT_BOLD_FONT, 20), fill=WHITE)
+            
+        # 绘制边框
+        frame_img = frame_img.resize((img_w, img_h))
+        img.paste(frame_img, (0, 0), frame_img)
+        # 绘制特训等级
+        if pcard:
+            rank = pcard['masterRank']
+            if rank:
+                rank_img = ctx.static_imgs.get(f"card/train_rank_{rank}.png")
+                rank_img = rank_img.resize((int(img_w * 0.35), int(img_h * 0.35)))
+                rank_img_w, rank_img_h = rank_img.size
+                img.paste(rank_img, (img_w - rank_img_w, img_h - rank_img_h), rank_img)
+        # 左上角绘制属性
+        attr_img = attr_img.resize((int(img_w * 0.22), int(img_h * 0.25)))
+        img.paste(attr_img, (1, 0), attr_img)
+        # 左下角绘制稀有度
+        hoffset, voffset = 6, 6 if not pcard else 24
+        scale = 0.17 if not pcard else 0.15
+        rare_img = rare_img.resize((int(img_w * scale), int(img_h * scale)))
+        rare_w, rare_h = rare_img.size
+        for i in range(rare_num):
+            img.paste(rare_img, (hoffset + rare_w * i, img_h - rare_h - voffset), rare_img)
+        mask = Image.new('L', (img_w, img_h), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rounded_rectangle((0, 0, img_w, img_h), radius=10, fill=255)
+        img.putalpha(mask)
+        return img
+    
+    img = await run_in_pool(draw, img, card)
+
+    if not pcard and ok_to_cache:
+        create_parent_folder(cache_path)
+        img.save(cache_path)
+
+    return img
+
+# 获取卡牌所属团名（VS会返回对应的所属团）
+async def get_unit_by_card_id(ctx: SekaiHandlerContext, card_id: int) -> str:
+    card = await ctx.md.cards.find_by_id(card_id)
+    if not card: raise Exception(f"卡牌ID={card_id}不存在")
+    chara_unit = get_unit_by_chara_id(card['characterId'])
+    if chara_unit != 'piapro':
+        return chara_unit
+    return card['supportUnit'] if card['supportUnit'] != "none" else "piapro"
 
 
 # ======================= 处理逻辑 ======================= #

@@ -480,6 +480,8 @@ class RegionMasterDataCollection:
         self.cheerful_carnival_teams                                        = RegionMasterDataWrapper(region, "cheerfulCarnivalTeams")
         self.challenge_live_high_score_rewards                              = RegionMasterDataWrapper(region, "challengeLiveHighScoreRewards")
         self.mysekai_phenomena_background_colors                            = RegionMasterDataWrapper(region, "mysekaiPhenomenaBackgroundColors")
+        self.gacha_ceil_items                                               = RegionMasterDataWrapper(region, "gachaCeilItems")
+        self.gacha_tickets                                                  = RegionMasterDataWrapper(region, "gachaTickets")
 
     async def get(self, name: str):
         wrapper = RegionMasterDataWrapper(self._region, name)

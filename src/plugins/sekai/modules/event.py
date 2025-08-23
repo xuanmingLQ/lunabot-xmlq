@@ -323,33 +323,36 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
     style1 = TextStyle(font=DEFAULT_HEAVY_FONT, size=10, color=(50, 50, 50))
     style2 = TextStyle(font=DEFAULT_FONT, size=10, color=(70, 70, 70))
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        TextBox("活动按时间顺序排列，黄色为当期活动", TextStyle(font=DEFAULT_FONT, size=10, color=(0, 0, 100))) \
-            .set_offset((0, 4 - BG_PADDING))
-        with Grid(row_count=row_count, vertical=True).set_sep(8, 2).set_item_align('lt').set_content_align('lt'):
-            for d in filtered_details:
-                now = datetime.now()
-                bg_color = WIDGET_BG_COLOR
-                if d.start_time <= now <= d.end_time:
-                    bg_color = (255, 250, 220, 200)
-                elif now > d.end_time:
-                    bg_color = (220, 220, 220, 200)
-                bg = roundrect_bg(bg_color, 5)
+        with VSplit().set_padding(0).set_sep(4).set_content_align('lt').set_item_align('lt'):
+            TextBox(
+                f"活动按时间顺序排列，黄色为当期活动，灰色为过去活动",
+                TextStyle(font=DEFAULT_FONT, size=12, color=(0, 0, 100))
+            ).set_bg(roundrect_bg(radius=4)).set_padding(4)
+            with Grid(row_count=row_count, vertical=True).set_sep(8, 2).set_item_align('lt').set_content_align('lt'):
+                for d in filtered_details:
+                    now = datetime.now()
+                    bg_color = WIDGET_BG_COLOR
+                    if d.start_time <= now <= d.end_time:
+                        bg_color = (255, 250, 220, 200)
+                    elif now > d.end_time:
+                        bg_color = (220, 220, 220, 200)
+                    bg = roundrect_bg(bg_color, 5)
 
-                with HSplit().set_padding(4).set_sep(4).set_item_align('lt').set_content_align('lt').set_bg(bg):
-                    with VSplit().set_padding(0).set_sep(2).set_item_align('lt').set_content_align('lt'):
-                        ImageBox(d.event_banner, size=(None, 40))
-                        with Grid(col_count=3).set_padding(0).set_sep(1, 1):
-                            for thumb in d.event_card_thumbs[:6]:
-                                ImageBox(thumb, size=(30, 30))
-                    with VSplit().set_padding(0).set_sep(2).set_item_align('lt').set_content_align('lt'):
-                        TextBox(f"{d.name}", style1, line_count=2, use_real_line_count=False).set_w(100)
-                        TextBox(f"ID: {d.eid} {d.etype_name}", style2)
-                        TextBox(f"S {d.start_time.strftime('%Y-%m-%d %H:%M')}", style2)
-                        TextBox(f"T {d.end_time.strftime('%Y-%m-%d %H:%M')}", style2)
-                        with HSplit().set_padding(0).set_sep(4):
-                            if d.bonus_attr: ImageBox(get_attr_icon(d.bonus_attr), size=(None, 24))
-                            if d.unit:  ImageBox(get_unit_icon(d.unit), size=(None, 24))
-                            if d.banner_cid: ImageBox(get_chara_icon_by_chara_id(d.banner_cid), size=(None, 24))
+                    with HSplit().set_padding(4).set_sep(4).set_item_align('lt').set_content_align('lt').set_bg(bg):
+                        with VSplit().set_padding(0).set_sep(2).set_item_align('lt').set_content_align('lt'):
+                            ImageBox(d.event_banner, size=(None, 40))
+                            with Grid(col_count=3).set_padding(0).set_sep(1, 1):
+                                for thumb in d.event_card_thumbs[:6]:
+                                    ImageBox(thumb, size=(30, 30))
+                        with VSplit().set_padding(0).set_sep(2).set_item_align('lt').set_content_align('lt'):
+                            TextBox(f"{d.name}", style1, line_count=2, use_real_line_count=False).set_w(100)
+                            TextBox(f"ID: {d.eid} {d.etype_name}", style2)
+                            TextBox(f"S {d.start_time.strftime('%Y-%m-%d %H:%M')}", style2)
+                            TextBox(f"T {d.end_time.strftime('%Y-%m-%d %H:%M')}", style2)
+                            with HSplit().set_padding(0).set_sep(4):
+                                if d.bonus_attr: ImageBox(get_attr_icon(d.bonus_attr), size=(None, 24))
+                                if d.unit:  ImageBox(get_unit_icon(d.unit), size=(None, 24))
+                                if d.banner_cid: ImageBox(get_chara_icon_by_chara_id(d.banner_cid), size=(None, 24))
 
     add_watermark(canvas)
 

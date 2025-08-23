@@ -31,4 +31,12 @@ deck:
     single_alg: 60
     bonus_target: 20
 
-gacha_list_page_num: 81
+gacha:
+  list_page_size: 100
+  spin_result_show_num: 
+    rarity_1: 10
+    rarity_2: 10
+    rarity_3: 10
+    rarity_4: 100
+    rarity_birthday: 100
+    pickup: 100

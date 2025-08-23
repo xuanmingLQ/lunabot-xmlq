@@ -459,6 +459,14 @@ def get_str_line_count(s: str, line_length: int) -> int:
         lines[-1] += c
     return len(lines)
 
+def get_float_str(value: float, precision: int = 2, remove_zero: bool = True) -> str:
+    """
+    将浮点数转换为字符串，保留指定小数位数，并可选择去除末尾的零
+    """
+    ret = f"{value:.{precision}f}"
+    if remove_zero:
+        ret = ret.rstrip('0').rstrip('.')
+    return ret
 
 
 # ============================ 文件 ============================ #
@@ -972,12 +980,18 @@ def concat_images(images: List[Image.Image], mode) -> Image.Image:
         return ret
 
     elif mode == 'g':
-        with Canvas(bg=FillBg(WHITE)) as canvas:
-            col_num = int(math.ceil(math.sqrt(len(images))))
-            with Grid(col_count=col_num, item_align='c', hsep=0, vsep=0):
-                for img in images:
-                    ImageBox(img)
-        return canvas.get_img()
+        max_w = max(img.width for img in images)
+        max_h = max(img.height for img in images)
+        cols = int(math.sqrt(len(images)))
+        rows = (len(images) + cols - 1) // cols
+        ret = Image.new('RGBA', (max_w * cols, max_h * rows))
+        for i, img in enumerate(images):
+            img = img.convert('RGBA')
+            img = img.resize((max_w, max_h))
+            x = (i % cols) * max_w
+            y = (i // cols) * max_h
+            ret.paste(img, (x, y), img)
+        return ret
 
     else:
         raise Exception('concat mode must be v/h/g')
