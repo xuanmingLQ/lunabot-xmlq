@@ -4,6 +4,7 @@ from .chart import *
 from .deck import *
 from .entertainment import *
 from .event import *
+from .gacha import *
 from .honor import *
 from .misc import *
 from .music import *

@@ -127,7 +127,7 @@ class MasterDataManager:
     """
     _all_mgrs = {}
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, build_indices: Optional[bool] = None):
         self.name = name
         self.version = {}
         self.data: Dict[str, Any] = {}
@@ -150,22 +150,28 @@ class MasterDataManager:
         return pjoin(MASTER_DB_CACHE_DIR, region, f"{self.name}.json")
 
     def _build_indices(self, region: str):
-        if self.map_fn:     # 有映射函数的情况下默认不构建索引
-            return
-        if not self.data[region]:
-            logger.warning(f"MasterData [{region}.{self.name}] 构建索引发生在数据加载前")
-            return
-        self.indices[region] = {}
-        for key in self.index_keys.get(region, []):
-            ind = {}
-            for item in self.data[region]:
-                if key not in item: continue
-                k = item[key]
-                if k not in ind:
-                    ind[k] = []
-                ind[k].append(item)
-            if ind:
-                self.indices[region][key] = ind
+        try:
+            if not self.data[region]:
+                logger.warning(f"MasterData [{region}.{self.name}] 构建索引发生在数据加载前")
+                return
+            if not isinstance(self.data[region], list):
+                return
+            logger.debug(f"MasterData [{region}.{self.name}] 开始构建索引")
+            self.indices[region] = {}
+            for key in self.index_keys.get(region, []):
+                ind = {}
+                for item in self.data[region]:
+                    if key not in item: 
+                        continue
+                    k = item[key]
+                    if k not in ind:
+                        ind[k] = []
+                    ind[k].append(item)
+                if ind:
+                    self.indices[region][key] = ind
+            logger.debug(f"MasterData [{region}.{self.name}] 构建索引成功")
+        except:
+            logger.print_exc(f"MasterData [{region}.{self.name}] 构建索引失败")
 
     async def _load_from_cache(self, region: str):
         """
@@ -177,12 +183,12 @@ class MasterDataManager:
         assert self.name in versions, "缓存版本无效"
         self.version[region] = versions[self.name]
         self.data[region] = await aload_json(cache_path)
-        self._build_indices(region)
         logger.info(f"MasterData [{region}.{self.name}] 从本地加载成功")
         map_fn = self.map_fn.get('all', self.map_fn.get(region))
         if map_fn:
             self.data[region] = await run_in_pool(map_fn, self.data[region])
             logger.info(f"MasterData [{region}.{self.name}] 映射函数执行完成")
+        await run_in_pool(self._build_indices, region)
 
     async def _download_from_db(self, region: str, source: RegionMasterDbSource):
         """
@@ -207,7 +213,6 @@ class MasterDataManager:
             logger.warning(f"下载 MasterData [{region}.{self.name}] 超时")
             return
         self.version[region] = source.version
-        self._build_indices(region)
 
         # 缓存到本地
         versions = file_db.get("master_data_cache_versions", {})
@@ -223,6 +228,7 @@ class MasterDataManager:
         if map_fn:
             self.data[region] = await run_in_pool(map_fn, self.data[region])
             logger.info(f"MasterData [{region}.{self.name}] 映射函数执行完成")
+        await run_in_pool(self._build_indices, region)
 
         # 执行更新后回调
         for name, hook, regions in self.update_hooks:
@@ -263,7 +269,7 @@ class MasterDataManager:
         获取索引，如果key没有索引，返回None
         """
         await self._update_before_get(region)
-        return self.indices[region].get(key)
+        return self.indices.get(region, {}).get(key)
         
     @classmethod
     def get(cls, name: str) -> "MasterDataManager":
@@ -525,7 +531,7 @@ def convert_compact_data(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     return ret
             
 @MasterDataManager.download_function("resourceBoxes", regions=COMPACT_DATA_REGIONS)
-async def download_resource_boxes(base_url):
+async def resource_boxes_download_fn(base_url):
     resbox = await download_json(f"{base_url}/compactResourceBoxes.json")
     resbox_detail = await download_json(f"{base_url}/compactResourceBoxDetails.json")
     def convert(resbox, resbox_detail):
@@ -544,7 +550,7 @@ async def download_resource_boxes(base_url):
     return await run_in_pool(convert, resbox, resbox_detail)
 
 @MasterDataManager.download_function("costume3ds", regions=COMPACT_DATA_REGIONS)
-async def costume3ds_map_fn(base_url):
+async def costume3ds_download_fn(base_url):
     costume3ds = await download_json(f"{base_url}/compactCostume3ds.json")
     return await run_in_pool(convert_compact_data, costume3ds)
 
@@ -627,6 +633,7 @@ def ng_words_map_fn(ng_words):
 
 DEFAULT_RIP_ASSET_DIR = f"{SEKAI_ASSET_DIR}/rip"
 DEFAULT_GET_RIP_ASSET_TIMEOUT_CFG = asset_config.item('default_rip_asset_download_timeout')
+RIP_IMG_CACHE_MAX_RES_CFG = asset_config.item('rip_img_cache_max_res')
 
 ONDEMAND_PREFIXES = ['event', 'gacha', 'music/long', 'mysekai', 'virtual_live']
 STARTAPP_PREFIXES = ['bonds_honor', 'honor', 'thumbnail', 'character', 'music', 'rank_live', 'stamp', 'home/banner']
@@ -897,8 +904,8 @@ class RegionRipAssetManger:
         default=UNKNOWN_IMG, 
         cache_expire_secs=None, 
         timeout: Union[int, ConfigItem]=DEFAULT_GET_RIP_ASSET_TIMEOUT_CFG,
-        use_img_cache=False,
-        img_cache_max_res=128,
+        use_img_cache: bool=False,
+        img_cache_max_res: Union[int, ConfigItem]=RIP_IMG_CACHE_MAX_RES_CFG,
     ) -> Image.Image:
         """
         获取图片类型解包资源，参数：
@@ -918,8 +925,12 @@ class RegionRipAssetManger:
         try: 
             img = open_image(io.BytesIO(data))
             if use_img_cache:
-                if img_cache_max_res and max(img.size) > img_cache_max_res:
-                    img = resize_keep_ratio(img, img_cache_max_res)
+                if img_cache_max_res:
+                    max_res = parse_cfg_num(get_cfg_or_value(img_cache_max_res))
+                    w, h = img.size
+                    if w * h > max_res:
+                        scale = math.sqrt(max_res / (w * h))
+                        img = resize_keep_ratio(img, scale, mode='scale')
                 self.cached_images[path] = img
             return img
         except: pass

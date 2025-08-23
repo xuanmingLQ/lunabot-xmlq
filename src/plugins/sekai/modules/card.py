@@ -20,6 +20,7 @@ from .event import (
     extract_ban_event,
     get_card_supply_type,
 )
+from .gacha import get_gacha_banner, Gacha
 
 
 SEARCH_SINGLE_CARD_HELP = """
@@ -85,6 +86,124 @@ DETAIL_SKILL_KEYWORDS_IDS = [
 
 
 # ======================= 处理逻辑 ======================= #
+
+# 判断卡牌是否有after_training模式
+def has_after_training(card):
+    return card['cardRarityType'] in ["rarity_3", "rarity_4"]
+
+# 判断卡牌是否只有after_training模式
+def only_has_after_training(card):
+    return card.get('initialSpecialTrainingStatus') == 'done'
+
+# 获取角色卡牌缩略图
+async def get_card_thumbnail(ctx: SekaiHandlerContext, cid: int, after_training: bool):
+    image_type = "after_training" if after_training else "normal"
+    card = await ctx.md.cards.find_by_id(cid)
+    assert_and_reply(card, f"找不到ID为{cid}的卡牌")
+    return await ctx.rip.img(f"thumbnail/chara_rip/{card['assetbundleName']}_{image_type}.png", use_img_cache=True)
+
+# 获取角色卡牌完整缩略图（包括边框、星级等）
+async def get_card_full_thumbnail(
+    ctx: SekaiHandlerContext, 
+    card_or_card_id: Dict, 
+    after_training: bool=None, 
+    pcard: Dict=None, 
+    custom_text: str=None,
+):
+    if isinstance(card_or_card_id, int):
+        card = await ctx.md.cards.find_by_id(card_or_card_id)
+        assert_and_reply(card, f"找不到ID为{card_or_card_id}的卡牌")
+    else:
+        card = card_or_card_id
+    cid = card['id']
+
+    if not pcard:
+        after_training = after_training and has_after_training(card)
+        rare_image_type = "after_training" if after_training else "normal"
+    else:
+        after_training = pcard['defaultImage'] == "special_training"
+        rare_image_type = "after_training" if pcard['specialTrainingStatus'] == "done" else "normal"
+
+    # 如果没有指定pcard则尝试使用缓存
+    if not pcard:
+        image_type = "after_training" if after_training else "normal"
+        cache_path = f"{SEKAI_ASSET_DIR}/card_full_thumbnail/{ctx.region}/{cid}_{image_type}.png"
+        try: return open_image(cache_path)
+        except: pass
+
+    img = await get_card_thumbnail(ctx, cid, after_training)
+    ok_to_cache = (img != UNKNOWN_IMG)
+    img = img.copy()
+
+    def draw(img: Image.Image, card):
+        attr = card['attr']
+        rare = card['cardRarityType']
+        frame_img = ctx.static_imgs.get(f"card/frame_{rare}.png")
+        attr_img = ctx.static_imgs.get(f"card/attr_{attr}.png")
+        if rare == "rarity_birthday":
+            rare_img = ctx.static_imgs.get(f"card/rare_birthday.png")
+            rare_num = 1
+        else:
+            rare_img = ctx.static_imgs.get(f"card/rare_star_{rare_image_type}.png") 
+            rare_num = int(rare.split("_")[1])
+
+        img_w, img_h = img.size
+
+        # 如果是profile卡片则绘制等级/加成
+        if pcard:
+            if custom_text is not None:
+                draw = ImageDraw.Draw(img)
+                draw.rectangle((0, img_h - 24, img_w, img_h), fill=(70, 70, 100, 255))
+                draw.text((6, img_h - 31), custom_text, font=get_font(DEFAULT_BOLD_FONT, 20), fill=WHITE)
+            else:
+                level = pcard['level']
+                draw = ImageDraw.Draw(img)
+                draw.rectangle((0, img_h - 24, img_w, img_h), fill=(70, 70, 100, 255))
+                draw.text((6, img_h - 31), f"Lv.{level}", font=get_font(DEFAULT_BOLD_FONT, 20), fill=WHITE)
+            
+        # 绘制边框
+        frame_img = frame_img.resize((img_w, img_h))
+        img.paste(frame_img, (0, 0), frame_img)
+        # 绘制特训等级
+        if pcard:
+            rank = pcard['masterRank']
+            if rank:
+                rank_img = ctx.static_imgs.get(f"card/train_rank_{rank}.png")
+                rank_img = rank_img.resize((int(img_w * 0.35), int(img_h * 0.35)))
+                rank_img_w, rank_img_h = rank_img.size
+                img.paste(rank_img, (img_w - rank_img_w, img_h - rank_img_h), rank_img)
+        # 左上角绘制属性
+        attr_img = attr_img.resize((int(img_w * 0.22), int(img_h * 0.25)))
+        img.paste(attr_img, (1, 0), attr_img)
+        # 左下角绘制稀有度
+        hoffset, voffset = 6, 6 if not pcard else 24
+        scale = 0.17 if not pcard else 0.15
+        rare_img = rare_img.resize((int(img_w * scale), int(img_h * scale)))
+        rare_w, rare_h = rare_img.size
+        for i in range(rare_num):
+            img.paste(rare_img, (hoffset + rare_w * i, img_h - rare_h - voffset), rare_img)
+        mask = Image.new('L', (img_w, img_h), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rounded_rectangle((0, 0, img_w, img_h), radius=10, fill=255)
+        img.putalpha(mask)
+        return img
+    
+    img = await run_in_pool(draw, img, card)
+
+    if not pcard and ok_to_cache:
+        create_parent_folder(cache_path)
+        img.save(cache_path)
+
+    return img
+
+# 获取卡牌所属团名（VS会返回对应的所属团）
+async def get_unit_by_card_id(ctx: SekaiHandlerContext, card_id: int) -> str:
+    card = await ctx.md.cards.find_by_id(card_id)
+    if not card: raise Exception(f"卡牌ID={card_id}不存在")
+    chara_unit = get_unit_by_chara_id(card['characterId'])
+    if chara_unit != 'piapro':
+        return chara_unit
+    return card['supportUnit'] if card['supportUnit'] != "none" else "piapro"
 
 # 解析查单张卡的参数
 async def search_single_card(ctx: SekaiHandlerContext, args: str) -> dict:
@@ -755,19 +874,18 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
 
     # 关联卡池
     gacha = None
-    for g in await ctx.md.gachas.get():
-        start_at = datetime.fromtimestamp(g['startAt'] / 1000)
-        end_at = datetime.fromtimestamp(g['endAt'] / 1000 + 1)
-        if start_at <= release_time <= end_at:
-            if find_by(g['gachaPickups'], "cardId", card_id):
+    for g0 in await ctx.md.gachas.get():
+        g: Gacha = g0
+        if g.start_at <= release_time <= g.end_at:
+            if find_by_predicate(g.cards, lambda x: x.id == card_id and x.is_pickup):
                 gacha = g
                 break
     if gacha:
-        gacha_id = g['id']
-        gacha_name = g['name']
-        gacha_start = start_at
-        gacha_end = end_at
-        gacha_banner_img = await ctx.rip.img(f"home/banner/banner_gacha{gacha_id}/banner_gacha{gacha_id}.png")
+        gacha_id = gacha.id
+        gacha_name = gacha.name
+        gacha_start = gacha.start_at
+        gacha_end = gacha.end_at
+        gacha_banner_img = await get_gacha_banner(ctx, gacha_id)
 
     # 衣装
     cos3d_ids = await ctx.md.card_costume3ds.find_by("cardId", card_id, mode='all')

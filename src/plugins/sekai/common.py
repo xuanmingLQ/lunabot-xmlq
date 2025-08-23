@@ -219,6 +219,8 @@ def get_unit_by_nickname(nickname: str) -> str:
 # 从文本提取年份 返回(年份, 文本)
 def extract_year(text: str, default=None) -> Tuple[int, str]:
     now_year = datetime.now().year
+    if "明年" in text:
+        return now_year + 1, text.replace("明年", "").strip()
     if "今年" in text:
         return now_year, text.replace("今年", "").strip()
     if "去年" in text:
@@ -226,8 +228,10 @@ def extract_year(text: str, default=None) -> Tuple[int, str]:
     if "前年" in text:
         return now_year - 2, text.replace("前年", "").strip()
     for year in range(now_year, 2020, -1):
-        if str(year) in text:
-            return year, text.replace(str(year), "").strip()
+        str_year = str(year)
+        for s in (str_year + "年", str_year[-2:] + "年"):
+            if s in text:
+                return year, text.replace(s, "").strip()
     return default, text
 
 # 从文本提取团名 返回(团名, 文本)

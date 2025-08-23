@@ -301,7 +301,7 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
     events = sorted(await ctx.md.events.get(), key=lambda x: x['startAt'])    
     details: List[EventDetail] = await batch_gather(*[get_event_detail(ctx, e, ['banner', 'card_thumbs']) for e in events])
 
-    filtered_details = []
+    filtered_details: List[EventDetail] = []
     for d in details:
         if filter:
             if filter.attr and filter.attr != d.bonus_attr: continue
@@ -323,9 +323,9 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
     style1 = TextStyle(font=DEFAULT_HEAVY_FONT, size=10, color=(50, 50, 50))
     style2 = TextStyle(font=DEFAULT_FONT, size=10, color=(70, 70, 70))
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        TextBox("活动按时间顺序从左到右从上到下排列，黄色为当期活动", TextStyle(font=DEFAULT_FONT, size=10, color=(0, 0, 100))) \
+        TextBox("活动按时间顺序排列，黄色为当期活动", TextStyle(font=DEFAULT_FONT, size=10, color=(0, 0, 100))) \
             .set_offset((0, 4 - BG_PADDING))
-        with Grid(row_count=row_count, vertical=True).set_sep(8, 4).set_item_align('lt').set_content_align('lt'):
+        with Grid(row_count=row_count, vertical=True).set_sep(8, 2).set_item_align('lt').set_content_align('lt'):
             for d in filtered_details:
                 now = datetime.now()
                 bg_color = WIDGET_BG_COLOR
