@@ -3,7 +3,7 @@ from ..common import *
 from ..handler import *
 from ..asset import *
 from ..draw import *
-from .event import get_event_banner_img
+from .event import get_event_banner_img, get_current_event
 from .sk import get_wl_events
 from .profile import (
     get_detailed_profile, 
@@ -151,19 +151,12 @@ async def extract_target_event(
                 break
 
     if not event_id:
-        # 获取默认活动：寻找 开始时间-两天 <= 当前 <= 结束时间 的最晚的活动
-        ok_events = []
-        for event in await ctx.md.events.get():
-            start_time = datetime.fromtimestamp(event['startAt'] / 1000)
-            end_time = datetime.fromtimestamp(event['aggregateAt'] / 1000 + 1)
-            if start_time - timedelta(days=2) <= datetime.now() <= end_time:
-                ok_events.append(event)
-        assert_and_reply(ok_events, """
+        # 获取默认活动：寻找当前活动，如果没有就下一个活动
+        event = await get_current_event(ctx, "next_first")
+        assert_and_reply(event, """
 找不到正在进行的/即将开始的活动
 使用\"/组卡\"指定团队&属性组卡，或使用\"/活动组卡help\"查看如何组往期活动
 """.strip())
-        ok_events.sort(key=lambda x: x['startAt'], reverse=True)
-        event = ok_events[0]
     else:
         event = await ctx.md.events.find_by_id(event_id)
         assert_and_reply(event, f"""
@@ -1242,6 +1235,8 @@ async def compose_deck_recommend_image(
                             
                     if recommend_type in ["bonus", "wl_bonus"]:
                         TextBox(f"友情提醒：控分前请核对加成和体力设置", TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(255, 50, 50)))
+                        if recommend_type == "wl_bonus":
+                            TextBox(f"WL仅支持自动组主队，支援队请自行配置", TextStyle(font=DEFAULT_FONT, size=26, color=(50, 50, 50)))
                     else:
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(16):
                             if last_args:
@@ -1254,132 +1249,137 @@ async def compose_deck_recommend_image(
 
                 # 表格
                 gh, vsp, voffset = 120, 12, 18
-                with HSplit().set_content_align('c').set_item_align('c').set_sep(16).set_padding(16).set_bg(roundrect_bg()):
-                    th_style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=28, color=(25, 25, 25))
-                    th_style2 = TextStyle(font=DEFAULT_BOLD_FONT, size=28, color=(75, 75, 75))
-                    th_main_sign = '∇'
-                    tb_style = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(70, 70, 70))
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(16).set_padding(16).set_bg(roundrect_bg()):
+                    if len(result_decks) > 0:
+                        with HSplit().set_content_align('c').set_item_align('c').set_sep(16).set_padding(0):
+                            th_style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=28, color=(25, 25, 25))
+                            th_style2 = TextStyle(font=DEFAULT_BOLD_FONT, size=28, color=(75, 75, 75))
+                            th_main_sign = '∇'
+                            tb_style = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(70, 70, 70))
 
-                    # 分数
-                    if recommend_type not in ["bonus", "wl_bonus"]:
-                        with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
-                            target_score = options.target == "score"
-                            text = score_name + th_main_sign if target_score else score_name
-                            style = th_style1 if target_score else th_style2
-                            TextBox(text, style).set_h(gh // 2).set_content_align('c')
-                            Spacer(h=6)
-                            for i, (deck, alg) in enumerate(zip(result_decks, result_algs)):
-                                with Frame().set_content_align('rb'):
-                                    alg_offset = 0
-                                    # 挑战分数差距
-                                    if recommend_type in ['challenge', 'challenge_all']:
-                                        alg_offset = 20
-                                        dlt = challenge_score_dlt[i]
-                                        color = (50, 150, 50) if dlt > 0 else (150, 50, 50)
-                                        TextBox(f"{dlt:+d}", TextStyle(font=DEFAULT_FONT, size=15, color=color)).set_offset((0, -8-voffset*2))
-                                    # 算法
-                                    TextBox(alg.upper(), TextStyle(font=DEFAULT_FONT, size=12, color=(150, 150, 150))).set_offset((0, -8-voffset*2+alg_offset))
-                                    # 分数
-                                    score = deck.live_score if recommend_type == "no_event" else deck.score
-                                    with Frame().set_content_align('c'):
-                                        TextBox(str(score), tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
+                            # 分数
+                            if recommend_type not in ["bonus", "wl_bonus"]:
+                                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
+                                    target_score = options.target == "score"
+                                    text = score_name + th_main_sign if target_score else score_name
+                                    style = th_style1 if target_score else th_style2
+                                    TextBox(text, style).set_h(gh // 2).set_content_align('c')
+                                    Spacer(h=6)
+                                    for i, (deck, alg) in enumerate(zip(result_decks, result_algs)):
+                                        with Frame().set_content_align('rb'):
+                                            alg_offset = 0
+                                            # 挑战分数差距
+                                            if recommend_type in ['challenge', 'challenge_all']:
+                                                alg_offset = 20
+                                                dlt = challenge_score_dlt[i]
+                                                color = (50, 150, 50) if dlt > 0 else (150, 50, 50)
+                                                TextBox(f"{dlt:+d}", TextStyle(font=DEFAULT_FONT, size=15, color=color)).set_offset((0, -8-voffset*2))
+                                            # 算法
+                                            TextBox(alg.upper(), TextStyle(font=DEFAULT_FONT, size=12, color=(150, 150, 150))).set_offset((0, -8-voffset*2+alg_offset))
+                                            # 分数
+                                            score = deck.live_score if recommend_type == "no_event" else deck.score
+                                            with Frame().set_content_align('c'):
+                                                TextBox(str(score), tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
 
-                    # 卡片
-                    with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
-                        TextBox("卡组", th_style2).set_h(gh // 2).set_content_align('c')
-                        Spacer(h=6)
-                        for deck in result_decks:
-                            with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(0):
-                                for card in deck.cards:
-                                    card_id = card.card_id
-                                    event_bonus = card.event_bonus_rate
-                                    ep1_read, ep2_read = card.episode1_read, card.episode2_read
-                                    slv, sup = card.skill_level, int(card.skill_score_up)
+                            # 卡片
+                            with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
+                                TextBox("卡组", th_style2).set_h(gh // 2).set_content_align('c')
+                                Spacer(h=6)
+                                for deck in result_decks:
+                                    with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(0):
+                                        for card in deck.cards:
+                                            card_id = card.card_id
+                                            event_bonus = card.event_bonus_rate
+                                            ep1_read, ep2_read = card.episode1_read, card.episode2_read
+                                            slv, sup = card.skill_level, int(card.skill_score_up)
 
-                                    with VSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(0).set_h(gh):
-                                        with Frame().set_content_align('rt'):
-                                            card_key = f"{card_id}_{card.default_image}"
-                                            ImageBox(card_imgs[card_key], size=(None, 80))
-                                            if options.fixed_cards and card_id in options.fixed_cards:
-                                                TextBox(str(card_id), TextStyle(font=DEFAULT_FONT, size=10, color=WHITE)) \
-                                                    .set_bg(RoundRectBg((200, 50, 50, 200), 2)).set_offset((-2, 0))
-                                            else:
-                                                TextBox(str(card_id), TextStyle(font=DEFAULT_FONT, size=10, color=(75, 75, 75))) \
-                                                    .set_bg(RoundRectBg((255, 255, 255, 200), 2)).set_offset((-2, 0))
-                                            if card.has_canvas_bonus:
-                                                ImageBox(ctx.static_imgs.get(f"mysekai/icon_canvas.png"), size=(11, 11)) \
-                                                        .set_offset((-32, 65))
+                                            with VSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(0).set_h(gh):
+                                                with Frame().set_content_align('rt'):
+                                                    card_key = f"{card_id}_{card.default_image}"
+                                                    ImageBox(card_imgs[card_key], size=(None, 80))
+                                                    if options.fixed_cards and card_id in options.fixed_cards:
+                                                        TextBox(str(card_id), TextStyle(font=DEFAULT_FONT, size=10, color=WHITE)) \
+                                                            .set_bg(RoundRectBg((200, 50, 50, 200), 2)).set_offset((-2, 0))
+                                                    else:
+                                                        TextBox(str(card_id), TextStyle(font=DEFAULT_FONT, size=10, color=(75, 75, 75))) \
+                                                            .set_bg(RoundRectBg((255, 255, 255, 200), 2)).set_offset((-2, 0))
+                                                    if card.has_canvas_bonus:
+                                                        ImageBox(ctx.static_imgs.get(f"mysekai/icon_canvas.png"), size=(11, 11)) \
+                                                                .set_offset((-32, 65))
 
-                                        r = 2
-                                        with HSplit().set_content_align('c').set_item_align('c').set_sep(3).set_padding(0):
-                                            TextBox(f"SLv.{slv}", TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(RoundRectBg(WHITE, r))
-                                            TextBox(f"↑{sup}%", TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(RoundRectBg(WHITE, r))
-                                        
-                                        with HSplit().set_content_align('c').set_item_align('c').set_sep(3).set_padding(0):
-                                            show_event_bonus = event_bonus > 0
-                                            if show_event_bonus:
-                                                event_bonus_str = f"+{event_bonus:.1f}%" if int(event_bonus) != event_bonus else f"+{int(event_bonus)}%"
-                                                TextBox(event_bonus_str, TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(RoundRectBg(WHITE, r))
-                                            read_fg, read_bg = (50, 150, 50, 255), (255, 255, 255, 255)
-                                            noread_fg, noread_bg = (150, 50, 50, 255), (255, 255, 255, 255)
-                                            none_fg, none_bg = (255, 255, 255, 255), (255, 255, 255, 255)
-                                            ep1_fg = none_fg if ep1_read is None else (read_fg if ep1_read else noread_fg)
-                                            ep1_bg = none_bg if ep1_read is None else (read_bg if ep1_read else noread_bg)
-                                            ep2_fg = none_fg if ep2_read is None else (read_fg if ep2_read else noread_fg)
-                                            ep2_bg = none_bg if ep2_read is None else (read_bg if ep2_read else noread_bg)
-                                            TextBox("前" if show_event_bonus else "前篇", TextStyle(font=DEFAULT_FONT, size=12, color=ep1_fg)).set_bg(RoundRectBg(ep1_bg, r))
-                                            TextBox("后" if show_event_bonus else "后篇", TextStyle(font=DEFAULT_FONT, size=12, color=ep2_fg)).set_bg(RoundRectBg(ep2_bg, r))
+                                                r = 2
+                                                with HSplit().set_content_align('c').set_item_align('c').set_sep(3).set_padding(0):
+                                                    TextBox(f"SLv.{slv}", TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(RoundRectBg(WHITE, r))
+                                                    TextBox(f"↑{sup}%", TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(RoundRectBg(WHITE, r))
+                                                
+                                                with HSplit().set_content_align('c').set_item_align('c').set_sep(3).set_padding(0):
+                                                    show_event_bonus = event_bonus > 0
+                                                    if show_event_bonus:
+                                                        event_bonus_str = f"+{event_bonus:.1f}%" if int(event_bonus) != event_bonus else f"+{int(event_bonus)}%"
+                                                        TextBox(event_bonus_str, TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(RoundRectBg(WHITE, r))
+                                                    read_fg, read_bg = (50, 150, 50, 255), (255, 255, 255, 255)
+                                                    noread_fg, noread_bg = (150, 50, 50, 255), (255, 255, 255, 255)
+                                                    none_fg, none_bg = (255, 255, 255, 255), (255, 255, 255, 255)
+                                                    ep1_fg = none_fg if ep1_read is None else (read_fg if ep1_read else noread_fg)
+                                                    ep1_bg = none_bg if ep1_read is None else (read_bg if ep1_read else noread_bg)
+                                                    ep2_fg = none_fg if ep2_read is None else (read_fg if ep2_read else noread_fg)
+                                                    ep2_bg = none_bg if ep2_read is None else (read_bg if ep2_read else noread_bg)
+                                                    TextBox("前" if show_event_bonus else "前篇", TextStyle(font=DEFAULT_FONT, size=12, color=ep1_fg)).set_bg(RoundRectBg(ep1_bg, r))
+                                                    TextBox("后" if show_event_bonus else "后篇", TextStyle(font=DEFAULT_FONT, size=12, color=ep2_fg)).set_bg(RoundRectBg(ep2_bg, r))
 
-                    # 加成
-                    if recommend_type not in ["challenge", "challenge_all", "no_event"]:
-                        with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
-                            TextBox("加成", th_style2).set_h(gh // 2).set_content_align('c')
-                            Spacer(h=6)
-                            for deck in result_decks:
-                                if wl_chara_name:
-                                    bonus = f"{deck.event_bonus_rate:.1f}+{deck.support_deck_bonus_rate:.1f}%"
-                                    total = f"{deck.event_bonus_rate+deck.support_deck_bonus_rate:.1f}%"
-                                else:
-                                    bonus = None
-                                    total = f"{deck.event_bonus_rate:.1f}%"
-                                with Frame().set_content_align('rb'):
-                                    if bonus is not None:
-                                        TextBox(bonus, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -6-voffset*2))
-                                    with Frame().set_content_align('c'):
-                                        TextBox(total, tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
+                            # 加成
+                            if recommend_type not in ["challenge", "challenge_all", "no_event"]:
+                                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
+                                    TextBox("加成", th_style2).set_h(gh // 2).set_content_align('c')
+                                    Spacer(h=6)
+                                    for deck in result_decks:
+                                        if wl_chara_name:
+                                            bonus = f"{deck.event_bonus_rate:.1f}+{deck.support_deck_bonus_rate:.1f}%"
+                                            total = f"{deck.event_bonus_rate+deck.support_deck_bonus_rate:.1f}%"
+                                        else:
+                                            bonus = None
+                                            total = f"{deck.event_bonus_rate:.1f}%"
+                                        with Frame().set_content_align('rb'):
+                                            if bonus is not None:
+                                                TextBox(bonus, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -6-voffset*2))
+                                            with Frame().set_content_align('c'):
+                                                TextBox(total, tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
 
-                    # 实效
-                    if options.live_type in ['multi', 'cheerful']:
-                        with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
-                            target_skill = options.target == "skill"
-                            text = "实效" + th_main_sign if target_skill else "实效"
-                            style = th_style1 if target_skill else th_style2
-                            TextBox(text, style).set_h(gh // 2).set_content_align('c')
-                            Spacer(h=6)
-                            for deck in result_decks:
-                                with Frame().set_content_align('rb'):
-                                    if options.multi_live_teammate_score_up is not None:
-                                        teammate_text = f"队友 {int(options.multi_live_teammate_score_up)}"
-                                        TextBox(teammate_text, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -8-voffset*2))
-                                    with Frame().set_content_align('c'):
-                                        TextBox(f"{deck.multi_live_score_up:.1f}%", tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
+                            # 实效
+                            if options.live_type in ['multi', 'cheerful']:
+                                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
+                                    target_skill = options.target == "skill"
+                                    text = "实效" + th_main_sign if target_skill else "实效"
+                                    style = th_style1 if target_skill else th_style2
+                                    TextBox(text, style).set_h(gh // 2).set_content_align('c')
+                                    Spacer(h=6)
+                                    for deck in result_decks:
+                                        with Frame().set_content_align('rb'):
+                                            if options.multi_live_teammate_score_up is not None:
+                                                teammate_text = f"队友 {int(options.multi_live_teammate_score_up)}"
+                                                TextBox(teammate_text, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -8-voffset*2))
+                                            with Frame().set_content_align('c'):
+                                                TextBox(f"{deck.multi_live_score_up:.1f}%", tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
 
-                    # 综合力和算法
-                    if recommend_type not in ["bonus", "wl_bonus"]:
-                        with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
-                            target_power = options.target == "power"
-                            text = "综合力" + th_main_sign if target_power else "综合力"
-                            style = th_style1 if target_power else th_style2
-                            TextBox(text, style).set_h(gh // 2).set_content_align('c')
-                            Spacer(h=6)
-                            for deck in result_decks:
-                                with Frame().set_content_align('rb'):
-                                    if options.multi_live_teammate_power is not None:
-                                        teammate_text = f"队友 {int(options.multi_live_teammate_power)}"
-                                        TextBox(teammate_text, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -8-voffset*2))
-                                    with Frame().set_content_align('c'):
-                                        TextBox(str(deck.total_power), tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
-        
+                            # 综合力和算法
+                            if recommend_type not in ["bonus", "wl_bonus"]:
+                                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
+                                    target_power = options.target == "power"
+                                    text = "综合力" + th_main_sign if target_power else "综合力"
+                                    style = th_style1 if target_power else th_style2
+                                    TextBox(text, style).set_h(gh // 2).set_content_align('c')
+                                    Spacer(h=6)
+                                    for deck in result_decks:
+                                        with Frame().set_content_align('rb'):
+                                            if options.multi_live_teammate_power is not None:
+                                                teammate_text = f"队友 {int(options.multi_live_teammate_power)}"
+                                                TextBox(teammate_text, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -8-voffset*2))
+                                            with Frame().set_content_align('c'):
+                                                TextBox(str(deck.total_power), tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
+                    # 找不到结果
+                    else:
+                        TextBox("未找到符合条件的卡组", TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(255, 50, 50)))
+
                 # 说明
                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
                     tip_style = TextStyle(font=DEFAULT_FONT, size=16, color=(20, 20, 20))

@@ -86,7 +86,7 @@ async def extract_wl_event(ctx: SekaiHandlerContext, args: str) -> Tuple[dict, s
     if 'wl' not in args:
         return None, args
     else:
-        event = await get_current_event(ctx, mode="prev")
+        event = await get_current_event(ctx, fallback="prev")
         chapters = await ctx.md.world_blooms.find_by('eventId', event['id'], mode='all')
         assert_and_reply(chapters, f"当期活动{ctx.region}_{event['id']}并不是WorldLink活动")
 
@@ -335,7 +335,7 @@ async def compose_skp_image(ctx: SekaiHandlerContext) -> Image.Image:
 # 合成整体榜线图片
 async def compose_skl_image(ctx: SekaiHandlerContext, event: dict = None, full: bool = False) -> Image.Image:
     if not event:
-        event = await get_current_event(ctx, mode="prev")
+        event = await get_current_event(ctx, fallback="prev")
     assert_and_reply(event, "未找到当前活动")
     eid = event['id']
     event_start = datetime.fromtimestamp(event['startAt'] / 1000)
@@ -408,7 +408,7 @@ async def compose_sks_image(ctx: SekaiHandlerContext, unit: str, event: dict = N
         case 'm': unit_period, unit_text = timedelta(minutes=1), "分"
 
     if not event:
-        event = await get_current_event(ctx, mode="prev")
+        event = await get_current_event(ctx, fallback="prev")
         assert_and_reply(event, "未找到当前活动")
 
     eid = event['id']
@@ -543,7 +543,7 @@ def format_sk_query_params(qtype: str, qval: Union[str, int, List[int]]) -> str:
 # 合成榜线查询图片
 async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str, int, List[int]], event: dict = None) -> Image.Image:
     if not event:
-        event = await get_current_event(ctx, mode="prev")
+        event = await get_current_event(ctx, fallback="prev")
     assert_and_reply(event, "未找到当前活动")
 
     eid = event['id']
@@ -620,7 +620,7 @@ async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
 # 合成查房图片
 async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str, int], event: dict = None) -> Image.Image:
     if not event:
-        event = await get_current_event(ctx, mode="prev")
+        event = await get_current_event(ctx, fallback="prev")
     assert_and_reply(event, "未找到当前活动")
 
     eid = event['id']
@@ -767,7 +767,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
 # 合成玩家追踪图片
 async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str, int], event: dict = None) -> Image.Image:
     if not event:
-        event = await get_current_event(ctx, mode="prev")
+        event = await get_current_event(ctx, fallback="prev")
     assert_and_reply(event, "未找到当前活动")
     eid = event['id']
     wl_cid = await get_wl_chapter_cid(ctx, eid)
@@ -894,7 +894,7 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
 # 合成排名追踪图片
 async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: dict = None) -> Image.Image:
     if not event:
-        event = await get_current_event(ctx, mode="prev")
+        event = await get_current_event(ctx, fallback="prev")
     assert_and_reply(event, "未找到当前活动")
     eid = event['id']
     wl_cid = await get_wl_chapter_cid(ctx, eid)
@@ -1278,7 +1278,7 @@ async def update_ranking():
             continue
         
         # 获取当前运行中的活动
-        if not (event := await get_current_event(ctx, mode="prev")):
+        if not (event := await get_current_event(ctx, fallback="prev")):
             continue
         if datetime.now() > datetime.fromtimestamp(event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END):
             continue

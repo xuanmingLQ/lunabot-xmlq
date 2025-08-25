@@ -196,9 +196,9 @@ async def get_chara_id_by_cuid(ctx: SekaiHandlerContext, cuid: int) -> int:
     assert_and_reply(unit_chara, f"找不到cuid={cuid}的角色")
     return unit_chara['gameCharacterId']
 
-# 获取当前活动 当前无进行中活动时mode = prev:选择上一个 next:选择下一个 prev_first:优先选择上一个 next_first: 优先选择下一个
-async def get_current_event(ctx: SekaiHandlerContext, mode: str = "running") -> dict:
-    assert mode in ("running", "prev", "next", "prev_first", "next_first")
+# 获取当前活动 当前无进行中活动时 fallback = None:返回None prev:选择上一个 next:选择下一个 prev_first:优先选择上一个 next_first: 优先选择下一个
+async def get_current_event(ctx: SekaiHandlerContext, fallback: Optional[str] = None) -> dict:
+    assert fallback is None or fallback in ("prev", "next", "prev_first", "next_first")
     events = sorted(await ctx.md.events.get(), key=lambda x: x['aggregateAt'], reverse=False)
     now = datetime.now()
     prev_event, cur_event, next_event = None, None, None
@@ -211,11 +211,11 @@ async def get_current_event(ctx: SekaiHandlerContext, mode: str = "running") -> 
             prev_event = event
         if not next_event and start_time > now:
             next_event = event
-    if mode == "running" or cur_event:
+    if fallback is None or cur_event:
         return cur_event
-    if mode == "prev" or (mode == "prev_first" and prev_event):
+    if fallback == "prev" or (fallback == "prev_first" and prev_event):
         return prev_event
-    if mode == "next" or (mode == "next_first" and next_event):
+    if fallback == "next" or (fallback == "next_first" and next_event):
         return next_event
     return prev_event or next_event
 
@@ -255,7 +255,7 @@ def extract_event_type(text: str, default: str = None) -> Tuple[str, str]:
 # 获取所有箱活id集合（往期通过书下曲判断，当期书下可能还没上线通过活动加成判断）
 async def get_ban_events_id_set(ctx: SekaiHandlerContext) -> Set[int]:
     ret = set([item['eventId'] for item in await ctx.md.event_musics.get()])
-    cur_event = await get_current_event(ctx, mode="next_first")
+    cur_event = await get_current_event(ctx, fallback="next_first")
     if cur_event and cur_event['eventType'] in ('marathon', 'cheerful_carnival'):
         bonus_unit = set()
         for deck_bonus in await ctx.md.event_deck_bonuses.find_by('eventId', cur_event['id'], mode="all"):
@@ -400,7 +400,7 @@ async def get_event_by_index(ctx: SekaiHandlerContext, index: str) -> dict:
     if index.removeprefix('-').isdigit():
         events = await ctx.md.events.get()
         events = sorted(events, key=lambda x: x['startAt'])
-        cur_event = await get_current_event(ctx, mode="next_first")
+        cur_event = await get_current_event(ctx, fallback="next_first")
         cur_idx = len(events) - 1
         for i, event in enumerate(events):
             if event['id'] == cur_event['id']:
@@ -668,7 +668,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
 # 5v5自动送火
 async def send_boost(ctx: SekaiHandlerContext, qid: int) -> str:
     uid = get_player_bind_id(ctx, qid)
-    event = await get_current_event(ctx, mode='running')
+    event = await get_current_event(ctx)
     assert_and_reply(event and event['eventType'] == 'cheerful_carnival', "当前没有进行中的5v5活动")
     url = get_gameapi_config(ctx).send_boost_api_url
     assert_and_reply(url, "该区服不支持自动送火")
@@ -943,7 +943,7 @@ async def _(ctx: SekaiHandlerContext):
     if args:
         event = await get_event_by_index(ctx, args)
     else:
-        event = await get_current_event(ctx, mode='next_first')
+        event = await get_current_event(ctx, fallback='next_first')
     return await ctx.asend_reply_msg(await get_image_cq(
         await compose_event_detail_image(ctx, event),
         low_quality=True,
@@ -976,7 +976,7 @@ async def _(ctx: SekaiHandlerContext):
     try:
         event = await get_event_by_index(ctx, args)
     except:
-        event = await get_current_event(ctx, mode='next_first')
+        event = await get_current_event(ctx, fallback='next_first')
     await ctx.block_region(str(event['id']))
     return await ctx.asend_fold_msg(await get_event_story_summary(ctx, event, refresh, model, save))
 
