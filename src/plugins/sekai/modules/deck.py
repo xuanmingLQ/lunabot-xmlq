@@ -217,16 +217,38 @@ def extract_target(args: str, options: DeckRecommendOptions) -> str:
     return args.strip()
     
 # 从args中提取固定卡牌
-def extract_fixed_cards(args: str, options: DeckRecommendOptions) -> str:
+def extract_fixed_cards_and_characters(args: str, options: DeckRecommendOptions) -> str:
     if '#' in args:
-        args, fixed_cards = args.split('#', 1)
+        args, fixed_args = args.split('#', 1)
+        fixed_cards, fixed_characters = [], []
         try:
-            fixed_cards = list(map(int, fixed_cards.strip().split()))
+            # 固定卡牌
+            fixed_cards = list(map(int, fixed_args.strip().split()))
         except:
-            raise ReplyException("参数格式错误，固定卡牌参数必须放在最后，正确格式为 /组卡指令 其他参数 #123 456 789...")
-        assert_and_reply(len(fixed_cards) <= 5, f"固定卡牌数量不能超过5张")
-        assert_and_reply(len(set(fixed_cards)) == len(fixed_cards), "固定卡牌不能重复")
-        options.fixed_cards = fixed_cards
+            try:
+                # 固定角色
+                for seg in fixed_args.strip().split():
+                    nickname, _ = extract_nickname_from_args(seg)
+                    assert nickname
+                    fixed_characters.append(get_cid_by_nickname(nickname))
+                assert fixed_characters
+            except:
+                raise ReplyException("""
+格式错误，固定卡牌或固定角色参数必须放在最后，示例:
+/组卡指令 其他参数 #123 456 789...
+/组卡指令 其他参数 #miku rin...
+""".strip())
+
+        if fixed_cards:
+            assert_and_reply(len(fixed_cards) <= 5, f"固定卡牌数量不能超过5张")
+            assert_and_reply(len(set(fixed_cards)) == len(fixed_cards), "固定卡牌不能重复")
+            options.fixed_cards = fixed_cards
+
+        elif fixed_characters:
+            assert_and_reply(len(fixed_characters) <= 5, f"固定角色数量不能超过5个")
+            assert_and_reply(len(set(fixed_characters)) == len(fixed_characters), "固定角色不能重复")
+            options.fixed_characters = fixed_characters
+
     return args.strip()
 
 # 从args中提取卡牌设置
@@ -449,7 +471,7 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
         options.live_type = "multi"
 
     args = extract_teammate_options(args, options)
-    args = extract_fixed_cards(args, options)
+    args = extract_fixed_cards_and_characters(args, options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
 
@@ -492,7 +514,7 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
 
     additional, args = extract_addtional_options(args)
 
-    args = extract_fixed_cards(args, options)
+    args = extract_fixed_cards_and_characters(args, options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
 
@@ -557,7 +579,7 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
         options.live_type = "multi"
 
     args = extract_teammate_options(args, options)
-    args = extract_fixed_cards(args, options)
+    args = extract_fixed_cards_and_characters(args, options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
 
@@ -612,7 +634,7 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
         options.live_type = "multi"
 
     args = extract_teammate_options(args, options)
-    args = extract_fixed_cards(args, options)
+    args = extract_fixed_cards_and_characters(args, options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
 
@@ -1289,6 +1311,7 @@ async def compose_deck_recommend_image(
                                     with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(0):
                                         for card in deck.cards:
                                             card_id = card.card_id
+                                            character_id = (await ctx.md.cards.find_by_id(card_id))['characterId']
                                             event_bonus = card.event_bonus_rate
                                             ep1_read, ep2_read = card.episode1_read, card.episode2_read
                                             slv, sup = card.skill_level, int(card.skill_score_up)
@@ -1297,7 +1320,8 @@ async def compose_deck_recommend_image(
                                                 with Frame().set_content_align('rt'):
                                                     card_key = f"{card_id}_{card.default_image}"
                                                     ImageBox(card_imgs[card_key], size=(None, 80))
-                                                    if options.fixed_cards and card_id in options.fixed_cards:
+                                                    if options.fixed_cards and card_id in options.fixed_cards \
+                                                    or options.fixed_characters and character_id in options.fixed_characters:
                                                         TextBox(str(card_id), TextStyle(font=DEFAULT_FONT, size=10, color=WHITE)) \
                                                             .set_bg(RoundRectBg((200, 50, 50, 200), 2)).set_offset((-2, 0))
                                                     else:

@@ -187,7 +187,7 @@ def get_cid_by_nickname(nickname: str) -> Optional[int]:
     return None
 
 # 从参数中提取角色昵称，返回角色ID和剩余参数
-def extract_nickname_from_args(args: str, default=None) -> Tuple[Optional[str], List[str]]:
+def extract_nickname_from_args(args: str, default=None) -> Tuple[Optional[str], str]:
     for item in get_character_nickname_data():
         for nickname in item.nicknames:
             if nickname in args:
