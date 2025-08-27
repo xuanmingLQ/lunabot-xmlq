@@ -132,6 +132,11 @@ async def extract_target_event(
     args: str,
     need_event_prefix: bool,
 ) -> Tuple[dict, Optional[int], str]:
+    # TODO 终章临时设置
+    for keyword in ('180', '终章', 'event180'):
+        if keyword in args:
+            return ({ 'id': 180 }, None, args.replace(keyword, "").strip())
+
     # 是否指定了活动id/章节id/角色昵称
     event_id, chapter_id, chapter_nickname = None, None, None
     for i in range(1, 10):
@@ -1006,8 +1011,9 @@ async def compose_deck_recommend_image(
     additional: dict,
 ) -> Image.Image:
     # 是哪种组卡类型
+    is_wl = options.world_bloom_character_id or options.event_id == 180
     if options.target == "bonus":
-        if options.world_bloom_character_id:
+        if is_wl:
             recommend_type = "wl_bonus"
         else:
             recommend_type = "bonus"
@@ -1017,7 +1023,7 @@ async def compose_deck_recommend_image(
         else:
             recommend_type = "challenge_all"
     elif options.event_id:
-        if options.world_bloom_character_id:
+        if is_wl:
             recommend_type = "wl"
         else:
             recommend_type = "event"
@@ -1107,10 +1113,14 @@ async def compose_deck_recommend_image(
     live_name = "协力"
     if recommend_type in ["event", "wl", "bonus", "wl_bonus"]:
         event = await ctx.md.events.find_by_id(options.event_id)
-        event_banner = await get_event_banner_img(ctx, event)
-        event_title = event['name']
-        if event['eventType'] == 'cheerful_carnival':
-            live_name = "5v5" 
+        if event:
+            event_banner = await get_event_banner_img(ctx, event)
+            event_title = event['name']
+            if event['eventType'] == 'cheerful_carnival':
+                live_name = "5v5" 
+        else:
+            event_banner = None
+            event_title = "WorldLink终章" if options.event_id == 180 else "未知活动"
 
     # 团队属性组卡指定5v5
     if recommend_type == "unit_attr" and options.event_type == "cheerful_carnival":
@@ -1127,8 +1137,12 @@ async def compose_deck_recommend_image(
     wl_chara_name = None
     if recommend_type in ["wl", "wl_bonus"]:
         wl_chara = await ctx.md.game_characters.find_by_id(options.world_bloom_character_id)
-        wl_chara_name = wl_chara.get('firstName', '') + wl_chara.get('givenName', '')
-        wl_chara_icon = get_chara_icon_by_chara_id(wl_chara['id'])
+        if wl_chara:
+            wl_chara_name = wl_chara.get('firstName', '') + wl_chara.get('givenName', '')
+            wl_chara_icon = get_chara_icon_by_chara_id(wl_chara['id'])
+        else:
+            wl_chara_name = ""
+            wl_chara_icon = None
 
     # 获取指定团名和属性的icon和logo
     if recommend_type == "unit_attr":
@@ -1226,7 +1240,10 @@ async def compose_deck_recommend_image(
 
                     with HSplit().set_content_align('l').set_item_align('l').set_sep(16):
                         if recommend_type in ["event", "wl", "bonus", "wl_bonus"]:
-                            ImageBox(event_banner, size=(None, 50))
+                            if event_banner:
+                                ImageBox(event_banner, size=(None, 50))
+                            else:
+                                title = event_title + " " + title
 
                         TextBox(title, TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)), use_real_line_count=True)
 
@@ -1234,8 +1251,9 @@ async def compose_deck_recommend_image(
                             ImageBox(chara_icon, size=(None, 50))
                             TextBox(f"{chara_name}", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(70, 70, 70)))
                         if recommend_type in ["wl"]:
-                            ImageBox(wl_chara_icon, size=(None, 50))
-                            TextBox(f"{wl_chara_name} 章节", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(70, 70, 70)))
+                            if wl_chara_icon:
+                                ImageBox(wl_chara_icon, size=(None, 50))
+                                TextBox(f"{wl_chara_name} 章节", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(70, 70, 70)))
                         if recommend_type == "unit_attr":
                             ImageBox(unit_logo, size=(None, 60))
                             ImageBox(attr_icon, size=(None, 50))
@@ -1357,7 +1375,7 @@ async def compose_deck_recommend_image(
                                     TextBox("加成", th_style2).set_h(gh // 2).set_content_align('c')
                                     Spacer(h=6)
                                     for deck in result_decks:
-                                        if wl_chara_name:
+                                        if is_wl:
                                             bonus = f"{deck.event_bonus_rate:.1f}+{deck.support_deck_bonus_rate:.1f}%"
                                             total = f"{deck.event_bonus_rate+deck.support_deck_bonus_rate:.1f}%"
                                         else:

@@ -411,7 +411,16 @@ async def random_clip_audio(input_path: str, save_path: str, length: float, reve
 def get_guess_music_check_fn(guess_type: str):
     async def check_fn(gctx: GuessContext):
         music, cover_thumb = gctx.data['music'], gctx.data['cover_thumb']
-        ret: MusicSearchResult = await search_music(gctx.ctx, gctx.text, MusicSearchOptions(use_emb=False, raise_when_err=False, verbose=False))
+        ret: MusicSearchResult = await search_music(
+            gctx.ctx, 
+            gctx.text, 
+            MusicSearchOptions(
+                use_id=False,
+                use_nidx=False,
+                use_emb=False, 
+                raise_when_err=False, 
+                verbose=False
+            ))
         if ret.music is None:
             return
         if ret.music['id'] == music['id']:
