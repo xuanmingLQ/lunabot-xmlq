@@ -532,29 +532,29 @@ def convert_compact_data(data: Dict[str, Any]) -> List[Dict[str, Any]]:
                 item[key] = x
     return ret
             
-@MasterDataManager.download_function("resourceBoxes", regions=COMPACT_DATA_REGIONS)
-async def resource_boxes_download_fn(base_url):
-    resbox = await download_json(f"{base_url}/compactResourceBoxes.json")
-    resbox_detail = await download_json(f"{base_url}/compactResourceBoxDetails.json")
-    def convert(resbox, resbox_detail):
-        resbox = convert_compact_data(resbox)
-        resbox_detail = convert_compact_data(resbox_detail)
-        details = {}
-        for item in resbox_detail:
-            key = f"{item['resourceBoxPurpose']}_{item['resourceBoxId']}"
-            if key not in details:
-                details[key] = []
-            details[key].append(item)
-        for item in resbox:
-            key = f"{item['resourceBoxPurpose']}_{item['id']}"
-            item['details'] = details.get(key, [])
-        return resbox
-    return await run_in_pool(convert, resbox, resbox_detail)
+# @MasterDataManager.download_function("resourceBoxes", regions=COMPACT_DATA_REGIONS)
+# async def resource_boxes_download_fn(base_url):
+#     resbox = await download_json(f"{base_url}/compactResourceBoxes.json")
+#     resbox_detail = await download_json(f"{base_url}/compactResourceBoxDetails.json")
+#     def convert(resbox, resbox_detail):
+#         resbox = convert_compact_data(resbox)
+#         resbox_detail = convert_compact_data(resbox_detail)
+#         details = {}
+#         for item in resbox_detail:
+#             key = f"{item['resourceBoxPurpose']}_{item['resourceBoxId']}"
+#             if key not in details:
+#                 details[key] = []
+#             details[key].append(item)
+#         for item in resbox:
+#             key = f"{item['resourceBoxPurpose']}_{item['id']}"
+#             item['details'] = details.get(key, [])
+#         return resbox
+#     return await run_in_pool(convert, resbox, resbox_detail)
 
-@MasterDataManager.download_function("costume3ds", regions=COMPACT_DATA_REGIONS)
-async def costume3ds_download_fn(base_url):
-    costume3ds = await download_json(f"{base_url}/compactCostume3ds.json")
-    return await run_in_pool(convert_compact_data, costume3ds)
+# @MasterDataManager.download_function("costume3ds", regions=COMPACT_DATA_REGIONS)
+# async def costume3ds_download_fn(base_url):
+#     costume3ds = await download_json(f"{base_url}/compactCostume3ds.json")
+#     return await run_in_pool(convert_compact_data, costume3ds)
 
 
 # ================================ MasterData自定义转换 ================================ #
