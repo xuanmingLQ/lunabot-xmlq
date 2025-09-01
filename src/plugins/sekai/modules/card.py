@@ -834,7 +834,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
                 with HSplit().set_padding(16).set_sep(32).set_content_align('c').set_item_align('c').set_w(w):
                     ImageBox(unit_logo, size=(None, 64))
                     with VSplit().set_content_align('c').set_item_align('c').set_sep(12):
-                        TextBox(title, title_style)
+                        TextBox(title, title_style).set_w(w - 260)
                         with HSplit().set_content_align('c').set_item_align('c').set_sep(8):
                             ImageBox(chara_icon, size=(None, 32))
                             TextBox(chara_name, title_style)
@@ -858,7 +858,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
                         with HSplit().set_padding(0).set_sep(8).set_content_align('l').set_item_align('l'):
                             TextBox("技能", label_style)
                             ImageBox(skill_type_icon, size=(32, 32))
-                            TextBox(skill_name, text_style)
+                            TextBox(skill_name, text_style).set_w(w - 24 * 2 - 32 - 16)
                         TextBox(skill_info.detail, text_style, use_real_line_count=True).set_w(w)
                         if skill_detail_cn:
                             TextBox(skill_detail_cn.removesuffix("。"), text_style, use_real_line_count=True).set_w(w)
@@ -869,7 +869,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
                             with HSplit().set_padding(0).set_sep(8).set_content_align('l').set_item_align('l'):
                                 TextBox("特训后技能", label_style)
                                 ImageBox(sp_skill_type_icon, size=(32, 32))
-                                TextBox(sp_skill_name, text_style)
+                                TextBox(sp_skill_name, text_style).set_w(w - 24 * 5 - 32 - 16)
                             TextBox(sp_skill_info.detail, text_style, use_real_line_count=True).set_w(w)
                             if sp_skill_detail_cn:
                                 TextBox(sp_skill_detail_cn.removesuffix("。"), text_style, use_real_line_count=True).set_w(w)
