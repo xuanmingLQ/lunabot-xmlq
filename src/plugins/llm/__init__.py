@@ -194,6 +194,7 @@ class ChatSession:
                     extra_body["include_reasoning"] = use_reasoning
                 if model.image_response:
                     extra_body["image_response"] = image_response
+                    extra_body["modalities"] = ["image", "text"]
                 if reasoning_effort := model.data.get("reasoning_effort"):
                     extra_body["reasoning_effort"] = reasoning_effort
 
@@ -232,22 +233,25 @@ class ChatSession:
 
                 # 回复内容
                 resp_content = message['content']
+                result: str = ""
+                images: List[Image.Image] = []
                 if isinstance(resp_content, str):
                     # 纯文本回复
                     result = resp_content
-                    images = []
                     result_list = [result]
                 else:
                     # 多段回复（文本+图片）
-                    result = ""
-                    images = []
                     for part in resp_content:
                         if isinstance(part, str):
                             result += part
                         elif isinstance(part, Image.Image):
-                            result += "[图片]"
                             images.append(part)
                         result_list = resp_content
+                # 额外的图像内容
+                for item in message.get('images', []):
+                    img = item['image_url']['url']
+                    images.append(img)
+                    result_list.append(img)
 
                 # 推理内容
                 reasoning: str = None
@@ -293,14 +297,16 @@ class ChatSession:
             
             except Exception as e:
                 logger.warning(f"会话{self.id}获取回复失败, 使用模型 {name}: {get_exc_desc(e)}")
-                errs.append((name, truncate(get_exc_desc(e), 64)))
+                errs.append((name, get_exc_desc(e)))
                 await asyncio.sleep(get_cfg_or_value(model_switch_interval))
 
         if len(errs) == 1:
-            raise Exception(f"调用模型{errs[0][0]}失败: {errs[0][1]}")
+            logger.error(f"会话{self.id}调用模型{errs[0][0]}失败:\n{errs[0][1]}")
+            raise ReplyException(f"调用模型{errs[0][0]}失败:\n{truncate(errs[0][1], 64)}")
         else:
             err_str = "\n".join([f"[{err[0]}] {err[1]}" for err in errs])
-            raise Exception(f"调用多个模型失败\n{err_str}")
+            logger.error(f"会话{self.id}调用模型{errs[0][0]}失败:\n{err_str}")
+            raise ReplyException(f"调用多个模型失败:\n{truncate(err_str, 64)}")
 
 
 # -------------------------------- TextEmbedding相关 -------------------------------- #

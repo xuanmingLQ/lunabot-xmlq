@@ -827,6 +827,14 @@ def get_image_b64(image: Image.Image) -> str:
         with open(tmp_path, "rb") as f:
             return f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode('utf-8')}"
 
+def b64_to_image(b64_str: str) -> Image.Image:
+    """
+    将带 "data:image/xxx;base64," 前缀的base64字符串转化为PIL图片
+    """
+    if b64_str.startswith("data:image"):
+        b64_str = b64_str.split(",", 1)[1]
+    return Image.open(io.BytesIO(base64.b64decode(b64_str)))
+
 async def download_image_to_b64(image_path) -> str:
     """
     下载并编码指定路径的图片为带 "data:image/jpeg;base64," 前缀的base64字符串
