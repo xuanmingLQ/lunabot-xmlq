@@ -80,7 +80,7 @@ async def get_long_statistic(bot, group_id, start_date: datetime, end_date: date
     # 画图
     date = f"{start_date.strftime('%Y-%m-%d')}~{end_date.strftime('%Y-%m-%d')}"
     return await get_image_cq(
-        draw_sta_sum(group_id, recs, PLOT_INTERVAL_CFG.get(), PLOT_TOPK1_CFG.get(), PLOT_TOPK2_CFG.get(), topk_user, topk_name, date),
+        await draw_sta_sum(group_id, recs, PLOT_INTERVAL_CFG.get(), PLOT_TOPK1_CFG.get(), PLOT_TOPK2_CFG.get(), topk_user, topk_name, date),
     )
 
 # 获取总消息量关于时间的统计图数据
