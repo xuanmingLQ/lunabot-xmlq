@@ -982,7 +982,7 @@ async def compose_music_list_image(
                         if profile:
                             mid = music['id'] 
                             results = find_by(profile['userMusicResults'], "musicId", mid, mode='all') 
-                            results = find_by(results, 'musicDifficultyType', diff, mode='all')
+                            results = find_by(results, 'musicDifficultyType', diff, mode='all') + find_by(results, 'musicDifficulty', diff, mode='all')
                             if results:
                                 has_clear, full_combo, all_prefect = False, False, False
                                 for item in results:
@@ -1037,7 +1037,7 @@ async def compose_play_progress_image(ctx: SekaiHandlerContext, diff: str, qid: 
 
         result_type = 0
         results = find_by(profile['userMusicResults'], "musicId", mid, mode='all') 
-        results = find_by(results, 'musicDifficultyType', diff, mode='all')
+        results = find_by(results, 'musicDifficultyType', diff, mode='all') + find_by(results, 'musicDifficulty', diff, mode='all')
         if results:
             has_clear, full_combo, all_prefect = False, False, False
             for item in results:
