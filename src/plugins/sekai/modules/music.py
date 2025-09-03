@@ -981,19 +981,17 @@ async def compose_music_list_image(
                         result_type = None
                         if profile:
                             mid = music['id'] 
-                            all_diff_result = find_by(profile['userMusics'], "musicId", mid)
-                            if all_diff_result:
-                                all_diff_result = all_diff_result.get('userMusicDifficultyStatuses', [])
-                                diff_result = find_by(all_diff_result, "musicDifficulty", diff)
-                                if diff_result and diff_result['musicDifficultyStatus'] == "available":
-                                    has_clear, full_combo, all_prefect = False, False, False
-                                    for item in diff_result["userMusicResults"]:
-                                        has_clear = has_clear or item["playResult"] != 'not_clear'
-                                        full_combo = full_combo or item["fullComboFlg"]
-                                        all_prefect = all_prefect or item["fullPerfectFlg"]
-                                    result_type = "clear" if has_clear else "not_clear"
-                                    if full_combo: result_type = "fc"
-                                    if all_prefect: result_type = "ap"
+                            results = find_by(profile['userMusicResults'], "musicId", mid, mode='all') 
+                            results = find_by(results, 'musicDifficultyType', diff, mode='all')
+                            if results:
+                                has_clear, full_combo, all_prefect = False, False, False
+                                for item in results:
+                                    has_clear = has_clear or item["playResult"] != 'not_clear'
+                                    full_combo = full_combo or item["fullComboFlg"]
+                                    all_prefect = all_prefect or item["fullPerfectFlg"]
+                                result_type = "clear" if has_clear else "not_clear"
+                                if full_combo: result_type = "fc"
+                                if all_prefect: result_type = "ap"
                             # 过滤游玩结果(无结果视为not_clear)
                             if (result_type or "not_clear") not in play_result_filter:
                                 continue
@@ -1038,20 +1036,17 @@ async def compose_play_progress_image(ctx: SekaiHandlerContext, diff: str, qid: 
         count[level].total += 1
 
         result_type = 0
-        all_diff_result = find_by(profile['userMusics'], "musicId", mid)
-        if all_diff_result:
-            all_diff_result = all_diff_result.get('userMusicDifficultyStatuses', [])
-            diff_result = find_by(all_diff_result, "musicDifficulty", diff)
-            if diff_result and diff_result['musicDifficultyStatus'] == "available":
-                has_clear, full_combo, all_prefect = False, False, False
-                for item in diff_result["userMusicResults"]:
-                    has_clear = has_clear or item["playResult"] != 'not_clear'
-                    full_combo = full_combo or item["fullComboFlg"]
-                    all_prefect = all_prefect or item["fullPerfectFlg"]
-                if has_clear: result_type = 1
-                if full_combo: result_type = 2
-                if all_prefect: result_type = 3
-
+        results = find_by(profile['userMusicResults'], "musicId", mid, mode='all') 
+        results = find_by(results, 'musicDifficultyType', diff, mode='all')
+        if results:
+            has_clear, full_combo, all_prefect = False, False, False
+            for item in results:
+                has_clear = has_clear or item["playResult"] != 'not_clear'
+                full_combo = full_combo or item["fullComboFlg"]
+                all_prefect = all_prefect or item["fullPerfectFlg"]
+            if has_clear: result_type = 1
+            if full_combo: result_type = 2
+            if all_prefect: result_type = 3
         if result_type:
             count[level].not_clear += 1
             if result_type >= 1: count[level].clear += 1
