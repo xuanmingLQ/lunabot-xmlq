@@ -1745,11 +1745,13 @@ class CmdHandler:
                 context.logger = self.logger
 
                 plain_text = event.message.extract_plain_text()
+                cmd_starts = []
                 for cmd in sorted(self.commands, key=len, reverse=True):
-                    if cmd in plain_text:
-                        context.trigger_cmd = cmd
-                        break
-                context.arg_text = plain_text.replace(context.trigger_cmd, "")
+                    start = plain_text.find(cmd)
+                    cmd_starts.append((cmd, start if start != -1 else float('inf')))
+                cmd_starts.sort(key=lambda x: x[1])
+                context.trigger_cmd = cmd_starts[0][0]
+                context.arg_text = plain_text[cmd_starts[0][1] + len(context.trigger_cmd):]
 
                 if any([banned_cmd in context.trigger_cmd for banned_cmd in self.banned_cmds]):
                     return
