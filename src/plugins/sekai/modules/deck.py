@@ -37,7 +37,7 @@ RECOMMEND_ALG_NAMES = {
 
 musicmetas_json = WebJsonRes(
     name="MusicMeta", 
-    url="https://storage.sekai.best/sekai-best-assets/music_metas.json", 
+    url="https://sekai-data.3-3.dev/music_metas.json", 
     update_interval=timedelta(hours=1),
 )
 MUSICMETAS_SAVE_PATH = f"{SEKAI_ASSET_DIR}/music_metas.json"
