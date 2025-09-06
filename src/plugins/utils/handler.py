@@ -26,12 +26,13 @@ async def get_group_list(bot) -> List[dict]:
     """
     return await bot.call_api('get_group_list')
 
-def add_file_unique_for_image_msg(msg):
+def process_msg_for_compatibility(msg: List[dict]):
     """
-    为图片消息添加file_unique字段
+    对消息进行一些处理以保证各个bot后端的兼容性
     """
     for seg in msg:
         if seg['type'] == 'image':
+            # 为图片消息添加file_unique字段
             if not 'file_unique' in seg['data']:
                 url: str = seg['data'].get('url', '')
                 start_idx = url.find('fileid=') + len('fileid=')
@@ -39,14 +40,26 @@ def add_file_unique_for_image_msg(msg):
                 end_idx = url.find('&', start_idx)
                 if end_idx == -1: end_idx = len(url)
                 file_unique = url[start_idx:end_idx]
-                seg['data']['file_unique'] = file_unique
+                seg['data']['file_unique'] = file_unique 
+        elif seg['type'] == 'mface':
+            # mface转换为图片
+            if 'url' in seg['data']:
+                seg['type'] = 'image'
+                seg['data'] = {
+                    'file': os.path.basename(seg['data']['url']),
+                    'url': seg['data']['url'],
+                    'file_unique': os.path.basename(seg['data']['url']).split('.')[0],
+                    'subType': 1,
+                    'summary': seg['data'].get('summary', '[表情]'),
+                }
+
 
 async def get_msg_obj(bot, message_id: int) -> dict:
     """
     获取完整的消息对象
     """
     msg_obj = await bot.call_api('get_msg', **{'message_id': int(message_id)})
-    add_file_unique_for_image_msg(msg_obj['message'])
+    process_msg_for_compatibility(msg_obj['message'])
     msg_obj['user_id'] = msg_obj['sender']['user_id']
     return msg_obj
 
@@ -175,21 +188,26 @@ async def extract_special_text(msg, group_id=None) -> str:
             text += f"[表情]"
     return text
     
-async def get_forward_msg(bot, forward_id: int) -> dict:
+async def get_forward_msg(bot, forward_id: str) -> dict:
     """
     获取折叠消息
     """
     result = await bot.call_api('get_forward_msg', **{'id': str(forward_id)})
     if 'messages' in result:
-        return result  # napcat
-    # lagrange
-    ret = { 'messages': [] }
-    for node in result['message']:
-        msg = node['data']
-        msg['time'] = 0
-        msg['message'] = msg['content']
-        ret['messages'].append(msg)
-    return ret
+        # napcat
+        pass
+    else:
+        # lagrange
+        ret = { 'messages': [] }
+        for node in result['message']:
+            msg = node['data']
+            msg['time'] = 0
+            msg['message'] = msg['content']
+            ret['messages'].append(msg)
+        result = ret
+    for msg in result['messages']:
+        process_msg_for_compatibility(msg['message'])
+    return result
 
 async def get_reply_msg(bot, msg) -> Optional[List[dict]]:
     """
