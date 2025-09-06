@@ -47,6 +47,7 @@ async def get_msg_obj(bot, message_id: int) -> dict:
     """
     msg_obj = await bot.call_api('get_msg', **{'message_id': int(message_id)})
     add_file_unique_for_image_msg(msg_obj['message'])
+    msg_obj['user_id'] = msg_obj['sender']['user_id']
     return msg_obj
 
 async def get_msg(bot, message_id: int) -> List[dict]:
@@ -178,7 +179,17 @@ async def get_forward_msg(bot, forward_id: int) -> dict:
     """
     获取折叠消息
     """
-    return await bot.call_api('get_forward_msg', **{'id': str(forward_id)})
+    result = await bot.call_api('get_forward_msg', **{'id': str(forward_id)})
+    if 'messages' in result:
+        return result  # napcat
+    # lagrange
+    ret = { 'messages': [] }
+    for node in result['message']:
+        msg = node['data']
+        msg['time'] = 0
+        msg['message'] = msg['content']
+        ret['messages'].append(msg)
+    return ret
 
 async def get_reply_msg(bot, msg) -> Optional[List[dict]]:
     """
@@ -222,7 +233,8 @@ async def get_image_datas_from_msg(
     if parse_forward:
         cqs = extract_cq_code(msg)
         if 'forward' in cqs:
-            for msg_obj in cqs['forward'][0]['content']:
+            forward_msg = await get_forward_msg(bot, cqs['forward'][0]['id'])
+            for msg_obj in forward_msg['messages']:
                 msg = msg_obj['message']
                 ret.extend(extract_image_data(msg))
     if parse_reply:

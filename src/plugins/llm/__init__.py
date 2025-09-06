@@ -296,7 +296,7 @@ class ChatSession:
                 return ret
             
             except Exception as e:
-                logger.warning(f"会话{self.id}获取回复失败, 使用模型 {name}: {get_exc_desc(e)}")
+                logger.print_exc(f"会话{self.id}获取回复失败, 使用模型 {name}: {get_exc_desc(e)}")
                 errs.append((name, get_exc_desc(e)))
                 await asyncio.sleep(get_cfg_or_value(model_switch_interval))
 

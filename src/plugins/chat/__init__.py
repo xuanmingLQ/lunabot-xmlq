@@ -75,7 +75,7 @@ async def get_image_caption(mdata: dict, model_name: str, timeout: int, use_llm:
             img = await download_image_to_b64(url)
             session = ChatSession()
             session.append_user_content(prompt, imgs=[img], verbose=False)
-            resp = session.get_response(model_name=model_name, enable_reasoning=False, timeout=timeout)
+            resp = await session.get_response(model_name=model_name, enable_reasoning=False, timeout=timeout)
             caption = truncate(resp.result.strip(), 512)
             assert caption, "图片总结为空"
 

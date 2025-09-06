@@ -83,7 +83,9 @@ async def parse_instruction(group_id, user_id, user_instruction):
     for retry_count in range(max_retries):
         try:
             def process(resp: ChatSessionResponse):
-                task = loads_json(resp.result)
+                start = resp.result.find(r"{")
+                end = resp.result.rfind(r"}")
+                task = loads_json(resp.result[start:end+1])
                 params = task['parameters']
                 for key in params:
                     params[key] = str(params[key])
