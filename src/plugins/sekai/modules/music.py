@@ -383,6 +383,7 @@ def remove_music_alias_for_search(mid: int, alias: str):
 # 根据参数查询曲目
 async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearchOptions = None) -> MusicSearchResult:
     global alias_mid_for_search
+    region_name = get_region_name(ctx.region)
 
     options = options or MusicSearchOptions()
 
@@ -423,7 +424,7 @@ async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearc
         if music:
             search_type = "id"
             if diff and not await check_music_has_diff(ctx, mid, diff):
-                err_msg = f"ID为{mid}的曲目没有{diff}难度"
+                err_msg = f"歌曲{ctx.region.upper()}-{mid}没有{diff}难度"
             else:
                 ret_musics.append(music)
         if options.debug:
@@ -448,7 +449,7 @@ async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearc
                     sorted_musics.pop()
             search_type = "nidx"
             if -idx > len(sorted_musics):
-                err_msg = f"找不到第{-idx}新的曲目(只有{len(sorted_musics)}首)"
+                err_msg = f"找不到{region_name}第{-idx}新的歌曲(只有{len(sorted_musics)}首)"
             else:
                 ret_musics.append(sorted_musics[idx])
         if options.debug:
@@ -468,7 +469,7 @@ async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearc
             if music:
                 ret_musics.append(music)
             else:
-                err_msg = f"ID为{event_id}的活动没有对应曲目"
+                err_msg = f"活动{ctx.region.upper()}-{event_id}没有书下曲"
         if options.debug:
             log(f"活动id匹配耗时: {time.time() - start_time:.4f}s")
 
@@ -482,7 +483,7 @@ async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearc
             if music:
                 ret_musics.append(music)
             else:
-                err_msg = f"箱活{event['id']}没有对应曲目"
+                err_msg = f"箱活{ctx.region.upper()}-{event['id']}没有书下曲"
         if options.debug:
             log(f"箱活匹配耗时: {time.time() - start_time:.4f}s")
 
@@ -498,7 +499,7 @@ async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearc
             if clean_q in titles:
                 search_type = "title"
                 if diff and not await check_music_has_diff(ctx, music['id'], diff):
-                    err_msg = f"曲名为{query}的曲目没有{diff}难度"
+                    err_msg = f"名称为\"{query}\"的{region_name}歌曲没有{diff}难度"
                 else:
                     ret_musics.append(music)
                 break
@@ -514,7 +515,7 @@ async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearc
         if music:
             search_type = "alias"
             if diff and not await check_music_has_diff(ctx, music['id'], diff):
-                err_msg = f"别名为\"{query}\"的曲目没有{diff}难度"
+                err_msg = f"别名为\"{query}\"的{region_name}歌曲没有{diff}难度"
             else:
                 ret_musics.append(music)
         if options.debug:
@@ -582,7 +583,7 @@ async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearc
             res = [m for m in res if diff is None or (await check_music_has_diff(ctx, int(m['id']), diff))]
             res = res[:options.max_num]
             if len(res) == 0:
-                err_msg = "没有找到相关曲目"
+                err_msg = f"没有找到相关{region_name}歌曲"
             sims = [m['sim'] for m in res]
             ret_musics.extend(res)
         if options.debug:
@@ -1790,6 +1791,24 @@ async def _(ctx: SekaiHandlerContext):
     msg = msg.rstrip(" - ")
     return await ctx.asend_reply_msg(msg)
 
+
+# 查曲绘
+pjsk_music_cover = SekaiCmdHandler([
+    "/pjsk music cover", "/pjsk_music_cover", "/pjskmusiccover", 
+    "/查曲绘", "/曲绘",
+])
+pjsk_music_cover.check_cdrate(cd).check_wblist(gbl)
+@pjsk_music_cover.handle()
+async def _(ctx: SekaiHandlerContext):
+    query = ctx.get_args().strip()
+    ret = await search_music(ctx, query, MusicSearchOptions(raise_when_err=True))
+    asset_name = ret.music['assetbundleName']
+    title = ret.music['title']
+    mid = ret.music['id']
+    cover = await ctx.rip.img(f"music/jacket/{asset_name}_rip/{asset_name}.png")
+    msg = await get_image_cq(cover) + (f"【{mid}】{title}\n" + ret.candidate_msg).strip()
+    return await ctx.asend_reply_msg(msg)
+        
 
 # ======================= 定时任务 ======================= #
 

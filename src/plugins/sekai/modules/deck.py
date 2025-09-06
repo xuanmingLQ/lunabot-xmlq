@@ -6,6 +6,8 @@ from ..draw import *
 from .event import get_event_banner_img, get_current_event
 from .sk import get_wl_events
 from .profile import (
+    get_player_bind_id,
+    get_basic_profile,
     get_detailed_profile, 
     get_detailed_profile_card, 
     get_card_full_thumbnail,
@@ -82,6 +84,7 @@ UNIT_FILTER_KEYWORDS = {
     "piapro": ["纯vs", "纯v", "仅vs", "仅v"],
 }
 MAX_PROFILE_KEYWORDS = ('顶配',)
+CURRENT_DECK_KEYWORDS = ('当前', '目前')
 
 DEFAULT_CARD_CONFIG_12 = DeckRecommendCardConfig()
 DEFAULT_CARD_CONFIG_12.disable = False
@@ -437,6 +440,12 @@ def extract_addtional_options(args: str) -> Tuple[dict, str]:
     for keyword in MAX_PROFILE_KEYWORDS:
         if keyword in args:
             ret['max_profile'] = True
+            args = args.replace(keyword, "").strip()
+            break
+
+    for keyword in CURRENT_DECK_KEYWORDS:
+        if keyword in args:
+            ret['use_current_deck'] = True
             args = args.replace(keyword, "").strip()
             break
 
@@ -1065,6 +1074,17 @@ async def compose_deck_recommend_image(
             uc for uc in profile['userCards']
             if uc['cardId'] not in excluded_cards
         ]
+
+    # 使用当前队伍
+    if additional.get('use_current_deck'):
+        assert_and_reply(options.live_type not in ['challenge'], "暂不支持获取挑战组卡的当前队伍")
+        basic_profile = await get_basic_profile(
+            ctx, get_player_bind_id(ctx, qid, check_bind=True), 
+            use_cache=False, use_remote_cache=False,
+        )
+        options.fixed_cards = [basic_profile['userDeck'][f'member{i}'] for i in range(1, 6)]
+        options.fixed_characters = None
+        options.best_skill_as_leader = False
 
     # 准备用户数据
     with TempFilePath("json") as userdata_path:
