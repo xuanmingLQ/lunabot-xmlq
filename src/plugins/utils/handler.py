@@ -52,6 +52,10 @@ def process_msg_for_compatibility(msg: List[dict]):
                     'subType': 1,
                     'summary': seg['data'].get('summary', '[表情]'),
                 }
+        # 添加file_size
+        if seg['type'] in ('image', 'record', 'video'):
+            if 'file_size' not in seg['data']:
+                seg['data']['file_size'] = 0
 
 
 async def get_msg_obj(bot, message_id: int) -> dict:
@@ -375,19 +379,32 @@ async def download_napcat_file(ftype: str, file: str) -> str:
         ret = await bot.call_api('get_file', **{'file': file})
     return ret['file']
 
-class TempNapcatFilePath:
+class TempBotOrInternetFilePath:
+    """
+    用于临时下载网络文件或bot(napcat)文件的上下文管理器
+    """
     def __init__(self, ftype: str, file: str):
         self.ftype = ftype
         self.file = file
         self.ext = file.split('.')[-1]
 
     async def __aenter__(self) -> str:
-        path = await download_napcat_file(self.ftype, self.file)
+        if self.file.startswith('http'):
+            self.ext = {
+                'image': 'png',
+                'record': 'wav',
+                'video': 'mp4',
+            }.get(self.ftype, self.ext)
+            path = pjoin('data/utils/tmp', rand_filename(self.ext))
+            await download_file(self.file, path)
+        else:
+            path = await download_napcat_file(self.ftype, self.file)
         self.path = path
         return path
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         remove_file(self.path)
+
 
 def get_avatar_url(user_id: int) -> str:
     """
