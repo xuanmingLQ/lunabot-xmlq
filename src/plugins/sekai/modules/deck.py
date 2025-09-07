@@ -45,6 +45,9 @@ musicmetas_json = WebJsonRes(
 MUSICMETAS_SAVE_PATH = f"{SEKAI_ASSET_DIR}/music_metas.json"
 DECK_RECOMMEND_MUSICMETAS_UPDATE_INTERVAL = timedelta(days=1)
 
+OMAKASE_MUSIC_ID = 10000
+OMAKASE_MUSIC_DIFFS = ["master", "expert", "hard"]
+
 data_update_lock = asyncio.Lock()
 last_deck_recommend_masterdata_version: Dict[str, str] = {}
 last_deck_recommend_masterdata_update_time: Dict[str, datetime] = {} 
@@ -54,9 +57,17 @@ last_deck_recommend_musicmetas_update_time: Dict[str, datetime] = {}
 # ======================= 默认配置 ======================= #
 
 DEFAULT_DECK_RECOMMEND_MUSICDIFFS = {
-    "event": [
-        (74, "expert"),
-    ],
+    "event": {
+        "multi": [
+            (OMAKASE_MUSIC_ID, "master"),
+        ],
+        "solo": [
+            (74, "expert"),
+        ],
+        "auto": [
+            (74, "expert"),
+        ],
+    },
     "challenge": [
         (540, "master"),
         (104, "master"),
@@ -386,7 +397,7 @@ def extract_teammate_options(args: str, options: DeckRecommendOptions) -> str:
     return args.strip()
 
 # 从args中提取歌曲和难度
-async def extract_music_and_diff(ctx: SekaiHandlerContext, args: str, options: DeckRecommendOptions, rec_type: str) -> str:
+async def extract_music_and_diff(ctx: SekaiHandlerContext, args: str, options: DeckRecommendOptions, rec_type: str, live_type: str) -> str:
     options.music_diff, args = extract_diff(args, default=None)
     args = args.strip()
 
@@ -403,14 +414,16 @@ async def extract_music_and_diff(ctx: SekaiHandlerContext, args: str, options: D
         options.music_id = music['id']
 
     default_musicdiffs = DEFAULT_DECK_RECOMMEND_MUSICDIFFS[rec_type]
+    if isinstance(default_musicdiffs, dict):
+        default_musicdiffs = default_musicdiffs[live_type]
+
     for mid, diff in default_musicdiffs:
-        if await is_valid_music(ctx, mid, leak=False):
+        if mid == OMAKASE_MUSIC_ID or await is_valid_music(ctx, mid, leak=False):
             if options.music_id is None:
                 options.music_id = mid
             if options.music_diff is None:
                 options.music_diff = diff
             break
-    
     return args
 
 # 从args中提取不在options中的参数
@@ -503,7 +516,7 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.world_bloom_character_id = wl_cid
         
     # 歌曲id和难度
-    args = await extract_music_and_diff(ctx, args, options, "event")
+    args = await extract_music_and_diff(ctx, args, options, "event", options.live_type)
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -553,7 +566,7 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
     # 不指定角色情况下每个角色都组1个最强卡
 
     # 歌曲id和难度
-    args = await extract_music_and_diff(ctx, args, options, "challenge")
+    args = await extract_music_and_diff(ctx, args, options, "challenge", options.live_type)
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -609,7 +622,7 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.event_id = None
         
     # 歌曲id和难度
-    args = await extract_music_and_diff(ctx, args, options, "event")
+    args = await extract_music_and_diff(ctx, args, options, "event", options.live_type)
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -681,7 +694,7 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
         raise ReplyException(hint.strip())
         
     # 歌曲id和难度
-    args = await extract_music_and_diff(ctx, args, options, "event")
+    args = await extract_music_and_diff(ctx, args, options, "event", options.live_type)
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -724,7 +737,7 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.world_bloom_character_id = wl_cid
         
     # 歌曲id和难度
-    await extract_music_and_diff(ctx, "", options, "event")
+    await extract_music_and_diff(ctx, "", options, "event", options.live_type)
 
     # 组卡限制
     options.limit = BONUS_TARGET_LIMIT
@@ -746,6 +759,58 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
 # ======================= 处理逻辑 ======================= #
 
 RECOMMEND_SERVE_URL = "http://localhost:45556/recommend"
+
+# 添加OMAKASE音乐
+def add_omakase_music(music_metas: list[dict]) -> list[dict]:
+    if find_by(music_metas, "id", OMAKASE_MUSIC_ID) is None:
+        omakase = {
+            "music_id": OMAKASE_MUSIC_ID,
+            "difficulty": None,
+            "music_time": 0.0,
+            "event_rate": 0.0,
+            "base_score": 0.0,
+            "base_score_auto": 0.0,
+            "skill_score_solo": [0.0 for _ in range(6)],
+            "skill_score_auto": [0.0 for _ in range(6)],
+            "skill_score_multi": [0.0 for _ in range(6)],
+            "fever_score": 0,
+            "fever_end_time": 0,
+            "tap_count": 0,
+        }
+
+        music_count = 0
+        for item in music_metas:
+            if item['difficulty'] in OMAKASE_MUSIC_DIFFS:
+                omakase['music_time'] += item['music_time']
+                omakase['event_rate'] += item['event_rate']
+                omakase['base_score'] += item['base_score']
+                omakase['base_score_auto'] += item['base_score_auto']
+                for i in range(6):
+                    omakase['skill_score_solo'][i] += item['skill_score_solo'][i]
+                    omakase['skill_score_auto'][i] += item['skill_score_auto'][i]
+                    omakase['skill_score_multi'][i] += item['skill_score_multi'][i]
+                omakase['fever_score'] += item['fever_score']
+                omakase['fever_end_time'] += item['fever_end_time']
+                omakase['tap_count'] += item['tap_count']
+                music_count += 1
+
+        omakase['music_time'] /= music_count
+        omakase['event_rate'] = int(omakase['event_rate'] / music_count)
+        omakase['base_score'] /= music_count
+        omakase['base_score_auto'] /= music_count
+        for i in range(6):
+            omakase['skill_score_solo'][i] /= music_count
+            omakase['skill_score_auto'][i] /= music_count
+            omakase['skill_score_multi'][i] /= music_count
+        omakase['fever_score'] /= music_count
+        omakase['fever_end_time'] /= music_count
+        omakase['tap_count'] = int(omakase['tap_count'] / music_count)
+
+        for difficulty in ('easy', 'normal', 'hard', 'expert', 'master', 'append'):
+            new_omakase = omakase.copy()
+            new_omakase['difficulty'] = difficulty
+            music_metas.append(new_omakase)
+    return music_metas
 
 # 获取deck的hash
 def get_deck_hash(deck: RecommendDeck) -> str:
@@ -837,6 +902,7 @@ async def do_deck_recommend(
             try:
                 # 尝试从网络下载
                 musicmetas = await musicmetas_json.get()
+                musicmetas = add_omakase_music(musicmetas)
                 await adump_json(musicmetas, MUSICMETAS_SAVE_PATH)
             except Exception as e:
                 logger.warning(f"下载music_metas.json失败: {get_exc_desc(e)}")
@@ -1124,10 +1190,15 @@ async def compose_deck_recommend_image(
             result_algs = algs
 
     # 获取音乐标题和封面
-    music = await ctx.md.musics.find_by_id(options.music_id)
-    asset_name = music['assetbundleName']
-    music_title = music['title']
-    music_cover = await ctx.rip.img(f"music/jacket/{asset_name}_rip/{asset_name}.png", use_img_cache=True)
+    if options.music_id == OMAKASE_MUSIC_ID:
+        music_title = "おまかせ（所有歌曲平均）"
+        music_cover = ctx.static_imgs.get('omakase.png')
+    else:
+        music = await ctx.md.musics.find_by_id(options.music_id)
+        asset_name = music['assetbundleName']
+        music_title = music['title']
+        music_title += f" ({options.music_diff.upper()})"
+        music_cover = await ctx.rip.img(f"music/jacket/{asset_name}_rip/{asset_name}.png", use_img_cache=True)
 
     # 获取活动banner和标题
     live_name = "协力"
@@ -1302,10 +1373,10 @@ async def compose_deck_recommend_image(
                             if last_args:
                                 TextBox(f"{last_args} → ", TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
                             with Frame().set_size((50, 50)):
-                                Spacer(w=50, h=50).set_bg(FillBg(fill=DIFF_COLORS[options.music_diff])).set_offset((6, 6))
+                                if options.music_id != OMAKASE_MUSIC_ID:
+                                    Spacer(w=50, h=50).set_bg(FillBg(fill=DIFF_COLORS[options.music_diff])).set_offset((6, 6))
                                 ImageBox(music_cover, size=(50, 50))
-                            TextBox(f"{music_title} ({options.music_diff.upper()})", 
-                                    TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
+                            TextBox(music_title, TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
 
                 # 表格
                 gh, vsp, voffset = 120, 12, 18
