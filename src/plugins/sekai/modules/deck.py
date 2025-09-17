@@ -15,6 +15,7 @@ from .profile import (
 )
 from .card import get_unit_by_card_id, has_after_training
 from .music import DIFF_NAMES, search_music, MusicSearchOptions, extract_diff, is_valid_music
+from .mysekai import MYSEKAI_REGIONS
 from sekai_deck_recommend import (
     DeckRecommendOptions, 
     DeckRecommendCardConfig, 
@@ -23,7 +24,6 @@ from sekai_deck_recommend import (
     DeckRecommendSaOptions,
     RecommendDeck,
 )
-import multiprocessing
 
 
 RECOMMEND_TIMEOUT_CFG = config.item('deck.timeout.default')
@@ -882,7 +882,7 @@ async def do_deck_recommend(
                 ctx.md.world_blooms.get(),
                 ctx.md.world_bloom_support_deck_bonuses.get(),
             ]
-            if ctx.region == 'jp':
+            if ctx.region in MYSEKAI_REGIONS:
                 mds += [
                     ctx.md.world_bloom_support_deck_unit_event_limited_bonuses.get(),
                     ctx.md.card_mysekai_canvas_bonuses.get(),

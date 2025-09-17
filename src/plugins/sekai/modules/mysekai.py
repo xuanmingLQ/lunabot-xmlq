@@ -26,7 +26,7 @@ MYSEKAI_REFRESH_HOURS = {
     "tw": [5, 17],
 }
 
-MYSEKAI_REGIONS = ['jp', 'cn', 'tw']
+MYSEKAI_REGIONS = ['jp', 'tw']
 BD_MYSEKAI_REGIONS = ['cn', 'tw']
 
 bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", BD_MYSEKAI_REGIONS)
@@ -1206,6 +1206,8 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
     spec_lvs = {}
     if profile:
         gates = profile.get('userMysekaiGates', [])
+        if not gates:
+            raise ReplyException("查询不到你的Mysekai门数据")
         for item in gates:
             gid = item['mysekaiGateId']
             lv = item['mysekaiGateLevel']
@@ -1912,6 +1914,7 @@ async def msr_auto_push():
 
         url = get_gameapi_config(ctx).mysekai_upload_time_api_url
         if not url: continue
+        if region not in msr_sub.regions: continue
 
         # 获取订阅的用户列表和抓包模式
         qids = list(set([qid for qid, gid in msr_sub.get_all_gid_uid(region)]))
