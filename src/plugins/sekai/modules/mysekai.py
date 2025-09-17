@@ -17,7 +17,14 @@ from .profile import (
     process_hide_uid,
 )
 from .music import get_music_cover_thumb
+from .card import get_character_sd_image
 
+
+MYSEKAI_REFRESH_HOURS = {
+    "jp": [4, 16],
+    "cn": [5, 17],
+    "tw": [5, 17],
+}
 
 MYSEKAI_REGIONS = ['jp', 'cn', 'tw']
 BD_MYSEKAI_REGIONS = ['cn', 'tw']
@@ -177,17 +184,18 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
     return f
 
 # 获取mysekai上次资源刷新时间
-def get_mysekai_last_refresh_time() -> datetime:
+def get_mysekai_last_refresh_time(ctx: SekaiHandlerContext) -> datetime:
+    h1, h2 = MYSEKAI_REFRESH_HOURS.get(ctx.region)
     now = datetime.now()
     last_refresh_time = None
     now = datetime.now()
-    if now.hour < 4:
-        last_refresh_time = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    if now.hour < h1:
+        last_refresh_time = now.replace(hour=h2, minute=0, second=0, microsecond=0)
         last_refresh_time -= timedelta(days=1)
-    elif now.hour < 16:
-        last_refresh_time = now.replace(hour=4, minute=0, second=0, microsecond=0)
+    elif now.hour < h2:
+        last_refresh_time = now.replace(hour=h1, minute=0, second=0, microsecond=0)
     else:
-        last_refresh_time = now.replace(hour=16, minute=0, second=0, microsecond=0)
+        last_refresh_time = now.replace(hour=h2, minute=0, second=0, microsecond=0)
     return last_refresh_time
 
 # 从蓝图ID获取家具，不存在返回None
@@ -207,11 +215,11 @@ async def get_mysekai_fixture_icon(ctx: SekaiHandlerContext, fixture: dict, colo
         color_count += len(fixture['mysekaiFixtureAnotherColors'])
 
     if ftype == "surface_appearance":
-        suffix = "" if color_count == 1 else f"_{color_idx+1}"
-        return await ctx.rip.img(f"mysekai/thumbnail/surface_appearance/{asset_name}_rip/tex_{asset_name}_{suface_type}{suffix}.png", use_img_cache=True)
+        suffix = "_1" if color_count == 1 else f"_{color_idx+1}"
+        return await ctx.rip.img(f"mysekai/thumbnail/surface_appearance/{asset_name}/tex_{asset_name}_{suface_type}{suffix}.png", use_img_cache=True)
     else:
         suffix = f"_{color_idx+1}"
-        return await ctx.rip.img(f"mysekai/thumbnail/fixture/{asset_name}{suffix}_rip/{asset_name}{suffix}.png", use_img_cache=True)
+        return await ctx.rip.img(f"mysekai/thumbnail/fixture/{asset_name}{suffix}.png", use_img_cache=True)
 
 # 获取mysekai资源图标
 async def get_mysekai_res_icon(ctx: SekaiHandlerContext, key: str) -> Image.Image:
@@ -221,21 +229,21 @@ async def get_mysekai_res_icon(ctx: SekaiHandlerContext, key: str) -> Image.Imag
         # mysekai材料
         if key.startswith("mysekai_material"):
             name = (await ctx.md.mysekai_materials.find_by_id(res_id))['iconAssetbundleName']
-            img = await ctx.rip.img(f"mysekai/thumbnail/material/{name}_rip/{name}.png", use_img_cache=True)
+            img = await ctx.rip.img(f"mysekai/thumbnail/material/{name}.png", use_img_cache=True)
         # 普通材料
         elif key.startswith("material"):
             img = await ctx.rip.img(f"thumbnail/material_rip/material{res_id}.png", use_img_cache=True)
         # 道具
         elif key.startswith("mysekai_item"):
             name = (await ctx.md.mysekai_items.find_by_id(res_id))['iconAssetbundleName']
-            img = await ctx.rip.img(f"mysekai/thumbnail/item/{name}_rip/{name}.png", use_img_cache=True)
+            img = await ctx.rip.img(f"mysekai/thumbnail/item/{name}.png", use_img_cache=True)
         # 家具（植物种子）
         elif key.startswith("mysekai_fixture"):
             name = (await ctx.md.mysekai_fixtures.find_by_id(res_id))['assetbundleName']
             try:
-                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_{res_id}_rip/{name}_{res_id}.png", use_img_cache=True)
+                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_{res_id}_1.png", use_img_cache=True)
             except:
-                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_rip/{name}.png", use_img_cache=True)
+                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_1.png", use_img_cache=True)
         # 唱片
         elif key.startswith("mysekai_music_record"):
             mid = (await ctx.md.mysekai_musicrecords.find_by_id(res_id))['externalId']
@@ -522,7 +530,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     mysekai_info, pmsg = await get_mysekai_info(ctx, qid, raise_exc=True)
 
     upload_time = datetime.fromtimestamp(mysekai_info['upload_time'] / 1000)
-    if upload_time < get_mysekai_last_refresh_time() and check_time:
+    if upload_time < get_mysekai_last_refresh_time(ctx) and check_time:
         raise ReplyException(f"数据已过期({upload_time.strftime('%m-%d %H:%M:%S')})")
     
     assert_and_reply('userMysekaiHarvestMaps' in mysekai_info.get('updatedResources', {}), 
@@ -537,7 +545,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         refresh_time = datetime.fromtimestamp(item['scheduleDate'] / 1000)
         phenom_id = item['mysekaiPhenomenaId']
         asset_name = (await ctx.md.mysekai_phenomenas.find_by_id(phenom_id))['iconAssetbundleName']
-        phenom_imgs.append(await ctx.rip.img(f"mysekai/thumbnail/phenomena/{asset_name}_rip/{asset_name}.png"))
+        phenom_imgs.append(await ctx.rip.img(f"mysekai/thumbnail/phenomena/{asset_name}.png"))
         phenom_ids.append(phenom_id)
     current_hour = upload_time.hour
     phenom_idx = 1 if current_hour < 4 or current_hour >= 16 else 0
@@ -655,12 +663,12 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                         TextBox(f"Lv.{gate_level}", TextStyle(font=DEFAULT_BOLD_FONT, size=12, color=UNIT_COLORS[gate_id-1])).set_content_align('c').set_offset((0, 2))
 
                     for cid in visit_cids:
-                        chara_icon = await ctx.rip.img(f"character_sd_l_rip/chr_sp_{cid}.png")
+                        chara_icon = await get_character_sd_image(cid)
                         with Frame().set_content_align('lt'):
                             ImageBox(chara_icon, size=(80, None), use_alphablend=True)
                             if cid not in read_cids:
                                 gcid = (await ctx.md.game_character_units.find_by_id(cid))['gameCharacterId']
-                                chara_item_icon = await ctx.rip.img(f"mysekai/item_preview/material/item_memoria_{gcid}_rip/item_memoria_{gcid}.png")
+                                chara_item_icon = await ctx.rip.img(f"mysekai/item_preview/material/item_memoria_{gcid}.png")
                                 ImageBox(chara_item_icon, size=(40, None), use_alphablend=True).set_offset((80 - 40, 80 - 40))
                             if cid == reservation_cid:
                                 invitation_icon = ctx.static_imgs.get('mysekai/invitationcard.png')
@@ -713,7 +721,7 @@ async def get_mysekai_fixture_genre_name_and_image(ctx: SekaiHandlerContext, gid
     else:
         genre = await ctx.md.mysekai_fixture_subgenres.find_by_id(gid)
     asset_name = genre['assetbundleName']
-    image = await ctx.rip.img(f"mysekai/icon/category_icon/{asset_name}_rip/{asset_name}.png", use_img_cache=True)
+    image = await ctx.rip.img(f"mysekai/icon/category_icon/{asset_name}.png", use_img_cache=True)
     return genre['name'], image
 
 # 合成mysekai家具列表图片
@@ -1937,7 +1945,7 @@ async def msr_auto_push():
             continue
 
         need_push_uids = [] # 需要推送的uid（有及时更新数据并且没有距离太久的）
-        last_refresh_time = get_mysekai_last_refresh_time()
+        last_refresh_time = get_mysekai_last_refresh_time(ctx)
         for uid, ts in upload_times.items():
             update_time = datetime.fromtimestamp(ts / 1000)
             if update_time > last_refresh_time and datetime.now() - update_time < timedelta(hours=1):

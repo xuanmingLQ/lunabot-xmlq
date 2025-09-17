@@ -3,6 +3,7 @@ from .common import *
 import threading
 
 asset_config = Config('sekai.asset')
+ASSET_DEBUG_CFG = asset_config.item('debug')
 
 # ================================ MasterData资源 ================================ #
 
@@ -661,13 +662,6 @@ def haruki_url_map(url: str) -> str:
     # 谱面文件添加.txt
     if 'music_score' in part2:
         part2 = part2 + ".txt"
-    # 需要删除倒数第二个目录的情况
-    NEED_REMOVE_SECOND_LAST_PREFIXES = [
-        'mysekai/icon/', 
-        "mysekai/thumbnail/",
-        "bonds_honor/word/",
-    ]
-    if any([part2.startswith(prefix) for prefix in NEED_REMOVE_SECOND_LAST_PREFIXES]):
         segs = part2.split('/')
         segs.pop(-2)
         part2 = '/'.join(segs)
@@ -697,16 +691,6 @@ def unipjsk_url_map(url: str) -> str:
     part2 = part2.replace("_rip", "")
     # 替换.asset为.json
     part2 = part2.replace(".asset", ".json")
-    # 需要删除倒数第二个目录的情况
-    NEED_REMOVE_SECOND_LAST_PREFIXES = [
-        'mysekai/icon/', 
-        "mysekai/thumbnail/",
-        "bonds_honor/word/",
-    ]
-    if any([part2.startswith(prefix) for prefix in NEED_REMOVE_SECOND_LAST_PREFIXES]):
-        segs = part2.split('/')
-        segs.pop(-2)
-        part2 = '/'.join(segs)
     # 添加类别
     if any([part2.startswith(prefix) for prefix in ONDEMAND_PREFIXES]):
         category = 'ondemand'

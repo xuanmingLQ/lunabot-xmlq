@@ -852,7 +852,8 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
             item['startAt'] = datetime.fromtimestamp(event['startAt'] / 1000)
             item['endAt'] = datetime.fromtimestamp(event['aggregateAt'] / 1000 + 1)
             if 'gameCharacterId' in item:
-                item['charaIcon'] = await SekaiHandlerContext.from_region('jp').rip.img(f"character/character_sd_l/chr_sp_{item['gameCharacterId']}.png")
+                from .card import get_character_sd_image
+                item['charaIcon'] = await get_character_sd_image(item['gameCharacterId'])
 
         with VSplit().set_padding(16).set_sep(16).set_item_align('lt').set_content_align('lt').set_bg(roundrect_bg()):
             TextBox(title, style1)

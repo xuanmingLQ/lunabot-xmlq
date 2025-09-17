@@ -86,6 +86,10 @@ DETAIL_SKILL_KEYWORDS_IDS = [
 
 # ======================= 处理逻辑 ======================= #
 
+# 获取sd图
+async def get_character_sd_image(cuid: int) -> Image.Image:
+    return await SekaiHandlerContext.from_region('jp').rip.img(f"character/character_sd_l/chr_sp_{cuid}.png")
+
 # 解析查单张卡的参数
 async def search_single_card(ctx: SekaiHandlerContext, args: str) -> dict:
     args = args.strip()

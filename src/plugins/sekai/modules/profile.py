@@ -440,7 +440,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                 ImageBox(x_icon, image_size_mode='original').set_offset((16, 0))
 
             # 留言
-            user_word = basic_profile['userProfile']['word']
+            user_word = basic_profile['userProfile'].get('word', '')
             user_word = re.sub(r'<#.*?>', '', user_word)
             user_word_box = TextBox(user_word, TextStyle(font=DEFAULT_FONT, size=20, color=BLACK), line_count=3)
             user_word_box.set_wrap(True).set_bg(ui_bg).set_line_sep(2).set_padding((18, 16)).set_w(450)

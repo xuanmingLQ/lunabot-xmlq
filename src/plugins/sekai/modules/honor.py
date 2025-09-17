@@ -197,7 +197,7 @@ async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict
                     wordbundlename = f"honorname_{cid1:02d}{cid2:02d}_default_{cuid1:02d}{cid2:02d}_01"
                 else:
                     wordbundlename = f"honorname_{cid1:02d}{cid2:02d}_default_{cid2:02d}{cuid1:02d}_01"
-            word_img = await ctx.rip.img(f"bonds_honor/word/{wordbundlename}_rip/{wordbundlename}.png")
+            word_img = await ctx.rip.img(f"bonds_honor/word/{wordbundlename}.png")
             img.paste(word_img, (int(190-(word_img.size[0]/2)), int(40-(word_img.size[1]/2))), word_img)
 
         add_lv_star(img, hlv)
