@@ -540,7 +540,7 @@ async def download_file(url, file_path):
     async with aiohttp.ClientSession() as session:
         async with session.get(url, verify_ssl=False) as resp:
             if resp.status != 200:
-                raise Exception(f"下载文件 {url} 失败: {resp.status} {resp.reason}")
+                raise Exception(f"下载文件 {truncate(url, 32)} 失败: {resp.status} {resp.reason}")
             with open(file_path, 'wb') as f:
                 f.write(await resp.read())
 

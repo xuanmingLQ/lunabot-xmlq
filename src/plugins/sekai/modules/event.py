@@ -13,6 +13,23 @@ from .profile import (
     get_player_avatar_info_by_detailed_profile,
 )
 
+QUERY_SINGLE_EVENT_HELP = """
+【查单个活动格式】
+1. 活动ID：123
+2. 倒数第几次活动：-1 -2
+3. ban主昵称+序号：mnr1
+""".strip()
+
+QUERY_MULTI_EVENT_HELP = """
+【查多个活动格式】
+1. 活动类型：5v5 普活 wl
+2. 颜色和团：紫 25h
+3. 年份：2025 去年
+4. 活动角色：mnr hrk 可以加多个
+5. 活动ban主：mnr箱
+""".strip()
+
+
 @dataclass
 class EventDetail:
     # detail info
@@ -168,9 +185,9 @@ async def get_wl_chapter_cid(ctx: SekaiHandlerContext, wl_id: int) -> Optional[i
     if chapter_id == 0:
         return None
     chapters = await ctx.md.world_blooms.find_by('eventId', event_id, mode='all')
-    assert_and_reply(chapters, f"活动{ctx.region}_{event_id}并不是WorldLink活动")
+    assert_and_reply(chapters, f"活动{ctx.region.upper()}-{event_id}并不是WorldLink活动")
     chapter = find_by(chapters, "chapterNo", chapter_id)
-    assert_and_reply(chapter, f"活动{ctx.region}_{event_id}并没有章节{chapter_id}")
+    assert_and_reply(chapter, f"活动{ctx.region.upper()}-{event_id}并没有章节{chapter_id}")
     cid = chapter['gameCharacterId']
     return cid
 
@@ -410,21 +427,15 @@ async def get_event_by_index(ctx: SekaiHandlerContext, index: str) -> dict:
         index = int(index)
         if index < 0:
             if -index > len(events):
-                raise Exception("活动索引超出范围")
+                raise ReplyException("倒数索引超出范围")
             return events[index]
         event = await ctx.md.events.find_by_id(index)
-        assert event, f"未找到ID为{index}的活动"
+        assert_and_reply(event, f"活动{ctx.region.upper()}-{index}不存在")
         return event
     elif event := await get_event_by_ban_name(ctx, index):
         return event
     else:
-        raise ReplyException(f"""
-查活动参数错误，正确格式:
-1. 直接使用活动ID，例如{ctx.original_trigger_cmd} 123
-2. 使用负数索引，例如{ctx.original_trigger_cmd} -1
-3. 使用角色昵称+箱数，例如{ctx.original_trigger_cmd} mnr1
-查多个活动使用\"/活动列表\"
-""".strip())
+        raise ReplyException(f"查单个活动参数错误")
 
 # 获取活动剧情总结
 async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh: bool, summary_model: List[str], save: bool) -> List[str]:
@@ -897,57 +908,68 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
 
 # ======================= 指令处理 ======================= #
 
-# 查活动
-pjsk_event_list = SekaiCmdHandler([
-    "/pjsk events", "/pjsk_events", "/events", "/活动列表", "/活动一览",
-])
-pjsk_event_list.check_cdrate(cd).check_wblist(gbl)
-@pjsk_event_list.handle()
+# 查活动（单个/多个）
+MULTI_EVENT_CMDS = ["/pjsk events", "/pjsk_events", "/events", "/活动列表", "/活动一览",]
+SINGLE_EVENT_CMDS = ["/pjsk event", "/pjsk_event", "/event", "/活动", "/查活动",]
+pjsk_event = SekaiCmdHandler(SINGLE_EVENT_CMDS + MULTI_EVENT_CMDS)
+pjsk_event.check_cdrate(cd).check_wblist(gbl)
+@pjsk_event.handle()
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
-    filter = EventListFilter()
-    filter.attr, args = extract_card_attr(args)
-    filter.event_type, args = extract_event_type(args)
-    filter.unit, args = extract_unit(args)
-    filter.year, args = extract_year(args)
-    if any([x in args for x in ['混活', '混']]):
-        assert_and_reply(not filter.unit, "查混活不能指定团名")
-        filter.unit = "blend"
-        args = args.replace('混活', "").replace('混', "").strip()
 
-    filter.cids = []
-    for seg in args.strip().split():
-        if 'ban' in seg or '箱' in seg:
-            seg = seg.replace('ban', '').replace('箱', '').strip()
-            filter.banner_cid = get_cid_by_nickname(seg)
-        else:
-            if cid := get_cid_by_nickname(seg):
+    async def query_multi(args: str):
+        filter = EventListFilter()
+        filter.attr, args = extract_card_attr(args)
+        filter.event_type, args = extract_event_type(args)
+        filter.unit, args = extract_unit(args)
+        filter.year, args = extract_year(args)
+        if any([x in args for x in ['混活', '混']]):
+            assert_and_reply(not filter.unit, "查混活不能指定团名")
+            filter.unit = "blend"
+            args = args.replace('混活', "").replace('混', "").strip()
+
+        filter.cids = []
+        for seg in args.strip().split():
+            if 'ban' in seg or '箱' in seg:
+                seg = seg.replace('ban', '').replace('箱', '').strip()
+                filter.banner_cid = get_cid_by_nickname(seg)
+                assert_and_reply(filter.banner_cid, f"无效的角色昵称\"{seg}\"")
+            else:
+                cid = get_cid_by_nickname(seg)
+                assert_and_reply(cid, f"无效的角色昵称\"{seg}\"")
                 filter.cids.append(cid)
 
-    logger.info(f"查询活动列表，筛选条件={filter}")
+        logger.info(f"查询活动列表，筛选条件={filter}")
+        return await ctx.asend_reply_msg(await get_image_cq(
+            await compose_event_list_image(ctx, filter),
+            low_quality=True,
+        ))
+    
+    async def query_single(args: str):
+        if args:
+            event = await get_event_by_index(ctx, args)
+        else:
+            event = await get_current_event(ctx, fallback='next_first')
+        return await ctx.asend_reply_msg(await get_image_cq(
+            await compose_event_detail_image(ctx, event),
+            low_quality=True,
+        ))
 
-    return await ctx.asend_reply_msg(await get_image_cq(
-        await compose_event_list_image(ctx, filter),
-        low_quality=True,
-    ))
-
-
-# 单个活动
-pjsk_event_list = SekaiCmdHandler([
-    "/pjsk event", "/pjsk_event", "/event", "/活动", "/查活动",
-])
-pjsk_event_list.check_cdrate(cd).check_wblist(gbl)
-@pjsk_event_list.handle()
-async def _(ctx: SekaiHandlerContext):
-    args = ctx.get_args().strip()
-    if args:
-        event = await get_event_by_index(ctx, args)
-    else:
-        event = await get_current_event(ctx, fallback='next_first')
-    return await ctx.asend_reply_msg(await get_image_cq(
-        await compose_event_detail_image(ctx, event),
-        low_quality=True,
-    ))
+    # 如果参数为空，根据命令区分查询单个还是多个活动
+    if not args:
+        if ctx.trigger_cmd in MULTI_EVENT_CMDS:
+            return await query_multi(args)
+        if ctx.trigger_cmd in SINGLE_EVENT_CMDS:
+            return await query_single(args)
+            
+    # 优先查询单个活动
+    try:
+        return await query_single(args)
+    except ReplyException as single_e:
+        try:
+            return await query_multi(args)
+        except ReplyException as multi_e:
+            raise ReplyException(f"{get_exc_desc(single_e)}\n{get_exc_desc(multi_e)}\n{QUERY_SINGLE_EVENT_HELP}\n{QUERY_MULTI_EVENT_HELP}")
 
 
 # 活动剧情总结

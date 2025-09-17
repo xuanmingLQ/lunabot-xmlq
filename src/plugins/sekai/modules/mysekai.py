@@ -4,7 +4,7 @@ from ..common import *
 from ..handler import *
 from ..asset import *
 from ..draw import *
-from ..sub import SekaiUserSubHelper
+from ..sub import SekaiUserSubHelper, SekaiGroupSubHelper
 from .profile import (
     get_gameapi_config, 
     get_player_bind_id, 
@@ -19,7 +19,11 @@ from .profile import (
 from .music import get_music_cover_thumb
 
 
-msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", ['jp'], only_one_group=True)
+MYSEKAI_REGIONS = ['jp', 'cn', 'tw']
+BD_MYSEKAI_REGIONS = ['cn', 'tw']
+
+bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", BD_MYSEKAI_REGIONS)
+msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", MYSEKAI_REGIONS, only_one_group=True)
 
 MYSEKAI_HARVEST_MAP_IMAGE_SCALE = 0.8
 MYSEKAI_HARVEST_MAP_SITE_BG_IMAGE_DOWNSAMPLE = 0.5
@@ -74,6 +78,7 @@ UNIT_GATEID_MAP = {
 SITE_ID_ORDER = (
     5, 7, 6, 8,
 )
+
 
 # ======================= 处理逻辑 ======================= #
 
@@ -1667,10 +1672,12 @@ async def compose_mysekai_talk_list_image(
 pjsk_mysekai_res = SekaiCmdHandler([
     "/pjsk mysekai res", "/pjsk_mysekai_res", "/mysekai res", "/mysekai_res", 
     "/msr", "/mysekai资源", "/mysekai 资源",
-], regions=['jp'])
+], regions=MYSEKAI_REGIONS)
 pjsk_mysekai_res.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_res.handle()
 async def _(ctx: SekaiHandlerContext):
+    if ctx.region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(ctx.region, ctx.group_id): 
+        return
     await ctx.block_region(key=f"{ctx.user_id}", timeout=0, err_msg="正在处理你的msr查询，请稍候")
     args = ctx.get_args().strip()
     show_harvested = 'all' in args
@@ -1684,7 +1691,7 @@ async def _(ctx: SekaiHandlerContext):
 pjsk_mysekai_blueprint = SekaiCmdHandler([
     "/pjsk mysekai blueprint", "/pjsk_mysekai_blueprint", "/mysekai blueprint", "/mysekai_blueprint", 
     "/msb", "/mysekai蓝图", "/mysekai 蓝图"
-], regions=['jp'])
+], regions=MYSEKAI_REGIONS)
 pjsk_mysekai_blueprint.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_blueprint.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -1726,7 +1733,7 @@ pjsk_mysekai_furniture = SekaiCmdHandler([
     "/pjsk mysekai furniture", "/pjsk_mysekai_furniture", "/mysekai furniture", "/mysekai_furniture", 
     "/pjsk mysekai fixture", "/pjsk_mysekai_fixture", "/mysekai fixture", "/mysekai_fixture", 
     "/msf", "/mysekai家具", "/mysekai 家具"
-], regions=['jp'])
+], regions=MYSEKAI_REGIONS)
 pjsk_mysekai_furniture.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_furniture.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -1774,7 +1781,7 @@ pjsk_mysekai_photo = SekaiCmdHandler([
     "/pjsk mysekai photo", "/pjsk_mysekai_photo", "/mysekai photo", "/mysekai_photo",
     "/pjsk mysekai picture", "/pjsk_mysekai_picture", "/mysekai picture", "/mysekai_picture",
     "/msp", "/mysekai照片", "/mysekai 照片" 
-], regions=['jp'])
+], regions=MYSEKAI_REGIONS)
 pjsk_mysekai_photo.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_photo.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -1793,7 +1800,7 @@ pjsk_check_mysekai_data = SekaiCmdHandler([
     "/pjsk check mysekai data", "/pjsk_check_mysekai_data", 
     "/pjsk烤森抓包数据", "/pjsk烤森抓包", "/烤森抓包", "/烤森抓包数据",
     "/msd",
-])
+], regions=MYSEKAI_REGIONS)
 pjsk_check_mysekai_data.check_cdrate(cd).check_wblist(gbl)
 @pjsk_check_mysekai_data.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -1837,7 +1844,7 @@ async def _(ctx: SekaiHandlerContext):
 pjsk_mysekai_gate = SekaiCmdHandler([
     "/pjsk mysekai gate", "/pjsk_mysekai_gate", 
     "/msg",
-], regions=['jp'])
+], regions=MYSEKAI_REGIONS)
 pjsk_mysekai_gate.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_gate.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -1864,7 +1871,7 @@ async def _(ctx: SekaiHandlerContext):
 pjsk_mysekai_musicrecord = SekaiCmdHandler([
     "/pjsk mysekai musicrecord", "/pjsk_mysekai_musicrecord",
     "/msm", "/mss",
-])
+], regions=MYSEKAI_REGIONS)
 pjsk_mysekai_musicrecord.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_musicrecord.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -1938,6 +1945,8 @@ async def msr_auto_push():
                 
         for qid, gid in msr_sub.get_all_gid_uid(region):
             if not gbl.check_id(gid): continue
+            if region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(region, gid): continue
+
             ctx.user_id = qid
             qid = str(qid)
 

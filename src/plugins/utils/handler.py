@@ -1195,9 +1195,9 @@ class GroupBlackList:
         self.off_func = off_func
 
         # 关闭命令
-        switch_on = CmdHandler([f'/{name} on'], utils_logger, help_command='/{服务名} on')
-        switch_on.check_superuser(superuser)
-        @switch_on.handle()
+        switch_off = CmdHandler([f'/{name} off'], utils_logger, help_command='/{服务名} off')
+        switch_off.check_superuser(superuser)
+        @switch_off.handle()
         async def _(ctx: HandlerContext):
             group_id = ctx.group_id
             black_list = db.get(self.black_list_name, [])
@@ -1210,9 +1210,9 @@ class GroupBlackList:
             return await ctx.asend_reply_msg(f'{name}已关闭')
         
         # 开启命令
-        switch_off = CmdHandler([f'/{name} off'], utils_logger, help_command='/{服务名} off')
-        switch_off.check_superuser(superuser)
-        @switch_off.handle()
+        switch_on = CmdHandler([f'/{name} on'], utils_logger, help_command='/{服务名} on')
+        switch_on.check_superuser(superuser)
+        @switch_on.handle()
         async def _(ctx: HandlerContext):
             group_id = ctx.group_id
             black_list = db.get(self.black_list_name, [])

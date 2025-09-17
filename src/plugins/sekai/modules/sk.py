@@ -88,7 +88,7 @@ async def extract_wl_event(ctx: SekaiHandlerContext, args: str) -> Tuple[dict, s
     else:
         event = await get_current_event(ctx, fallback="prev")
         chapters = await ctx.md.world_blooms.find_by('eventId', event['id'], mode='all')
-        assert_and_reply(chapters, f"当期活动{ctx.region}_{event['id']}并不是WorldLink活动")
+        assert_and_reply(chapters, f"当期活动{ctx.region.upper()}-{event['id']}并不是WorldLink活动")
 
         # 通过"wl序号"查询章节
         def query_by_seq() -> Tuple[Optional[int], Optional[str]]:
@@ -105,7 +105,7 @@ async def extract_wl_event(ctx: SekaiHandlerContext, args: str) -> Tuple[dict, s
                     for carg in (f"wl{nickname}", f"-c {nickname}", f"{nickname}"):
                         if carg in args:
                             chapter = find_by(chapters, "gameCharacterId", item.id)
-                            assert_and_reply(chapter, f"当期活动{ctx.region}_{event['id']}并没有角色{nickname}的章节")
+                            assert_and_reply(chapter, f"当期活动{ctx.region.upper()}-{event['id']}并没有角色{nickname}的章节")
                             chapter_id = chapter['chapterNo']
                             return chapter_id, carg
             return None, None

@@ -246,10 +246,10 @@ class ChatSession:
                             result += part
                         elif isinstance(part, Image.Image):
                             images.append(part)
-                        result_list = resp_content
+                    result_list = resp_content
                 # 额外的图像内容
                 for item in message.get('images', []):
-                    img = item['image_url']['url']
+                    img = b64_to_image(item['image_url']['url'])
                     images.append(img)
                     result_list.append(img)
 
