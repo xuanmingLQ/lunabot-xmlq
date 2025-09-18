@@ -688,7 +688,7 @@ async def get_skill_info(ctx: SekaiHandlerContext, sid: int, card: dict):
 async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
     card = await ctx.md.cards.find_by_id(card_id)
     assert_and_reply(card, f"卡牌ID={card_id}不存在")
-    need_trans = (ctx.region not in ['cn', 'tw'])
+    need_trans = ctx.region in NEED_TRANSLATE_REGIONS
 
     # ----------------------- 数据收集 ----------------------- #
     # 基础信息

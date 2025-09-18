@@ -1001,7 +1001,7 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
 
     ## 获取基本信息
     fname = fixture['name']
-    translated_name = await translate_text(fname, additional_info="要翻译的内容是家具/摆设的名字")
+    translated_name = await translate_text(fname, additional_info="要翻译的内容是家具/摆设的名字") if ctx.region in NEED_TRANSLATE_REGIONS else None
     fsize = fixture['gridSize']
     is_assemble = fixture.get('isAssembled', False)
     is_disassembled = fixture.get('isDisassembled', False)
