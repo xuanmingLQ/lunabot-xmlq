@@ -972,6 +972,9 @@ async def load_mysekairun_data(ctx: SekaiHandlerContext):
 
 # 获取mysekai家具好友码，返回（好友码，来源）
 async def get_mysekai_fixture_friend_codes(ctx: SekaiHandlerContext, fid: int) -> Tuple[List[str], str]:
+    if ctx.region not in ['jp']:
+        return [], ""
+
     fixture = await ctx.md.mysekai_fixtures.find_by_id(fid)
     assert_and_reply(fixture, f"家具{fid}不存在")
 
@@ -1001,7 +1004,17 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
 
     ## 获取基本信息
     fname = fixture['name']
-    translated_name = await translate_text(fname, additional_info="要翻译的内容是家具/摆设的名字") if ctx.region in NEED_TRANSLATE_REGIONS else None
+
+    translated_name = None
+    if ctx.region in NEED_TRANSLATE_REGIONS:
+        for r in TRANSLATED_REGIONS:
+            if r in MYSEKAI_REGIONS:
+                if f := await SekaiHandlerContext.from_region(r).md.mysekai_fixtures.find_by_id(fid):
+                    translated_name = f['name']
+                    break
+        if not translated_name:
+            translated_name = await translate_text(fname, additional_info="要翻译的内容是家具/摆设的名字")
+
     fsize = fixture['gridSize']
     is_assemble = fixture.get('isAssembled', False)
     is_disassembled = fixture.get('isDisassembled', False)
@@ -1152,7 +1165,7 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
                 TextBox(tag_text, TextStyle(font=DEFAULT_FONT, size=18, color=(100, 100, 100)), line_count=10, use_real_line_count=True).set_w(w)
 
         # 抄写好友码
-        if friendcodes:
+        if friendcodes and is_sketchable:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(12).set_bg(roundrect_bg()):
                 with HSplit().set_content_align('lb').set_item_align('lb').set_sep(8).set_w(w):
                     TextBox("抄写蓝图可前往", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 50, 50)))

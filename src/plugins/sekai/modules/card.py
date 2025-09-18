@@ -688,7 +688,6 @@ async def get_skill_info(ctx: SekaiHandlerContext, sid: int, card: dict):
 async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
     card = await ctx.md.cards.find_by_id(card_id)
     assert_and_reply(card, f"卡牌ID={card_id}不存在")
-    need_trans = ctx.region in NEED_TRANSLATE_REGIONS
 
     # ----------------------- 数据收集 ----------------------- #
     # 基础信息
@@ -743,13 +742,32 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
     skill_info: SkillInfo = await get_skill_info(ctx, card['skillId'], card)
     skill_type_icon = ctx.static_imgs.get(f"skill_{skill_info.type}.png")
     skill_detail = skill_info.detail
-    skill_detail_cn: str = await translate_text(skill_detail, additional_info=SKILL_TRANS_PROMPT, default=None) if need_trans else None
+    skill_detail_cn: str = None
+    if ctx.region in NEED_TRANSLATE_REGIONS:
+        for r in TRANSLATED_REGIONS:
+            try:
+                skill_info = await get_skill_info(SekaiHandlerContext.from_region(r), card['skillId'], card)
+                skill_detail_cn = skill_info.detail
+                break
+            except:
+                pass
+        if not skill_detail_cn:
+            skill_detail_cn = await translate_text(skill_detail, additional_info=SKILL_TRANS_PROMPT, default=None)
     if 'specialTrainingSkillId' in card:
         sp_skill_name = card['specialTrainingSkillName']
         sp_skill_info = await get_skill_info(ctx, card['specialTrainingSkillId'], card)
         sp_skill_type_icon = ctx.static_imgs.get(f"skill_{sp_skill_info.type}.png")
         sp_skill_detail = sp_skill_info.detail
-        sp_skill_detail_cn: str = await translate_text(sp_skill_detail, additional_info=SKILL_TRANS_PROMPT, default=None) if need_trans else None
+        sp_skill_detail_cn: str = None
+        if ctx.region in NEED_TRANSLATE_REGIONS:
+            if r in TRANSLATED_REGIONS:
+                try:
+                    sp_skill_info = await get_skill_info(SekaiHandlerContext.from_region(r), card['specialTrainingSkillId'], card)
+                    sp_skill_detail_cn = sp_skill_info.detail
+                except:
+                    pass
+            if not sp_skill_detail_cn:
+                sp_skill_detail_cn = await translate_text(sp_skill_detail, additional_info=SKILL_TRANS_PROMPT, default=None)
 
     # 关联活动
     event_card = await ctx.md.event_cards.find_by("cardId", card_id)
@@ -863,7 +881,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
                             TextBox("技能", label_style)
                             ImageBox(skill_type_icon, size=(32, 32))
                             TextBox(skill_name, text_style).set_w(w - 24 * 2 - 32 - 16)
-                        TextBox(skill_info.detail, text_style, use_real_line_count=True).set_w(w)
+                        TextBox(skill_detail, text_style, use_real_line_count=True).set_w(w)
                         if skill_detail_cn:
                             TextBox(skill_detail_cn.removesuffix("。"), text_style, use_real_line_count=True).set_w(w)
 
@@ -874,7 +892,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
                                 TextBox("特训后技能", label_style)
                                 ImageBox(sp_skill_type_icon, size=(32, 32))
                                 TextBox(sp_skill_name, text_style).set_w(w - 24 * 5 - 32 - 16)
-                            TextBox(sp_skill_info.detail, text_style, use_real_line_count=True).set_w(w)
+                            TextBox(sp_skill_detail, text_style, use_real_line_count=True).set_w(w)
                             if sp_skill_detail_cn:
                                 TextBox(sp_skill_detail_cn.removesuffix("。"), text_style, use_real_line_count=True).set_w(w)
 
