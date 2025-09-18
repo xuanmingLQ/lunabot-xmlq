@@ -824,16 +824,20 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
 # 合成活动记录图片
 async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
     profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True)
-    avatar_info = await get_player_avatar_info_by_detailed_profile(ctx, profile)
-    user_events: List[Dict[str, Any]] = profile['userEvents']
-    assert_and_reply(user_events, "找不到你的活动记录，可能是未参加过活动，或数据来源未提供userEvents字段")
-
+    user_events: List[Dict[str, Any]] = profile.get('userEvents', [])
     user_worldblooms: List[Dict[str, Any]] = profile.get('userWorldBlooms', [])
     for item in user_worldblooms:
         item['eventPoint'] = item['worldBloomChapterPoint']
 
+    assert_and_reply(user_events or user_worldblooms, "找不到你的活动记录，可能是未参加过活动，或数据来源未提供userEvents字段")
+
+    style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50))
+    style2 = TextStyle(font=DEFAULT_FONT, size=16, color=(70, 70, 70))
+    style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(70, 70, 70))
+    style4 = TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 50, 50))
+    
     async def draw_events(name, user_events):
-        topk = 20
+        topk = 30
         if any('rank' in item for item in user_events):
             has_rank = True
             title = f"排名前{topk}的{name}记录"
@@ -860,11 +864,6 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
 
             th, sh, gh = 28, 40, 80
             with HSplit().set_padding(16).set_sep(16).set_item_align('lt').set_content_align('lt').set_bg(roundrect_bg()):
-                # 序号
-                with VSplit().set_padding(0).set_sep(sh).set_item_align('c').set_content_align('c'):
-                    Spacer(h=th)
-                    for item in user_events:
-                        TextBox(f"#{item['no']}", style1, overflow='clip').set_h(gh)
                 # 活动信息
                 with VSplit().set_padding(0).set_sep(sh).set_item_align('c').set_content_align('c'):
                     TextBox("活动", style1).set_h(th).set_content_align('c')
@@ -888,15 +887,11 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
                     TextBox("PT", style1).set_h(th).set_content_align('c')
                     for item in user_events:
                         TextBox(f"{item['eventPoint']}", style3, overflow='clip').set_h(gh).set_content_align('c')
-          
-    style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50))
-    style2 = TextStyle(font=DEFAULT_FONT, size=16, color=(70, 70, 70))
-    style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(70, 70, 70))
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
             await get_detailed_profile_card(ctx, profile, err_msg)
-
+            TextBox("每次上传时进行增量更新，未上传过的记录将会丢失", style4).set_bg(roundrect_bg()).set_padding(12)
             with HSplit().set_sep(16).set_item_align('lt').set_content_align('lt'):
                 if user_events:
                     await draw_events("活动", user_events)

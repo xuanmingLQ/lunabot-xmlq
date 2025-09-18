@@ -476,9 +476,14 @@ def load_json(file_path: str) -> dict:
     
 def dump_json(data: dict, file_path: str, indent: bool = True) -> None:
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with open(file_path, 'wb') as file:
+    # 首先保存到临时文件，保存成功后再替换原文件，避免写入过程中程序崩溃导致文件损坏
+    tmp_path = f"{file_path}.tmp"
+    with open(tmp_path, 'wb') as file:
         buffer = orjson.dumps(data, option=orjson.OPT_INDENT_2 if indent else 0)
         file.write(buffer)
+    os.replace(tmp_path, file_path)
+    try: os.remove(tmp_path)
+    except: pass
 
 def loads_json(s: str | bytes) -> dict:
     return orjson.loads(s)
