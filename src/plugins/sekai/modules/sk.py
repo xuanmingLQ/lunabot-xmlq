@@ -137,7 +137,7 @@ async def extract_wl_event(ctx: SekaiHandlerContext, args: str) -> Tuple[dict, s
         event['id'] = chapter_id * 1000 + event['id']
         event['startAt'] = chapter['chapterStartAt']
         event['aggregateAt'] = chapter['aggregateAt']
-        event['wl_cid'] = chapter['gameCharacterId']
+        event['wl_cid'] = chapter.get('gameCharacterId', None)
         args = args.replace(carg, "").replace("wl", "")
 
         logger.info(f"查询WL活动章节: chapter_arg={carg} wl_id={event['id']}")

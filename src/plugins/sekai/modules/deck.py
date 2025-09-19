@@ -146,10 +146,9 @@ async def extract_target_event(
     args: str,
     need_event_prefix: bool,
 ) -> Tuple[dict, Optional[int], str]:
-    # TODO 终章临时设置
-    for keyword in ('180', '终章', 'event180'):
+    for keyword in ('终章', ):
         if keyword in args:
-            return ({ 'id': 180 }, None, args.replace(keyword, "").strip())
+            args = args.replace(keyword, "event180")
 
     # 是否指定了活动id/章节id/角色昵称
     event_id, chapter_id, chapter_nickname = None, None, None
@@ -186,17 +185,24 @@ async def extract_target_event(
     if wl_events:
         if not chapter_id and not chapter_nickname:
             # 获取默认章节
-            if datetime.now() < datetime.fromtimestamp(event['startAt'] / 1000):
+            if len(wl_events) == 1:
+                # 只有一个章节就直接用
+                chapter = wl_events[0]
+            elif datetime.now() > datetime.fromtimestamp(event['aggregateAt'] / 1000):
+                # 活动已经结束，默认使用最后一个章节
+                wl_events.sort(key=lambda x: x['startAt'], reverse=True)
+                chapter = wl_events[0]
+            elif datetime.now() < datetime.fromtimestamp(event['startAt'] / 1000):
                 # 活动还没开始，默认使用第一个章节
                 wl_events.sort(key=lambda x: x['startAt'])
                 chapter = wl_events[0]
             else:
-                # 否则寻找 开始时间-1h <= 当前 <= 结束时间 的最晚的章节
+                # 否则寻找 开始时间 <= 当前 <= 结束时间 的最晚的章节
                 ok_chapters = []
                 for chapter in wl_events:
                     start_time = datetime.fromtimestamp(chapter['startAt'] / 1000)
                     end_time = datetime.fromtimestamp(chapter['aggregateAt'] / 1000 + 1)
-                    if start_time - timedelta(hours=1) <= datetime.now() <= end_time:
+                    if start_time <= datetime.now() <= end_time:
                         ok_chapters.append(chapter)
                 assert_and_reply(ok_chapters, f"请指定一个要查询的WL章节，例如\"event140 wl1\"或\"event140 miku\"")
                 ok_chapters.sort(key=lambda x: x['startAt'], reverse=True)
@@ -1204,14 +1210,10 @@ async def compose_deck_recommend_image(
     live_name = "协力"
     if recommend_type in ["event", "wl", "bonus", "wl_bonus"]:
         event = await ctx.md.events.find_by_id(options.event_id)
-        if event:
-            event_banner = await get_event_banner_img(ctx, event)
-            event_title = event['name']
-            if event['eventType'] == 'cheerful_carnival':
-                live_name = "5v5" 
-        else:
-            event_banner = None
-            event_title = "WorldLink终章" if options.event_id == 180 else "未知活动"
+        event_banner = await get_event_banner_img(ctx, event)
+        event_title = event['name']
+        if event['eventType'] == 'cheerful_carnival':
+            live_name = "5v5" 
 
     # 团队属性组卡指定5v5
     if recommend_type == "unit_attr" and options.event_type == "cheerful_carnival":
@@ -1226,7 +1228,7 @@ async def compose_deck_recommend_image(
 
     # 获取WL角色名字和头像
     wl_chara_name = None
-    if recommend_type in ["wl", "wl_bonus"]:
+    if recommend_type in ["wl", "wl_bonus"] and options.world_bloom_character_id:
         wl_chara = await ctx.md.game_characters.find_by_id(options.world_bloom_character_id)
         if wl_chara:
             wl_chara_name = wl_chara.get('firstName', '') + wl_chara.get('givenName', '')
@@ -1341,10 +1343,9 @@ async def compose_deck_recommend_image(
                         if recommend_type == "challenge":
                             ImageBox(chara_icon, size=(None, 50))
                             TextBox(f"{chara_name}", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(70, 70, 70)))
-                        if recommend_type in ["wl"]:
-                            if wl_chara_icon:
-                                ImageBox(wl_chara_icon, size=(None, 50))
-                                TextBox(f"{wl_chara_name} 章节", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(70, 70, 70)))
+                        if recommend_type in ["wl"] and wl_chara_name:
+                            ImageBox(wl_chara_icon, size=(None, 50))
+                            TextBox(f"{wl_chara_name} 章节", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(70, 70, 70)))
                         if recommend_type == "unit_attr":
                             ImageBox(unit_logo, size=(None, 60))
                             ImageBox(attr_icon, size=(None, 50))

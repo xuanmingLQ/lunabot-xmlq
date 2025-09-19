@@ -188,7 +188,7 @@ async def get_wl_chapter_cid(ctx: SekaiHandlerContext, wl_id: int) -> Optional[i
     assert_and_reply(chapters, f"活动{ctx.region.upper()}-{event_id}并不是WorldLink活动")
     chapter = find_by(chapters, "chapterNo", chapter_id)
     assert_and_reply(chapter, f"活动{ctx.region.upper()}-{event_id}并没有章节{chapter_id}")
-    cid = chapter['gameCharacterId']
+    cid = chapter.get('gameCharacterId', None)
     return cid
 
 # 获取event_id对应的所有wl_event（时间顺序），如果不是wl则返回空列表
@@ -203,7 +203,7 @@ async def get_wl_events(ctx: SekaiHandlerContext, event_id: int) -> List[dict]:
         wl_event['id'] = chapter['chapterNo'] * 1000 + event['id']
         wl_event['startAt'] = chapter['chapterStartAt']
         wl_event['aggregateAt'] = chapter['aggregateAt']
-        wl_event['wl_cid'] = chapter['gameCharacterId']
+        wl_event['wl_cid'] = chapter.get('gameCharacterId', None)
         wl_events.append(wl_event)
     return sorted(wl_events, key=lambda x: x['startAt'])
 
@@ -772,7 +772,7 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
                     progress = (datetime.now() - detail.start_time) / (detail.end_time - detail.start_time)
                     progress = min(max(progress, 0), 1)
                     progress_w, progress_h, border = 320, 8, 1
-                    if detail.etype == 'world_bloom':
+                    if detail.etype == 'world_bloom' and len(wl_chapters) > 1:
                         with Frame().set_padding(8).set_content_align('lt'):
                             Spacer(w=progress_w+border*2, h=progress_h+border*2).set_bg(RoundRectBg((75, 75, 75, 255), 4))
                             for i, chapter in enumerate(wl_chapters):
