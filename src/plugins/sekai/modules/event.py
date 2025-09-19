@@ -792,6 +792,7 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
                 if detail.event_cards:
                     with HSplit().set_padding(16).set_sep(16).set_item_align('c').set_content_align('c'):
                         TextBox("活动卡片", label_style)
+                        detail.event_cards = detail.event_cards[:8]
                         card_num = len(detail.event_cards)
                         if card_num <= 4: col_count = card_num
                         elif card_num <= 6: col_count = 3

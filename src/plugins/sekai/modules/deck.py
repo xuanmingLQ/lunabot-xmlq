@@ -1308,7 +1308,10 @@ async def compose_deck_recommend_image(
                         if recommend_type == "event":
                             title += "活动组卡"
                         elif recommend_type == "wl":
-                            title += f"WL活动组卡"
+                            if wl_chara_name:
+                                title += f"WL活动组卡"
+                            else:
+                                title += f"WL终章活动组卡"
                         elif recommend_type == "unit_attr":
                             title += f"指定团队&属性组卡"
                         elif recommend_type == "no_event":
