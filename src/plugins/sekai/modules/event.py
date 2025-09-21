@@ -828,7 +828,8 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
     user_events: List[Dict[str, Any]] = profile.get('userEvents', [])
     user_worldblooms: List[Dict[str, Any]] = profile.get('userWorldBlooms', [])
     for item in user_worldblooms:
-        item['eventPoint'] = item['worldBloomChapterPoint']
+        if 'worldBloomChapterPoint' in item:
+            item['eventPoint'] = item['worldBloomChapterPoint']
 
     assert_and_reply(user_events or user_worldblooms, "找不到你的活动记录，可能是未参加过活动，或数据来源未提供userEvents字段")
 
@@ -842,11 +843,13 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
         if any('rank' in item for item in user_events):
             has_rank = True
             title = f"排名前{topk}的{name}记录"
-            user_events.sort(key=lambda x: (x.get('rank', 1e9), -x['eventPoint']))
+            user_events.sort(key=lambda x: (x.get('rank', 1e9), -x.get('eventPoint', 0)))
         else:
             has_rank = False
             title = f"活动点数前{topk}的{name}记录"
             user_events.sort(key=lambda x: -x['eventPoint'])
+
+        user_events = [item for item in user_events if await ctx.md.events.find_by_id(item['eventId'])]
         user_events = user_events[:topk]
 
         for i, item in enumerate(user_events):
@@ -887,7 +890,7 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
                 with VSplit().set_padding(0).set_sep(sh).set_item_align('c').set_content_align('c'):
                     TextBox("PT", style1).set_h(th).set_content_align('c')
                     for item in user_events:
-                        TextBox(f"{item['eventPoint']}", style3, overflow='clip').set_h(gh).set_content_align('c')
+                        TextBox(f"{item.get('eventPoint', '-')}", style3, overflow='clip').set_h(gh).set_content_align('c')
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):

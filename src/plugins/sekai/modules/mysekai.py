@@ -37,7 +37,7 @@ MYSEKAI_HARVEST_MAP_SITE_BG_IMAGE_DOWNSAMPLE = 0.5
 
 MOST_RARE_MYSEKAI_RES = [
     "mysekai_material_5", "mysekai_material_12", "mysekai_material_20", "mysekai_material_24",
-    "mysekai_fixture_121", "material_17", "material_170",
+    "mysekai_fixture_121", "material_17", "material_170", "material_173",
 ]
 RARE_MYSEKAI_RES = [
     "mysekai_material_32", "mysekai_material_33", "mysekai_material_34", "mysekai_material_61", 
@@ -481,8 +481,8 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                 elif item['small_icon']:
                     call.outline = ((50, 50, 255, 100), 1)
 
-                # 稀有资源添加发光
-                if res_key in MOST_RARE_MYSEKAI_RES:
+                # 稀有资源（非活动道具）添加发光
+                if res_key in MOST_RARE_MYSEKAI_RES and not res_key.startswith("material"):
                     if item['small_icon']:
                         call.light_size = int(45 * scale * 3)
                     else:
@@ -1220,7 +1220,7 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
     if profile:
         gates = profile.get('userMysekaiGates', [])
         if not gates:
-            raise ReplyException("查询不到你的Mysekai门数据")
+            raise ReplyException("查询不到你的Mysekai门数据（需要上传Suite抓包数据）")
         for item in gates:
             gid = item['mysekaiGateId']
             lv = item['mysekaiGateLevel']
@@ -1700,7 +1700,7 @@ pjsk_mysekai_res.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_res.handle()
 async def _(ctx: SekaiHandlerContext):
     if ctx.region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(ctx.region, ctx.group_id): 
-        return
+        raise ReplyException(f"不支持{get_region_name(ctx.region)}的msr查询")
     await ctx.block_region(key=f"{ctx.user_id}", timeout=0, err_msg="正在处理你的msr查询，请稍候")
     args = ctx.get_args().strip()
     show_harvested = 'all' in args

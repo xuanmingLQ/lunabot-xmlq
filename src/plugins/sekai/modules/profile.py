@@ -970,7 +970,7 @@ async def _(ctx: SekaiHandlerContext):
             return region, user_name, None
         except Exception as e:
             logger.warning(f"在 {region} 服务器尝试绑定失败: {get_exc_desc(e)}")
-            return region, None, "内部错误"
+            return region, None, "内部错误，请稍后重试"
         
     check_results = await asyncio.gather(*[check_bind(region) for region in ALL_SERVER_REGIONS])
     check_results = [res for res in check_results if res]
