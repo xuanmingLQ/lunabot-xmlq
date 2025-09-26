@@ -925,18 +925,13 @@ async def get_mysekai_photo_and_time(ctx: SekaiHandlerContext, qid: int, seq: in
     assert_and_reply(seq <= len(photos), f"照片编号大于照片数量({len(photos)})")
     
     photo = photos[seq-1]
-    if ctx.region in ['cn', 'tw']:
-        photo_path = photo['seq']
-    else:
-        photo_path = photo['imagePath']
     photo_time = datetime.fromtimestamp(photo['obtainedAt'] / 1000)
 
     url = get_gameapi_config(ctx).mysekai_photo_api_url
     assert_and_reply(url, f"暂不支持查询 {ctx.region} 的MySekai照片")
-    url = url.format(photo_path=photo_path)
 
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, verify_ssl=False) as response:
+        async with session.get(url, json=photo, verify_ssl=False) as response:
             if response.status != 200:
                 raise Exception(f"下载失败: {response.status}")
             return Image.open(io.BytesIO(await response.read())), photo_time
