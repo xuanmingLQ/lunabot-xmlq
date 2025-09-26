@@ -540,9 +540,9 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     schedule = mysekai_info['mysekaiPhenomenaSchedules']
     phenom_imgs = []
     phenom_ids = []
-    phenom_texts = ["4:00", "16:00", "4:00", "16:00"]
+    h1, h2 = MYSEKAI_REFRESH_HOURS.get(ctx.region, (4, 16))
+    phenom_texts = [f"{h1}:00", f"{h2}:00", f"{h1}:00", f"{h2}:00"]
     for i, item in enumerate(schedule):
-        refresh_time = datetime.fromtimestamp(item['scheduleDate'] / 1000)
         phenom_id = item['mysekaiPhenomenaId']
         asset_name = (await ctx.md.mysekai_phenomenas.find_by_id(phenom_id))['iconAssetbundleName']
         phenom_imgs.append(await ctx.rip.img(f"mysekai/thumbnail/phenomena/{asset_name}.png"))
