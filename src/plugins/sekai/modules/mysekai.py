@@ -637,9 +637,16 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         bg = ImageBg(phenom_bg_img)
     except: 
         bg = SEKAI_BLUE_BG
+
+    def draw_watermark(size):
+        if ctx.region in BD_MYSEKAI_REGIONS:
+            TextBox("禁止将该图片转发到其他群聊或社交平台", 
+                    TextStyle(font=DEFAULT_BOLD_FONT, size=size, color=(50, 50, 50, 150)))
+            TextBox("禁止将该图片转发到其他群聊或社交平台", 
+                    TextStyle(font=DEFAULT_BOLD_FONT, size=size, color=(255, 255, 255, 150))).set_offset((2, 2))
     
     # 绘制数量图
-    with Canvas(bg=bg).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=bg).set_padding(BG_PADDING).set_content_align('c') as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
 
             with HSplit().set_sep(32).set_content_align('lb'):
@@ -703,12 +710,14 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                                     else:
                                         ImageBox(res_img, size=(40, 40), use_alphablend=True)
                                     TextBox(f"{res_quantity}", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=text_color)).set_w(80).set_content_align('l')
+        draw_watermark(30)
 
     # 绘制位置图
-    with Canvas(bg=phenom_bg).set_padding(BG_PADDING) as canvas2:
+    with Canvas(bg=phenom_bg).set_padding(BG_PADDING).set_content_align('c') as canvas2:
         with Grid(col_count=2, vertical=True).set_sep(16, 16).set_padding(0):
             for img in site_harvest_map_imgs:
                 ImageBox(img)
+        draw_watermark(60)
     
     add_watermark(canvas)
     add_watermark(canvas2, text=DEFAULT_WATERMARK + ", map view from MiddleRed")
