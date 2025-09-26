@@ -26,7 +26,7 @@ MYSEKAI_REFRESH_HOURS = {
     "tw": [5, 17],
 }
 
-MYSEKAI_REGIONS = ['jp', 'tw']
+MYSEKAI_REGIONS = ['jp', 'tw', 'cn']
 BD_MYSEKAI_REGIONS = ['cn', 'tw']
 
 bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", BD_MYSEKAI_REGIONS)
@@ -925,7 +925,10 @@ async def get_mysekai_photo_and_time(ctx: SekaiHandlerContext, qid: int, seq: in
     assert_and_reply(seq <= len(photos), f"照片编号大于照片数量({len(photos)})")
     
     photo = photos[seq-1]
-    photo_path = photo['imagePath']
+    if ctx.region in ['cn', 'tw']:
+        photo_path = photo['seq']
+    else:
+        photo_path = photo['imagePath']
     photo_time = datetime.fromtimestamp(photo['obtainedAt'] / 1000)
 
     url = get_gameapi_config(ctx).mysekai_photo_api_url

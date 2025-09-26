@@ -1338,11 +1338,12 @@ async def update_ranking():
                 region_failed[region] = True
             # WL单榜
             wl_events = await get_wl_events(ctx, eid)
-            for wl_event in wl_events:
-                if datetime.now() > datetime.fromtimestamp(wl_event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END):
-                    continue
-                if not await update_board(ctx, wl_event['id'], data):
-                    region_failed[region] = True
+            if wl_events and len(wl_events) > 1:
+                for wl_event in wl_events:
+                    if datetime.now() > datetime.fromtimestamp(wl_event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END):
+                        continue
+                    if not await update_board(ctx, wl_event['id'], data):
+                        region_failed[region] = True
         
         # 更新失败次数和日志
         for region in ALL_SERVER_REGIONS:
