@@ -345,7 +345,7 @@ async def get_image_cq(
                 save_transparent_gif(gif_to_frames(image), get_gif_duration(image), tmp_path)
             elif ext == 'jpg':
                 image = image.convert('RGB')
-                image.save(tmp_path, format='JPEG', quality=quality, optimize=True, subsampling=1, progressive=True)
+                image.save(tmp_path, format='JPEG', quality=quality, optimize=True, subsampling=2, progressive=False)
             else:
                 image.save(tmp_path)
             

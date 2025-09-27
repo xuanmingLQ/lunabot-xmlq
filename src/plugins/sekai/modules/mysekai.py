@@ -725,8 +725,9 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                 ImageBox(img)
         draw_watermark(60)
     
-    add_watermark(canvas)
-    add_watermark(canvas2, text=DEFAULT_WATERMARK + ", map view from MiddleRed")
+    if ctx.region not in BD_MYSEKAI_REGIONS:
+        add_watermark(canvas)
+        add_watermark(canvas2, text=DEFAULT_WATERMARK + ", map view from MiddleRed")
 
     with Timer("msr:get_imgs", logger):
         return await asyncio.gather(canvas.get_img(), canvas2.get_img())
@@ -1701,6 +1702,7 @@ async def compose_mysekai_talk_list_image(
                 if not has_multi:
                     TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(8)
 
+    add_watermark(canvas)
     return await canvas.get_img()
 
 

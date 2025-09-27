@@ -26,7 +26,7 @@ from .process_pool import *
 
 
 def debug_print(*args, **kwargs):
-    if global_config.get('debug.painter', False):
+    if global_config.get('painter.debug', False):
         print(*args, **kwargs, flush=True)
 
 def get_memo_usage():
