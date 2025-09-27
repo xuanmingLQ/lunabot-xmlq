@@ -852,72 +852,73 @@ async def do_deck_recommend(
     options: DeckRecommendOptions,
 ) -> Tuple[DeckRecommendResult, List[str], Dict[str, Tuple[timedelta, timedelta]]]:
     # 检查数据更新
-    async with data_update_lock:
-        global last_deck_recommend_masterdata_version
-        global last_deck_recommend_masterdata_update_time
-        global last_deck_recommend_musicmetas_update_time
-        
-        # 更新masterdata
-        if last_deck_recommend_masterdata_version.get(ctx.region) != await ctx.md.get_version():
-            logger.info(f"重新加载本地自动组卡 {ctx.region} masterdata")
-            # 确保所有masterdata就绪
-            mds = [
-                ctx.md.area_item_levels.get(),
-                ctx.md.area_items.get(),
-                ctx.md.areas.get(),
-                ctx.md.card_episodes.get(),
-                ctx.md.cards.get(),
-                ctx.md.card_rarities.get(),
-                ctx.md.character_ranks.get(),
-                ctx.md.event_cards.get(),
-                ctx.md.event_deck_bonuses.get(),
-                ctx.md.event_exchange_summaries.get(),
-                ctx.md.events.get(),
-                ctx.md.event_items.get(),
-                ctx.md.event_rarity_bonus_rates.get(),
-                ctx.md.game_characters.get(),
-                ctx.md.game_character_units.get(),
-                ctx.md.honors.get(),
-                ctx.md.master_lessons.get(),
-                ctx.md.music_diffs.get(),
-                ctx.md.musics.get(),
-                ctx.md.music_vocals.get(),
-                ctx.md.shop_items.get(),
-                ctx.md.skills.get(),
-                ctx.md.world_bloom_different_attribute_bonuses.get(),
-                ctx.md.world_blooms.get(),
-                ctx.md.world_bloom_support_deck_bonuses.get(),
-            ]
-            if ctx.region in MYSEKAI_REGIONS:
-                mds += [
-                    ctx.md.world_bloom_support_deck_unit_event_limited_bonuses.get(),
-                    ctx.md.card_mysekai_canvas_bonuses.get(),
-                    ctx.md.mysekai_fixture_game_character_groups.get(),
-                    ctx.md.mysekai_fixture_game_character_group_performance_bonuses.get(),
-                    ctx.md.mysekai_gates.get(),
-                    ctx.md.mysekai_gate_levels.get(),
+    with Timer("deckrec:checkupdate", logger):
+        async with data_update_lock:
+            global last_deck_recommend_masterdata_version
+            global last_deck_recommend_masterdata_update_time
+            global last_deck_recommend_musicmetas_update_time
+            
+            # 更新masterdata
+            if last_deck_recommend_masterdata_version.get(ctx.region) != await ctx.md.get_version():
+                logger.info(f"重新加载本地自动组卡 {ctx.region} masterdata")
+                # 确保所有masterdata就绪
+                mds = [
+                    ctx.md.area_item_levels.get(),
+                    ctx.md.area_items.get(),
+                    ctx.md.areas.get(),
+                    ctx.md.card_episodes.get(),
+                    ctx.md.cards.get(),
+                    ctx.md.card_rarities.get(),
+                    ctx.md.character_ranks.get(),
+                    ctx.md.event_cards.get(),
+                    ctx.md.event_deck_bonuses.get(),
+                    ctx.md.event_exchange_summaries.get(),
+                    ctx.md.events.get(),
+                    ctx.md.event_items.get(),
+                    ctx.md.event_rarity_bonus_rates.get(),
+                    ctx.md.game_characters.get(),
+                    ctx.md.game_character_units.get(),
+                    ctx.md.honors.get(),
+                    ctx.md.master_lessons.get(),
+                    ctx.md.music_diffs.get(),
+                    ctx.md.musics.get(),
+                    ctx.md.music_vocals.get(),
+                    ctx.md.shop_items.get(),
+                    ctx.md.skills.get(),
+                    ctx.md.world_bloom_different_attribute_bonuses.get(),
+                    ctx.md.world_blooms.get(),
+                    ctx.md.world_bloom_support_deck_bonuses.get(),
                 ]
-            await asyncio.gather(*mds)
-            last_deck_recommend_masterdata_version[ctx.region] = await ctx.md.get_version()
-            last_deck_recommend_masterdata_update_time[ctx.region] = datetime.now()
+                if ctx.region in MYSEKAI_REGIONS:
+                    mds += [
+                        ctx.md.world_bloom_support_deck_unit_event_limited_bonuses.get(),
+                        ctx.md.card_mysekai_canvas_bonuses.get(),
+                        ctx.md.mysekai_fixture_game_character_groups.get(),
+                        ctx.md.mysekai_fixture_game_character_group_performance_bonuses.get(),
+                        ctx.md.mysekai_gates.get(),
+                        ctx.md.mysekai_gate_levels.get(),
+                    ]
+                await asyncio.gather(*mds)
+                last_deck_recommend_masterdata_version[ctx.region] = await ctx.md.get_version()
+                last_deck_recommend_masterdata_update_time[ctx.region] = datetime.now()
 
-        # 更新musicmetas
-        if last_deck_recommend_musicmetas_update_time.get(ctx.region) is None \
-            or datetime.now() - last_deck_recommend_musicmetas_update_time[ctx.region] > DECK_RECOMMEND_MUSICMETAS_UPDATE_INTERVAL:
-            logger.info(f"重新加载本地自动组卡 {ctx.region} musicmetas")
-            try:
-                # 尝试从网络下载
-                musicmetas = await musicmetas_json.get()
-                musicmetas = add_omakase_music(musicmetas)
-                await adump_json(musicmetas, MUSICMETAS_SAVE_PATH)
-            except Exception as e:
-                logger.warning(f"下载music_metas.json失败: {get_exc_desc(e)}")
-                if os.path.exists(MUSICMETAS_SAVE_PATH):
-                    # 使用本地缓存
-                    logger.info(f"使用本地缓存music_metas.json")
-                else:
-                    raise ReplyException(f"获取music_metas.json失败: {get_exc_desc(e)}")
-            last_deck_recommend_musicmetas_update_time[ctx.region] = datetime.now()
+            # 更新musicmetas
+            if last_deck_recommend_musicmetas_update_time.get(ctx.region) is None \
+                or datetime.now() - last_deck_recommend_musicmetas_update_time[ctx.region] > DECK_RECOMMEND_MUSICMETAS_UPDATE_INTERVAL:
+                logger.info(f"重新加载本地自动组卡 {ctx.region} musicmetas")
+                try:
+                    # 尝试从网络下载
+                    musicmetas = await musicmetas_json.get()
+                    musicmetas = add_omakase_music(musicmetas)
+                    await adump_json(musicmetas, MUSICMETAS_SAVE_PATH)
+                except Exception as e:
+                    logger.warning(f"下载music_metas.json失败: {get_exc_desc(e)}")
+                    if os.path.exists(MUSICMETAS_SAVE_PATH):
+                        # 使用本地缓存
+                        logger.info(f"使用本地缓存music_metas.json")
+                    else:
+                        raise ReplyException(f"获取music_metas.json失败: {get_exc_desc(e)}")
+                last_deck_recommend_musicmetas_update_time[ctx.region] = datetime.now()
 
     # 算法选择
     if options.algorithm == "all": 
@@ -951,7 +952,8 @@ async def do_deck_recommend(
         opt = DeckRecommendOptions(options)
         opt.algorithm = alg
         futs.append(request_recommend(opt))
-    results: List[dict] = await asyncio.gather(*futs)
+    with Timer("deckrec:request", logger):
+        results: List[dict] = await asyncio.gather(*futs)
 
     # 结果排序去重
     decks: List[RecommendDeck] = []
@@ -1121,8 +1123,9 @@ async def compose_deck_recommend_image(
         uid = None
     else:
         # 用户信息
-        profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True, ignore_hide=True)
-        uid = profile['userGamedata']['userId']
+        with Timer("deckrec:get_detailed_profile", logger):
+            profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True, ignore_hide=True)
+            uid = profile['userGamedata']['userId']
 
     original_usercards = profile['userCards']
     # 组合卡牌过滤
@@ -1160,7 +1163,9 @@ async def compose_deck_recommend_image(
 
     # 准备用户数据
     with TempFilePath("json") as userdata_path:
-        await adump_json(profile, userdata_path)
+        with Timer("deckrec:dump_profile", logger):
+            await adump_json(profile, userdata_path)
+
         options.region = ctx.region
         options.user_data_file_path = userdata_path
         log_options(ctx, uid, options)
@@ -1534,7 +1539,9 @@ async def compose_deck_recommend_image(
                     TextBox(f"若发现组卡漏掉最优解可指定固定卡牌再尝试，发送\"{ctx.original_trigger_cmd}help\"获取详细帮助", tip_style)
 
     add_watermark(canvas)
-    return await canvas.get_img()
+
+    with Timer("deckrec:draw", logger):
+        return await canvas.get_img()
 
 
 # ======================= 指令处理 ======================= #
@@ -1547,13 +1554,14 @@ pjsk_event_deck = SekaiCmdHandler([
 pjsk_event_deck.check_cdrate(cd).check_wblist(gbl)
 @pjsk_event_deck.handle()
 async def _(ctx: SekaiHandlerContext):
-    return await ctx.asend_reply_msg(await get_image_cq(
-        await compose_deck_recommend_image(
-            ctx, ctx.user_id, 
-            **(await extract_event_options(ctx, ctx.get_args()))
-        ),
-        low_quality=True,
-    ))
+    with Timer("deckrec", logger):
+        return await ctx.asend_reply_msg(await get_image_cq(
+            await compose_deck_recommend_image(
+                ctx, ctx.user_id, 
+                **(await extract_event_options(ctx, ctx.get_args()))
+            ),
+            low_quality=True,
+        ))
 
 
 # 挑战组卡

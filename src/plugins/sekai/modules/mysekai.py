@@ -95,7 +95,7 @@ async def get_chara_icon_by_chara_unit_id(ctx: SekaiHandlerContext, cuid: int) -
     return get_chara_icon_by_chara_id(cid=cu['gameCharacterId'], unit=cu['unit'])
 
 # 获取玩家mysekai抓包数据 返回 (mysekai_info, err_msg)
-async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, mode=None) -> Tuple[dict, str]:
+async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, mode=None, upload_time_only=False) -> Tuple[dict, str]:
     cache_path = None
     try:
         # 获取绑定的玩家id
@@ -115,7 +115,10 @@ async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, 
 
         # 尝试下载
         try:
-            mysekai_info = await download_json(url.format(uid=uid) + f"?mode={mode}")
+            url = url.format(uid=uid) + f"?mode={mode}"
+            if upload_time_only:
+                url += "&filter=upload_time"
+            mysekai_info = await download_json(url)
         except HttpError as e:
             logger.info(f"获取 {qid} mysekai抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
@@ -135,9 +138,10 @@ async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, 
             logger.info(f"获取 {qid} mysekai抓包数据失败: 找不到ID为 {uid} 的玩家")
             raise ReplyException(f"找不到ID为 {uid} 的玩家")
         
-        # 缓存数据
+        # 缓存数据（目前已不缓存）
         cache_path = f"{SEKAI_PROFILE_DIR}/mysekai_cache/{ctx.region}/{uid}.json"
-        # dump_json(mysekai_info, cache_path)
+        # if not upload_time_only:
+        #     dump_json(mysekai_info, cache_path)
         logger.info(f"获取 {qid} mysekai抓包数据成功，数据已缓存")
 
     except Exception as e:
@@ -525,9 +529,12 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
 
 # 合成mysekai资源图片 返回图片列表
 async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_harvested: bool, check_time: bool) -> List[Image.Image]:
-    uid = get_player_bind_id(ctx, qid)
-    basic_profile = await get_basic_profile(ctx, uid)
-    mysekai_info, pmsg = await get_mysekai_info(ctx, qid, raise_exc=True)
+    with Timer("msr:get_basic_profile", logger):
+        uid = get_player_bind_id(ctx, qid)
+        basic_profile = await get_basic_profile(ctx, uid)
+
+    with Timer("msr:get_mysekai_info", logger):
+        mysekai_info, pmsg = await get_mysekai_info(ctx, qid, raise_exc=True)
 
     upload_time = datetime.fromtimestamp(mysekai_info['upload_time'] / 1000)
     if upload_time < get_mysekai_last_refresh_time(ctx) and check_time:
@@ -623,15 +630,14 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         site_res_num[i] = (site_id, sorted(list(res_num.items()), key=get_res_order))
 
     # 绘制资源位置图
-    t = datetime.now()
-    for i in range(len(site_res_num)):
-        site_id, res_num = site_res_num[i]
-        site_harvest_map = find_by(harvest_maps, "mysekaiSiteId", site_id)
-        if site_harvest_map:
-            site_harvest_map_imgs.append(compose_mysekai_harvest_map_image(ctx, site_harvest_map, show_harvested, phenom_color_info))
-    site_harvest_map_imgs = await asyncio.gather(*site_harvest_map_imgs)
-    # logger.info(f"合成资源位置图耗时: {datetime.now() - t}")
-    
+    with Timer("msr:compose_harvest_map", logger):
+        for i in range(len(site_res_num)):
+            site_id, res_num = site_res_num[i]
+            site_harvest_map = find_by(harvest_maps, "mysekaiSiteId", site_id)
+            if site_harvest_map:
+                site_harvest_map_imgs.append(compose_mysekai_harvest_map_image(ctx, site_harvest_map, show_harvested, phenom_color_info))
+        site_harvest_map_imgs = await asyncio.gather(*site_harvest_map_imgs)
+   
     try: 
         phenom_bg_img = ctx.static_imgs.get(f"mysekai/phenom_bg/{cur_phenom_id}.png")
         bg = ImageBg(phenom_bg_img)
@@ -721,7 +727,9 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     
     add_watermark(canvas)
     add_watermark(canvas2, text=DEFAULT_WATERMARK + ", map view from MiddleRed")
-    return await asyncio.gather(canvas.get_img(), canvas2.get_img())
+
+    with Timer("msr:get_imgs", logger):
+        return await asyncio.gather(canvas.get_img(), canvas2.get_img())
 
 # 获取mysekai家具类别的名称和图片
 async def get_mysekai_fixture_genre_name_and_image(ctx: SekaiHandlerContext, gid: int, is_main_genre: bool) -> Tuple[str, Image.Image]:
@@ -1706,15 +1714,16 @@ pjsk_mysekai_res = SekaiCmdHandler([
 pjsk_mysekai_res.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_res.handle()
 async def _(ctx: SekaiHandlerContext):
-    if ctx.region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(ctx.region, ctx.group_id): 
-        raise ReplyException(f"不支持{get_region_name(ctx.region)}的msr查询")
-    await ctx.block_region(key=f"{ctx.user_id}", timeout=0, err_msg="正在处理你的msr查询，请稍候")
-    args = ctx.get_args().strip()
-    show_harvested = 'all' in args
-    check_time = not 'force' in args
-    imgs = await compose_mysekai_res_image(ctx, ctx.user_id, show_harvested, check_time)
-    imgs = [await get_image_cq(img, low_quality=True) for img in imgs]
-    await ctx.asend_reply_msg("".join(imgs))
+    with Timer("msr", logger):
+        if ctx.region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(ctx.region, ctx.group_id): 
+            raise ReplyException(f"不支持{get_region_name(ctx.region)}的msr查询")
+        await ctx.block_region(key=f"{ctx.user_id}", timeout=0, err_msg="正在处理你的msr查询，请稍候")
+        args = ctx.get_args().strip()
+        show_harvested = 'all' in args
+        check_time = not 'force' in args
+        imgs = await compose_mysekai_res_image(ctx, ctx.user_id, show_harvested, check_time)
+        imgs = [await get_image_cq(img, low_quality=True) for img in imgs]
+        await ctx.asend_reply_msg("".join(imgs))
 
 
 # 查询mysekai蓝图
@@ -1838,8 +1847,8 @@ async def _(ctx: SekaiHandlerContext):
     uid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
     nickname = await get_group_member_name(ctx.bot, ctx.group_id, uid)
 
-    task1 = get_mysekai_info(ctx, uid, raise_exc=False, mode="local")
-    task2 = get_mysekai_info(ctx, uid, raise_exc=False, mode="haruki")
+    task1 = get_mysekai_info(ctx, uid, raise_exc=False, mode="local", upload_time_only=True)
+    task2 = get_mysekai_info(ctx, uid, raise_exc=False, mode="haruki", upload_time_only=True)
     (local_profile, local_err), (haruki_profile, haruki_err) = await asyncio.gather(task1, task2)
 
     msg = f"@{nickname} 的{get_region_name(ctx.region)}Mysekai抓包数据状态\n"

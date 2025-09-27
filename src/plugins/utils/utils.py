@@ -22,6 +22,7 @@ import io
 import time
 from .config import *
 
+
 # ============================ 基础 ============================ #
 
 class HttpError(Exception):
@@ -39,11 +40,12 @@ def get_exc_desc(e: Exception) -> str:
     else: return et + e
 
 class Timer:
-    def __init__(self, name: str = None, logger: 'Logger' = None):
+    def __init__(self, name: str = None, logger: 'Logger' = None, debug: bool = True):
         self.name = name
         self.logger = logger
         self.start_time = None
         self.end_time = None
+        self.debug = debug
 
     def get(self) -> float:
         if self.start_time is None:
@@ -59,7 +61,10 @@ class Timer:
     def end(self):
         self.end_time = datetime.now()
         if self.logger:
-            self.logger.info(f"{self.name} 耗时 {self.get():.2f}秒")
+            if self.debug:
+                self.logger.debug(f"{self.name} 耗时 {self.get():.2f}秒")
+            else:
+                self.logger.info(f"{self.name} 耗时 {self.get():.2f}秒")
 
     def __enter__(self):
         self.start()

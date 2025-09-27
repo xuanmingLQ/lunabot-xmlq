@@ -283,7 +283,14 @@ def process_hide_uid(ctx: SekaiHandlerContext, uid: int, keep: int=0) -> bool:
     return uid
 
 # 根据获取玩家详细信息，返回(profile, err_msg)
-async def get_detailed_profile(ctx: SekaiHandlerContext, qid: int, raise_exc=False, mode=None, ignore_hide=False) -> Tuple[dict, str]:
+async def get_detailed_profile(
+    ctx: SekaiHandlerContext, 
+    qid: int, 
+    raise_exc=False, 
+    mode=None, 
+    ignore_hide=False, 
+    upload_time_only=False,
+) -> Tuple[dict, str]:
     cache_path = None
     try:
         # 获取绑定的游戏id
@@ -308,7 +315,10 @@ async def get_detailed_profile(ctx: SekaiHandlerContext, qid: int, raise_exc=Fal
 
         # 尝试下载
         try:   
-            profile = await download_json(url.format(uid=uid) + f"?mode={mode}")
+            url = url.format(uid=uid) + f"?mode={mode}"
+            if upload_time_only:
+                url += "&filter=upload_time"
+            profile = await download_json(url)
         except HttpError as e:
             logger.info(f"获取 {qid} 抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
@@ -328,9 +338,10 @@ async def get_detailed_profile(ctx: SekaiHandlerContext, qid: int, raise_exc=Fal
             logger.info(f"获取 {qid} 抓包数据失败: 找不到ID为 {uid} 的玩家")
             raise ReplyException(f"找不到ID为 {uid} 的玩家")
         
-        # 缓存数据
+        # 缓存数据（目前已不缓存）
         cache_path = f"{SEKAI_PROFILE_DIR}/suite_cache/{ctx.region}/{uid}.json"
-        # dump_json(profile, cache_path)
+        # if not upload_time_only:
+        #     dump_json(profile, cache_path)
         logger.info(f"获取 {qid} 抓包数据成功，数据已缓存")
         
     except Exception as e:
@@ -1212,8 +1223,8 @@ async def _(ctx: SekaiHandlerContext):
     qid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
     nickname = await get_group_member_name(ctx.bot, ctx.group_id, qid)
     
-    task1 = get_detailed_profile(ctx, qid, raise_exc=False, mode="local")
-    task2 = get_detailed_profile(ctx, qid, raise_exc=False, mode="haruki")
+    task1 = get_detailed_profile(ctx, qid, raise_exc=False, mode="local", upload_time_only=True)
+    task2 = get_detailed_profile(ctx, qid, raise_exc=False, mode="haruki", upload_time_only=True)
     (local_profile, local_err), (haruki_profile, haruki_err) = await asyncio.gather(task1, task2)
 
     msg = f"@{nickname} 的{get_region_name(ctx.region)}Suite抓包数据状态\n"
