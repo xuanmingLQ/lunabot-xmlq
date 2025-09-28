@@ -1359,7 +1359,7 @@ async def compose_deck_recommend_image(
                             ImageBox(attr_icon, size=(None, 50))
                         
                         if use_max_profile:
-                            TextBox("(顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
+                            TextBox(f"({get_region_name(ctx.region)}顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
 
                     if any([unit_filter, attr_filter, excluded_cards]):
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(16):

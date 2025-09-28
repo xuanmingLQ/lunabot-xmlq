@@ -472,6 +472,9 @@ def get_float_str(value: float, precision: int = 2, remove_zero: bool = True) ->
         ret = ret.rstrip('0').rstrip('.')
     return ret
 
+def get_date_str() -> str:
+    return datetime.now().strftime("%Y-%m-%d")
+
 
 # ============================ 文件 ============================ #
 

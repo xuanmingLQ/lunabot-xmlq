@@ -2,6 +2,8 @@ debug: false
 
 blurglass: true
 
+daily_bind_limit: 3
+
 profile_bg_image_size: 
   horizontal: [1300, 650]
   vertical: [720, 1280]
@@ -29,9 +31,9 @@ deck:
   default_algs: ['dfs', 'ga']
   timeout:
     default: 5
-    no_event: 10
+    no_event: 5
     single_alg: 60
-    bonus_target: 20
+    bonus_target: 10
 
 gacha:
   list_page_size: 100

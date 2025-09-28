@@ -11,6 +11,7 @@ SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
 profile_db = get_file_db(f"{SEKAI_PROFILE_DIR}/db.json", logger)
 bind_history_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bind_history.json", logger)
 
+DAILY_BIND_LIMIT = config.item('daily_bind_limit')
 
 gameapi_config = Config('sekai.gameapi')
 
@@ -998,6 +999,20 @@ async def _(ctx: SekaiHandlerContext):
     if len(ok_check_results) > 1:
         await ctx.asend_reply_msg(f"该ID在多个服务器都存在！默认绑定找到的第一个服务器")
     region, user_name, _ = ok_check_results[0]
+    uid = str(ctx.user_id)
+
+    # 检查绑定次数限制
+    if not check_superuser(ctx.event):
+        date = get_date_str()
+        all_daily_info = bind_history_db.get(f"{region}_daily", {})
+        daily_info = all_daily_info.get(uid, { 'date': date, 'ids': [] })
+        if daily_info['date'] != date:
+            daily_info = { 'date': date, 'ids': [] }
+        daily_info['ids'] = list(set(daily_info.get('ids', []) + [args]))
+        if len(daily_info['ids']) > DAILY_BIND_LIMIT.get():
+            return await ctx.asend_reply_msg(f"你今日绑定{get_region_name(region)}帐号的次数已达上限")
+        all_daily_info[uid] = daily_info
+        bind_history_db.set(f"{region}_daily", all_daily_info)
 
     msg = f"{get_region_name(region)}绑定成功: {user_name}"
 
@@ -1006,7 +1021,7 @@ async def _(ctx: SekaiHandlerContext):
     other_bind = None
     for r in ALL_SERVER_REGIONS:
         if r == region: continue
-        other_bind = other_bind or bind_list.get(r, {}).get(str(ctx.user_id), None)
+        other_bind = other_bind or bind_list.get(r, {}).get(uid, None)
     default_region = get_user_default_region(ctx.user_id, None)
     if not other_bind and not default_region:
         msg += f"\n已设置你的默认服务器为{get_region_name(region)}，如需修改可使用\"/pjsk服务器\""
@@ -1015,7 +1030,7 @@ async def _(ctx: SekaiHandlerContext):
         msg += f"\n你的默认服务器为{get_region_name(default_region)}，查询{get_region_name(region)}需加前缀{region}，或使用\"/pjsk服务器\"修改默认服务器"
 
     # 如果该区服以前没有绑定过，设置默认隐藏id
-    last_bind_id = bind_list.get(region, {}).get(str(ctx.user_id), None)
+    last_bind_id = bind_list.get(region, {}).get(uid, None)
     if not last_bind_id:
         lst = profile_db.get("hide_id_list", {})
         if region not in lst:
@@ -1027,15 +1042,15 @@ async def _(ctx: SekaiHandlerContext):
     # 进行绑定
     if region not in bind_list:
         bind_list[region] = {}
-    bind_list[region][str(ctx.user_id)] = args
+    bind_list[region][uid] = args
     profile_db.set("bind_list", bind_list)
 
     # 保存绑定历史
     if last_bind_id != args:
         bind_history = bind_history_db.get("history", {})
-        if str(ctx.user_id) not in bind_history:
-            bind_history[str(ctx.user_id)] = []
-        bind_history[str(ctx.user_id)].append({
+        if uid not in bind_history:
+            bind_history[uid] = []
+        bind_history[uid].append({
             "time": int(time.time() * 1000),
             "region": region,
             "uid": args,
