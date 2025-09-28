@@ -86,6 +86,8 @@ SITE_ID_ORDER = (
     5, 7, 6, 8,
 )
 
+MSR_PUSH_CONCURRENCY_CFG = config.item('msr_push_concurrency')
+
 
 # ======================= 处理逻辑 ======================= #
 
@@ -1984,6 +1986,8 @@ async def msr_auto_push():
             update_time = datetime.fromtimestamp(ts / 1000)
             if update_time > last_refresh_time and datetime.now() - update_time < timedelta(hours=1):
                 need_push_uids.append(int(uid))
+
+        tasks = []
                 
         for qid, gid in msr_sub.get_all_gid_uid(region):
             if not gbl.check_id(gid): continue
@@ -2011,7 +2015,10 @@ async def msr_auto_push():
 
             msr_last_push_time[key] = int(datetime.now().timestamp() * 1000)
             file_db.set(f"{region}_msr_last_push_time", msr_last_push_time)
+            tasks.append((gid, qid))
 
+        async def push(task):
+            gid, qid = task
             try:
                 logger.info(f"在 {gid} 中自动推送用户 {qid} 的{region_name}Mysekai资源查询")
                 contents = [
@@ -2025,3 +2032,4 @@ async def msr_auto_push():
                 try: await send_group_msg_by_bot(bot, gid, f"自动推送用户 [CQ:at,qq={qid}] 的{region_name}Mysekai资源查询失败: {get_exc_desc(e)}")
                 except: pass
 
+        await batch_gather(*[push(task) for task in tasks], batch_size=MSR_PUSH_CONCURRENCY_CFG.get())

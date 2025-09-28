@@ -44,3 +44,5 @@ gacha:
     rarity_4: 100
     rarity_birthday: 100
     pickup: 100
+
+msr_push_concurrency: 3
