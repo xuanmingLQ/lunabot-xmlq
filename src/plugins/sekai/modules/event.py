@@ -813,7 +813,7 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
                             bonus_cids = set([await get_chara_id_by_cuid(ctx, cuid) for cuid in detail.bonus_cuids])
                             bonus_cids = sorted(list(bonus_cids))
                             TextBox("加成角色", label_style)
-                            with Grid(col_count=5).set_sep(4, 4):
+                            with Grid(col_count=5 if len(bonus_cids) < 20 else 7).set_sep(4, 4):
                                 for cid in bonus_cids:
                                     ImageBox(get_chara_icon_by_chara_id(cid), size=(None, 40))
 
