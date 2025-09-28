@@ -1389,6 +1389,9 @@ class HandlerContext:
     
     async def aget_reply_msg_obj(self):
         return await get_reply_msg_obj(self.bot, await self.aget_msg())
+
+    async def aget_at_qids(self):
+        return extract_at_qq(await get_msg(self.bot, self.message_id))
     
     def aget_image_datas(
         self,

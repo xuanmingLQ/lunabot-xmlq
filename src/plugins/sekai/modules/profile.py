@@ -9,6 +9,7 @@ from ...utils.safety import *
 
 SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
 profile_db = get_file_db(f"{SEKAI_PROFILE_DIR}/db.json", logger)
+bind_history_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bind_history.json", logger)
 
 
 gameapi_config = Config('sekai.gameapi')
@@ -1028,6 +1029,18 @@ async def _(ctx: SekaiHandlerContext):
         bind_list[region] = {}
     bind_list[region][str(ctx.user_id)] = args
     profile_db.set("bind_list", bind_list)
+
+    # 保存绑定历史
+    if last_bind_id != args:
+        bind_history = bind_history_db.get("history", {})
+        if str(ctx.user_id) not in bind_history:
+            bind_history[str(ctx.user_id)] = []
+        bind_history[str(ctx.user_id)].append({
+            "time": int(time.time() * 1000),
+            "region": region,
+            "uid": args,
+        })
+        bind_history_db.set("history", bind_history)
     
     return await ctx.asend_reply_msg(msg)
 
@@ -1490,3 +1503,86 @@ async def _(ctx: SekaiHandlerContext):
         logger.print_exc(f"绘制个人信息背景图片失败: {get_exc_desc(e)}")
         msg += f"绘制个人信息背景图片失败: {get_exc_desc(e)}"
     return await ctx.asend_reply_msg(msg.strip())
+
+
+# 查询用户统计
+pjsk_user_sta = CmdHandler([
+    "/pjsk user sta", "/用户统计",
+], logger)
+pjsk_user_sta.check_cdrate(cd).check_wblist(gbl).check_superuser()
+@pjsk_user_sta.handle()
+async def _(ctx: HandlerContext):
+    args = ctx.get_args().strip()
+    group_mode = False
+    if '群' in args or 'group' in args:
+        group_mode = True
+    SUITE_DIR = "/root/program/qqbot/mybot/data/sekai/user_data/{region}/suite/*"
+    MYSEKAI_DIR = "/root/program/qqbot/mybot/data/sekai/user_data/{region}/mysekai/*"
+    bind_list: Dict[str, Dict[str, str]] = profile_db.get("bind_list", {})
+    suite_total, mysekai_total, qid_set = 0, 0, set()
+
+    msg = "所有群聊统计:\n" if not group_mode else "当前群聊统计:\n"
+    group_qids = set([str(m['user_id']) for m in await get_group_users(ctx.bot, ctx.group_id)])
+
+    for region in ALL_SERVER_REGIONS:
+        qids = set(bind_list.get(region, {}).keys())
+        if group_mode:
+            qids = qids.intersection(group_qids)
+            uids = set([bind_list.get(region, {}).get(qid) for qid in qids])
+        qid_set.update(qids)
+
+        suites = glob.glob(SUITE_DIR.format(region=region))
+        if group_mode:
+            suites = [s for s in suites if s.split('/')[-1].split('.')[0] in uids]
+        suite_total += len(suites)
+
+        mysekais = glob.glob(MYSEKAI_DIR.format(region=region))
+        if group_mode:
+            mysekais = [m for m in mysekais if m.split('/')[-1].split('.')[0] in uids]
+        mysekai_total += len(mysekais)
+
+        msg += f"【{get_region_name(region)}】\n绑定 {len(qids)} | Suite {len(suites)} | MySekai {len(mysekais)}\n"
+    msg += f"---\n【总计】\n绑定 {len(qid_set)} | Suite {suite_total} | MySekai {mysekai_total}"
+    return await ctx.asend_reply_msg(msg.strip())
+
+
+# 查询绑定历史
+pjsk_bind_history = CmdHandler([
+    "/pjsk bind history", "/pjsk bind his", "/绑定历史",
+], logger)
+pjsk_bind_history.check_cdrate(cd).check_wblist(gbl).check_superuser()
+@pjsk_bind_history.handle()
+async def _(ctx: HandlerContext):
+    args = ctx.get_args().strip()
+    uid = None
+    for region in ALL_SERVER_REGIONS:
+        if validate_uid(SekaiHandlerContext.from_region(region), args):
+            uid = args
+            break
+
+    if not uid:
+        if ats := await ctx.aget_at_qids():
+            qid = str(ats[0])
+        else:
+            qid = args
+
+    bind_history = bind_history_db.get("history", {})
+    if uid:
+        # 游戏ID查QQ号
+        msg = f"绑定过{uid}的QQ用户:\n"
+        for qid, items in bind_history.items():
+            for item in items:
+                if item['uid'] == uid:
+                    time = datetime.fromtimestamp(item['time'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+                    msg += f"[{time}] {qid}"
+    else:
+        # QQ号查游戏ID
+        msg = f"用户{qid}的绑定历史:\n"
+        items = bind_history.get(qid, [])
+        for item in items:
+            time = datetime.fromtimestamp(item['time'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+            msg += f"[{time}]\n{item['region']} {item['uid']}\n"
+
+    return await ctx.asend_fold_msg_adaptive(msg.strip())
+
+
