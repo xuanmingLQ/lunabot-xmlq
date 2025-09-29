@@ -7,9 +7,11 @@ from .honor import compose_full_honor_image
 from .resbox import get_res_box_info, get_res_icon
 from ...utils.safety import *
 
+
 SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
 profile_db = get_file_db(f"{SEKAI_PROFILE_DIR}/db.json", logger)
 bind_history_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bind_history.json", logger)
+player_frame_db = get_file_db(f"{SEKAI_PROFILE_DIR}/player_frame.json", logger)
 
 DAILY_BIND_LIMIT = config.item('daily_bind_limit')
 
@@ -291,7 +293,7 @@ async def get_detailed_profile(
     raise_exc=False, 
     mode=None, 
     ignore_hide=False, 
-    upload_time_only=False,
+    filter: list[str]=None,
 ) -> Tuple[dict, str]:
     cache_path = None
     try:
@@ -318,8 +320,8 @@ async def get_detailed_profile(
         # 尝试下载
         try:   
             url = url.format(uid=uid) + f"?mode={mode}"
-            if upload_time_only:
-                url += "&filter=upload_time"
+            if filter:
+                url += f"&filter={','.join(filter)}"
             profile = await download_json(url)
         except HttpError as e:
             logger.info(f"获取 {qid} 抓包数据失败: {get_exc_desc(e)}")
@@ -381,7 +383,10 @@ async def get_detailed_profile_card(ctx: SekaiHandlerContext, profile: dict, err
         with HSplit().set_content_align('c').set_item_align('c').set_sep(16):
             if profile:
                 avatar_info = await get_player_avatar_info_by_detailed_profile(ctx, profile)
-                ImageBox(avatar_info.img, size=(80, 80), image_size_mode='fill')
+
+                frames = get_player_frames(ctx, profile['userGamedata']['userId'], profile)
+                await get_avatar_widget_with_frame(ctx, avatar_info.img, 80, frames)
+
                 with VSplit().set_content_align('c').set_item_align('l').set_sep(5):
                     game_data = profile['userGamedata']
                     source = profile.get('source', '?')
@@ -416,6 +421,11 @@ def get_register_time(region: str, uid: str) -> datetime:
 # 合成个人信息图片
 async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, vertical: bool=None) -> Image.Image:
     bg_settings = get_profile_bg_settings(ctx)
+    detail_profile, _ = await get_detailed_profile(
+        ctx, ctx.user_id, raise_exc=False, ignore_hide=True, 
+        filter=['upload_time', 'userPlayerFrames'],
+    )
+    uid = str(basic_profile['user']['userId'])
 
     decks = basic_profile['userDeck']
     pcards = [find_by(basic_profile['userCards'], 'cardId', decks[f'member{i}']) for i in range(1, 6)]
@@ -431,7 +441,9 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
         with VSplit().set_bg(ui_bg).set_content_align('c').set_item_align('c').set_sep(32).set_padding((32, 35)) as ret:
             # 名片
             with HSplit().set_content_align('c').set_item_align('c').set_sep(32).set_padding((32, 0)):
-                ImageBox(avatar_info.img, size=(128, 128), image_size_mode='fill')
+                frames = get_player_frames(ctx, uid, detail_profile)
+                await get_avatar_widget_with_frame(ctx, avatar_info.img, 128, frames)
+
                 with VSplit().set_content_align('c').set_item_align('l').set_sep(16):
                     game_data = basic_profile['user']
                     colored_text_box(
@@ -933,6 +945,111 @@ def get_profile_bg_settings(ctx: SekaiHandlerContext) -> ProfileBgSettings:
     settings = profile_bg_settings_db.get(region, {}).get(uid, {})
     return ProfileBgSettings(image=image, **settings)
 
+# 获取玩家框信息，提供detail_profile会直接取用并更新缓存，否则使用缓存数据
+def get_player_frames(ctx: SekaiHandlerContext, uid: str, detail_profile: Optional[dict] = None) -> List[dict]:
+    uid = str(uid)
+    all_cached_frames = player_frame_db.get(ctx.region, {})
+    cached_frames = all_cached_frames.get(uid, {})
+    if detail_profile:
+        upload_time = detail_profile.get('upload_time', 0)
+        frames = detail_profile.get('userPlayerFrames', [])
+        if upload_time > cached_frames.get('upload_time', 0):
+            # 更新缓存
+            cached_frames = {
+                'upload_time': upload_time,
+                'frames': frames
+            }
+            all_cached_frames[uid] = cached_frames
+            player_frame_db.set(ctx.region, all_cached_frames)
+    return cached_frames.get('frames', [])
+
+# 获取头像框图片，失败返回None
+async def get_player_frame_image(ctx: SekaiHandlerContext, frame_id: int, frame_w: int) -> Image.Image | None:
+    try:
+        frame = await ctx.md.player_frames.find_by_id(frame_id)
+        frame_group = await ctx.md.player_frame_groups.find_by_id(frame['playerFrameGroupId'])
+        asset_name = frame_group['assetbundleName']
+        asset_path = f"player_frame/{asset_name}/{frame_id}/"
+
+        cache_path = f"{SEKAI_ASSET_DIR}/player_frames/{ctx.region}/{asset_name}_{frame_id}.png"
+
+        scale = 1.5
+        corner = 20
+        corner2 = 50
+        w = 700
+        border = 100
+        border2 = 80
+        inner_w = w - 2*border
+
+        if os.path.exists(cache_path):
+            img = open_image(cache_path)
+        else:
+            base = await ctx.rip.img(asset_path + "horizontal/frame_base.png", allow_error=False)
+            ct = await ctx.rip.img(asset_path + "vertical/frame_centertop.png", allow_error=False)
+            lb = await ctx.rip.img(asset_path + "vertical/frame_leftbottom.png", allow_error=False)
+            lt = await ctx.rip.img(asset_path + "vertical/frame_lefttop.png", allow_error=False)
+            rb = await ctx.rip.img(asset_path + "vertical/frame_rightbottom.png", allow_error=False)
+            rt = await ctx.rip.img(asset_path + "vertical/frame_righttop.png", allow_error=False)
+            
+            ct = resize_keep_ratio(ct, scale, mode='scale')
+            lt = resize_keep_ratio(lt, scale, mode='scale')
+            lb = resize_keep_ratio(lb, scale, mode='scale')
+            rt = resize_keep_ratio(rt, scale, mode='scale')
+            rb = resize_keep_ratio(rb, scale, mode='scale')
+
+            bw = base.width
+            base_lt = base.crop((0, 0, corner, corner))
+            base_rt = base.crop((bw-corner, 0, bw, corner))
+            base_lb = base.crop((0, bw-corner, corner, bw))
+            base_rb = base.crop((bw-corner, bw-corner, bw, bw))
+            base_l = base.crop((0, corner, corner, bw-corner))
+            base_r = base.crop((bw-corner, corner, bw, bw-corner))
+            base_t = base.crop((corner, 0, bw-corner, corner))
+            base_b = base.crop((corner, bw-corner, bw-corner, bw))
+
+            p = Painter(size=(w, w))
+
+            p.move_region((border, border), (inner_w, inner_w))
+            p.paste(base_lt, (0, 0), (corner2, corner2))
+            p.paste(base_rt, (inner_w-corner2, 0), (corner2, corner2))
+            p.paste(base_lb, (0, inner_w-corner2), (corner2, corner2))
+            p.paste(base_rb, (inner_w-corner2, inner_w-corner2), (corner2, corner2))
+            p.paste(base_l.resize((corner2, inner_w-2*corner2)), (0, corner2))
+            p.paste(base_r.resize((corner2, inner_w-2*corner2)), (inner_w-corner2, corner2))
+            p.paste(base_t.resize((inner_w-2*corner2, corner2)), (corner2, 0))
+            p.paste(base_b.resize((inner_w-2*corner2, corner2)), (corner2, inner_w-corner2))
+            p.restore_region()
+
+            p.paste(lb, (border2, w-border2-lb.height))
+            p.paste(rb, (w-border2-rb.width, w-border2-rb.height))
+            p.paste(lt, (border2, border2))
+            p.paste(rt, (w-border2-rt.width, border2))
+            p.paste(ct, ((w-ct.width)//2, border2-ct.height//2))
+
+            img = await p.get()
+            create_parent_folder(cache_path)
+            img.save(cache_path)
+
+        img = resize_keep_ratio(img, frame_w / inner_w, mode='scale')
+        return img
+
+    except:
+        logger.print_exc(f"获取playerFrame {frame_id} 失败")
+        return None
+    
+# 获取带框头像控件
+async def get_avatar_widget_with_frame(ctx: SekaiHandlerContext, avatar_img: Image.Image, avatar_w: int, frame_data: list[dict]) -> Frame:
+    frame_img = None
+    try:
+        if frame := find_by(frame_data, 'playerFrameAttachStatus', "first"):
+            frame_img = await get_player_frame_image(ctx, frame['playerFrameId'], avatar_w + 5)
+    except:
+        pass
+    with Frame().set_size((avatar_w, avatar_w)).set_content_align('c').set_allow_draw_outside(True) as ret:
+        ImageBox(avatar_img, size=(avatar_w, avatar_w), use_alphablend=False)
+        if frame_img:
+            ImageBox(frame_img, use_alphablend=True)
+    return ret
 
 
 # ======================= 指令处理 ======================= #
@@ -1153,7 +1270,7 @@ async def _(ctx: SekaiHandlerContext):
     logger.info(f"绘制名片 region={ctx.region} uid={uid}")
     return await ctx.asend_reply_msg(await get_image_cq(
         await compose_profile_image(ctx, profile, vertical=vertical),
-        low_quality=True,
+        low_quality=True, quality=95,
     ))
 
 
@@ -1251,8 +1368,8 @@ async def _(ctx: SekaiHandlerContext):
     qid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
     nickname = await get_group_member_name(ctx.bot, ctx.group_id, qid)
     
-    task1 = get_detailed_profile(ctx, qid, raise_exc=False, mode="local", upload_time_only=True)
-    task2 = get_detailed_profile(ctx, qid, raise_exc=False, mode="haruki", upload_time_only=True)
+    task1 = get_detailed_profile(ctx, qid, raise_exc=False, mode="local", filter=['upload_time'])
+    task2 = get_detailed_profile(ctx, qid, raise_exc=False, mode="haruki", filter=['upload_time'])
     (local_profile, local_err), (haruki_profile, haruki_err) = await asyncio.gather(task1, task2)
 
     msg = f"@{nickname} 的{get_region_name(ctx.region)}Suite抓包数据状态\n"

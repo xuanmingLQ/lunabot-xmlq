@@ -483,6 +483,8 @@ class RegionMasterDataCollection:
         self.mysekai_phenomena_background_colors                            = RegionMasterDataWrapper(region, "mysekaiPhenomenaBackgroundColors")
         self.gacha_ceil_items                                               = RegionMasterDataWrapper(region, "gachaCeilItems")
         self.gacha_tickets                                                  = RegionMasterDataWrapper(region, "gachaTickets")
+        self.player_frames                                                  = RegionMasterDataWrapper(region, "playerFrames")
+        self.player_frame_groups                                            = RegionMasterDataWrapper(region, "playerFrameGroups")
 
     async def get(self, name: str):
         wrapper = RegionMasterDataWrapper(self._region, name)
@@ -641,7 +643,7 @@ DEFAULT_GET_RIP_ASSET_TIMEOUT_CFG = asset_config.item('default_rip_asset_downloa
 RIP_IMG_CACHE_MAX_RES_CFG = asset_config.item('rip_img_cache_max_res')
 
 ONDEMAND_PREFIXES = ['event', 'gacha', 'music/long', 'mysekai', 'virtual_live']
-STARTAPP_PREFIXES = ['bonds_honor', 'honor', 'thumbnail', 'character', 'music', 'rank_live', 'stamp', 'home/banner']
+STARTAPP_PREFIXES = ['bonds_honor', 'honor', 'thumbnail', 'character', 'music', 'rank_live', 'stamp', 'home/banner', 'player_frame']
 
 def sekai_best_url_map(url: str) -> str:
     # 移除_rip

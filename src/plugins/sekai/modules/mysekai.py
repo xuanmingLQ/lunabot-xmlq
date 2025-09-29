@@ -15,6 +15,8 @@ from .profile import (
     get_detailed_profile,
     get_detailed_profile_card,
     process_hide_uid,
+    get_player_frames,
+    get_avatar_widget_with_frame,
 )
 from .music import get_music_cover_thumb
 from .card import get_character_sd_image
@@ -97,7 +99,7 @@ async def get_chara_icon_by_chara_unit_id(ctx: SekaiHandlerContext, cuid: int) -
     return get_chara_icon_by_chara_id(cid=cu['gameCharacterId'], unit=cu['unit'])
 
 # 获取玩家mysekai抓包数据 返回 (mysekai_info, err_msg)
-async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, mode=None, upload_time_only=False) -> Tuple[dict, str]:
+async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, mode=None, filter: list[str]=None,) -> Tuple[dict, str]:
     cache_path = None
     try:
         # 获取绑定的玩家id
@@ -118,8 +120,8 @@ async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, 
         # 尝试下载
         try:
             url = url.format(uid=uid) + f"?mode={mode}"
-            if upload_time_only:
-                url += "&filter=upload_time"
+            if filter:
+                url += f"&filter={','.join(filter)}"
             mysekai_info = await download_json(url)
         except HttpError as e:
             logger.info(f"获取 {qid} mysekai抓包数据失败: {get_exc_desc(e)}")
@@ -167,7 +169,10 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
         with HSplit().set_content_align('c').set_item_align('c').set_sep(16):
             if mysekai_info:
                 avatar_info = await get_player_avatar_info_by_basic_profile(ctx, basic_profile)
-                ImageBox(avatar_info.img, size=(80, 80), image_size_mode='fill')
+
+                frames = get_player_frames(ctx, basic_profile['user']['userId'], None)
+                await get_avatar_widget_with_frame(ctx, avatar_info.img, 80, frames)
+
                 with VSplit().set_content_align('c').set_item_align('l').set_sep(5):
                     game_data = basic_profile['user']
                     mysekai_game_data = mysekai_info['updatedResources']['userMysekaiGamedata']
@@ -1851,8 +1856,8 @@ async def _(ctx: SekaiHandlerContext):
     uid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
     nickname = await get_group_member_name(ctx.bot, ctx.group_id, uid)
 
-    task1 = get_mysekai_info(ctx, uid, raise_exc=False, mode="local", upload_time_only=True)
-    task2 = get_mysekai_info(ctx, uid, raise_exc=False, mode="haruki", upload_time_only=True)
+    task1 = get_mysekai_info(ctx, uid, raise_exc=False, mode="local", filter=['upload_time'])
+    task2 = get_mysekai_info(ctx, uid, raise_exc=False, mode="haruki", filter=['upload_time'])
     (local_profile, local_err), (haruki_profile, haruki_err) = await asyncio.gather(task1, task2)
 
     msg = f"@{nickname} 的{get_region_name(ctx.region)}Mysekai抓包数据状态\n"
