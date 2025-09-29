@@ -586,8 +586,11 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                 (await draw_play()).set_bg(None)
                 (await draw_chara()).set_bg(None)
 
-    update_time = datetime.fromtimestamp(basic_profile['update_time'] / 1000)
-    text = f"DT: {update_time.strftime('%Y-%m-%d %H:%M:%S')}  " + DEFAULT_WATERMARK
+    if 'update_time' in basic_profile:
+        update_time = datetime.fromtimestamp(basic_profile['update_time'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        update_time = "?"
+    text = f"DT: {update_time}  " + DEFAULT_WATERMARK
     if bg_settings.image:
         text = text + f"  This background is user-uploaded."
     add_watermark(canvas, text)
@@ -665,16 +668,17 @@ async def compose_challenge_live_detail_image(ctx: SekaiHandlerContext, qid: int
                         TextBox(rank, text_style).set_w(w2).set_content_align('c')
                         TextBox(score, text_style).set_w(w3).set_content_align('c')
                         with Frame().set_w(w4).set_content_align('lt'):
-                            progress = max(min(challenge_info[cid][1] / max_score, 1), 0)
+                            x = challenge_info[cid][1]
+                            progress = max(min(x / max_score, 1), 0)
                             total_w, total_h, border = w4, 10, 2
                             progress_w = int((total_w - border * 2) * progress)
                             progress_h = total_h - border * 2
                             color = (255, 50, 50, 255)
-                            if progress > 0.2: color = (255, 100, 100, 255)
-                            if progress > 0.4: color = (255, 150, 100, 255)
-                            if progress > 0.6: color = (255, 200, 100, 255)
-                            if progress > 0.8: color = (255, 255, 100, 255)
-                            if progress == 1: color = (100, 255, 100, 255)
+                            if x > 50_0000: color = (255, 100, 100, 255)
+                            if x > 100_0000: color = (255, 150, 100, 255)
+                            if x > 150_0000: color = (255, 200, 100, 255)
+                            if x > 200_0000: color = (255, 255, 100, 255)
+                            if x == 250_0000: color = (100, 255, 100, 255)
                             if progress > 0:
                                 Spacer(w=total_w, h=total_h).set_bg(RoundRectBg(fill=(100, 100, 100, 255), radius=total_h//2))
                                 Spacer(w=progress_w, h=progress_h).set_bg(RoundRectBg(fill=color, radius=(total_h-border)//2)).set_offset((border, border))
@@ -1266,7 +1270,7 @@ async def _(ctx: SekaiHandlerContext):
         uid = int(args)
     except:
         uid = get_player_bind_id(ctx, ctx.user_id)
-    profile = await get_basic_profile(ctx, uid, use_cache=False, use_remote_cache=False)
+    profile = await get_basic_profile(ctx, uid, use_cache=True, use_remote_cache=False)
     logger.info(f"绘制名片 region={ctx.region} uid={uid}")
     return await ctx.asend_reply_msg(await get_image_cq(
         await compose_profile_image(ctx, profile, vertical=vertical),

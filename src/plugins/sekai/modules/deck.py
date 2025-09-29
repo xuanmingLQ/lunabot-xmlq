@@ -1071,14 +1071,19 @@ async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
                 "gameCharacterId": cid,
                 "totalBonusRate": min(fixture_chara_bonus[cid], 100)
             })
-
+    
+    levels = {}
+    for item in await ctx.md.area_item_levels.get():
+        item_id = item['areaItemId']
+        lv = item['level']
+        levels[item_id] = max(levels.get(item_id, 0), lv)
     p['userAreas'].append({
         "userAreaStatus": {},
         "areaItems": [
             {
-                "areaItemId": i,
-                "level": 15
-            } for i in range(1, 56)
+                "areaItemId": item_id,
+                "level": lv,
+            } for item_id, lv in levels.items()
         ]
     })
 
