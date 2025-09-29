@@ -32,7 +32,7 @@ BD_MYSEKAI_REGIONS = ['cn', 'tw']
 bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", BD_MYSEKAI_REGIONS)
 msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", MYSEKAI_REGIONS, only_one_group=True)
 
-MYSEKAI_HARVEST_MAP_IMAGE_SCALE = 0.8
+MYSEKAI_HARVEST_MAP_IMAGE_SCALE_CFG = config.item('mysekai_harvest_map_image_scale')
 MYSEKAI_HARVEST_MAP_SITE_BG_IMAGE_DOWNSAMPLE = 0.5
 
 MOST_RARE_MYSEKAI_RES = [
@@ -299,7 +299,7 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
     site_id = harvest_map['mysekaiSiteId']
     site_image_info = Config('sekai.mysekai_site_map_image_info').get(site_id)
     site_image = ctx.static_imgs.get(site_image_info['image'])
-    scale = MYSEKAI_HARVEST_MAP_IMAGE_SCALE
+    scale = MYSEKAI_HARVEST_MAP_IMAGE_SCALE_CFG.get()
     draw_w, draw_h = int(site_image.width * scale), int(site_image.height * scale)
     mid_x, mid_z = draw_w / 2, draw_h / 2
     grid_size = site_image_info['grid_size'] * scale

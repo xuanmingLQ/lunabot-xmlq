@@ -45,4 +45,5 @@ gacha:
     rarity_birthday: 100
     pickup: 100
 
+mysekai_harvest_map_image_scale: 0.8
 msr_push_concurrency: 3

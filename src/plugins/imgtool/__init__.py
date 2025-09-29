@@ -1214,31 +1214,44 @@ img_check = CmdHandler(["/img check", '/img_check', '/img info', '/img_info'], l
 img_check.check_cdrate(cd).check_wblist(gbl)
 @img_check.handle()
 async def _(ctx: HandlerContext):
-    img = await get_reply_fst_image(ctx)
-    width = img.width
-    height = img.height
-    msg = f"分辨率: {width}x{height}"
+    data_list = await ctx.aget_image_datas()
+    msg = ""
+    for i, data in enumerate(data_list):
+        with TempFilePath('png') as path:
+            msg += f"\n\n【图片{i+1}】"
+            try:
+                url = data['url']
+                await download_file(url, path)
+                img = Image.open(path)
+                width = img.width
+                height = img.height
+                msg += f"\n分辨率: {width}x{height}"
 
-    if is_gif(img):
-        msg += f"\n长度: {img.n_frames}帧"
-        if not img.info.get('duration', 0):
-            msg += f"\n帧间隔/FPS: 未知"
-        else:
-            msg += f"\n帧间隔: {img.info['duration']}ms"
-            fps = 1000 / img.info['duration']
-            msg += f"\nFPS: {fps:.2f}"
+                if is_gif(img):
+                    msg += f"\n长度: {img.n_frames}帧"
+                    if not img.info.get('duration', 0):
+                        msg += f"\n帧间隔/FPS: 未知"
+                    else:
+                        msg += f"\n帧间隔: {img.info['duration']}ms"
+                        fps = 1000 / img.info['duration']
+                        msg += f"\nFPS: {fps:.2f}"
 
-    data = await ctx.aget_image_datas(return_first=True)
-    if 'file_size' in data:
-        msg += f"\n文件大小: {get_readable_file_size(int(data['file_size']))}"
-    if 'file' in data:
-        msg += f"\n文件名: {data['file']}"
-    if 'url' in data:
-        msg += f"\n链接: {data['url']}"
-    if 'file_unique' in data:
-        msg += f"\n图片标识: {data['file_unique']}"
+                if 'file_size' in data:
+                    filesize = int(data['file_size'])
+                    if not filesize:
+                        filesize = os.path.getsize(path)
+                    msg += f"\n文件大小: {get_readable_file_size(filesize)}"
+                # if 'file' in data:
+                #     msg += f"\n文件名: {data['file']}"
+                if 'url' in data:
+                    msg += f"\n链接: {data['url']}"
+                if 'file_unique' in data:
+                    msg += f"\n图片标识: {data['file_unique']}"
+            except Exception as e:
+                logger.print_exc(f"获取 {url} 图片信息失败")
+                msg += f"\n无法获取图片信息: {get_exc_desc(e)}"
 
-    return await ctx.asend_fold_msg_adaptive(msg)
+    return await ctx.asend_fold_msg_adaptive(msg.strip())
 
 
 # 用pyzbar扫描图像中所有二维码，返回结果
