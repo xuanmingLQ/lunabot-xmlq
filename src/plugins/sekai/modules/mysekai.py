@@ -1505,8 +1505,8 @@ async def compose_mysekai_talk_list_image(
         else:
             cu = cus[0]
             assert_and_reply(not unit or cu['unit'] == unit, f"找不到要查询的角色")
-        cid = cu['id']
-        chara_icon = await ctx.rip.img(f"character_sd_l_rip/chr_sp_{cid}.png")
+        cuid = cu['id']
+        chara_icon = await get_character_sd_image(cuid)
 
         if not show_all_talks:
             profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True)
@@ -1539,7 +1539,7 @@ async def compose_mysekai_talk_list_image(
                 archive_info = await ctx.md.character_archive_mysekai_character_talk_groups.find_by_id(aid)
                 display = archive_info and archive_info['archiveDisplayType'] == 'normal'
                 # 有效的对话
-                if cid in group_cuids and display:
+                if cuid in group_cuids and display:
                     user_talk = find_by(user_character_talks, "mysekaiCharacterTalkId", tid)
                     has_read = bool(user_talk is not None and user_talk['isRead'])
                     if aid not in aid_reads:
