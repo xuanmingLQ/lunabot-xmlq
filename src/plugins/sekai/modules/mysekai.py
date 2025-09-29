@@ -43,7 +43,7 @@ MOST_RARE_MYSEKAI_RES = [
 ]
 RARE_MYSEKAI_RES = [
     "mysekai_material_32", "mysekai_material_33", "mysekai_material_34", "mysekai_material_61", 
-    "mysekai_material_64", "mysekai_material_65", "mysekai_material_66",
+    "mysekai_material_64", "mysekai_material_65", "mysekai_material_66", "mysekai_material_93",
 ]
 MYSEKAI_HARVEST_FIXTURE_IMAGE_NAME = {
     1001: "oak.png",
@@ -92,6 +92,16 @@ MSR_PUSH_CONCURRENCY_CFG = config.item('msr_push_concurrency')
 
 
 # ======================= 处理逻辑 ======================= #
+
+# 判断ms资源稀有等级（0, 1, 2)
+def get_mysekai_res_rarity(key: str) -> int:
+    if key.startswith("birthday_party"):
+        return 2
+    if key in MOST_RARE_MYSEKAI_RES:
+        return 2
+    if key in RARE_MYSEKAI_RES:
+        return 1
+    return 0
 
 # 从角色UnitId获取角色图标
 async def get_chara_icon_by_chara_unit_id(ctx: SekaiHandlerContext, cuid: int) -> Image.Image:
@@ -450,6 +460,7 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                 if not item['image']: continue
 
                 res_key = f"{item['type']}_{item['id']}"
+                rarity = get_mysekai_res_rarity(res_key)
                 call = ResDrawCall(
                     res_id=item['id'],
                     image=item['image'],
@@ -481,19 +492,19 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                 # 绘制顺序 先从上到下再从左到右，小图标>稀有资源>其他
                 if item['small_icon']:
                     call.draw_order = item['z'] * 100 + item['x'] + 1000000
-                elif res_key in MOST_RARE_MYSEKAI_RES:
+                elif rarity == 2:
                     call.draw_order = item['z'] * 100 + item['x'] + 100000
                 else:
                     call.draw_order = item['z'] * 100 + item['x']
 
                 # 小图标和稀有资源添加边框
-                if res_key in MOST_RARE_MYSEKAI_RES:
+                if rarity == 2:
                     call.outline = ((255, 50, 50, 150), 2)
                 elif item['small_icon']:
                     call.outline = ((50, 50, 255, 100), 1)
 
                 # 稀有资源（非活动道具）添加发光
-                if res_key in MOST_RARE_MYSEKAI_RES and not res_key.startswith("material"):
+                if rarity == 2 and not res_key.startswith("material"):
                     if item['small_icon']:
                         call.light_size = int(45 * scale * 3)
                     else:
@@ -627,9 +638,10 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     site_harvest_map_imgs = []
     def get_res_order(item):
         key, num = item
-        if key in MOST_RARE_MYSEKAI_RES:
+        rarity = get_mysekai_res_rarity(key)
+        if rarity == 2:
             num -= 1000000
-        elif key in RARE_MYSEKAI_RES:
+        elif rarity == 1:
             num -= 100000
         return (-num, key)
     for i in range(len(site_res_num)):
@@ -707,9 +719,10 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                                 if not res_img: continue
                                 with HSplit().set_content_align('l').set_item_align('l').set_sep(5):
                                     text_color = (150, 150, 150) 
-                                    if res_key in MOST_RARE_MYSEKAI_RES:
+                                    rarity = get_mysekai_res_rarity(res_key)
+                                    if rarity == 2:
                                         text_color = (200, 50, 0)
-                                    elif res_key in RARE_MYSEKAI_RES:
+                                    elif rarity == 1:
                                         text_color = (50, 0, 200)
 
                                     if res_key.startswith("mysekai_music_record"):
