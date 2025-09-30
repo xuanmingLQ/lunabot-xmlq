@@ -237,9 +237,12 @@ async def get_basic_profile(ctx: SekaiHandlerContext, uid: int, use_cache=True, 
 # 获取玩家基本信息的简单卡片控件，返回Frame
 async def get_basic_profile_card(ctx: SekaiHandlerContext, profile: dict) -> Frame:
     with Frame().set_bg(roundrect_bg()).set_padding(16) as f:
-        with HSplit().set_content_align('c').set_item_align('c').set_sep(16):
+        with HSplit().set_content_align('c').set_item_align('c').set_sep(14):
             avatar_info = await get_player_avatar_info_by_basic_profile(ctx, profile)
-            ImageBox(avatar_info.img, size=(80, 80), image_size_mode='fill')
+
+            frames = get_player_frames(ctx, profile['user']['userId'], None)
+            await get_avatar_widget_with_frame(ctx, avatar_info.img, 80, frames)
+
             with VSplit().set_content_align('c').set_item_align('l').set_sep(5):
                 game_data = profile['user']
                 user_id = process_hide_uid(ctx, game_data['userId'])
@@ -380,7 +383,7 @@ async def get_player_avatar_info_by_detailed_profile(ctx: SekaiHandlerContext, d
 # 获取玩家详细信息的简单卡片控件，返回Frame
 async def get_detailed_profile_card(ctx: SekaiHandlerContext, profile: dict, err_msg: str, mode=None) -> Frame:
     with Frame().set_bg(roundrect_bg()).set_padding(16) as f:
-        with HSplit().set_content_align('c').set_item_align('c').set_sep(16):
+        with HSplit().set_content_align('c').set_item_align('c').set_sep(14):
             if profile:
                 avatar_info = await get_player_avatar_info_by_detailed_profile(ctx, profile)
 
@@ -1131,7 +1134,7 @@ async def _(ctx: SekaiHandlerContext):
             daily_info = { 'date': date, 'ids': [] }
         daily_info['ids'] = list(set(daily_info.get('ids', []) + [args]))
         if len(daily_info['ids']) > DAILY_BIND_LIMIT.get():
-            return await ctx.asend_reply_msg(f"你今日绑定{get_region_name(region)}帐号的次数已达上限")
+            return await ctx.asend_reply_msg(f"你今日绑定{get_region_name(region)}帐号的数量已达上限")
         all_daily_info[uid] = daily_info
         bind_history_db.set(f"{region}_daily", all_daily_info)
 

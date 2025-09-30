@@ -37,14 +37,7 @@ msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", MYSEKAI_RE
 MYSEKAI_HARVEST_MAP_IMAGE_SCALE_CFG = config.item('mysekai_harvest_map_image_scale')
 MYSEKAI_HARVEST_MAP_SITE_BG_IMAGE_DOWNSAMPLE = 0.5
 
-MOST_RARE_MYSEKAI_RES = [
-    "mysekai_material_5", "mysekai_material_12", "mysekai_material_20", "mysekai_material_24",
-    "mysekai_fixture_121", "material_17", "material_170", "material_173",
-]
-RARE_MYSEKAI_RES = [
-    "mysekai_material_32", "mysekai_material_33", "mysekai_material_34", "mysekai_material_61", 
-    "mysekai_material_64", "mysekai_material_65", "mysekai_material_66", "mysekai_material_93",
-]
+MYSEKAI_RARE_RES_KEYS_CFG = config.item('mysekai_rare_res_keys')
 MYSEKAI_HARVEST_FIXTURE_IMAGE_NAME = {
     1001: "oak.png",
     1002: "pine.png",
@@ -95,12 +88,16 @@ MSR_PUSH_CONCURRENCY_CFG = config.item('msr_push_concurrency')
 
 # 判断ms资源稀有等级（0, 1, 2)
 def get_mysekai_res_rarity(key: str) -> int:
-    if key.startswith("birthday_party"):
-        return 2
-    if key in MOST_RARE_MYSEKAI_RES:
-        return 2
-    if key in RARE_MYSEKAI_RES:
-        return 1
+    t1, id1 = key.rsplit("_", 1)
+    for rare, keys in MYSEKAI_RARE_RES_KEYS_CFG.get().items():
+        for k in keys:
+            if '~' in k:
+                t2, id_range = k.rsplit('_', 1)
+                min_id, max_id = map(int, id_range.split('~'))
+                if t1 == t2 and min_id <= int(id1) <= max_id:
+                    return rare
+            elif k == key:
+                return rare
     return 0
 
 # 从角色UnitId获取角色图标
@@ -176,7 +173,7 @@ async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, 
 # 获取玩家mysekai抓包数据的简单卡片 返回 Frame
 async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, basic_profile: dict, err_msg: str) -> Frame:
     with Frame().set_bg(roundrect_bg()).set_padding(16) as f:
-        with HSplit().set_content_align('c').set_item_align('c').set_sep(16):
+        with HSplit().set_content_align('c').set_item_align('c').set_sep(14):
             if mysekai_info:
                 avatar_info = await get_player_avatar_info_by_basic_profile(ctx, basic_profile)
 
@@ -646,7 +643,8 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         return (-num, key)
     for i in range(len(site_res_num)):
         site_id, res_num = site_res_num[i]
-        site_res_num[i] = (site_id, sorted(list(res_num.items()), key=get_res_order))
+        res_nums = sorted([(item, get_res_order(item)) for item in res_num.items()], key=lambda x: x[1])
+        site_res_num[i] = (site_id, [x[0] for x in res_nums])
 
     # 绘制资源位置图
     with Timer("msr:compose_harvest_map", logger):

@@ -45,5 +45,27 @@ gacha:
     rarity_birthday: 100
     pickup: 100
 
-mysekai_harvest_map_image_scale: 0.8
-msr_push_concurrency: 3
+mysekai_rare_res_keys:
+  1: 
+    - mysekai_material_32
+    - mysekai_material_33
+    - mysekai_material_34
+    - mysekai_material_61
+    - mysekai_material_64
+    - mysekai_material_65
+    - mysekai_material_66
+    - mysekai_material_93
+    - mysekai_music_record_0~9999
+  2:
+    - mysekai_material_5
+    - mysekai_material_12
+    - mysekai_material_20
+    - mysekai_material_24
+    - mysekai_fixture_121
+    - material_17
+    - material_170
+    - material_173
+    - mysekai_material_67~92
+    - material_174~203
+mysekai_harvest_map_image_scale: 0.75
+msr_push_concurrency: 4

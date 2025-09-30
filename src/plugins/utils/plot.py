@@ -795,6 +795,10 @@ class TextBox(Widget):
                 if self.wrap:
                     while True:
                         line_suffix = suffix if len(clipped_lines) == self.line_count - 1 else ''
+                        clip_idx = self._get_clip_text_to_width_idx(line, w, '')
+                        if clip_idx is None:
+                            clipped_lines.append(line)
+                            break
                         clip_idx = self._get_clip_text_to_width_idx(line, w, line_suffix)
                         if clip_idx is None:
                             clipped_lines.append(line)
