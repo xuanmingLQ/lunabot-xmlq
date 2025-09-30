@@ -966,8 +966,9 @@ def get_player_frames(ctx: SekaiHandlerContext, uid: str, detail_profile: Option
                 'upload_time': upload_time,
                 'frames': frames
             }
-            all_cached_frames[uid] = cached_frames
-            player_frame_db.set(ctx.region, all_cached_frames)
+            if frames:
+                all_cached_frames[uid] = cached_frames
+                player_frame_db.set(ctx.region, all_cached_frames)
     return cached_frames.get('frames', [])
 
 # 获取头像框图片，失败返回None
