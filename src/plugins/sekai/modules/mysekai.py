@@ -2023,7 +2023,6 @@ async def msr_auto_push():
             if not gbl.check_id(gid): continue
             if region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(region, gid): continue
 
-            ctx.user_id = qid
             qid = str(qid)
 
             msr_last_push_time = file_db.get(f"{region}_msr_last_push_time", {})
@@ -2049,11 +2048,13 @@ async def msr_auto_push():
 
         async def push(task):
             gid, qid = task
+            user_ctx = SekaiHandlerContext.from_region(region)
+            user_ctx.user_id = int(qid)
             try:
                 logger.info(f"在 {gid} 中自动推送用户 {qid} 的{region_name}Mysekai资源查询")
                 contents = [
                     await get_image_cq(img, low_quality=True) for img in 
-                    await compose_mysekai_res_image(ctx, qid, False, True)
+                    await compose_mysekai_res_image(user_ctx, qid, False, True)
                 ]
                 contents = [f"[CQ:at,qq={qid}]的{region_name}MSR推送"] + contents
                 await send_group_msg_by_bot(bot, gid, "".join(contents))
