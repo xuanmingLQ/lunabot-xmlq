@@ -46,15 +46,28 @@ async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict
     hlv = profile_honor.get('honorLevel', 0)
     ms = "main" if is_main else "sub"
 
-    async def add_frame(img: Image.Image, rarity, frame_name=None):
-        LV_MAP = {'low': 1, 'middle': 2, 'high': 3, 'highest': 4}
-        lv = LV_MAP.get(rarity, 1)
-        if not frame_name or lv < 3:
-            frame = ctx.static_imgs.get(f'honor/frame_degree_{ms[0]}_{lv}.png')
-        else:
-            frame = await ctx.rip.img(f'honor_frame/{frame_name}/frame_degree_{ms[0]}_{lv}.png')
+    async def add_frame(img: Image.Image, rarity: str, frame_name: str=None, level: int=None):
+        RARE_MAP = {'low': 1, 'middle': 2, 'high': 3, 'highest': 4}
+        r = RARE_MAP.get(rarity, 1)
+        try:
+            assert frame_name
+            start_rare = 2
+            if frame_name.startswith('event'):  # wl牌子从3阶开始有特殊框
+                start_rare = 3
+            assert r >= start_rare
+            frame = await ctx.rip.img(f'honor_frame/{frame_name}/frame_degree_{ms[0]}_{r}.png')
+        except:
+            frame = ctx.static_imgs.get(f'honor/frame_degree_{ms[0]}_{r}.png')
         img.paste(frame, (8, 0) if rarity == 'low' else (0, 0), frame)
-    
+        # 添加生日牌子的等级标志
+        if frame_name and frame_name.startswith('honor_frame_birthday'):
+            icon = await ctx.rip.img(f'honor_frame/{frame_name}/frame_degree_level_{r}.png')
+            w, h = img.size
+            sz = 18
+            icon = icon.resize((sz, sz))
+            for i in range(level):
+                img.paste(icon, (int(w / 2 - sz * level / 2 + i * sz), h - sz), icon)
+
     def add_lv_star(img: Image.Image, lv):
         if lv > 10: lv = lv - 10
         lv_img = ctx.static_imgs.get('honor/icon_degreeLv.png')
@@ -115,7 +128,7 @@ async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict
             else:
                 rank_img = None
 
-        await add_frame(img, rarity, frame_name)
+        await add_frame(img, rarity, frame_name, hlv)
         if rank_img:
             if gtype == 'rank_match':
                 img.paste(rank_img, (190, 0) if is_main else (17, 42), rank_img)
