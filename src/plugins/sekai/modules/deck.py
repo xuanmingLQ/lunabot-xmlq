@@ -94,7 +94,7 @@ UNIT_FILTER_KEYWORDS = {
     "school_refusal": ["纯25h", "纯25时", "纯25", "仅25h", "仅25时", "仅25"],
     "piapro": ["纯vs", "纯v", "仅vs", "仅v"],
 }
-MAX_PROFILE_KEYWORDS = ('顶配',)
+MAX_PROFILE_KEYWORDS = ('顶配', '满配',)
 CURRENT_DECK_KEYWORDS = ('当前', '目前')
 
 DEFAULT_CARD_CONFIG_12 = DeckRecommendCardConfig()

@@ -390,8 +390,12 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
         else:
             all_res[pkey][res_key]['quantity'] += item['quantity']
 
+    def is_birthday_drop(res):
+        return res['type'] == "material" and 174 <= res['id'] <= 199
+
     for pkey in all_res:
         # 删除固定数量常规掉落(石头木头)
+        is_birthday_sapling = False
         is_cotton_flower = False
         has_material_drop = False
         for res_key, item in all_res[pkey].items():
@@ -401,12 +405,18 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                 is_cotton_flower = True
             if res_key.startswith("mysekai_material"):
                 has_material_drop = True
-        # 设置是否需要使用小图标（1.非素材掉落 2.棉花的其他掉落）
+            if is_birthday_drop(item) and item['quantity'] > 16:
+                is_birthday_sapling = True
+        # 设置是否需要使用小图标（1.非素材掉落 2.棉花的其他掉落 3. 生日树苗的其他掉落），以及隐藏非生日树苗的生日露滴
         for res_key, item in all_res[pkey].items():
             if not res_key.startswith("mysekai_material") and has_material_drop:
                 all_res[pkey][res_key]['small_icon'] = True
             if is_cotton_flower and res_key not in ['mysekai_material_21', 'mysekai_material_22']:
                 all_res[pkey][res_key]['small_icon'] = True
+            if is_birthday_sapling:
+                all_res[pkey][res_key]['small_icon'] = not is_birthday_drop(item)
+            elif is_birthday_drop(item):
+                all_res[pkey][res_key]['del'] = True
 
     # 绘制
     with Canvas(bg=FillBg(WHITE), w=draw_w, h=draw_h) as canvas:
@@ -538,7 +548,11 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                     style = TextStyle(font=DEFAULT_HEAVY_FONT, size=int(13 * scale), color=(200, 20, 0, 255))
                 elif call.quantity > 2:
                     style = TextStyle(font=DEFAULT_HEAVY_FONT, size=int(13 * scale), color=(200, 20, 200, 255))
-                TextBox(f"{call.quantity}", style).set_offset((call.x - 1, call.z - 1))
+                x_offset, z_offset = -1, -1
+                if call.quantity >= 10:
+                    x_offset = 1
+                    z_offset = int(call.size - 13 * scale) - 3
+                TextBox(f"{call.quantity}", style).set_offset((call.x + x_offset, call.z + z_offset))
 
     return await canvas.get_img()
 
