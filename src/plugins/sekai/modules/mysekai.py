@@ -879,6 +879,8 @@ async def compose_mysekai_fixture_list_image(
     for fixture, icon in zip(all_fixtures, result):
         fixture_icons[fixture['id']] = icon
 
+    text_color = (75, 75, 75)
+
     # 绘制
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
@@ -888,7 +890,7 @@ async def compose_mysekai_fixture_list_image(
 
             if qid and only_craftable:
                 TextBox(f"总收集进度: {total_obtained}/{total_all} ({total_obtained/total_all*100:.1f}%)", 
-                        TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100))) \
+                        TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=text_color)) \
                         .set_padding(16).set_bg(roundrect_bg())
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
@@ -900,11 +902,11 @@ async def compose_mysekai_fixture_list_image(
                         # 标签
                         main_genre_name, main_genre_image = await get_mysekai_fixture_genre_name_and_image(ctx, main_genre_id, True)
                         with HSplit().set_content_align('c').set_item_align('c').set_sep(5).set_omit_parent_bg(True):
-                            ImageBox(main_genre_image, size=(None, 30), use_alphablend=True).set_bg(RoundRectBg(fill=(150,150,150,255), radius=2))
-                            TextBox(main_genre_name, TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(100, 100, 100)))
+                            ImageBox(main_genre_image, size=(None, 30), use_alphablend=True).set_bg(RoundRectBg(fill=(100,100,100,255), radius=2))
+                            TextBox(main_genre_name, TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=text_color))
                             if qid and only_craftable:
                                 a, b = main_genre_obtained[main_genre_id], main_genre_all[main_genre_id]
-                                TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(100, 100, 100)))
+                                TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=text_color))
 
                         # 二级分类
                         for sub_genre_id in sorted(fixtures[main_genre_id].keys()):
@@ -915,11 +917,11 @@ async def compose_mysekai_fixture_list_image(
                                 if sub_genre_id != -1 and len(fixtures[main_genre_id]) > 1:  # 无二级分类或只有1个二级分类的不加标签
                                     sub_genre_name, sub_genre_image = await get_mysekai_fixture_genre_name_and_image(ctx, sub_genre_id, False)
                                     with HSplit().set_content_align('c').set_item_align('c').set_sep(5):
-                                        ImageBox(sub_genre_image, size=(None, 23), use_alphablend=True).set_bg(RoundRectBg(fill=(150,150,150,255), radius=2))
-                                        TextBox(sub_genre_name, TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=(100, 100, 100)))
+                                        ImageBox(sub_genre_image, size=(None, 23), use_alphablend=True).set_bg(RoundRectBg(fill=(100,100,100,255), radius=2))
+                                        TextBox(sub_genre_name, TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=text_color))
                                         if qid and only_craftable:
                                             a, b = sub_genre_obtained[main_genre_id][sub_genre_id], sub_genre_all[main_genre_id][sub_genre_id]
-                                            TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_FONT, size=12, color=(100, 100, 100)))
+                                            TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_FONT, size=12, color=text_color))
 
                                 # 绘制单个家具
                                 def draw_single_fid(fid: int, obtained: bool):
@@ -1658,6 +1660,8 @@ async def compose_mysekai_talk_list_image(
             noread_num = read_info['total'] - read_info['read']
             if noread_num > 1:
                 TextBox(f"x{noread_num}", TextStyle(font=DEFAULT_FONT, size=12, color=(255, 0, 0))).set_offset((5, 5))
+
+    text_color = (75, 75, 75)
                                         
     # 绘制
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
@@ -1674,15 +1678,15 @@ async def compose_mysekai_talk_list_image(
                     ImageBox(chara_icon, size=(None, 60))
                     if not show_all_talks:
                         TextBox(f"未读对话家具列表 - 进度: {total_read_num}/{total_talk_num} ({total_read_num/total_talk_num*100:.1f}%)", 
-                                TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75)))
+                                TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=text_color))
                     else:
                         TextBox(f"对话家具列表 - 共 {total_talk_num} 条对话", 
-                                TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100)))
+                                TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=text_color))
                 if not show_all_talks:
-                    TextBox(f"*仅展示未读对话家具，灰色表示未获得蓝图", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(100, 100, 100)))
+                    TextBox(f"*仅展示未读对话家具，灰色表示未获得蓝图", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=text_color))
             
             # 单人家具
-            TextBox(f"单人对话家具", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75))) \
+            TextBox(f"单人对话家具", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=text_color)) \
                 .set_padding(12).set_bg(roundrect_bg())
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
@@ -1696,8 +1700,8 @@ async def compose_mysekai_talk_list_image(
                         # 标签
                         main_genre_name, main_genre_image = await get_mysekai_fixture_genre_name_and_image(ctx, main_genre_id, True)
                         with HSplit().set_content_align('c').set_item_align('c').set_sep(5).set_omit_parent_bg(True):
-                            ImageBox(main_genre_image, size=(None, 30), use_alphablend=True).set_bg(RoundRectBg(fill=(150,150,150,255), radius=2))
-                            TextBox(main_genre_name, TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(100, 100, 100)))
+                            ImageBox(main_genre_image, size=(None, 30), use_alphablend=True).set_bg(RoundRectBg(fill=(100,100,100,255), radius=2))
+                            TextBox(main_genre_name, TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=text_color))
 
                         # 家具列表
                         for sub_genre_id in sorted(single_talk_fixtures[main_genre_id].keys()):
@@ -1721,7 +1725,7 @@ async def compose_mysekai_talk_list_image(
                     TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(16)
 
             # 多人家具
-            TextBox(f"多人对话家具", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(75, 75, 75))) \
+            TextBox(f"多人对话家具", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=text_color)) \
                 .set_padding(12).set_bg(roundrect_bg())    
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(8).set_bg(roundrect_bg()):
