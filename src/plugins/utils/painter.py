@@ -395,7 +395,7 @@ class RadialGradient(Gradient):
 class AdaptiveColor:
     light: Color = WHITE
     dark: Color = BLACK
-    threshold: float = 0.5
+    threshold: float = 0.25
 
 ADAPTIVE_WB = AdaptiveColor()
 

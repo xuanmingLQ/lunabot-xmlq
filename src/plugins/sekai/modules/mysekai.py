@@ -677,9 +677,10 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     def draw_watermark(size):
         if ctx.region in BD_MYSEKAI_REGIONS:
             TextBox("禁止将该图片转发到其他群聊或社交平台", 
-                    TextStyle(font=DEFAULT_BOLD_FONT, size=size, color=(50, 50, 50, 150)))
-            TextBox("禁止将该图片转发到其他群聊或社交平台", 
-                    TextStyle(font=DEFAULT_BOLD_FONT, size=size, color=(255, 255, 255, 150))).set_offset((2, 2))
+                    TextStyle(
+                        font=DEFAULT_BOLD_FONT, size=size, color=(255, 255, 255, 150), 
+                        use_shadow=True, shadow_color=(50, 50, 50, 150), shadow_offset=2,
+                    ))
     
     # 绘制数量图
     with Canvas(bg=bg).set_padding(BG_PADDING).set_content_align('c') as canvas:
@@ -705,7 +706,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                         ImageBox(gate_icon, size=(64, 64), use_alphablend=True)
                         TextBox(
                             f"Lv.{gate_level}", 
-                            TextStyle(DEFAULT_FONT, 12, UNIT_COLORS[gate_id-1], use_shadow=True),
+                            TextStyle(DEFAULT_FONT, 12, UNIT_COLORS[gate_id-1], use_shadow=True, shadow_color=WHITE),
                         ).set_content_align('c').set_offset((0, 2))
 
                     for cid in visit_cids:
