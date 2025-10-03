@@ -703,11 +703,11 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                 with HSplit().set_bg(roundrect_bg()).set_content_align('c').set_item_align('c').set_padding(16).set_sep(16):
                     gate_icon = ctx.static_imgs.get(f'mysekai/gate_icon/gate_{gate_id}.png')
                     with Frame().set_size((64, 64)).set_margin((16, 0)).set_content_align('rb'):
-                        ImageBox(gate_icon, size=(64, 64), use_alphablend=True)
+                        ImageBox(gate_icon, size=(64, 64), use_alphablend=True).set_offset((0, -4))
                         TextBox(
                             f"Lv.{gate_level}", 
-                            TextStyle(DEFAULT_FONT, 12, UNIT_COLORS[gate_id-1], use_shadow=True, shadow_color=WHITE),
-                        ).set_content_align('c').set_offset((0, 2))
+                            TextStyle(DEFAULT_BOLD_FONT, 16, UNIT_COLORS[gate_id-1], use_shadow=True, shadow_color=WHITE),
+                        ).set_content_align('c').set_offset((4, 2))
 
                     for cid in visit_cids:
                         chara_icon = await get_character_sd_image(cid)
