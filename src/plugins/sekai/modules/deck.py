@@ -1454,16 +1454,16 @@ async def compose_deck_recommend_image(
                                                         ImageBox(ctx.static_imgs.get(f"mysekai/icon_canvas.png"), size=(11, 11)) \
                                                                 .set_offset((-32, 65))
 
-                                                r = 2
+                                                info_bg = RoundRectBg((255, 255, 255, 100), 2)
                                                 with HSplit().set_content_align('c').set_item_align('c').set_sep(3).set_padding(0):
-                                                    TextBox(f"SLv.{slv}", TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(RoundRectBg(WHITE, r))
-                                                    TextBox(f"↑{sup}%", TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(RoundRectBg(WHITE, r))
+                                                    TextBox(f"SLv.{slv}", TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(info_bg)
+                                                    TextBox(f"↑{sup}%", TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(info_bg)
                                                 
                                                 with HSplit().set_content_align('c').set_item_align('c').set_sep(3).set_padding(0):
                                                     show_event_bonus = event_bonus > 0
                                                     if show_event_bonus:
                                                         event_bonus_str = f"+{event_bonus:.1f}%" if int(event_bonus) != event_bonus else f"+{int(event_bonus)}%"
-                                                        TextBox(event_bonus_str, TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(RoundRectBg(WHITE, r))
+                                                        TextBox(event_bonus_str, TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(info_bg)
                                                     read_fg, read_bg = (50, 150, 50, 255), (255, 255, 255, 255)
                                                     noread_fg, noread_bg = (150, 50, 50, 255), (255, 255, 255, 255)
                                                     none_fg, none_bg = (255, 255, 255, 255), (255, 255, 255, 255)
@@ -1471,8 +1471,8 @@ async def compose_deck_recommend_image(
                                                     ep1_bg = none_bg if ep1_read is None else (read_bg if ep1_read else noread_bg)
                                                     ep2_fg = none_fg if ep2_read is None else (read_fg if ep2_read else noread_fg)
                                                     ep2_bg = none_bg if ep2_read is None else (read_bg if ep2_read else noread_bg)
-                                                    TextBox("前" if show_event_bonus else "前篇", TextStyle(font=DEFAULT_FONT, size=12, color=ep1_fg)).set_bg(RoundRectBg(ep1_bg, r))
-                                                    TextBox("后" if show_event_bonus else "后篇", TextStyle(font=DEFAULT_FONT, size=12, color=ep2_fg)).set_bg(RoundRectBg(ep2_bg, r))
+                                                    TextBox("前" if show_event_bonus else "前篇", TextStyle(font=DEFAULT_FONT, size=12, color=ep1_fg)).set_bg(info_bg)
+                                                    TextBox("后" if show_event_bonus else "后篇", TextStyle(font=DEFAULT_FONT, size=12, color=ep2_fg)).set_bg(info_bg)
 
                             # 加成
                             if recommend_type not in ["challenge", "challenge_all", "no_event"]:

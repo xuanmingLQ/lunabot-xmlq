@@ -398,6 +398,10 @@ class AdaptiveColor:
     threshold: float = 0.25
 
 ADAPTIVE_WB = AdaptiveColor()
+ADAPTIVE_SHADOW = AdaptiveColor(
+    light=(255, 255, 255, 150), 
+    dark=(0, 0, 0, 150), 
+)
 
 
 # =========================== 绘图类 =========================== #

@@ -706,7 +706,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                         ImageBox(gate_icon, size=(64, 64), use_alphablend=True).set_offset((0, -4))
                         TextBox(
                             f"Lv.{gate_level}", 
-                            TextStyle(DEFAULT_BOLD_FONT, 16, UNIT_COLORS[gate_id-1], use_shadow=True, shadow_color=WHITE),
+                            TextStyle(DEFAULT_FONT, 16, UNIT_COLORS[gate_id-1], use_shadow=True, shadow_color=ADAPTIVE_SHADOW),
                         ).set_content_align('c').set_offset((4, 2))
 
                     for cid in visit_cids:
@@ -1351,7 +1351,7 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
                             ImageBox(gate_icon, size=(None, 40))
                             if spec_lv:
                                 color = lerp_color(UNIT_COLORS[gid - 1], BLACK, 0.2)
-                                TextBox(f"Lv.{spec_lv}", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=color))
+                                TextBox(f"Lv.{spec_lv}", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=color, use_shadow=True, shadow_color=ADAPTIVE_SHADOW))
                         lv_color = (50, 50, 50) if not profile else green_color
                         for level, items in enumerate(lv_materials, spec_lv + 1):
                             for item in items:
