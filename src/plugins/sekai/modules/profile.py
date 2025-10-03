@@ -449,9 +449,9 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                     game_data = basic_profile['user']
                     colored_text_box(
                         truncate(game_data['name'], 64),
-                        TextStyle(font=DEFAULT_BOLD_FONT, size=32, color=BLACK, use_shadow=True, shadow_offset=2),
+                        TextStyle(font=DEFAULT_BOLD_FONT, size=32, color=ADAPTIVE_WB, use_shadow=True, shadow_offset=2),
                     )
-                    TextBox(f"{ctx.region.upper()}: {process_hide_uid(ctx, game_data['userId'])}", TextStyle(font=DEFAULT_FONT, size=20, color=BLACK))
+                    TextBox(f"{ctx.region.upper()}: {process_hide_uid(ctx, game_data['userId'])}", TextStyle(font=DEFAULT_FONT, size=20, color=ADAPTIVE_WB))
                     with Frame():
                         ImageBox(ctx.static_imgs.get("lv_rank_bg.png"), size=(180, None))
                         TextBox(f"{game_data['rank']}", TextStyle(font=DEFAULT_FONT, size=30, color=WHITE)).set_offset((110, 0))
@@ -459,7 +459,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
             # 推特
             with Frame().set_content_align('l').set_w(450):
                 tw_id = basic_profile['userProfile'].get('twitterId', '')
-                tw_id_box = TextBox('        @ ' + tw_id, TextStyle(font=DEFAULT_FONT, size=20, color=BLACK), line_count=1)
+                tw_id_box = TextBox('        @ ' + tw_id, TextStyle(font=DEFAULT_FONT, size=20, color=ADAPTIVE_WB), line_count=1)
                 tw_id_box.set_wrap(False).set_bg(ui_bg).set_line_sep(2).set_padding(10).set_w(300).set_content_align('l')
                 x_icon = ctx.static_imgs.get("x_icon.png").resize((24, 24)).convert('RGBA')
                 ImageBox(x_icon, image_size_mode='original').set_offset((16, 0))
@@ -467,7 +467,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
             # 留言
             user_word = basic_profile['userProfile'].get('word', '')
             user_word = re.sub(r'<#.*?>', '', user_word)
-            user_word_box = TextBox(user_word, TextStyle(font=DEFAULT_FONT, size=20, color=BLACK), line_count=3)
+            user_word_box = TextBox(user_word, TextStyle(font=DEFAULT_FONT, size=20, color=ADAPTIVE_WB), line_count=3)
             user_word_box.set_wrap(True).set_bg(ui_bg).set_line_sep(2).set_padding((18, 16)).set_w(450)
 
             # 头衔

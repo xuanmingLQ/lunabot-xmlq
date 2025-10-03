@@ -391,6 +391,15 @@ class RadialGradient(Gradient):
         return colors.astype(np.uint8)
 
 
+@dataclass
+class AdaptiveColor:
+    light: Color = WHITE
+    dark: Color = BLACK
+    threshold: float = 0.5
+
+ADAPTIVE_WB = AdaptiveColor()
+
+
 # =========================== 绘图类 =========================== #
 
 @dataclass
@@ -708,18 +717,33 @@ class Painter:
         text: str, 
         pos: Position, 
         font: Union[FontDesc, Font],
-        fill: Union[Color, LinearGradient] = BLACK,
+        fill: Union[Color, LinearGradient, AdaptiveColor] = BLACK,
         align: str = "left"
     ):
+        def adjust_overlay_alpha_by_color(overlay: Image.Image, color: Color):
+            if len(color) < 4 or color[3] == 255:
+                return
+            overlay_alpha = overlay.split()[3]
+            overlay_alpha = Image.eval(overlay_alpha, lambda a: int(a * color[3] / 255))
+            overlay.putalpha(overlay_alpha)
+
         if isinstance(font, FontDesc):
             font = get_font(font.path, font.size)
+
         if isinstance(fill, LinearGradient):
             gradient = fill
+            adaptive = None
             fill = BLACK
+        elif isinstance(fill, AdaptiveColor):
+            gradient = None
+            adaptive = fill
+            fill = fill.light[:3]
         else:
             gradient = None
+            adaptive = None
 
-        if (len(fill) == 3 or fill[3] == 255) and not gradient:
+        if (len(fill) == 3 or fill[3] == 255) and not gradient and not adaptive:
+            # 不透明，非渐变，非高对比度颜色
             self._text(text, pos, font, fill, align)
         else:
             text_size = get_text_size(font, text)
@@ -727,14 +751,38 @@ class Painter:
             overlay = Image.new('RGBA', overlay_size, (0, 0, 0, 0))
             p = Painter(overlay)
             p._text(text, (0, 0), font, fill=fill, align=align)
+
             if gradient:
+                # 渐变颜色
                 gradient_img = gradient.get_img(overlay_size, overlay)
                 overlay = gradient_img
+
+            elif adaptive:
+                # 自适应颜色
+                dark_overlay = Image.new('RGBA', overlay_size, (0, 0, 0, 0))
+                dark_p = Painter(dark_overlay)
+                dark_p._text(text, (0, 0), font, fill=adaptive.dark[:3], align=align)
+
+                adjust_overlay_alpha_by_color(overlay, adaptive.light)
+                adjust_overlay_alpha_by_color(dark_overlay, adaptive.dark)
+
+                bg_img = self.img.crop((
+                    pos[0] + self.offset[0], 
+                    pos[1] + self.offset[1], 
+                    pos[0] + self.offset[0] + overlay_size[0], 
+                    pos[1] + self.offset[1] + overlay_size[1]
+                ))
+                gray = bg_img.filter(ImageFilter.BoxBlur(radius=4)).convert('L')
+                threshold = int(adaptive.threshold * 255)
+                mask = gray.point(lambda p: 255 if p > threshold else 0, 'L')
+                overlay.paste(dark_overlay, (0, 0), mask)
+
             elif fill[3] < 255:
-                overlay_alpha = overlay.split()[3]
-                overlay_alpha = Image.eval(overlay_alpha, lambda a: int(a * fill[3] / 255))
-                overlay.putalpha(overlay_alpha)
+                # 半透明颜色
+                adjust_overlay_alpha_by_color(overlay, fill)
+
             self.img.alpha_composite(overlay, (pos[0] + self.offset[0], pos[1] + self.offset[1]))
+
         return self
         
     def _impl_paste(
