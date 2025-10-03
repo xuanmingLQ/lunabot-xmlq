@@ -718,6 +718,9 @@ class TextStyle:
     font: str = DEFAULT_FONT
     size: int = 16
     color: Tuple[int, int, int, int] = BLACK
+    use_shadow: bool = False
+    shadow_offset: Tuple[int, int] | int = 1
+    shadow_color: Tuple[int, int, int, int] = SHADOW
 
 
 class TextBox(Widget):
@@ -852,7 +855,14 @@ class TextBox(Widget):
             elif self.content_halign == 'c':
                 x += (p.w - lw) // 2
             p.move_region((x, y), (lw, self.style.size))
+
+            if self.style.use_shadow:
+                so = self.style.shadow_offset
+                if isinstance(so, int):
+                    so = (so, so)
+                p.text(line, so, font=self._get_font_desc(), fill=self.style.shadow_color)
             p.text(line, (0, 0), font=self._get_font_desc(), fill=self.style.color)
+
             p.restore_region()
     
 
@@ -969,7 +979,7 @@ class Canvas(Frame):
 # =========================== 控件函数 =========================== #
 
 # 由带颜色代码的字符串获取彩色文本组件
-def colored_text_box(s: str, style: TextStyle, padding=2, use_shadow=False, shadow_color=SHADOW, **text_box_kargs) -> HSplit:
+def colored_text_box(s: str, style: TextStyle, padding=2, **text_box_kargs) -> HSplit:
     try:
         segs = [{ 'text': None, 'color': None }]
         while True:
@@ -995,40 +1005,8 @@ def colored_text_box(s: str, style: TextStyle, padding=2, use_shadow=False, shad
         for seg in segs:
             text, color = seg['text'], seg['color']
             if text:
-                if not use_shadow:
-                    color_style = deepcopy(style)
-                    if color is not None: color_style.color = color
-                    TextBox(text, style=color_style, **text_box_kargs).set_padding(0)
-                else:
-                    font = style.font
-                    font_size = style.size
-                    c1 = color if color else style.color
-                    c2 = shadow_color
-                    draw_shadowed_text(
-                        text, font, font_size, c1, c2,
-                        content_align='l', padding=0,
-                        **text_box_kargs
-                    )
+                color_style = deepcopy(style)
+                if color is not None: color_style.color = color
+                TextBox(text, style=color_style, **text_box_kargs).set_padding(0)
     return hs
 
-# 绘制带阴影的文本
-def draw_shadowed_text(
-    text: str, 
-    font: str,
-    font_size: int, 
-    c1: Color, 
-    c2: Color = SHADOW,
-    offset: Union[int, Tuple[int, int]] = 2, 
-    w: int = None, 
-    h: int = None,
-    content_align: str = 'c',
-    padding: int = 2,
-    **textbox_kargs,
-) -> Frame:
-    if isinstance(offset, int):
-        offset = (offset, offset)
-    with Frame().set_size((w, h)).set_content_align(content_align) as frame:
-        if c2:
-            TextBox(text, TextStyle(font=font, size=font_size, color=c2), **textbox_kargs).set_offset(offset).set_padding(padding)
-        TextBox(text, TextStyle(font=font, size=font_size, color=c1), **textbox_kargs).set_padding(padding)
-    return frame

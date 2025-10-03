@@ -163,7 +163,7 @@ async def get_pie_frame(gid, date_str, recs, topk_user, topk_name) -> Frame:
                     h, l, s = colorsys.rgb_to_hls(*color)
                     r, g, b = colorsys.hls_to_rgb(h, l * 0.7, s)
                     color = (int(r * 255), int(g * 255), int(b * 255), 255)
-                    draw_shadowed_text(f"{truncate(topk_name[i], 16)}", font=DEFAULT_BOLD_FONT, font_size=20, c1=color, c2=(0, 0, 0, 50)).set_offset((0, -2))
+                    TextBox(f"{truncate(topk_name[i], 16)}", TextStyle(DEFAULT_BOLD_FONT, 20, color, use_shadow=True)).set_offset((0, -2))
                 if offset_anchor == 'rb':
                     hs.items.reverse()
 

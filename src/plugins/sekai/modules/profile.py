@@ -56,8 +56,8 @@ verify_rate_limit = RateLimit(file_db, logger, 10, 'd', rate_limit_name='pjsk验
 @dataclass
 class ProfileBgSettings:
     image: Image.Image
-    blur: int = 4
-    alpha: int = 150
+    blur: int = None
+    alpha: int = None
     vertical: bool = False
 
 PROFILE_BG_IMAGE_PATH = f"{SEKAI_PROFILE_DIR}/profile_bg/" + "{region}/{uid}.jpg"
@@ -248,8 +248,7 @@ async def get_basic_profile_card(ctx: SekaiHandlerContext, profile: dict) -> Fra
                 user_id = process_hide_uid(ctx, game_data['userId'])
                 colored_text_box(
                     truncate(game_data['name'], 64),
-                    TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK),
-                    use_shadow=True,
+                    TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2),
                 )
                 TextBox(f"{ctx.region.upper()}: {user_id}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
     return f
@@ -399,8 +398,7 @@ async def get_detailed_profile_card(ctx: SekaiHandlerContext, profile: dict, err
                     user_id = process_hide_uid(ctx, game_data['userId'])
                     colored_text_box(
                         truncate(game_data['name'], 64),
-                        TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK),
-                        use_shadow=True,
+                        TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2),
                     )
                     TextBox(f"{ctx.region.upper()}: {user_id} Suite数据", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
                     TextBox(f"更新时间: {update_time_text}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
@@ -451,8 +449,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                     game_data = basic_profile['user']
                     colored_text_box(
                         truncate(game_data['name'], 64),
-                        TextStyle(font=DEFAULT_BOLD_FONT, size=32, color=BLACK),
-                        use_shadow=True,
+                        TextStyle(font=DEFAULT_BOLD_FONT, size=32, color=BLACK, use_shadow=True, shadow_offset=2),
                     )
                     TextBox(f"{ctx.region.upper()}: {process_hide_uid(ctx, game_data['userId'])}", TextStyle(font=DEFAULT_FONT, size=20, color=BLACK))
                     with Frame():
@@ -521,9 +518,10 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                     for j, diff in enumerate(DIFF_COLORS.keys()):
                         bg_color = (255, 255, 255, 150) if j % 2 == 0 else (255, 255, 255, 75)
                         count = find_by(diff_count, 'musicDifficultyType', diff)[score]
-                        draw_shadowed_text(str(count), DEFAULT_FONT, 20, 
-                                        PLAY_RESULT_COLORS['not_clear'], PLAY_RESULT_COLORS[play_result[i]], 
-                                        offset=1, w=gw, h=gh).set_bg(RoundRectBg(fill=bg_color, radius=3))
+                        TextBox(str(count), TextStyle(
+                                DEFAULT_FONT, 20, PLAY_RESULT_COLORS['not_clear'], use_shadow=True,
+                                shadow_color=PLAY_RESULT_COLORS[play_result[i]], shadow_offset=1,
+                            )).set_bg(RoundRectBg(fill=bg_color, radius=3)).set_size((gw, gh)).set_content_align('c')
         return ret
     
     # 养成部分
@@ -950,7 +948,12 @@ def get_profile_bg_settings(ctx: SekaiHandlerContext) -> ProfileBgSettings:
     except:
         image = None
     settings = profile_bg_settings_db.get(region, {}).get(uid, {})
-    return ProfileBgSettings(image=image, **settings)
+    ret = ProfileBgSettings(image=image, **settings)
+    if ret.alpha is None:
+        ret.alpha = WIDGET_BG_COLOR_CFG.get()[3]
+    if ret.blur is None:
+        ret.blur = 4
+    return ret
 
 # 获取玩家框信息，提供detail_profile会直接取用并更新缓存，否则使用缓存数据
 def get_player_frames(ctx: SekaiHandlerContext, uid: str, detail_profile: Optional[dict] = None) -> List[dict]:

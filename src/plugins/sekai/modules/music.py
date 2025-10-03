@@ -838,8 +838,8 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                 # 附加标题
                 if title and title_style:
                     if title_shadow:
-                        draw_shadowed_text(title, title_style.font, title_style.size, title_style.color, padding=16) \
-                            .set_omit_parent_bg(True).set_bg(roundrect_bg())
+                        TextBox(title, TextStyle(title_style.font, title_style.size, title_style.color, use_shadow=True, shadow_offset=2)) \
+                            .set_padding(16).set_omit_parent_bg(True).set_bg(roundrect_bg())
                     else:
                         TextBox(title, title_style).set_padding(16).set_omit_parent_bg(True).set_bg(roundrect_bg())
 
@@ -1101,10 +1101,14 @@ async def compose_play_progress_image(ctx: SekaiHandlerContext, diff: str, qid: 
                         fc      = c.fc - c.ap
                         clear   = c.clear - c.fc
                         total   = c.total - c.clear
-                        draw_shadowed_text(f"{total}", DEFAULT_BOLD_FONT, font_sz, color, None,                        w = w, h = item_h).set_bg(roundrect_bg())
-                        draw_shadowed_text(f"{clear}", DEFAULT_BOLD_FONT, font_sz, color, PLAY_RESULT_COLORS['clear'], w = w, h = item_h).set_bg(roundrect_bg())
-                        draw_shadowed_text(f"{fc}",    DEFAULT_BOLD_FONT, font_sz, color, PLAY_RESULT_COLORS['fc'],    w = w, h = item_h).set_bg(roundrect_bg())
-                        draw_shadowed_text(f"{ap}",    DEFAULT_BOLD_FONT, font_sz, color, PLAY_RESULT_COLORS['ap'],    w = w, h = item_h).set_bg(roundrect_bg())
+                        style = TextStyle(DEFAULT_BOLD_FONT, font_sz, color, use_shadow=False)
+                        TextBox(f"{total}", style).set_size((w, item_h)).set_content_align('c').set_bg(roundrect_bg())
+                        style = TextStyle(DEFAULT_BOLD_FONT, font_sz, color, use_shadow=True, shadow_color=PLAY_RESULT_COLORS['clear'], shadow_offset=2)
+                        TextBox(f"{clear}", style).set_size((w, item_h)).set_content_align('c').set_bg(roundrect_bg())
+                        style = TextStyle(DEFAULT_BOLD_FONT, font_sz, color, use_shadow=True, shadow_color=PLAY_RESULT_COLORS['fc'], shadow_offset=2)
+                        TextBox(f"{fc}",    style).set_size((w, item_h)).set_content_align('c').set_bg(roundrect_bg())
+                        style = TextStyle(DEFAULT_BOLD_FONT, font_sz, color, use_shadow=True, shadow_color=PLAY_RESULT_COLORS['ap'], shadow_offset=2)
+                        TextBox(f"{ap}",    style).set_size((w, item_h)).set_content_align('c').set_bg(roundrect_bg())
 
     add_watermark(canvas)
     return await canvas.get_img()
@@ -1173,7 +1177,8 @@ async def compose_music_brief_list_image(
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
             if title and title_style:
                 if title_shadow:
-                    draw_shadowed_text(title, title_style.font, title_style.size, title_style.color, padding=8)
+                    TextBox(title, TextStyle(title_style.font, title_style.size, title_style.color, use_shadow=True, shadow_offset=2)) \
+                        .set_padding(8)
                 else:
                     TextBox(title, title_style).set_padding(8)
 

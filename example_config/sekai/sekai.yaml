@@ -1,6 +1,9 @@
 debug: false
 
-blurglass: true
+draw:
+  blurglass: true
+  widget_bg_color: [255, 255, 255, 100]
+  widget_bg_radius: 10
 
 daily_bind_limit: 3
 

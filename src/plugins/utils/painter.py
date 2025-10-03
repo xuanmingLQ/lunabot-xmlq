@@ -695,12 +695,12 @@ class Painter:
 
     def draw_random_triangle_bg(
         self, 
-        time_color: bool, 
+        use_time_color: bool, 
         main_hue: float, 
         size_fixed_rate: float,
         exclude_on_hash: bool = False
     ):
-        return self.add_operation("_impl_draw_random_triangle_bg", exclude_on_hash, (time_color, main_hue, size_fixed_rate))
+        return self.add_operation("_impl_draw_random_triangle_bg", exclude_on_hash, (use_time_color, main_hue, size_fixed_rate))
 
 
     def _impl_text(
@@ -992,7 +992,7 @@ class Painter:
         self.img.alpha_composite(overlay, (draw_pos[0], draw_pos[1]))
         return self
 
-    def _impl_draw_random_triangle_bg(self, time_color: bool, main_hue: float, size_fixed_rate: float):
+    def _impl_draw_random_triangle_bg(self, use_time_color: bool, main_hue: float, size_fixed_rate: float):
         timecolors = [
             (0,  0.57, 4.0, 0.1),
             (5,  0.57, 2.0, 0.2),
@@ -1022,7 +1022,7 @@ class Painter:
                     ) 
 
         w, h = self.size
-        if time_color:
+        if use_time_color:
             mh, ms, ml = get_timecolor(datetime.now())
         else:
             mh = main_hue

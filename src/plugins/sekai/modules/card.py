@@ -264,7 +264,7 @@ async def compose_card_list_image(ctx: SekaiHandlerContext, cards: List[Dict], q
             with Grid(col_count=3).set_bg(roundrect_bg()).set_padding(16):
                 for i, (card, (normal, after)) in enumerate(card_and_thumbs):
 
-                    bg = roundrect_bg(fill=(255, 255, 255, 150), radius=WIDGET_BG_RADIUS)
+                    bg = roundrect_bg()
                     if card["supply_show_name"]: 
                         bg.fill = (255, 250, 220, 200)
                     

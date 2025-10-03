@@ -58,19 +58,19 @@ SEKAI_BLUE_BG = RandomTriangleBg(True)
 SEKAI_RED_BG = RandomTriangleBg(False, main_hue=0.05)
 
 BG_PADDING = 20
-WIDGET_BG_COLOR = (255, 255, 255, 150)
-WIDGET_BG_RADIUS = 10
-
-
-BLURGLASS_CFG = config.item("blurglass")
+WIDGET_BG_COLOR_CFG = config.item("draw.widget_bg_color")
+WIDGET_BG_RADIUS_CFG = config.item("draw.widget_bg_radius")
+BLURGLASS_CFG = config.item("draw.blurglass")
 
 # 统一的半透明白色圆角矩形背景
-def roundrect_bg(fill: Color=WIDGET_BG_COLOR, radius: int=WIDGET_BG_RADIUS, alpha: int=None, blurglass: bool=None, blurglass_kwargs: dict={}):
+def roundrect_bg(fill: Color | ConfigItem=WIDGET_BG_COLOR_CFG, radius: int | ConfigItem=WIDGET_BG_RADIUS_CFG, alpha: int=None, blurglass: bool=None, blurglass_kwargs: dict={}):
     """
     统一的半透明白色圆角矩形背景
     """
     if blurglass is None:
         blurglass = BLURGLASS_CFG.get()
+    fill = get_cfg_or_value(fill)
+    radius = get_cfg_or_value(radius)
     if alpha is not None:
         fill = (*fill[:3], alpha)
     return RoundRectBg(fill, radius, blurglass=blurglass, blurglass_kwargs=blurglass_kwargs)

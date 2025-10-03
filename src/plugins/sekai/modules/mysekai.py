@@ -190,8 +190,7 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
                     with HSplit().set_content_align('lb').set_item_align('lb').set_sep(5):
                         colored_text_box(
                             truncate(game_data['name'], 64),
-                            TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK),
-                            use_shadow=True,
+                            TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2),
                         )
                         TextBox(f"MySekai Lv.{mysekai_game_data['mysekaiRank']}", TextStyle(font=DEFAULT_FONT, size=18, color=BLACK))
                     TextBox(f"{ctx.region.upper()}: {process_hide_uid(ctx, game_data['userId'])} Mysekai数据", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
@@ -693,7 +692,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                 with HSplit().set_sep(8).set_content_align('lb').set_bg(roundrect_bg()).set_padding(10):
                     for i in range(len(phenom_imgs)):
                         with Frame():
-                            color = (175, 175, 175) if i != phenom_idx else (0, 0, 0)
+                            color = (100, 100, 100) if i != phenom_idx else (0, 0, 0)
                             with VSplit().set_content_align('c').set_item_align('c').set_sep(5).set_bg(roundrect_bg()).set_padding(8):
                                 TextBox(phenom_texts[i], TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=color)).set_w(60).set_content_align('c')
                                 ImageBox(phenom_imgs[i], size=(None, 50), use_alphablend=True)   
@@ -704,7 +703,10 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                     gate_icon = ctx.static_imgs.get(f'mysekai/gate_icon/gate_{gate_id}.png')
                     with Frame().set_size((64, 64)).set_margin((16, 0)).set_content_align('rb'):
                         ImageBox(gate_icon, size=(64, 64), use_alphablend=True)
-                        TextBox(f"Lv.{gate_level}", TextStyle(font=DEFAULT_BOLD_FONT, size=12, color=UNIT_COLORS[gate_id-1])).set_content_align('c').set_offset((0, 2))
+                        TextBox(
+                            f"Lv.{gate_level}", 
+                            TextStyle(DEFAULT_FONT, 12, UNIT_COLORS[gate_id-1], use_shadow=True),
+                        ).set_content_align('c').set_offset((0, 2))
 
                     for cid in visit_cids:
                         chara_icon = await get_character_sd_image(cid)
@@ -730,7 +732,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                                 res_img = await get_mysekai_res_icon(ctx, res_key)
                                 if not res_img: continue
                                 with HSplit().set_content_align('l').set_item_align('l').set_sep(5):
-                                    text_color = (150, 150, 150) 
+                                    text_color = (100, 100, 100) 
                                     rarity = get_mysekai_res_rarity(res_key)
                                     if rarity == 2:
                                         text_color = (200, 50, 0)
@@ -747,7 +749,11 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                                                 ImageBox(music_record_icon, size=(25, 25), use_alphablend=True).set_offset((5, 5))
                                     else:
                                         ImageBox(res_img, size=(40, 40), use_alphablend=True)
-                                    TextBox(f"{res_quantity}", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=text_color)).set_w(80).set_content_align('l')
+                                    TextBox(
+                                        f"{res_quantity}", 
+                                        TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=text_color,
+                                                    use_shadow=True, shadow_color=WHITE),
+                                    ).set_w(80).set_content_align('l')
         draw_watermark(30)
 
     # 绘制位置图
@@ -2023,16 +2029,10 @@ async def msr_auto_push():
             if not gbl.check_id(gid): continue
             if region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(region, gid): continue
 
-            qid = str(qid)
-
             msr_last_push_time = file_db.get(f"{region}_msr_last_push_time", {})
 
             uid = get_player_bind_id(ctx, qid, check_bind=False)
-            if uid and int(uid) not in need_push_uids:
-                continue
-
-            if not uid:
-                # logger.info(f"用户 {qid} 未绑定游戏id，跳过{region_name}Mysekai资源查询自动推送")
+            if not uid or int(uid) not in need_push_uids:
                 continue
 
             # 检查这个uid-qid刷新后是否已经推送过
@@ -2041,9 +2041,9 @@ async def msr_auto_push():
                 last_push_time = datetime.fromtimestamp(msr_last_push_time[key] / 1000)
                 if last_push_time >= last_refresh_time:
                     continue
-
             msr_last_push_time[key] = int(datetime.now().timestamp() * 1000)
             file_db.set(f"{region}_msr_last_push_time", msr_last_push_time)
+            
             tasks.append((gid, qid))
 
         async def push(task):
