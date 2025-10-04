@@ -812,8 +812,7 @@ async def verify_user_game_account(ctx: SekaiHandlerContext):
     def generate_verify_code() -> str:
         while True:
             code = str(random.randint(1000, 9999))
-            if '69' in code:
-                continue
+            code = '/'.join(code)
             hit = False
             for codes in _region_qid_verify_codes.values():
                 if any(info.verify_code == code for info in codes.values()):
@@ -850,7 +849,7 @@ async def verify_user_game_account(ctx: SekaiHandlerContext):
         )
         _region_qid_verify_codes[ctx.region][qid] = info
         raise ReplyException(f"""
-{err_msg}请在你当前绑定的{get_region_name(ctx.region)}帐号({process_hide_uid(ctx, info.uid, keep=6)})的个人信息留言(word)的末尾输入该验证码(编辑后退出个人信息界面以保存):
+{err_msg}请在你当前绑定的{get_region_name(ctx.region)}帐号({process_hide_uid(ctx, info.uid, keep=6)})的个人信息留言(word)的末尾输入该验证码(不要去掉斜杠，编辑后退出个人信息界面以保存):
 {info.verify_code}
 {get_readable_timedelta(VERIFY_CODE_EXPIRE_TIME)}内重新发送一次\"{ctx.original_trigger_cmd}\"以完成验证
 """.strip())
