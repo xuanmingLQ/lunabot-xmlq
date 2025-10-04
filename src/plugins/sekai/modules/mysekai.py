@@ -566,7 +566,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
 
     upload_time = datetime.fromtimestamp(mysekai_info['upload_time'] / 1000)
     if upload_time < get_mysekai_last_refresh_time(ctx) and check_time:
-        raise ReplyException(f"数据已过期({upload_time.strftime('%m-%d %H:%M:%S')})")
+        raise ReplyException(f"数据已过期: {upload_time.strftime('%m-%d %H:%M:%S')} from {mysekai_info.get('source', '?')}")
     
     assert_and_reply('userMysekaiHarvestMaps' in mysekai_info.get('updatedResources', {}), 
                      f"你的Mysekai抓包数据不完整，可以尝试退出游戏到标题界面后重新上传抓包数据")
