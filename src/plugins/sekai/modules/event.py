@@ -348,7 +348,7 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
             with Grid(row_count=row_count, vertical=True).set_sep(8, 2).set_item_align('lt').set_content_align('lt'):
                 for d in filtered_details:
                     now = datetime.now()
-                    bg_color = WIDGET_BG_COLOR
+                    bg_color = WIDGET_BG_COLOR_CFG.get()
                     if d.start_time <= now <= d.end_time:
                         bg_color = (255, 250, 220, 200)
                     elif now > d.end_time:
