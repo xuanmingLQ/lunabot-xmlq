@@ -1129,6 +1129,9 @@ async def _(ctx: SekaiHandlerContext):
     region, user_name, _ = ok_check_results[0]
     uid = str(ctx.user_id)
 
+    bind_list: Dict[str, Dict[str, setattr]] = profile_db.get("bind_list", {})
+    last_bind_id = bind_list.get(region, {}).get(uid, None)
+
     # 检查绑定次数限制
     if not check_superuser(ctx.event):
         date = get_date_str()
@@ -1136,7 +1139,13 @@ async def _(ctx: SekaiHandlerContext):
         daily_info = all_daily_info.get(uid, { 'date': date, 'ids': [] })
         if daily_info['date'] != date:
             daily_info = { 'date': date, 'ids': [] }
-        daily_info['ids'] = list(set(daily_info.get('ids', []) + [args]))
+
+        today_ids = set(daily_info.get('ids', []))
+        today_ids.add(args)
+        if last_bind_id:
+            today_ids.add(last_bind_id) # 当前绑定的id也算在内
+
+        daily_info['ids'] = list(today_ids)
         if len(daily_info['ids']) > DAILY_BIND_LIMIT.get():
             return await ctx.asend_reply_msg(f"你今日绑定{get_region_name(region)}帐号的数量已达上限")
         all_daily_info[uid] = daily_info
@@ -1145,7 +1154,6 @@ async def _(ctx: SekaiHandlerContext):
     msg = f"{get_region_name(region)}绑定成功: {user_name}"
 
     # 如果以前没有绑定过其他区服，设置默认服务器
-    bind_list: Dict[str, Dict[str, setattr]] = profile_db.get("bind_list", {})
     other_bind = None
     for r in ALL_SERVER_REGIONS:
         if r == region: continue
@@ -1158,7 +1166,6 @@ async def _(ctx: SekaiHandlerContext):
         msg += f"\n你的默认服务器为{get_region_name(default_region)}，查询{get_region_name(region)}需加前缀{region}，或使用\"/pjsk服务器\"修改默认服务器"
 
     # 如果该区服以前没有绑定过，设置默认隐藏id
-    last_bind_id = bind_list.get(region, {}).get(uid, None)
     if not last_bind_id:
         lst = profile_db.get("hide_id_list", {})
         if region not in lst:
@@ -1383,7 +1390,7 @@ async def _(ctx: SekaiHandlerContext):
     task2 = get_detailed_profile(ctx, qid, raise_exc=False, mode="haruki", filter=['upload_time'])
     (local_profile, local_err), (haruki_profile, haruki_err) = await asyncio.gather(task1, task2)
 
-    msg = f"{get_region_name(ctx.region)}ID: {process_hide_uid(ctx, uid, keep=6)} 的Suite数据\n"
+    msg = f"{process_hide_uid(ctx, uid, keep=6)}({ctx.region.upper()}) Suite数据\n"
 
     if local_err:
         local_err = local_err[local_err.find(']')+1:].strip()
@@ -1405,6 +1412,7 @@ async def _(ctx: SekaiHandlerContext):
 
     mode = get_user_data_mode(ctx, ctx.user_id)
     msg += f"---\n"
+    msg += f"该指令查询Suite数据，查询Mysekai数据请使用\"/{ctx.region}msd\"\n"
     msg += f"数据获取模式: {mode}，使用\"/{ctx.region}抓包模式\"来切换模式\n"
     msg += f"发送\"/抓包\"获取抓包教程"
 

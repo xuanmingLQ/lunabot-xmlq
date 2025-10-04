@@ -1277,7 +1277,7 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
     if profile:
         gates = profile.get('userMysekaiGates', [])
         if not gates:
-            raise ReplyException("查询不到你的Mysekai门数据（需要上传Suite抓包数据）")
+            raise ReplyException("查询不到你的烤森门（需要更新Suite抓包数据）")
         for item in gates:
             gid = item['mysekaiGateId']
             lv = item['mysekaiGateLevel']
@@ -1896,7 +1896,7 @@ async def _(ctx: SekaiHandlerContext):
     task2 = get_mysekai_info(ctx, qid, raise_exc=False, mode="haruki", filter=['upload_time'])
     (local_profile, local_err), (haruki_profile, haruki_err) = await asyncio.gather(task1, task2)
 
-    msg = f"{get_region_name(ctx.region)}ID: {process_hide_uid(ctx, uid, keep=6)} 的Mysekai数据\n"
+    msg = f"{process_hide_uid(ctx, uid, keep=6)}({ctx.region.upper()}) Mysekai数据\n"
 
     if local_err:
         local_err = local_err[local_err.find(']')+1:].strip()
@@ -1918,6 +1918,7 @@ async def _(ctx: SekaiHandlerContext):
 
     mode = get_user_data_mode(ctx, ctx.user_id)
     msg += f"---\n"
+    msg += f"该指令查询Mysekai数据，查询Suite数据请使用\"/{ctx.region}抓包状态\"\n"
     msg += f"数据获取模式: {mode}，使用\"/{ctx.region}抓包模式\"来切换模式\n"
     msg += f"发送\"/抓包\"获取抓包教程"
 
