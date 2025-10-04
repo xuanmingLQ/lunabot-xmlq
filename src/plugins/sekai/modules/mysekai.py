@@ -1358,18 +1358,18 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
                                 if any(i['color'] == red_color for i in items):
                                     lv_color = red_color
 
-                            with HSplit().set_content_align('l').set_item_align('l').set_sep(4).set_padding(8):
-                                TextBox(f"{level}", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=lv_color), overflow='clip').set_w(32)
+                            with HSplit().set_content_align('l').set_item_align('l').set_sep(8).set_padding(8):
+                                TextBox(f"{level}", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=lv_color), overflow='clip').set_w(32)
                                 for item in items:
                                     mid, quantity, color, sum_quantity = item['mid'], item['quantity'], item['color'], item['sum_quantity']
-                                    with VSplit().set_content_align('c').set_item_align('c').set_sep(2):
+                                    with VSplit().set_content_align('c').set_item_align('c').set_sep(4):
                                         img = await get_mysekai_res_icon(ctx, f"mysekai_material_{mid}")
                                         with Frame():
-                                            sz = 50
+                                            sz = 64
                                             ImageBox(img, size=(sz, sz))
-                                            TextBox(f"x{quantity}", TextStyle(font=DEFAULT_BOLD_FONT, size=14, color=(50, 50, 50))) \
+                                            TextBox(f"x{quantity}", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(50, 50, 50))) \
                                                 .set_offset((sz, sz)).set_offset_anchor('rb')
-                                        TextBox(sum_quantity, TextStyle(font=DEFAULT_BOLD_FONT, size=12, color=color))
+                                        TextBox(sum_quantity, TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=color))
     add_watermark(canvas)
     
     # 缓存full查询

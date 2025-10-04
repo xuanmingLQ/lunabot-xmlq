@@ -1420,7 +1420,7 @@ async def compose_deck_recommend_image(
                                                 color = (50, 150, 50) if dlt > 0 else (150, 50, 50)
                                                 TextBox(f"{dlt:+d}", TextStyle(font=DEFAULT_FONT, size=15, color=color)).set_offset((0, -8-voffset*2))
                                             # 算法
-                                            TextBox(alg.upper(), TextStyle(font=DEFAULT_FONT, size=12, color=(150, 150, 150))).set_offset((0, -8-voffset*2+alg_offset))
+                                            TextBox(alg.upper(), TextStyle(font=DEFAULT_FONT, size=12, color=(125, 125, 125))).set_offset((0, -8-voffset*2+alg_offset))
                                             # 分数
                                             score = deck.live_score if recommend_type == "no_event" else deck.score
                                             with Frame().set_content_align('c'):
@@ -1454,7 +1454,7 @@ async def compose_deck_recommend_image(
                                                         ImageBox(ctx.static_imgs.get(f"mysekai/icon_canvas.png"), size=(11, 11)) \
                                                                 .set_offset((-32, 65))
 
-                                                info_bg = RoundRectBg((255, 255, 255, 100), 2)
+                                                info_bg = RoundRectBg((255, 255, 255, 150), 2)
                                                 with HSplit().set_content_align('c').set_item_align('c').set_sep(3).set_padding(0):
                                                     TextBox(f"SLv.{slv}", TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(info_bg)
                                                     TextBox(f"↑{sup}%", TextStyle(font=DEFAULT_FONT, size=12, color=(50, 50, 50))).set_bg(info_bg)
@@ -1504,7 +1504,7 @@ async def compose_deck_recommend_image(
                                         with Frame().set_content_align('rb'):
                                             if options.multi_live_teammate_score_up is not None:
                                                 teammate_text = f"队友 {int(options.multi_live_teammate_score_up)}"
-                                                TextBox(teammate_text, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -8-voffset*2))
+                                                TextBox(teammate_text, TextStyle(font=DEFAULT_FONT, size=14, color=(125, 125, 125))).set_offset((0, -8-voffset*2))
                                             with Frame().set_content_align('c'):
                                                 TextBox(f"{deck.multi_live_score_up:.1f}%", tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
 
@@ -1520,7 +1520,7 @@ async def compose_deck_recommend_image(
                                         with Frame().set_content_align('rb'):
                                             if options.multi_live_teammate_power is not None:
                                                 teammate_text = f"队友 {int(options.multi_live_teammate_power)}"
-                                                TextBox(teammate_text, TextStyle(font=DEFAULT_FONT, size=14, color=(150, 150, 150))).set_offset((0, -8-voffset*2))
+                                                TextBox(teammate_text, TextStyle(font=DEFAULT_FONT, size=14, color=(125, 125, 125))).set_offset((0, -8-voffset*2))
                                             with Frame().set_content_align('c'):
                                                 TextBox(str(deck.total_power), tb_style).set_h(gh).set_content_align('c').set_offset((0, -voffset))
                     # 找不到结果
