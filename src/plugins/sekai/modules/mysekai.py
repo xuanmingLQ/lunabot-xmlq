@@ -1889,14 +1889,14 @@ pjsk_check_mysekai_data.check_cdrate(cd).check_wblist(gbl)
 @pjsk_check_mysekai_data.handle()
 async def _(ctx: SekaiHandlerContext):
     cqs = extract_cq_code(await ctx.aget_msg())
-    uid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
-    nickname = await get_group_member_name(ctx.bot, ctx.group_id, uid)
+    qid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
+    uid = get_player_bind_id(ctx, qid, check_bind=True)
 
-    task1 = get_mysekai_info(ctx, uid, raise_exc=False, mode="local", filter=['upload_time'])
-    task2 = get_mysekai_info(ctx, uid, raise_exc=False, mode="haruki", filter=['upload_time'])
+    task1 = get_mysekai_info(ctx, qid, raise_exc=False, mode="local", filter=['upload_time'])
+    task2 = get_mysekai_info(ctx, qid, raise_exc=False, mode="haruki", filter=['upload_time'])
     (local_profile, local_err), (haruki_profile, haruki_err) = await asyncio.gather(task1, task2)
 
-    msg = f"@{nickname} 的{get_region_name(ctx.region)}Mysekai抓包数据状态\n"
+    msg = f"{get_region_name(ctx.region)}ID: {process_hide_uid(ctx, uid, keep=6)} 的Mysekai数据\n"
 
     if local_err:
         local_err = local_err[local_err.find(']')+1:].strip()

@@ -1338,7 +1338,7 @@ async def _(ctx: SekaiHandlerContext):
 【latest】
 同时从所有数据源获取，使用最新的一个（推荐）
 【default】
-从本地数据获取失败才尝试从Haruki工具箱获取（使用bot自建服务推荐）
+从本地数据获取失败才尝试从Haruki工具箱获取
 【local】
 仅从本地数据获取
 【haruki】
@@ -1377,13 +1377,13 @@ pjsk_check_data.check_cdrate(cd).check_wblist(gbl)
 async def _(ctx: SekaiHandlerContext):
     cqs = extract_cq_code(await ctx.aget_msg())
     qid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
-    nickname = await get_group_member_name(ctx.bot, ctx.group_id, qid)
-    
+    uid = get_player_bind_id(ctx, qid, check_bind=True)
+
     task1 = get_detailed_profile(ctx, qid, raise_exc=False, mode="local", filter=['upload_time'])
     task2 = get_detailed_profile(ctx, qid, raise_exc=False, mode="haruki", filter=['upload_time'])
     (local_profile, local_err), (haruki_profile, haruki_err) = await asyncio.gather(task1, task2)
 
-    msg = f"@{nickname} 的{get_region_name(ctx.region)}Suite抓包数据状态\n"
+    msg = f"{get_region_name(ctx.region)}ID: {process_hide_uid(ctx, uid, keep=6)} 的Suite数据\n"
 
     if local_err:
         local_err = local_err[local_err.find(']')+1:].strip()

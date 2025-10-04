@@ -136,7 +136,7 @@ async def _(ctx: HandlerContext):
 
     SET_HELP = f"""
 ---
-使用\"{ctx.trigger_cmd} 区服\"设置默认区服，可用的区服有: {', '.join(ALL_SERVER_REGIONS)}
+使用\"{ctx.trigger_cmd} 区服英文缩写\"设置默认区服，可用的区服有: {', '.join(ALL_SERVER_REGIONS)}
 """.strip()
 
     if not args:
@@ -154,7 +154,10 @@ async def _(ctx: HandlerContext):
 {SET_HELP}
 """.strip())
         
-    assert_and_reply(args in ALL_SERVER_REGIONS, SET_HELP)
+    assert_and_reply(args in ALL_SERVER_REGIONS, f"""
+无效的区服参数: {args}
+{SET_HELP}
+""".strip())
     set_user_default_region(ctx.user_id, args)
 
     return await ctx.asend_reply_msg(f"""

@@ -100,6 +100,7 @@ group_sub_list.check_cdrate(cd).check_wblist(gbl)
 @group_sub_list.handle()
 async def _(ctx: HandlerContext):
     msg = "当前群聊开启:\n"
+    has_sub = False
     for sub in SekaiGroupSubHelper.all_subs:
         sub_regions = []
         for region in sub.regions:
@@ -107,9 +108,13 @@ async def _(ctx: HandlerContext):
                 sub_regions.append(region)
         if sub_regions:
             msg += f"{sub.name}({', '.join(sub_regions)})\n"
+            has_sub = True
+
+    if not has_sub:
+        msg += "无\n"
     
     msg += "---\n"
-    msg += "使用 /pjsk开启{英文项目名} 开启订阅\n"
+    msg += "使用\"/pjsk开启 英文项目名\"开启订阅\n"
     msg += "所有可开启项目:\n"
     for sub in SekaiGroupSubHelper.all_subs:
         msg += f"{sub.id}: {sub.name}({', '.join(sub.regions)})\n"
@@ -231,6 +236,7 @@ user_sub_list.check_cdrate(cd).check_wblist(gbl)
 async def _(ctx: HandlerContext):
     msg = "你在当前群聊的订阅:\n"
     has_related_not_on = False
+    has_sub = False
     for sub in SekaiUserSubHelper.all_subs:
         sub_regions = []
         for region in sub.regions:
@@ -242,13 +248,17 @@ async def _(ctx: HandlerContext):
                 sub_regions.append(region)
         if sub_regions:
             msg += f"{sub.name}({', '.join(sub_regions)})\n"
+            has_sub = True
     if has_related_not_on:
         msg += "---\n"
         msg += "带*的订阅对应的群聊功能在本群未开启！"
         msg += "如需使用请联系BOT超管\n"
 
+    if not has_sub:
+        msg += "无\n"
+
     msg += "---\n"
-    msg += "使用 /pjsk订阅{英文项目名} 开启订阅\n"
+    msg += "使用\"/pjsk订阅 英文项目名\"进行订阅\n"
     msg += "所有可订阅项目:\n"
     for sub in SekaiUserSubHelper.all_subs:
         msg += f"{sub.id}: {sub.name}({', '.join(sub.regions)})\n"
