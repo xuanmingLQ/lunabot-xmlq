@@ -83,6 +83,8 @@ SITE_ID_ORDER = (
 
 MSR_PUSH_CONCURRENCY_CFG = config.item('msr_push_concurrency')
 
+bd_msr_bind_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bd_msr_bind.json", logger)
+
 
 # ======================= 处理逻辑 ======================= #
 
@@ -559,6 +561,13 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
 async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_harvested: bool, check_time: bool) -> List[Image.Image]:
     with Timer("msr:get_basic_profile", logger):
         uid = get_player_bind_id(ctx, qid)
+
+        # 字节服额外验证
+        if bd_limit_uid := get_bd_msr_limit_uid(ctx, qid):
+            assert_and_reply(bd_limit_uid == uid, f"""
+你当前绑定ID与该指令限制ID（{process_hide_uid(ctx, bd_limit_uid, keep=6)}）不符，无法查询数据。发送\"/msr换绑\"可更换限制ID为当前绑定ID（一周内仅可换绑一次）
+""".strip())
+
         basic_profile = await get_basic_profile(ctx, uid)
 
     with Timer("msr:get_mysekai_info", logger):
@@ -1748,6 +1757,28 @@ async def compose_mysekai_talk_list_image(
     add_watermark(canvas)
     return await canvas.get_img()
 
+# 获取字节服msr限制uid，不限制则返回None
+def get_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str | None:
+    if ctx.region not in BD_MYSEKAI_REGIONS or int(qid) in SUPERUSER_CFG.get():
+        return None
+    qid = str(qid)
+    msr_binds: dict[str, str] = bd_msr_bind_db.get(f"{ctx.region}_bind", {})
+    if qid not in msr_binds:
+        return update_bd_msr_limit_uid(ctx, qid)
+    return msr_binds[qid]
+
+# 切换字节服msr限制uid为当前绑定的ID，返回绑定的ID
+def update_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str:
+    assert_and_reply(ctx.region in BD_MYSEKAI_REGIONS, "指令对此区服无效")
+    assert_and_reply(bd_msr_sub.is_subbed(ctx.region, ctx.group_id), "指令在此群无效")
+    uid = get_player_bind_id(ctx, qid, check_bind=True)
+    qid = str(qid)
+    msr_binds: dict[str, str] = bd_msr_bind_db.get(f"{ctx.region}_bind", {})
+    msr_binds[qid] = str(uid)
+    bd_msr_bind_db.set(f"{ctx.region}_bind", msr_binds)
+    return uid
+
+
 
 # ======================= 指令处理 ======================= #
 
@@ -1976,6 +2007,25 @@ async def _(ctx: SekaiHandlerContext):
     ))
 
 
+# msr换绑
+msr_change_bind = SekaiCmdHandler([
+    "/msr换绑",
+], regions=BD_MYSEKAI_REGIONS)
+msr_change_bind.check_cdrate(cd).check_wblist(gbl)
+@msr_change_bind.handle()
+async def _(ctx: SekaiHandlerContext):
+    next_times = bd_msr_bind_db.get(f"{ctx.region}_next_time", {})
+    qid = str(ctx.user_id)
+    next_time = next_times.get(qid, 0)
+    if next_time > datetime.now().timestamp():
+        raise ReplyException(f"请于{datetime.fromtimestamp(next_time).strftime('%m-%d %H:%M:%S')}后再试")
+    uid = update_bd_msr_limit_uid(ctx, ctx.user_id)
+    next_times[qid] = int((datetime.now() + timedelta(days=7)).timestamp())
+    bd_msr_bind_db.set(f"{ctx.region}_next_time", next_times)
+    await ctx.asend_reply_msg(f"已将你的{get_region_name(ctx.region)}MSR查询限制ID切换为当前绑定的ID: "
+                              f"{process_hide_uid(ctx, uid, keep=6)}，一周内不可再次切换")
+
+
 # ======================= 定时任务 ======================= #
 
 # MSR自动推送 & MSR订阅更新
@@ -2056,6 +2106,7 @@ async def msr_auto_push():
             gid, qid = task
             user_ctx = SekaiHandlerContext.from_region(region)
             user_ctx.user_id = int(qid)
+            user_ctx.group_id = int(gid)
             try:
                 logger.info(f"在 {gid} 中自动推送用户 {qid} 的{region_name}Mysekai资源查询")
                 contents = [
