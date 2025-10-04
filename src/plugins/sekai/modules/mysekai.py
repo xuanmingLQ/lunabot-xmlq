@@ -1774,6 +1774,8 @@ def update_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str:
     uid = get_player_bind_id(ctx, qid, check_bind=True)
     qid = str(qid)
     msr_binds: dict[str, str] = bd_msr_bind_db.get(f"{ctx.region}_bind", {})
+    last_bind = msr_binds.get(qid)
+    assert_and_reply(last_bind != str(uid), f"你的MSR限制ID已经是当前ID，无需换绑")
     msr_binds[qid] = str(uid)
     bd_msr_bind_db.set(f"{ctx.region}_bind", msr_binds)
     return uid
