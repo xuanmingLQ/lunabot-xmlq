@@ -392,6 +392,8 @@ async def get_detailed_profile_card(ctx: SekaiHandlerContext, profile: dict, err
                 with VSplit().set_content_align('c').set_item_align('l').set_sep(5):
                     game_data = profile['userGamedata']
                     source = profile.get('source', '?')
+                    if local_source := profile.get('local_source'):
+                        source += f"({local_source})"
                     mode = mode or get_user_data_mode(ctx, ctx.user_id)
                     update_time = datetime.fromtimestamp(profile['upload_time'] / 1000)
                     update_time_text = update_time.strftime('%m-%d %H:%M:%S') + f" ({get_readable_datetime(update_time, show_original_time=False)})"
@@ -1398,6 +1400,8 @@ async def _(ctx: SekaiHandlerContext):
         msg += "[本地数据]\n"
         upload_time = datetime.fromtimestamp(local_profile['upload_time'] / 1000)
         upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
+        if local_source := local_profile.get('local_source'):
+            upload_time_text = local_source + " " + upload_time_text
         msg += f"{upload_time_text}\n"
 
     if haruki_err:

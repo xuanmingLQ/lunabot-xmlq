@@ -186,6 +186,8 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
                     game_data = basic_profile['user']
                     mysekai_game_data = mysekai_info['updatedResources']['userMysekaiGamedata']
                     source = mysekai_info.get('source', '?')
+                    if local_source := mysekai_info.get('local_source'):
+                        source += f"({local_source})"
                     mode = get_user_data_mode(ctx, ctx.user_id)
                     update_time = datetime.fromtimestamp(mysekai_info['upload_time'] / 1000)
                     update_time_text = update_time.strftime('%m-%d %H:%M:%S') + f" ({get_readable_datetime(update_time, show_original_time=False)})"
@@ -1938,6 +1940,8 @@ async def _(ctx: SekaiHandlerContext):
         msg += "[本地数据]\n"
         upload_time = datetime.fromtimestamp(local_profile['upload_time'] / 1000)
         upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
+        if local_source := local_profile.get('local_source'):
+            upload_time_text = local_source + " " + upload_time_text
         msg += f"{upload_time_text}\n"
 
     if haruki_err:
