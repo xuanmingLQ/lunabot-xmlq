@@ -20,6 +20,7 @@ import re
 import math
 import io
 import time
+import zstandard
 from .config import *
 
 
@@ -615,6 +616,35 @@ async def download_json(url: str) -> dict:
                 return loads_json(io.BytesIO(await resp.read()).read())
             return await resp.json()
 
+def load_json_zstd(file_path: str) -> dict:
+    with open(file_path, 'rb') as file:
+        dctx = zstandard.ZstdDecompressor()
+        data = dctx.decompress(file.read())
+        return orjson.loads(data)
+
+def dump_json_zstd(data: dict, file_path: str) -> None:
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    tmp_path = file_path + ".tmp"
+    with open(tmp_path, 'wb') as file:
+        buffer = orjson.dumps(data)
+        cctx = zstandard.ZstdCompressor()
+        compressed = cctx.compress(buffer)
+        file.write(compressed)
+    os.replace(tmp_path, file_path)
+    try: os.remove(tmp_path)
+    except: pass
+
+async def aload_json_zstd(path: str) -> dict:
+    """
+    异步加载zstd压缩的json文件
+    """
+    return await run_in_pool(load_json_zstd, path)
+
+async def adump_json_zstd(data: dict, path: str):
+    """
+    异步保存zstd压缩的json文件
+    """
+    return await run_in_pool(dump_json_zstd, data, path)
 
 
 # ============================ 日志 ============================ #

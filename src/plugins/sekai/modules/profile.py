@@ -1668,12 +1668,17 @@ pjsk_user_sta.check_cdrate(cd).check_wblist(gbl).check_superuser()
 async def _(ctx: HandlerContext):
     args = ctx.get_args().strip()
     group_mode = False
+    detail_mode = False
     if '群' in args or 'group' in args:
         group_mode = True
+    if '详细' in args or 'detail' in args:
+        detail_mode = True
     SUITE_DIR = "/root/program/qqbot/mybot/data/sekai/user_data/{region}/suite/*"
     MYSEKAI_DIR = "/root/program/qqbot/mybot/data/sekai/user_data/{region}/mysekai/*"
     bind_list: Dict[str, Dict[str, str]] = profile_db.get("bind_list", {})
     suite_total, mysekai_total, qid_set = 0, 0, set()
+    suite_source_total: dict[str, int] = {}
+    mysekai_source_total: dict[str, int] = {}
 
     msg = "所有群聊统计:\n" if not group_mode else "当前群聊统计:\n"
     group_qids = set([str(m['user_id']) for m in await get_group_users(ctx.bot, ctx.group_id)])
@@ -1696,8 +1701,32 @@ async def _(ctx: HandlerContext):
         mysekai_total += len(mysekais)
 
         msg += f"【{get_region_name(region)}】\n绑定 {len(qids)} | Suite {len(suites)} | MySekai {len(mysekais)}\n"
+
+        if detail_mode:
+            suite_source_num: dict[str, int] = {}
+            mysekai_source_num: dict[str, int] = {}
+            def get_detail():
+                for p in suites:
+                    local_source = load_json_zstd(p).get('local_source', '未知')
+                    suite_source_num[local_source] = suite_source_num.get(local_source, 0) + 1
+                for k, v in suite_source_num.items():
+                    suite_source_total[k] = suite_source_total.get(k, 0) + v
+                for p in mysekais:
+                    local_source = load_json_zstd(p).get('local_source', '未知')
+                    mysekai_source_num[local_source] = mysekai_source_num.get(local_source, 0) + 1
+                for k, v in mysekai_source_num.items():
+                    mysekai_source_total[k] = mysekai_source_total.get(k, 0) + v
+            await run_in_pool(get_detail)
+            msg += "Suite来源: " + " | ".join([f"{k} {v}" for k, v in suite_source_num.items()]) + "\n"
+            msg += "MySekai来源: " + " | ".join([f"{k} {v}" for k, v in mysekai_source_num.items()]) + "\n"
+
+
     msg += f"---\n【总计】\n绑定 {len(qid_set)} | Suite {suite_total} | MySekai {mysekai_total}"
-    return await ctx.asend_reply_msg(msg.strip())
+    if detail_mode:
+        msg += "\nSuite来源: " + " | ".join([f"{k} {v}" for k, v in suite_source_total.items()])
+        msg += "\nMySekai来源: " + " | ".join([f"{k} {v}" for k, v in mysekai_source_total.items()])
+
+    return await ctx.asend_fold_msg_adaptive(msg.strip())
 
 
 # 查询绑定历史
