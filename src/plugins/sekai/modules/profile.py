@@ -188,6 +188,13 @@ async def get_unit_by_card_id(ctx: SekaiHandlerContext, card_id: int) -> str:
 
 # ======================= 处理逻辑 ======================= #
 
+# 处理敏感指令抓包数据来源
+def process_sensitive_cmd_source(data):
+    if data.get('source') == 'haruki':
+        data['source'] = 'remote'
+    if data.get('local_source') == 'haruki':
+        data['local_source'] = 'sync'
+
 # 验证uid
 def validate_uid(ctx: SekaiHandlerContext, uid: str) -> bool:
     uid = str(uid)

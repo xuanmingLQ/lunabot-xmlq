@@ -17,6 +17,7 @@ from .profile import (
     process_hide_uid,
     get_player_frames,
     get_avatar_widget_with_frame,
+    process_sensitive_cmd_source,
 )
 from .music import get_music_cover_thumb
 from .card import get_character_sd_image
@@ -87,14 +88,6 @@ bd_msr_bind_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bd_msr_bind.json", logger)
 
 
 # ======================= 处理逻辑 ======================= #
-
-# 处理敏感指令数据来源
-def process_sensitive_cmd_source(source):
-    if source == 'haruki':
-        source = 'remote'
-    if source == 'local(haruki)':
-        source = 'local(sync)'
-    return source
 
 # 判断ms资源稀有等级（0, 1, 2)
 def get_mysekai_res_rarity(key: str) -> int:
@@ -199,11 +192,11 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
                 with VSplit().set_content_align('c').set_item_align('l').set_sep(5):
                     game_data = basic_profile['user']
                     mysekai_game_data = mysekai_info['updatedResources']['userMysekaiGamedata']
+                    if ctx.region in BD_MYSEKAI_REGIONS:
+                        process_sensitive_cmd_source(mysekai_info)
                     source = mysekai_info.get('source', '?')
                     if local_source := mysekai_info.get('local_source'):
                         source += f"({local_source})"
-                    if ctx.region in BD_MYSEKAI_REGIONS:
-                        source = process_sensitive_cmd_source(source)
                     mode = get_user_data_mode(ctx, ctx.user_id)
                     update_time = datetime.fromtimestamp(mysekai_info['upload_time'] / 1000)
                     update_time_text = update_time.strftime('%m-%d %H:%M:%S') + f" ({get_readable_datetime(update_time, show_original_time=False)})"
@@ -1956,6 +1949,8 @@ async def _(ctx: SekaiHandlerContext):
         msg += "[本地数据]\n"
         upload_time = datetime.fromtimestamp(local_profile['upload_time'] / 1000)
         upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
+        if ctx.region in BD_MYSEKAI_REGIONS:
+            process_sensitive_cmd_source(local_profile)
         if local_source := local_profile.get('local_source'):
             upload_time_text = local_source + " " + upload_time_text
         msg += f"{upload_time_text}\n"
