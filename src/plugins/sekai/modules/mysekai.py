@@ -88,6 +88,14 @@ bd_msr_bind_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bd_msr_bind.json", logger)
 
 # ======================= 处理逻辑 ======================= #
 
+# 处理敏感指令数据来源
+def process_sensitive_cmd_source(source):
+    if source == 'haruki':
+        source = 'remote'
+    if source == 'local(haruki)':
+        source = 'local(sync)'
+    return source
+
 # 判断ms资源稀有等级（0, 1, 2)
 def get_mysekai_res_rarity(key: str) -> int:
     t1, id1 = key.rsplit("_", 1)
@@ -108,7 +116,13 @@ async def get_chara_icon_by_chara_unit_id(ctx: SekaiHandlerContext, cuid: int) -
     return get_chara_icon_by_chara_id(cid=cu['gameCharacterId'], unit=cu['unit'])
 
 # 获取玩家mysekai抓包数据 返回 (mysekai_info, err_msg)
-async def get_mysekai_info(ctx: SekaiHandlerContext, qid: int, raise_exc=False, mode=None, filter: list[str]=None,) -> Tuple[dict, str]:
+async def get_mysekai_info(
+    ctx: SekaiHandlerContext, 
+    qid: int, 
+    raise_exc=False, 
+    mode=None, 
+    filter: list[str]=None, 
+) -> Tuple[dict, str]:
     cache_path = None
     try:
         # 获取绑定的玩家id
@@ -188,6 +202,8 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
                     source = mysekai_info.get('source', '?')
                     if local_source := mysekai_info.get('local_source'):
                         source += f"({local_source})"
+                    if ctx.region in BD_MYSEKAI_REGIONS:
+                        source = process_sensitive_cmd_source(source)
                     mode = get_user_data_mode(ctx, ctx.user_id)
                     update_time = datetime.fromtimestamp(mysekai_info['upload_time'] / 1000)
                     update_time_text = update_time.strftime('%m-%d %H:%M:%S') + f" ({get_readable_datetime(update_time, show_original_time=False)})"
