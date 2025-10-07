@@ -363,7 +363,7 @@ async def compose_gacha_list_image(ctx: SekaiHandlerContext, filter: GachaFilter
             with Grid(row_count=row_count, vertical=True).set_sep(8, 2).set_item_align('c').set_content_align('c'):
                 for g, logo in zip(gachas, logos):
                     now = datetime.now()
-                    bg_color = WIDGET_BG_COLOR
+                    bg_color = WIDGET_BG_COLOR_CFG.get()
                     if g.start_at <= now <= g.end_at:
                         bg_color = (255, 250, 220, 200)
                     elif now > g.end_at:
