@@ -441,7 +441,7 @@ def truncate(s: str, limit: int) -> str:
         l += 1 if ord(c) < 128 else 2
     return s
 
-def get_str_display_length(s: int) -> int:
+def get_str_display_length(s: str) -> int:
     """
     获取字符串的显示长度，中文字符算两个字符
     """

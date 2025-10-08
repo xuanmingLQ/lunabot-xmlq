@@ -8,13 +8,17 @@ from .card import (
     get_card_image,
     has_after_training,
 )
+from .event import parse_search_single_event_args
 from .resbox import get_res_icon
 
 
 GACHA_LIST_PAGE_SIZE_CFG = config.item('gacha.list_page_size')
 
 SINGLE_GACHA_HELP = """
-单个卡池参数: 使用卡池编号，或负数表示最近卡池
+单个卡池参数: 
+123: 直接使用卡池编号
+-2: 倒数第二个卡池
+event123: 活动123对应的卡池
 """.strip()
 MULTI_GACHA_HELP = """
 多个卡池参数:
@@ -248,6 +252,12 @@ async def get_gacha_weight_info(ctx: SekaiHandlerContext, gacha: Gacha) -> Gacha
 async def parse_search_gacha_args(ctx: SekaiHandlerContext, args: str) -> Optional[Gacha]:
     if not args:
         return None
+    # 活动相关卡池
+    if 'event' in args:
+        eid = (await parse_search_single_event_args(ctx, args.replace('event', '').strip()))['id']
+        g = await get_gacha_by_event_id(ctx, eid)
+        assert_and_reply(g, f"找不到活动{ctx.region.upper()}-{eid}对应的卡池")
+        return g
     index = None
     try:
         index = int(args)
@@ -624,6 +634,23 @@ async def compose_gacha_spin_image(ctx: SekaiHandlerContext, gacha: Gacha, cards
 
     add_watermark(canvas)
     return await canvas.get_img()
+
+# 获取卡牌对应卡池
+async def get_gacha_by_card_id(ctx: SekaiHandlerContext, cid: int) -> Optional[Gacha]:
+    card = await ctx.md.cards.find_by_id(cid)
+    release_time = datetime.fromtimestamp(card['releaseAt'] / 1000)
+    for g in await ctx.md.gachas.get():
+        if g.start_at <= release_time <= g.end_at:
+            if find_by_predicate(g.cards, lambda x: x.id == cid and x.is_pickup):
+                return g
+    return None
+
+# 获取活动对应卡池
+async def get_gacha_by_event_id(ctx: SekaiHandlerContext, eid: int) -> Gacha:
+    event_card_ids = sorted([item['cardId'] for item in await ctx.md.event_cards.find_by('eventId', eid, mode='all')])
+    # 使用第三张卡，跳过fes卡
+    cid = event_card_ids[min(2, len(event_card_ids)-1)]
+    return await get_gacha_by_card_id(ctx, cid)
 
 
 # ======================= 指令处理 ======================= #

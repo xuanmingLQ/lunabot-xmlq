@@ -776,14 +776,8 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
         event_detail = await get_event_detail(ctx, event_card['eventId'], require_assets=['banner'])
 
     # 关联卡池
-    from .gacha import get_gacha_banner, Gacha
-    gacha = None
-    for g0 in await ctx.md.gachas.get():
-        g: Gacha = g0
-        if g.start_at <= release_time <= g.end_at:
-            if find_by_predicate(g.cards, lambda x: x.id == card_id and x.is_pickup):
-                gacha = g
-                break
+    from .gacha import get_gacha_banner, get_gacha_by_card_id
+    gacha = await get_gacha_by_card_id(ctx, card_id)
     if gacha:
         gacha_id = gacha.id
         gacha_name = gacha.name
@@ -856,7 +850,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
                 with HSplit().set_padding(16).set_sep(32).set_content_align('c').set_item_align('c').set_w(w):
                     ImageBox(unit_logo, size=(None, 64))
                     with VSplit().set_content_align('c').set_item_align('c').set_sep(12):
-                        TextBox(title, title_style).set_w(w - 260)
+                        TextBox(title, title_style).set_w(w - 260).set_content_align('c')
                         with HSplit().set_content_align('c').set_item_align('c').set_sep(8):
                             ImageBox(chara_icon, size=(None, 32))
                             TextBox(chara_name, title_style)

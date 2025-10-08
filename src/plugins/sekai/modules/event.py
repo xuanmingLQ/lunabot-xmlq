@@ -412,9 +412,9 @@ async def get_event_by_ban_name(ctx: SekaiHandlerContext, ban_name: str) -> Opti
     events.sort(key=lambda x: x['startAt'])
     return events[idx-1]
                                 
-# 根据索引获取活动
-async def get_event_by_index(ctx: SekaiHandlerContext, index: str) -> dict:
-    if index.removeprefix('-').isdigit():
+# 解析查单个活动参数，返回活动或抛出异常
+async def parse_search_single_event_args(ctx: SekaiHandlerContext, args: str) -> dict:
+    if args.removeprefix('-').isdigit():
         events = await ctx.md.events.get()
         events = sorted(events, key=lambda x: x['startAt'])
         cur_event = await get_current_event(ctx, fallback="next_first")
@@ -424,15 +424,15 @@ async def get_event_by_index(ctx: SekaiHandlerContext, index: str) -> dict:
                 cur_idx = i
                 break
         events = events[:cur_idx + 1]
-        index = int(index)
-        if index < 0:
-            if -index > len(events):
+        args = int(args)
+        if args < 0:
+            if -args > len(events):
                 raise ReplyException("倒数索引超出范围")
-            return events[index]
-        event = await ctx.md.events.find_by_id(index)
-        assert_and_reply(event, f"活动{ctx.region.upper()}-{index}不存在")
+            return events[args]
+        event = await ctx.md.events.find_by_id(args)
+        assert_and_reply(event, f"活动{ctx.region.upper()}-{args}不存在")
         return event
-    elif event := await get_event_by_ban_name(ctx, index):
+    elif event := await get_event_by_ban_name(ctx, args):
         return event
     else:
         raise ReplyException(f"查单个活动参数错误")
@@ -947,7 +947,7 @@ async def _(ctx: SekaiHandlerContext):
     
     async def query_single(args: str):
         if args:
-            event = await get_event_by_index(ctx, args)
+            event = await parse_search_single_event_args(ctx, args)
         else:
             event = await get_current_event(ctx, fallback='next_first')
         return await ctx.asend_reply_msg(await get_image_cq(
@@ -996,7 +996,7 @@ async def _(ctx: SekaiHandlerContext):
         save = False
         
     try:
-        event = await get_event_by_index(ctx, args)
+        event = await parse_search_single_event_args(ctx, args)
     except:
         event = await get_current_event(ctx, fallback='next_first')
     await ctx.block_region(str(event['id']))

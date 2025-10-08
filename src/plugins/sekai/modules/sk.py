@@ -11,7 +11,7 @@ from .profile import (
 from .event import (
     get_current_event, 
     get_event_banner_img, 
-    get_event_by_index,
+    parse_search_single_event_args,
     get_wl_chapter_cid,
     get_wl_events,
 )
@@ -1109,7 +1109,7 @@ async def _(ctx: SekaiHandlerContext):
 
     if args:
         raise ReplyException(f"已不支持查询往期榜线")
-        try: event = await get_event_by_index(ctx, args)
+        try: event = await parse_search_single_event_args(ctx, args)
         except:
             return await ctx.asend_reply_msg(f"""
 参数错误，查询指定活动榜线：

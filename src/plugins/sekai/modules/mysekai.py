@@ -203,7 +203,7 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
                     with HSplit().set_content_align('lb').set_item_align('lb').set_sep(5):
                         colored_text_box(
                             truncate(game_data['name'], 64),
-                            TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2),
+                            TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2, shadow_color=ADAPTIVE_SHADOW),
                         )
                         TextBox(f"MySekai Lv.{mysekai_game_data['mysekaiRank']}", TextStyle(font=DEFAULT_FONT, size=18, color=BLACK))
                     TextBox(f"{ctx.region.upper()}: {process_hide_uid(ctx, game_data['userId'])} Mysekai数据", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
