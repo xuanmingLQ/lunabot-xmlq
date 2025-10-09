@@ -379,8 +379,8 @@ def extract_card_config(args: str, options: DeckRecommendOptions) -> str:
 
     return args
 
-# 从args中提取队友综合和实效设置
-def extract_teammate_options(args: str, options: DeckRecommendOptions) -> str:
+# 从args中提取多人live相关设置
+def extract_multilive_options(args: str, options: DeckRecommendOptions) -> str:
     if options.live_type != "multi":
         return args.strip()
 
@@ -391,14 +391,29 @@ def extract_teammate_options(args: str, options: DeckRecommendOptions) -> str:
     for seg in segs:
         for keyword in TEAMMATE_POWER_KEYWORDS:
             if keyword in seg:
-                options.multi_live_teammate_power = parse_number(seg.replace(keyword, "").strip())
-                args = args.replace(seg, "").strip()
-                break
+                value = seg.replace(keyword, "").strip()
+                try:
+                    options.multi_live_teammate_power = parse_number(value)
+                    args = args.replace(seg, "").strip()
+                    break
+                except:
+                    raise ReplyException(f"无法解析指定的队友综合力\"{value}\"")
         for keyword in TEAMMATE_SCOREUP_KEYWORDS:
             if keyword in seg:
-                options.multi_live_teammate_score_up = int(seg.replace(keyword, "").strip())
-                args = args.replace(seg, "").strip()
-                break
+                value = seg.replace(keyword, "").strip()
+                try:
+                    options.multi_live_teammate_score_up = int(value)
+                    args = args.replace(seg, "").strip()
+                    break
+                except:
+                    raise ReplyException(f"无法解析指定的队友实效\"{value}\"")
+        for keyword in SKILL_TARGET_KEYWORDS:
+            if keyword in seg:
+                value = seg.replace(keyword, "").strip()
+                if value.isdigit():
+                    options.multi_live_score_up_lower_bound = int(value)
+                    args = args.replace(seg, "").strip()
+                    break
 
     return args.strip()
 
@@ -503,7 +518,7 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     else:
         options.live_type = "multi"
 
-    args = extract_teammate_options(args, options)
+    args = extract_multilive_options(args, options)
     args = extract_fixed_cards_and_characters(args, options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
@@ -611,7 +626,7 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     else:
         options.live_type = "multi"
 
-    args = extract_teammate_options(args, options)
+    args = extract_multilive_options(args, options)
     args = extract_fixed_cards_and_characters(args, options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
@@ -666,7 +681,7 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
     else:
         options.live_type = "multi"
 
-    args = extract_teammate_options(args, options)
+    args = extract_multilive_options(args, options)
     args = extract_fixed_cards_and_characters(args, options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
@@ -1366,17 +1381,19 @@ async def compose_deck_recommend_image(
                         if use_max_profile:
                             TextBox(f"({get_region_name(ctx.region)}顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
 
-                    if any([unit_filter, attr_filter, excluded_cards]):
+                    if any([unit_filter, attr_filter, excluded_cards, options.multi_live_score_up_lower_bound]):
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(16):
-                            TextBox("卡组设置:", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)))
+                            setting_style = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50))
+                            TextBox("卡组设置:", setting_style)
                             if unit_filter or attr_filter:
-                                TextBox(f"仅", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)))
+                                TextBox(f"仅", setting_style)
                                 if unit_filter: ImageBox(get_unit_logo(unit_filter), size=(None, 40))
                                 if attr_filter: ImageBox(get_attr_icon(attr_filter), size=(None, 35))
-                                TextBox(f"上场", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)))
+                                TextBox(f"上场", setting_style)
                             if excluded_cards:
-                                TextBox(f"排除 {','.join(map(str, excluded_cards))}", 
-                                        TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50)))
+                                TextBox(f"排除 {','.join(map(str, excluded_cards))}", setting_style)
+                            if options.multi_live_score_up_lower_bound:
+                                TextBox(f"实效≥{int(options.multi_live_score_up_lower_bound)}%", setting_style)
                             
                     if recommend_type in ["bonus", "wl_bonus"]:
                         TextBox(f"友情提醒：控分前请核对加成和体力设置", TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(255, 50, 50)))
@@ -1397,7 +1414,7 @@ async def compose_deck_recommend_image(
                 with VSplit().set_content_align('c').set_item_align('c').set_sep(16).set_padding(16).set_bg(roundrect_bg()):
                     if len(result_decks) > 0:
                         with HSplit().set_content_align('c').set_item_align('c').set_sep(16).set_padding(0):
-                            th_style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=28, color=(25, 25, 25))
+                            th_style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=28, color=(0, 0, 0))
                             th_style2 = TextStyle(font=DEFAULT_BOLD_FONT, size=28, color=(75, 75, 75))
                             th_main_sign = '∇'
                             tb_style = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(70, 70, 70))

@@ -576,7 +576,7 @@ def vlives_map_fn(vlives):
         if datetime.now() - ret["show_end"] > timedelta(days=7):
             continue
         ret["schedule"] = []
-        if len(vlive["virtualLiveSchedules"]) == 0:
+        if len(vlive.get("virtualLiveSchedules", [])) == 0:
             continue
         rest_num = 0
         for schedule in vlive["virtualLiveSchedules"]:
