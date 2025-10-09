@@ -340,7 +340,7 @@ async def get_image_cq(
 
         is_gif_img = is_gif(image) or image.mode == 'P'
         ext = 'gif' if is_gif_img else ('jpg' if low_quality else 'png')
-        with TempFilePath(ext) as tmp_path:
+        with TempFilePath(ext, remove_after=timedelta(minutes=global_config.get('msg_send.tmp_img_keep_minutes'))) as tmp_path:
             if ext == 'gif':
                 save_transparent_gif(gif_to_frames(image), get_gif_duration(image), tmp_path)
             elif ext == 'jpg':
@@ -348,9 +348,7 @@ async def get_image_cq(
                 image.save(tmp_path, format='JPEG', quality=quality, optimize=True, subsampling=2, progressive=False)
             else:
                 image.save(tmp_path)
-            
-            with open(tmp_path, 'rb') as f:
-                return f'[CQ:image,file=base64://{base64.b64encode(f.read()).decode()}]'
+            return f'[CQ:image,file=file://{os.path.abspath(tmp_path)}]'
 
     except Exception as e:
         if allow_error: 

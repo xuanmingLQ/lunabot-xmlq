@@ -14,6 +14,8 @@ msg_send:
   default_fold_fallback_method: "none"  # 默认发送折叠消息失败时的回退方法
   max_fold_msg_len: 4096                # 单层折叠消息长度限制 
 
+  tmp_img_keep_minutes: 5  # 临时图片保存时间（分钟）
+
 font:
   path: "xxx"  # 中文字体路径
   name: "xxx"  # Matplotlib库使用的中文字体名称

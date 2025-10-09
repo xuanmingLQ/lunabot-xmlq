@@ -530,21 +530,28 @@ def rand_filename(ext: str) -> str:
         ext = ext[1:]
     return f'{uuid4()}.{ext}'
 
+_tmp_files_to_remove: list[Tuple[str, datetime]] = []
+
 class TempFilePath:
     """
     临时文件路径
+    remove_after为None表示使用后立即删除，否则延时删除
     """
-    def __init__(self, ext: str):
+    def __init__(self, ext: str, remove_after: timedelta = None):
         self.ext = ext
         self.path = pjoin('data/utils/tmp', rand_filename(ext))
+        self.remove_after = remove_after
         create_parent_folder(self.path)
 
     def __enter__(self) -> str:
         return self.path
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        # utils_logger.info(f'删除临时文件 {self.path}')
-        remove_file(self.path)
+        if self.remove_after is None:
+            # utils_logger.info(f'删除临时文件 {self.path}')
+            remove_file(self.path)
+        else:
+            _tmp_files_to_remove.append((self.path, datetime.now() + self.remove_after))
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
 async def download_file(url, file_path):
@@ -1165,4 +1172,25 @@ async def asend_exception_mail(title: str, content: str, logger: 'Logger'):
             )
         except Exception as e:
             logger.print_exc(f'发送异常邮件 {title} 到 {receiver} 失败')
+
+
+@repeat_with_interval(60, '清除临时文件', utils_logger)
+async def _():
+    """
+    定期删除过期的临时文件
+    """
+    global _tmp_files_to_remove
+    now = datetime.now()
+    new_list = []
+    for path, remove_time in _tmp_files_to_remove:
+        if now >= remove_time:
+            try:
+                if os.path.exists(path):
+                    # utils_logger.info(f'删除临时文件 {path}')
+                    remove_file(path)
+            except:
+                utils_logger.print_exc(f'删除临时文件 {path} 失败')
+        else:
+            new_list.append((path, remove_time))
+    _tmp_files_to_remove = new_list
 
