@@ -664,9 +664,6 @@ def haruki_url_map(url: str) -> str:
     # 谱面文件添加.txt
     if 'music_score' in part2:
         part2 = part2 + ".txt"
-        segs = part2.split('/')
-        segs.pop(-2)
-        part2 = '/'.join(segs)
     # 添加类别
     if any([part2.startswith(prefix) for prefix in ONDEMAND_PREFIXES]):
         category = 'ondemand'
