@@ -32,6 +32,14 @@ exception_mail:   # 发送异常消息邮件的配置
 painter:
   debug: False
   process_num: 4
+  random_triangle_bg_timecolors:
+    - [0,  0.57, 7.0, 0.1]
+    - [5,  0.57, 2.0, 0.2]
+    - [9,  0.57, 1.0, 0.8]
+    - [12, 0.57, 1.0, 1.0]
+    - [15, 0.57, 1.0, 0.8]
+    - [19, 0.57, 2.0, 0.2]
+    - [24, 0.57, 7.0, 0.1]
 
 plot:
   debug: False

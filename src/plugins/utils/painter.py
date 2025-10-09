@@ -1045,15 +1045,7 @@ class Painter:
         return self
 
     def _impl_draw_random_triangle_bg(self, use_time_color: bool, main_hue: float, size_fixed_rate: float):
-        timecolors = [
-            (0,  0.57, 4.0, 0.1),
-            (5,  0.57, 2.0, 0.2),
-            (9,  0.57, 1.0, 0.8),
-            (12, 0.57, 1.0, 1.0),
-            (15, 0.57, 1.0, 0.8),
-            (19, 0.57, 2.0, 0.2),
-            (24, 0.57, 4.0, 0.1),
-        ]
+        timecolors = global_config.get('painter.random_triangle_bg_timecolors')
         def get_timecolor(t: datetime):
             if t.hour < timecolors[0][0]:
                 return timecolors[0][1:]
@@ -1072,10 +1064,13 @@ class Painter:
                         s1 + (s2 - s1) * x,
                         l1 + (l2 - l1) * x,
                     ) 
+                
+        now = datetime.now()
+        # now = datetime.strptime("2024-06-21 23:00", "%Y-%m-%d %H:%M")
 
         w, h = self.size
         if use_time_color:
-            mh, ms, ml = get_timecolor(datetime.now())
+            mh, ms, ml = get_timecolor(now)
         else:
             mh = main_hue
             ms = 1.0
@@ -1098,26 +1093,23 @@ class Painter:
         bg.alpha_composite(Image.new("RGBA", (w // s, h // s), (255, 255, 255, 100)))
         bg = bg.resize((w, h), Image.Resampling.LANCZOS)
 
-        tri1 = Image.new("RGBA", (64, 64), (255, 255, 255, 0))
-        draw = ImageDraw.Draw(tri1)
-        draw.polygon([(0, 0), (64, 32), (32, 64)], fill=WHITE)
-
-        tri2 = Image.new("RGBA", (64, 64), (255, 255, 255, 0))
-        draw = ImageDraw.Draw(tri2)
-        draw.polygon([(0, 0), (64, 32), (32, 64)], outline=WHITE, width=4)
-
-        def draw_tri(x, y, rot, size, color, type):
-            img = tri1 if type == 0 else tri2
-            img = img.resize((size, size), Image.Resampling.BILINEAR)
-            img = img.rotate(rot, expand=True)
-            img = ImageChops.multiply(img, Image.new("RGBA", img.size, color))
-            bg.alpha_composite(img, (int(x) - img.width // 2, int(y) - img.height // 2))
-
+        preset_tris = [
+            Image.open(f"data/utils/assets/tri{i+1}.png").convert("RGBA").resize((128, 128), Image.Resampling.BILINEAR)
+            for i in range(3)
+        ]
         preset_colors = [
+            # (255, 255, 255),
             (255, 189, 246),
             (183, 246, 255),
             (255, 247, 146),
         ]
+
+        def draw_tri(x, y, rot, size, color, type):
+            img = preset_tris[type]
+            img = img.resize((size, size), Image.Resampling.BILINEAR)
+            img = img.rotate(rot, expand=True)
+            img = ImageChops.multiply(img, Image.new("RGBA", img.size, color))
+            bg.alpha_composite(img, (int(x) - img.width // 2, int(y) - img.height // 2))
 
         factor = min(w, h) / 2048 * 1.5
         size_factor = (1.0 + (factor - 1.0) * (1.0 - size_fixed_rate))
@@ -1133,21 +1125,24 @@ class Painter:
                 size = max(1, min(1000, int(random.normalvariate(sz[0], sz[1]))))
                 dist = (((x - w // 2) / w * 2) ** 2 + ((y - h // 2) / h * 2) ** 2)
                 size = int(size * dist)
-                size_alpha_factor, std_size = 1.0, 32 * size_factor
-                if size < std_size:
-                    size_alpha_factor = size / std_size
-                if size > std_size:
-                    size_alpha_factor = 1.0 - (size - std_size * 1.5) / (std_size * 1.5)
+
+                size_alpha_factor, std_size_lower, std_size_upper = 1.0, 64 * size_factor, 128 * size_factor
+                if size < std_size_lower:
+                    size_alpha_factor = size / std_size_lower
+                if size > std_size_upper:
+                    size_alpha_factor = 1.0 - (size - std_size_upper * 1.5) / (std_size_upper * 1.5)
                 alpha = int(random.normalvariate(50, 200) * max(0, min(1.2, size_alpha_factor) * (ml ** 0.5)))
-                if alpha <= 0:
+                if random.random() < 0.05 and size > std_size_lower:
+                    alpha = 255
+                if alpha <= 10:
                     continue
-                color = random.choice(preset_colors + [(255, 255, 255)] * 0)
+                color = random.choice(preset_colors) 
                 color = (*color, alpha)
-                type = i % 3 // 2
+                type = random.choice([1, 1, 1, 1, 1, 1, 0, 2])
                 draw_tri(x, y, rot, size, color, type)
 
-        rand_tri(int(80 * dense_factor), (48 * size_factor, 16 * size_factor))
-        rand_tri(int(800 * dense_factor), (16 * size_factor, 16 * size_factor))
+        rand_tri(int(20 * dense_factor), (128 * size_factor, 16 * size_factor))
+        rand_tri(int(200 * dense_factor), (64 * size_factor, 16 * size_factor))
 
         self.img.paste(bg, self.offset)
 

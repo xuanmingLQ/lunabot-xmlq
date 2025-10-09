@@ -445,7 +445,7 @@ async def compose_gacha_detail_image(ctx: SekaiHandlerContext, gacha: Gacha):
     with Canvas(bg=bg).set_padding(BG_PADDING) as canvas:
         with HSplit().set_sep(16).set_content_align('lt').set_item_align('lt'):
             w = 600
-            with VSplit().set_padding(0).set_sep(8).set_content_align('c').set_item_align('c').set_item_bg(roundrect_bg()):
+            with VSplit().set_padding(8).set_sep(8).set_content_align('c').set_item_align('c').set_item_bg(roundrect_bg()).set_bg(roundrect_bg()):
                 # 标题
                 with HSplit().set_padding(8).set_sep(32).set_content_align('c').set_item_align('c').set_omit_parent_bg(True):
                     if logo:    ImageBox(logo, size=(None, 100))
