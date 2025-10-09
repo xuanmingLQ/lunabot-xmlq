@@ -525,7 +525,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                 play_result = ['clear', 'fc', 'ap']
                 for i, score in enumerate(scores):
                     for j, diff in enumerate(DIFF_COLORS.keys()):
-                        bg_color = (255, 255, 255, 150) if j % 2 == 0 else (255, 255, 255, 75)
+                        bg_color = (255, 255, 255, 150) if j % 2 == 0 else (255, 255, 255, 100)
                         count = find_by(diff_count, 'musicDifficultyType', diff)[score]
                         TextBox(str(count), TextStyle(
                                 DEFAULT_FONT, 20, PLAY_RESULT_COLORS['not_clear'], use_shadow=True,
