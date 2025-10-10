@@ -1070,6 +1070,10 @@ async def get_avatar_widget_with_frame(ctx: SekaiHandlerContext, avatar_img: Ima
             ImageBox(frame_img, use_alphablend=True)
     return ret
 
+# 合成区域道具升级材料图片
+async def compose_area_item_upgrade_materials_image(ctx: SekaiHandlerContext, qid: int, item_ids: List[int]) -> Image.Image:
+    pass
+
 
 # ======================= 指令处理 ======================= #
 

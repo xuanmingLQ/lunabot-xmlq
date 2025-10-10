@@ -996,6 +996,7 @@ class Painter:
         if edge_strength is not None and edge_strength > 0:
             edge_width = min(4, min(draw_size) // 16, radius // 2)
             if edge_width > 0:
+                # 绘制超分圆角矩形边缘底图
                 edge_overlay = Image.new('RGBA', (aa_size[0], aa_size[1]), TRANSPARENT)
                 draw = ImageDraw.Draw(edge_overlay)
                 ew, aa_ew = edge_width, int(edge_width * aa_scale)
@@ -1003,8 +1004,9 @@ class Painter:
                     (aa_sw, aa_sw, aa_size[0] - aa_sw - 1, aa_size[1] - aa_sw - 1), 
                     outline=WHITE, width=aa_ew, radius=aa_r, corners=corners
                 )
-
                 edge_overlay = edge_overlay.resize(draw_size, aa_resize_method)
+
+                # 生成各个位置的渐变色块矩形（左上角，左边，上边，右下角，右边，下边）通过坐标换算保证渐变颜色过渡正确
                 alpha1, alpha2 = int(255 * edge_strength), int(255 * edge_strength * 0.75)
                 lt_points, rb_points = ((0, 0), (0.8, 0.4)), ((0.6, 0.8), (1.0, 1.0))
                 lt_colors = ((255, 255, 255, alpha1), (255, 255, 255, 0))
@@ -1036,7 +1038,8 @@ class Painter:
                 rb_pos, rb_size = (w - radius - sw, h - radius - sw), (radius, radius)
                 edge_color_rb = LinearGradient(*rb_colors, **get_grad_p(*rb_points, rb_pos, rb_size)).get_img(rb_size)
                 edge_color_overlay.paste(edge_color_rb, rb_pos)
-                
+
+                # 渐变色和边缘底图相乘
                 edge_overlay = ImageChops.multiply(edge_overlay, edge_color_overlay)
                 overlay.alpha_composite(edge_overlay)
 

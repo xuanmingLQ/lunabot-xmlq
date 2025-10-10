@@ -63,7 +63,13 @@ WIDGET_BG_RADIUS_CFG = config.item("draw.widget_bg_radius")
 BLURGLASS_CFG = config.item("draw.blurglass")
 
 # 统一的半透明白色圆角矩形背景
-def roundrect_bg(fill: Color | ConfigItem=WIDGET_BG_COLOR_CFG, radius: int | ConfigItem=WIDGET_BG_RADIUS_CFG, alpha: int=None, blurglass: bool=None, blurglass_kwargs: dict={}):
+def roundrect_bg(
+    fill: Color | ConfigItem=WIDGET_BG_COLOR_CFG, 
+    radius: int | ConfigItem=WIDGET_BG_RADIUS_CFG, 
+    alpha: int=None,
+    blurglass: bool=None, 
+    blurglass_kwargs: dict={}
+):
     """
     统一的半透明白色圆角矩形背景
     """

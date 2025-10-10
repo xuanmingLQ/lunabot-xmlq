@@ -848,11 +848,20 @@ async def compose_mysekai_fixture_list_image(
     # 获取需要的家具信息
     fixtures = {}
     all_fixtures = []
+    birthday_cids = {}
     for item in await ctx.md.mysekai_fixtures.get():
         fid = item['id']
         if craftable_fids and fid not in craftable_fids:
             continue
         
+        fname = item['name']
+        is_birthday = False
+        for chara in await ctx.md.game_characters.get():
+            if fname.endswith(f"（{chara['givenName']}）"):
+                is_birthday = True
+                birthday_cids[fid] = chara['id']
+                break
+                
         ftype = item['mysekaiFixtureType']
         main_genre_id = item['mysekaiFixtureMainGenreId']
         sub_genre_id = item.get('mysekaiFixtureSubGenreId', -1)
@@ -877,22 +886,23 @@ async def compose_mysekai_fixture_list_image(
         fixtures[main_genre_id][sub_genre_id].append((fid, obtained))
         all_fixtures.append(item)
 
-        # 统计收集进度
-        total_all += 1
-        total_obtained += obtained
-        if main_genre_id not in main_genre_all:
-            main_genre_all[main_genre_id] = 0
-            main_genre_obtained[main_genre_id] = 0
-        main_genre_all[main_genre_id] += 1
-        main_genre_obtained[main_genre_id] += obtained
-        if main_genre_id not in sub_genre_all:
-            sub_genre_all[main_genre_id] = {}
-            sub_genre_obtained[main_genre_id] = {}
-        if sub_genre_id not in sub_genre_all[main_genre_id]:
-            sub_genre_all[main_genre_id][sub_genre_id] = 0
-            sub_genre_obtained[main_genre_id][sub_genre_id] = 0
-        sub_genre_all[main_genre_id][sub_genre_id] += 1
-        sub_genre_obtained[main_genre_id][sub_genre_id] += obtained
+        # 统计收集进度（生日家具不统计）
+        if not is_birthday:
+            total_all += 1
+            total_obtained += obtained
+            if main_genre_id not in main_genre_all:
+                main_genre_all[main_genre_id] = 0
+                main_genre_obtained[main_genre_id] = 0
+            main_genre_all[main_genre_id] += 1
+            main_genre_obtained[main_genre_id] += obtained
+            if main_genre_id not in sub_genre_all:
+                sub_genre_all[main_genre_id] = {}
+                sub_genre_obtained[main_genre_id] = {}
+            if sub_genre_id not in sub_genre_all[main_genre_id]:
+                sub_genre_all[main_genre_id][sub_genre_id] = 0
+                sub_genre_obtained[main_genre_id][sub_genre_id] = 0
+            sub_genre_all[main_genre_id][sub_genre_id] += 1
+            sub_genre_obtained[main_genre_id][sub_genre_id] += obtained
     
     # 获取家具图标
     fixture_icons = {}
@@ -910,7 +920,7 @@ async def compose_mysekai_fixture_list_image(
                     await get_mysekai_info_card(ctx, mysekai_info, basic_profile, mimsg)
 
             if qid and only_craftable:
-                TextBox(f"总收集进度: {total_obtained}/{total_all} ({total_obtained/total_all*100:.1f}%)", 
+                TextBox(f"总收集进度（不含生日家具）: {total_obtained}/{total_all} ({total_obtained/total_all*100:.1f}%)", 
                         TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=text_color)) \
                         .set_padding(16).set_bg(roundrect_bg())
 
@@ -949,8 +959,10 @@ async def compose_mysekai_fixture_list_image(
                                     f_sz = 30
                                     image = fixture_icons.get(fid)
                                     with VSplit().set_content_align('c').set_item_align('c').set_sep(0):
-                                        with Frame():
-                                            ImageBox(image, size=(None, f_sz), use_alphablend=True)
+                                        with Frame().set_content_align('rt'):
+                                            ImageBox(image, size=(f_sz, f_sz), use_alphablend=True)
+                                            if cid := birthday_cids.get(fid):
+                                                ImageBox(get_chara_icon_by_chara_id(cid), size=(12, 12), use_alphablend=False)
                                             if not obtained:
                                                 Spacer(w=f_sz, h=f_sz).set_bg(RoundRectBg(fill=(0,0,0,80), radius=2))
                                         if show_id:
@@ -965,19 +977,9 @@ async def compose_mysekai_fixture_list_image(
                                         with HSplit().set_content_align('lt').set_item_align('lt').set_sep(sep):
                                             while cur_x < COL_COUNT:
                                                 fids, obtaineds = fixtures[main_genre_id][sub_genre_id][cur_idx]
-                                                if isinstance(fids, int):
-                                                    draw_single_fid(fids, obtaineds)
-                                                    cur_x += 1
-                                                    cur_idx += 1
-                                                else:
-                                                    # 绘制包含多个家具组合
-                                                    with Frame().set_content_align('rb'):
-                                                        with HSplit().set_content_align('c').set_item_align('c').set_sep(2) \
-                                                            .set_bg(roundrect_bg(radius=4)).set_padding(4):
-                                                            for fid, obtained in zip(fids, obtaineds):
-                                                                draw_single_fid(fid, obtained)
-                                                    cur_x += len(fids)
-                                                    cur_idx += 1     
+                                                draw_single_fid(fids, obtaineds)
+                                                cur_x += 1
+                                                cur_idx += 1
                                                 if cur_idx >= len(fixtures[main_genre_id][sub_genre_id]):
                                                     break   
                                         if cur_idx >= len(fixtures[main_genre_id][sub_genre_id]):
@@ -1077,7 +1079,7 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
     await load_mysekairun_data(ctx)
 
     fixture = await ctx.md.mysekai_fixtures.find_by_id(fid)
-    assert_and_reply(fixture, f"家具{fid}不存在")
+    assert_and_reply(fixture, f"家具{ctx.region.upper()}-{fid}不存在")
 
     ## 获取基本信息
     fname = fixture['name']
