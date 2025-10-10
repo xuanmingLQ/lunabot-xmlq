@@ -70,6 +70,7 @@ UNIT_CID_MAP = {
     "street": [9, 10, 11, 12],
     "theme_park": [13, 14, 15, 16],
     "school_refusal": [17, 18, 19, 20],
+    'piapro': [21, 22, 23, 24, 25, 26],
 }
 UNIT_COLORS = [
     (68,85,221,255),

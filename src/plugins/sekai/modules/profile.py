@@ -65,6 +65,25 @@ profile_bg_settings_db = get_file_db(f"{SEKAI_PROFILE_DIR}/profile_bg_settings.j
 profile_bg_upload_rate_limit = RateLimit(file_db, logger, 10, 'd', rate_limit_name='个人信息背景上传')
 
 
+@dataclass
+class AreaItemFilter:
+    unit: str = None        # 某个团的世界里面的所有道具
+    cid: int = None         # 某个角色的所有道具
+    attr: str = None        # 某个属性的所有道具
+    tree: bool = None       # 所有树
+    flower: bool = None     # 所有花
+
+FLOWER_AREA_ID = 13
+TREE_AREA_ID = 11
+UNIT_SEKAI_AREA_IDS = {
+    "light_sound": 5,
+    "idol": 7,
+    "street": 8,
+    "theme_park": 9,
+    "school_refusal": 10,
+}
+
+
 # ======================= 卡牌逻辑（防止循环依赖） ======================= #
 
 # 判断卡牌是否有after_training模式
@@ -1071,8 +1090,196 @@ async def get_avatar_widget_with_frame(ctx: SekaiHandlerContext, avatar_img: Ima
     return ret
 
 # 合成区域道具升级材料图片
-async def compose_area_item_upgrade_materials_image(ctx: SekaiHandlerContext, qid: int, item_ids: List[int]) -> Image.Image:
-    pass
+async def compose_area_item_upgrade_materials_image(ctx: SekaiHandlerContext, qid: int, filter: AreaItemFilter) -> Image.Image:
+    profile = None
+    if qid:
+        profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True, ignore_hide=True)
+
+    COIN_ID = -1
+    user_materials: dict[int, int] = {}
+    user_area_item_lvs: dict[int, int] = {}
+    
+    if profile:
+        # 获取玩家材料（金币当作id=-1的材料）
+        assert_and_reply('userMaterials' in profile, "你的Suite数据来源没有提供userMaterials数据（可能需要重传）")
+        user_materials = {}
+        user_materials[COIN_ID] = profile['userGamedata']['coin']
+        for item in profile.get('userMaterials', []):
+            user_materials[item['materialId']] = item['quantity']
+        # 获取玩家区域道具等级
+        user_area_item_lvs = {}
+        for area in profile.get('userAreas', []):
+            for area_item in area.get('areaItems', []):
+                user_area_item_lvs[area_item['areaItemId']] = area_item['level']
+
+    # 筛选vs额外判断
+    filter_piapro = False
+    if filter.unit == 'piapro':
+        filter.unit = None
+        filter_piapro = True
+
+    # 获取区域道具信息，同时筛选需要展示的区域道具id
+    item_ids: set[int] = set()
+    area_item_icons: dict[int, Image.Image] = {}
+    area_item_target_icons: dict[int, Image.Image] = {}
+    area_item_level_bonuses: dict[int, dict[int, float]] = {}
+    area_item_max_levels: dict[int, int] = {}
+    for item in await ctx.md.area_items.get():
+        item_id, area_id, asset_name = item['id'], item['areaId'], item['assetbundleName']
+
+        if filter.flower and area_id == FLOWER_AREA_ID:
+            item_ids.add(item_id)
+        if filter.tree and area_id == TREE_AREA_ID:
+            item_ids.add(item_id)
+        if filter.unit and area_id == UNIT_SEKAI_AREA_IDS[filter.unit]:
+            item_ids.add(item_id)
+
+        area_item_icons[item_id] = await ctx.rip.img(f"areaitem/{asset_name}/{asset_name}.png")
+        for item_lv in await ctx.md.area_item_levels.find_by('areaItemId', item_id, mode='all'):
+            area_item_level_bonuses.setdefault(item_id, {})[item_lv['level']] = item_lv['power1BonusRate']
+            area_item_max_levels[item_id] = max(area_item_max_levels.get(item_id, 0), item_lv['level'])
+
+            if item_id not in area_item_target_icons:
+                if item_lv.get('targetUnit', 'any') != 'any':
+                    area_item_target_icons[item_id] = get_unit_icon(item_lv['targetUnit'])
+                    if filter_piapro and item_lv['targetUnit'] == 'piapro':
+                        item_ids.add(item_id)
+                elif item_lv.get('targetGameCharacterId', 'any') != 'any':
+                    area_item_target_icons[item_id] = get_chara_icon_by_chara_id(item_lv['targetGameCharacterId'])
+                    if filter.cid and item_lv['targetGameCharacterId'] == filter.cid:
+                        item_ids.add(item_id)
+                    # if filter_piapro and item_lv['targetGameCharacterId'] in UNIT_CID_MAP['piapro']:
+                    #     item_ids.add(item_id)
+                elif item_lv.get('targetCardAttr', 'any') != 'any':
+                    area_item_target_icons[item_id] = get_attr_icon(item_lv['targetCardAttr'])
+                    if filter.attr and item_lv['targetCardAttr'] == filter.attr:
+                        item_ids.add(item_id)
+
+    item_ids = sorted(item_ids)
+
+    # 统计展示的最低等级
+    user_area_item_lower_lv = None
+    for item_id in item_ids:
+        lv = user_area_item_lvs.get(item_id, 0)
+        if user_area_item_lower_lv is None or lv < user_area_item_lower_lv:
+            user_area_item_lower_lv = lv
+    if user_area_item_lower_lv is None:
+        user_area_item_lower_lv = 0
+
+    # 获取区域道具等级对应的shopItem的resboxId ids[item_id][level] = resbox_id
+    area_item_lv_shop_item_resbox_ids: dict[int, dict[int, int]] = {}
+    for box_id, box in (await ctx.md.resource_boxes.get())['shop_item'].items():
+        if details := box.get('details'):
+            detail = details[0]
+            res_type = detail.get('resourceType')
+            res_id = detail.get('resourceId')
+            res_lv = detail.get('resourceLevel')
+            if res_type == 'area_item' and res_id in item_ids:
+                area_item_lv_shop_item_resbox_ids.setdefault(res_id, {})[res_lv] = box_id
+                
+    # 获取区域道具升级材料列表 m[item_id][level][material_id] = quantity
+    area_item_lv_materials: dict[int, dict[int, dict[int, int]]] = {}
+    for item_id in item_ids:
+        for lv, resbox_id in area_item_lv_shop_item_resbox_ids[item_id].items():
+            for cost in (await ctx.md.shop_items.find_by('resourceBoxId', resbox_id)).get('costs', []):
+                cost = cost['cost']
+                res_id = cost['resourceId']
+                if cost['resourceType'] == 'coin':
+                    res_id = COIN_ID
+                quantity = cost['quantity']
+                area_item_lv_materials.setdefault(item_id, {}).setdefault(lv, {})[res_id] = quantity
+
+    # 计算从玩家当前等级到目标等级所需材料（没有提供profile则从0累计）
+    area_item_lv_sum_materials: dict[int, dict[int, dict[int, dict]]] = {}
+    for item_id, lv_materials in area_item_lv_materials.items():
+        user_lv = user_area_item_lvs.get(item_id, 0)
+        sum_materials: dict[int, int] = {}
+        # 枚举等级和材料
+        for lv in range(user_lv + 1, area_item_max_levels[item_id] + 1):
+            for mid, quantity in lv_materials[lv].items():
+                sum_materials[mid] = sum_materials.get(mid, 0) + quantity
+                area_item_lv_sum_materials.setdefault(item_id, {}).setdefault(lv, {})[mid] = sum_materials[mid]
+
+    def get_quant_text(q: int) -> str:
+        if q >= 10000000:
+            return f"{q//10000000}kw"
+        elif q >= 10000:
+            return f"{q//10000}w"
+        elif q >= 1000:
+            return f"{q//1000}k"
+        else:
+            return str(q)
+    
+    # 绘图
+    gray_color, red_color, green_color = (50, 50, 50), (200, 0, 0), (0, 200, 0)
+    ok_color = green_color if profile else gray_color
+    no_color = red_color if profile else gray_color
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
+        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
+            if profile:
+                await get_detailed_profile_card(ctx, profile, pmsg)
+
+            with HSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_bg(roundrect_bg()).set_padding(8):
+                for item_id, lv_materials in area_item_lv_materials.items():
+                    lv_sum_materials = area_item_lv_sum_materials.get(item_id, {})
+                    current_lv = user_area_item_lvs.get(item_id, 0)
+                    # 每个道具的列
+                    with VSplit().set_content_align('l').set_item_align('l').set_sep(8).set_item_bg(roundrect_bg()).set_padding(8):
+                        # 列头
+                        with HSplit().set_content_align('c').set_item_align('c').set_omit_parent_bg(True):
+                            ImageBox(area_item_target_icons.get(item_id, UNKNOWN_IMG), size=(None, 64))
+                            ImageBox(area_item_icons.get(item_id, UNKNOWN_IMG), size=(128, 64), image_size_mode='fit') \
+                                .set_content_align('c')
+                            if current_lv:
+                                TextBox(f"Lv.{current_lv}", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=gray_color))
+
+                        lv_can_upgrade = True
+                        for lv in range(user_area_item_lower_lv + 1, area_item_max_levels[item_id] + 1):
+                            # 统计道具是否足够
+                            if lv > current_lv:
+                                material_is_enough: dict[int, bool] = {}
+                                for mid, quantity in lv_sum_materials[lv].items():
+                                    material_is_enough[mid] = user_materials.get(mid, 0) >= quantity
+                                lv_can_upgrade = lv_can_upgrade and all(material_is_enough.values())
+
+                            # 列项
+                            with HSplit().set_content_align('l').set_item_align('l').set_sep(8).set_padding(8):
+                                bonus_text = f"+{area_item_level_bonuses[item_id][lv]:.1f}%"
+                                with VSplit().set_content_align('c').set_item_align('c').set_sep(4):
+                                    color = ok_color if lv_can_upgrade else no_color
+                                    if lv <= current_lv:
+                                        color = gray_color
+                                    TextBox(f"{lv}", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=color))
+                                    TextBox(bonus_text, TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=gray_color)).set_w(64)
+
+                                if lv <= current_lv:
+                                    with VSplit().set_content_align('c').set_item_align('c').set_sep(4):
+                                        Spacer(w=64, h=64)
+                                        TextBox(" ", TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=gray_color))
+                                else:
+                                    for mid, quantity in lv_materials[lv].items():
+                                        with VSplit().set_content_align('c').set_item_align('c').set_sep(4):
+                                            material_icon = await get_res_icon(ctx, 'coin' if mid == COIN_ID else 'material', mid)
+                                            quantity_text = get_quant_text(quantity)
+                                            have_text = get_quant_text(user_materials.get(mid, 0))
+                                            sum_text = get_quant_text(lv_sum_materials[lv][mid])
+                                            with Frame():
+                                                sz = 64
+                                                ImageBox(material_icon, size=(sz, sz))
+                                                TextBox(f"x{quantity_text}", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(50, 50, 50))) \
+                                                    .set_offset((sz, sz)).set_offset_anchor('rb')
+                                            color = ok_color if material_is_enough.get(mid) else no_color
+                                            text = f"{have_text}/{sum_text}" if profile else f"{sum_text}"
+                                            TextBox(text, TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=color))
+
+    add_watermark(canvas)
+
+    # 缓存full查询
+    cache_key = None
+    if profile is None:
+        cache_key = f"{ctx.region}_area_item_{filter.unit}_{filter.cid}_{filter.attr}_{filter.flower}_{filter.tree}"
+    return await canvas.get_img(scale=0.75, cache_key=cache_key)
+
 
 
 # ======================= 指令处理 ======================= #
@@ -1780,3 +1987,59 @@ async def _(ctx: HandlerContext):
     return await ctx.asend_fold_msg_adaptive(msg.strip())
 
 
+# 查询区域道具升级材料
+pjsk_area_item = SekaiCmdHandler([
+    "/pjsk area item", "/area item",
+    "/区域道具", "/区域道具升级", "/区域道具升级材料",
+])
+pjsk_area_item.check_cdrate(cd).check_wblist(gbl)
+@pjsk_area_item.handle()
+async def _(ctx: SekaiHandlerContext):
+    args = ctx.get_args().strip()
+
+    HELP_TEXT = f"""
+可用参数: 团名/角色名/属性/树/花
+加上"all"可以查询所有级别材料，不加则查询你的账号的升级情况，示例：
+"{ctx.original_trigger_cmd} 树" 所有树
+"{ctx.original_trigger_cmd} miku" miku的道具
+"{ctx.original_trigger_cmd} 25h" 25的SEKAI里的所有区域道具
+"{ctx.original_trigger_cmd} miku all" miku的道具所有等级
+""".strip()
+
+    qid = ctx.user_id
+    for keyword in ('all', 'full'):
+        if keyword in args:
+            qid = None
+            args = args.replace(keyword, '').strip()
+            break
+
+    tree = False
+    for keyword in ('树',):
+        if keyword in args:
+            tree = True
+            args = args.replace(keyword, '').strip()
+            break
+    flower = False
+    for keyword in ('花',):
+        if keyword in args:
+            flower = True
+            args = args.replace(keyword, '').strip()
+            break
+    unit, args = extract_unit(args)
+    attr, args = extract_card_attr(args)
+    cid = get_cid_by_nickname(args)
+
+    assert_and_reply(unit or attr or cid or tree or flower, HELP_TEXT)
+
+    filter = AreaItemFilter(
+        unit=unit,
+        attr=attr,
+        cid=cid,
+        tree=tree,
+        flower=flower,
+    )
+    return await ctx.asend_reply_msg(await get_image_cq(
+        await compose_area_item_upgrade_materials_image(ctx, qid, filter),
+        low_quality=True,
+    ))
+    

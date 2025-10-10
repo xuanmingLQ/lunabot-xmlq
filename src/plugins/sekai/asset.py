@@ -514,6 +514,8 @@ MasterDataManager.set_index_keys("eventDeckBonuses", ['id', 'eventId'])
 MasterDataManager.set_index_keys("eventCards", ['id', 'eventId'])
 MasterDataManager.set_index_keys("musicDifficulties", ['id', 'musicId'])
 MasterDataManager.set_index_keys("cardEpisodes", ['id', 'cardId'])
+MasterDataManager.set_index_keys("shopItems", ['id', 'resourceBoxId'])
+MasterDataManager.set_index_keys("areaItemLevels", ['areaItemId'])
 
 
 # ================================ MasterData自定义下载 ================================ #
@@ -643,7 +645,7 @@ DEFAULT_GET_RIP_ASSET_TIMEOUT_CFG = asset_config.item('default_rip_asset_downloa
 RIP_IMG_CACHE_MAX_RES_CFG = asset_config.item('rip_img_cache_max_res')
 
 ONDEMAND_PREFIXES = ['event', 'gacha', 'music/long', 'mysekai', 'virtual_live']
-STARTAPP_PREFIXES = ['bonds_honor', 'honor', 'thumbnail', 'character', 'music', 'rank_live', 'stamp', 'home/banner', 'player_frame']
+STARTAPP_PREFIXES = ['bonds_honor', 'honor', 'thumbnail', 'character', 'music', 'rank_live', 'stamp', 'home/banner', 'player_frame', 'areaitem']
 
 def sekai_best_url_map(url: str) -> str:
     # 移除_rip
