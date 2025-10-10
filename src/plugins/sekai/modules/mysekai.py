@@ -2095,7 +2095,7 @@ async def msr_auto_push():
         last_refresh_time = get_mysekai_last_refresh_time(ctx)
         for uid, ts in upload_times.items():
             update_time = datetime.fromtimestamp(ts / 1000)
-            if update_time > last_refresh_time and datetime.now() - update_time < timedelta(hours=1):
+            if update_time > last_refresh_time and datetime.now() - update_time < timedelta(minutes=10):
                 need_push_uids.append(int(uid))
 
         tasks = []

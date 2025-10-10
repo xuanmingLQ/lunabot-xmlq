@@ -1103,7 +1103,7 @@ async def compose_area_item_upgrade_materials_image(ctx: SekaiHandlerContext, qi
         # 获取玩家材料（金币当作id=-1的材料）
         assert_and_reply('userMaterials' in profile, "你的Suite数据来源没有提供userMaterials数据（可能需要重传）")
         user_materials = {}
-        user_materials[COIN_ID] = profile['userGamedata']['coin']
+        user_materials[COIN_ID] = profile['userGamedata'].get('coin', 0)
         for item in profile.get('userMaterials', []):
             user_materials[item['materialId']] = item['quantity']
         # 获取玩家区域道具等级

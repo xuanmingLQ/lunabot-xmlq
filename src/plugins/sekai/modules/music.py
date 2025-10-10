@@ -1199,8 +1199,11 @@ async def compose_music_brief_list_image(
                 with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(16):
                     ImageBox(cover, size=(80, 80))
                     with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
-                        TextBox(f"【{mid}】{music_name}", style1).set_w(250)
-                        TextBox(f"  {publish_time.strftime('%Y-%m-%d %H:%M:%S')} ({publish_dlt}后)", style2)
+                        TextBox(f"【{ctx.region.upper()}-{mid}】{music_name}", style1).set_w(250)
+                        time_text = f"  {publish_time.strftime('%Y-%m-%d %H:%M:%S')}"
+                        if publish_time > datetime.now():
+                            time_text += f" ({publish_dlt}后)"
+                        TextBox(time_text, style2)
                         with HSplit().set_content_align('c').set_item_align('c').set_sep(4):
                             Spacer(w=2)
                             for diff, level in zip(diffs, diff_lvs):
