@@ -2101,6 +2101,7 @@ async def msr_auto_push():
         tasks = []
                 
         for qid, gid in msr_sub.get_all_gid_uid(region):
+            if check_in_blacklist(qid): continue
             if not gbl.check_id(gid): continue
             if region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(region, gid): continue
 

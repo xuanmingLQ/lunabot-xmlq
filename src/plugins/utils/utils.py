@@ -530,6 +530,7 @@ def rand_filename(ext: str) -> str:
         ext = ext[1:]
     return f'{uuid4()}.{ext}'
 
+TEMP_FILE_DIR = 'data/utils/tmp'
 _tmp_files_to_remove: list[Tuple[str, datetime]] = []
 
 class TempFilePath:
@@ -539,7 +540,7 @@ class TempFilePath:
     """
     def __init__(self, ext: str, remove_after: timedelta = None):
         self.ext = ext
-        self.path = pjoin('data/utils/tmp', rand_filename(ext))
+        self.path = os.path.abspath(pjoin(TEMP_FILE_DIR, rand_filename(ext)))
         self.remove_after = remove_after
         create_parent_folder(self.path)
 
@@ -570,7 +571,7 @@ class TempDownloadFilePath:
         self.url = url
         if ext is None:
             ext = url.split('.')[-1]
-        self.path = pjoin('data/utils/tmp', rand_filename(ext))
+        self.path = os.path.abspath(pjoin(TEMP_FILE_DIR, rand_filename(ext)))
         create_parent_folder(self.path)
 
     async def __aenter__(self) -> str:
@@ -1194,3 +1195,13 @@ async def _():
             new_list.append((path, remove_time))
     _tmp_files_to_remove = new_list
 
+    # 强制清理超过一天的文件
+    files = glob.glob(pjoin(TEMP_FILE_DIR, '*'))
+    for file in files:
+        try:
+            mtime = datetime.fromtimestamp(os.path.getmtime(file))
+            if now - mtime > timedelta(days=1):
+                # utils_logger.info(f'删除临时文件 {file}')
+                remove_file(file)
+        except:
+            utils_logger.print_exc(f'删除临时文件 {file} 失败')

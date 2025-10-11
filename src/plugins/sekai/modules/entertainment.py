@@ -615,7 +615,7 @@ pjsk_guess_music.check_cdrate(cd).check_wblist(gbl)
 async def _(ctx: SekaiHandlerContext):
     check_daily_entertainment_limit(ctx)
 
-    with TempFilePath('mp3') as clipped_audio_path:
+    with TempFilePath('mp3', remove_after=timedelta(minutes=3)) as clipped_audio_path:
         args = ctx.get_args().strip()
         diff, args = extract_diff(args, default='expert')
         assert_and_reply(diff in GUESS_MUSIC_DIFF_OPTIONS, f"可选难度：{', '.join(GUESS_MUSIC_DIFF_OPTIONS.keys())}")

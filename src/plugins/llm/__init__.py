@@ -500,25 +500,18 @@ def get_text_retriever(name) -> TextRetriever:
 # -------------------------------- TTS相关 -------------------------------- #
 
 # TTS
-async def tts(text):
+async def tts(text, save_path: str):
     logger.info(f"TTS: {text}")
     model = config.get('tts_model')
-    audio_save_dir = "data/llm/tts/"
     provider = api_provider_mgr.get_provider(model['provider'])
     provider.check_qps_limit()
-
     response = await provider.get_client().audio.speech.create(
         model = model['id'],
         voice = model['voice'],
         input = text,
     )
-
-    os.makedirs(audio_save_dir, exist_ok=True)
-    save_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}-{random.randint(0, 1000)}.mp3"
-    save_path = os.path.join(audio_save_dir, save_name)
     response.write_to_file(save_path)
     logger.info(f"TTS成功, 保存到: {save_path}")
-
     # TODO: 更新本地额度
     return save_path
 

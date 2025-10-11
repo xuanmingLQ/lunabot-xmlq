@@ -356,14 +356,6 @@ async def get_image_cq(
             return f"[图片加载失败:{truncate(str(e), 16)}]"
         raise e
 
-def get_audio_cq(audio_path: str):
-    """
-    获取音频的cq码用于发送
-    """
-    with open(audio_path, 'rb') as f:
-        return f'[CQ:record,file=base64://{base64.b64encode(f.read()).decode()}]'
-
-
 async def download_napcat_file(ftype: str, file: str) -> str:
     """
     下载napcat文件，返回本地路径

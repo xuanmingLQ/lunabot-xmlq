@@ -658,13 +658,9 @@ tts_request.check_cdrate(tts_cd).check_wblist(gwl)
 async def _(ctx: HandlerContext):
     text = ctx.get_args().strip()
     if not text: return
-    audio_file_path = None
-    try:
-        audio_file_path = await tts(text)
-        return await ctx.asend_msg(get_audio_cq(audio_file_path))
-    finally:
-        if audio_file_path and os.path.exists(audio_file_path):
-            os.remove(audio_file_path)
+    with TempFilePath("mp3", remove_after=timedelta(minutes=3)) as path:
+        await tts(text, path)
+        return await ctx.asend_msg(f"[CQ:record,file=file://{path}]")
 
 
 translator = Translator()
