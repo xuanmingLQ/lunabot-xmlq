@@ -937,8 +937,8 @@ async def _(ctx: SekaiHandlerContext):
 
 # 卡牌查询
 pjsk_card = SekaiCmdHandler([
-    "/card", "/pjsk card", "/pjsk_card", "/pjsk member", "/pjsk_member",
-    "/查卡", "/查卡牌", 
+    "/card", "/pjsk card", "/pjsk member", 
+    "/查卡", "/查卡牌", "/卡牌列表", "/cards", "/pjsk cards",
 ])
 pjsk_card.check_cdrate(cd).check_wblist(gbl)
 @pjsk_card.handle()

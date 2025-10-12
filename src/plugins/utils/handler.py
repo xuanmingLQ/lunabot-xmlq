@@ -1154,7 +1154,7 @@ class GroupWhiteList:
         # self.logger.debug(f'白名单{self.white_list_name}检查{group_id}: {"允许通过" if group_id in white_list else "不允许通过"}')
         return group_id in white_list
 
-    def check(self, event, allow_private=False, allow_super=False):
+    def check(self, event, allow_private=False, allow_super=True):
         if is_group_msg(event):
             if allow_super and check_superuser(event, self.superuser): 
                 # self.logger.debug(f'白名单{self.white_list_name}检查: 允许超级用户{event.user_id}')
@@ -1253,7 +1253,7 @@ class GroupBlackList:
         # self.logger.debug(f'黑名单{self.black_list_name}检查{group_id}: {"允许通过" if group_id not in black_list else "不允许通过"}')
         return group_id not in black_list
     
-    def check(self, event, allow_private=False, allow_super=False):
+    def check(self, event, allow_private=False, allow_super=True):
         if is_group_msg(event):
             if allow_super and check_superuser(event, self.superuser): 
                 self.logger.debug(f'黑名单{self.black_list_name}检查: 允许超级用户{event.user_id}')
@@ -1628,7 +1628,7 @@ class CmdHandler:
         self.private_group_check = "private"
         return self
 
-    def check_wblist(self, wblist: GroupWhiteList | GroupBlackList, allow_private=True, allow_super=False):
+    def check_wblist(self, wblist: GroupWhiteList | GroupBlackList, allow_private=True, allow_super=True):
         self.wblist_checks.append((wblist, { "allow_private": allow_private, "allow_super": allow_super }))
         return self
 
