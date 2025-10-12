@@ -711,7 +711,7 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
     if not options.event_unit:  hint += unit_hint
     if not options.event_attr:  hint += attr_hint
     if hint:
-        hint += "该指令用于组指定团&属性加成的模拟活动（暂不支持模拟wl），组实际存在的活动请使用\"/活动组卡\""
+        hint += "该指令用于组指定团&属性加成的模拟活动（暂不支持模拟wl），组实际存在的活动使用\"/活动组卡\"，与活动无关的组卡使用\"/最强组卡\""
         raise ReplyException(hint.strip())
         
     # 歌曲id和难度

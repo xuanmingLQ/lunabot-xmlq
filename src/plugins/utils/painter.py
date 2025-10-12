@@ -776,7 +776,7 @@ class Painter:
                     pos[0] + self.offset[0] + overlay_size[0], 
                     pos[1] + self.offset[1] + overlay_size[1]
                 ))
-                gray = bg_img.filter(ImageFilter.BoxBlur(radius=4)).convert('L')
+                gray = bg_img.filter(ImageFilter.BoxBlur(radius=8)).convert('L')
                 threshold = int(adaptive.threshold * 255)
                 mask = gray.point(lambda p: 255 if p > threshold else 0, 'L')
                 overlay.paste(dark_overlay, (0, 0), mask)

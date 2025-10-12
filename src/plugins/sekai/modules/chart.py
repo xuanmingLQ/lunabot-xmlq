@@ -123,7 +123,7 @@ async def generate_music_chart(
 # 谱面查询
 pjsk_chart = SekaiCmdHandler([
     "/pjsk chart", "/pjsk_chart", "/pjskchart",
-    "/谱面查询", "/铺面查询", "/谱面预览", "/铺面预览", "/谱面", "/铺面", "/查谱面", "/查铺面",
+    "/谱面查询", "/铺面查询", "/谱面预览", "/铺面预览", "/谱面", "/铺面", "/查谱面", "/查铺面", "/查谱",
 ])
 pjsk_chart.check_cdrate(cd).check_wblist(gbl)
 @pjsk_chart.handle()

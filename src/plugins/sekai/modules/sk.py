@@ -460,7 +460,7 @@ async def compose_sks_image(ctx: SekaiHandlerContext, unit: str, event: dict = N
                     TextBox(f"近{get_readable_timedelta(period)}换算{unit_text}速", title_style).set_size((420, None)).set_padding((8, 8))
 
                     with HSplit().set_content_align('c').set_item_align('c').set_sep(5).set_padding(0):
-                        TextBox("排名", title_style).set_bg(bg1).set_size((100, gh)).set_content_align('c')
+                        TextBox("排名", title_style).set_bg(bg1).set_size((120, gh)).set_content_align('c')
                         TextBox("分数", title_style).set_bg(bg1).set_size((180, gh)).set_content_align('c')
                         TextBox(f"{unit_text}速", title_style).set_bg(bg1).set_size((140, gh)).set_content_align('c')
                         TextBox("RT",  title_style).set_bg(bg1).set_size((160, gh)).set_content_align('c')
@@ -472,7 +472,7 @@ async def compose_sks_image(ctx: SekaiHandlerContext, unit: str, event: dict = N
                             speed = get_board_score_str(int(dscore * unit_period.total_seconds() / dtime)) if dtime > 0 else "-"
                             score = get_board_score_str(score)
                             rt = get_readable_datetime(rt, show_original_time=False, use_en_unit=False)
-                            TextBox(r,          item_style, overflow='clip').set_bg(bg).set_size((100, gh)).set_content_align('r').set_padding((16, 0))
+                            TextBox(r,          item_style, overflow='clip').set_bg(bg).set_size((120, gh)).set_content_align('r').set_padding((16, 0))
                             TextBox(score,      item_style, overflow='clip').set_bg(bg).set_size((180, gh)).set_content_align('r').set_padding((16, 0))
                             TextBox(speed,      item_style,                ).set_bg(bg).set_size((140, gh)).set_content_align('r').set_padding((8,  0))
                             TextBox(rt,         item_style, overflow='clip').set_bg(bg).set_size((160, gh)).set_content_align('r').set_padding((16, 0))

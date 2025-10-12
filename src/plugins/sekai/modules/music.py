@@ -1493,8 +1493,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # 查看歌曲别名
 pjsk_alias = SekaiCmdHandler([
-    "/pjsk alias", "/pjsk_alias", "/pjskalias", "/pjskalias",
-    "/歌曲别名",  
+    "/pjsk alias", "/歌曲别名", "/music alias",
 ])
 pjsk_alias.check_cdrate(cd).check_wblist(gbl)
 @pjsk_alias.handle()
@@ -1563,7 +1562,7 @@ async def _(ctx: SekaiHandlerContext):
 # 查曲
 pjsk_song = SekaiCmdHandler([
     "/pjsk song", "/pjsk_song", "/pjsk music", "/pjsk_music", 
-    "/查曲", "/查歌", "/song", "/music",
+    "/查曲", "/查歌", "/song", "/music", "/歌曲",
 ])
 pjsk_song.check_cdrate(cd).check_wblist(gbl)
 @pjsk_song.handle()
