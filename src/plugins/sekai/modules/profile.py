@@ -477,7 +477,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                     game_data = basic_profile['user']
                     colored_text_box(
                         truncate(game_data['name'], 64),
-                        TextStyle(font=DEFAULT_BOLD_FONT, size=32, color=ADAPTIVE_WB, use_shadow=True, shadow_offset=2, shadow_color=ADAPTIVE_SHADOW),
+                        TextStyle(font=DEFAULT_BOLD_FONT, size=32, color=ADAPTIVE_WB, use_shadow=True, shadow_offset=2),
                     )
                     TextBox(f"{ctx.region.upper()}: {process_hide_uid(ctx, game_data['userId'])}", TextStyle(font=DEFAULT_FONT, size=20, color=ADAPTIVE_WB))
                     with Frame():
