@@ -1127,12 +1127,7 @@ async def compose_area_item_upgrade_materials_image(ctx: SekaiHandlerContext, qi
     for item in await ctx.md.area_items.get():
         item_id, area_id, asset_name = item['id'], item['areaId'], item['assetbundleName']
 
-        if filter.flower and area_id == FLOWER_AREA_ID:
-            item_ids.add(item_id)
-        if filter.tree and area_id == TREE_AREA_ID:
-            item_ids.add(item_id)
-        if filter.unit and area_id == UNIT_SEKAI_AREA_IDS[filter.unit]:
-            item_ids.add(item_id)
+        is_vs_item = False
 
         area_item_icons[item_id] = await ctx.rip.img(f"areaitem/{asset_name}/{asset_name}.png")
         for item_lv in await ctx.md.area_item_levels.find_by('areaItemId', item_id, mode='all'):
@@ -1142,18 +1137,27 @@ async def compose_area_item_upgrade_materials_image(ctx: SekaiHandlerContext, qi
             if item_id not in area_item_target_icons:
                 if item_lv.get('targetUnit', 'any') != 'any':
                     area_item_target_icons[item_id] = get_unit_icon(item_lv['targetUnit'])
-                    if filter_piapro and item_lv['targetUnit'] == 'piapro':
-                        item_ids.add(item_id)
+                    if item_lv['targetUnit'] == 'piapro':
+                        if filter_piapro:
+                            item_ids.add(item_id)
+                        is_vs_item = True
                 elif item_lv.get('targetGameCharacterId', 'any') != 'any':
                     area_item_target_icons[item_id] = get_chara_icon_by_chara_id(item_lv['targetGameCharacterId'])
                     if filter.cid and item_lv['targetGameCharacterId'] == filter.cid:
                         item_ids.add(item_id)
-                    # if filter_piapro and item_lv['targetGameCharacterId'] in UNIT_CID_MAP['piapro']:
-                    #     item_ids.add(item_id)
+                    if item_lv['targetGameCharacterId'] in UNIT_CID_MAP['piapro']:
+                        is_vs_item = True
                 elif item_lv.get('targetCardAttr', 'any') != 'any':
                     area_item_target_icons[item_id] = get_attr_icon(item_lv['targetCardAttr'])
                     if filter.attr and item_lv['targetCardAttr'] == filter.attr:
                         item_ids.add(item_id)
+
+        if filter.flower and area_id == FLOWER_AREA_ID:
+            item_ids.add(item_id)
+        if filter.tree and area_id == TREE_AREA_ID:
+            item_ids.add(item_id)
+        if filter.unit and area_id == UNIT_SEKAI_AREA_IDS[filter.unit] and not is_vs_item:
+            item_ids.add(item_id)
 
     item_ids = sorted(item_ids)
 
