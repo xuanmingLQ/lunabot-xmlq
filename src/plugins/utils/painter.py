@@ -845,7 +845,7 @@ class Painter:
             draw = ImageDraw.Draw(self.img)
             draw.rectangle(bbox, fill=fill, outline=stroke, width=stroke_width)
         else:
-            overlay_size = (size[0] + 1, size[1] + 1)
+            overlay_size = (size[0], size[1])
             overlay = Image.new('RGBA', overlay_size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
             draw.rectangle((0, 0, size[0], size[1]), fill=fill, outline=stroke, width=stroke_width)
@@ -886,7 +886,7 @@ class Painter:
             gradient_img = gradient.get_img(overlay_size, overlay)
             overlay = gradient_img
 
-        overlay = overlay.resize((size[0] + 1, size[1] + 1), Image.Resampling.BICUBIC)
+        overlay = overlay.resize((size[0], size[1]), Image.Resampling.BICUBIC)
         self.img.alpha_composite(overlay, (pos[0], pos[1]))
         
         return self
