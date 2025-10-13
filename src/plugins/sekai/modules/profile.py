@@ -877,9 +877,9 @@ async def verify_user_game_account(ctx: SekaiHandlerContext):
         )
         _region_qid_verify_codes[ctx.region][qid] = info
         raise ReplyException(f"""
-{err_msg}请在你当前绑定的{get_region_name(ctx.region)}帐号({process_hide_uid(ctx, info.uid, keep=6)})的个人信息留言(word)的末尾输入该验证码(不要去掉斜杠，编辑后退出个人信息界面以保存):
+{err_msg}请在你当前绑定的{get_region_name(ctx.region)}帐号({process_hide_uid(ctx, info.uid, keep=6)})的游戏名片的简介(word)的末尾输入该验证码(不要去掉斜杠):
 {info.verify_code}
-{get_readable_timedelta(VERIFY_CODE_EXPIRE_TIME)}内重新发送一次\"{ctx.original_trigger_cmd}\"以完成验证
+编辑后需要退出名片界面以保存，然后在{get_readable_timedelta(VERIFY_CODE_EXPIRE_TIME)}内重新发送一次\"{ctx.original_trigger_cmd}\"以完成验证
 """.strip())
     
     profile = await get_basic_profile(ctx, info.uid, use_cache=False, use_remote_cache=False)

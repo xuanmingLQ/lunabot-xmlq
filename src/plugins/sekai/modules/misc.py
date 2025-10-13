@@ -14,7 +14,7 @@ md_update_group_sub = SekaiGroupSubHelper("update", "MasterData更新通知", AL
 # ======================= 指令处理 ======================= #
 
 pjsk_update = SekaiCmdHandler([
-    "/pjsk update", "/pjsk_update", "/pjsk refresh", "/pjsk_refresh", "/pjskupdate",
+    "/pjsk update", "/pjsk refresh", "/pjsk更新",
 ])
 pjsk_update.check_cdrate(cd).check_wblist(gbl)
 @pjsk_update.handle()
@@ -50,7 +50,7 @@ async def _(ctx: SekaiHandlerContext):
 
 
 upload_help = SekaiCmdHandler([
-    "/抓包帮助", "/抓包", "/pjsk upload help"
+    "/抓包帮助", "/抓包", "/pjsk upload help",
 ])
 upload_help.check_cdrate(cd).check_wblist(gbl)
 @upload_help.handle()
@@ -148,6 +148,15 @@ async def _(ctx: SekaiHandlerContext):
             low_quality=True,
         )
     )
+
+
+heyiwei = SekaiCmdHandler([
+    "/pjskb30", "/pjskdetail", 
+])
+heyiwei.check_cdrate(cd).check_wblist(gbl)
+@heyiwei.handle()
+async def _(ctx: SekaiHandlerContext):
+    return await ctx.asend_reply_msg("何意味")
 
 
 # ======================= 定时通知 ======================= #

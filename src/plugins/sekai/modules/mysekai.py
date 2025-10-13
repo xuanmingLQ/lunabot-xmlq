@@ -25,12 +25,13 @@ from .card import get_character_sd_image
 
 MYSEKAI_REFRESH_HOURS = {
     "jp": [4, 16],
+    "kr": [4, 16],
     "cn": [5, 17],
     "tw": [5, 17],
 }
 
-MYSEKAI_REGIONS = ['jp', 'tw', 'cn']
-BD_MYSEKAI_REGIONS = ['cn', 'tw']
+MYSEKAI_REGIONS = ['jp', 'tw', 'cn', 'kr']
+BD_MYSEKAI_REGIONS = ['cn', 'tw', 'kr']
 
 bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", BD_MYSEKAI_REGIONS)
 msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", MYSEKAI_REGIONS, only_one_group=True)
