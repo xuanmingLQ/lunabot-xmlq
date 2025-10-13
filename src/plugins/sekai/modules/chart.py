@@ -61,7 +61,7 @@ async def generate_music_chart(
 
     logger.info(f'生成谱面图片 mid={music_id} {difficulty}')
     if need_reply:
-        await ctx.asend_reply_msg(f'正在生成【{music_id}】{music_title} 的谱面图片...')
+        await ctx.asend_reply_msg(f'正在生成【{ctx.region.upper()}-{music_id}】{music_title} 的谱面图片...')
 
     asset_name = music['assetbundleName']
     jacket = await ctx.rip.img(f"music/jacket/{asset_name}_rip/{asset_name}.png")
@@ -87,7 +87,7 @@ async def generate_music_chart(
                 score._init_events()    
 
             score.meta = pjsekai.scores.score.Meta(
-                title=music_title,
+                title=f"[{ctx.region.upper()}-{music_id}] {music_title}",
                 artist=artist,
                 difficulty=difficulty,
                 playlevel=str(playlevel),

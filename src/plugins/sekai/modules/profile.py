@@ -703,11 +703,11 @@ async def compose_challenge_live_detail_image(ctx: SekaiHandlerContext, qid: int
                             progress_w = int((total_w - border * 2) * progress)
                             progress_h = total_h - border * 2
                             color = (255, 50, 50, 255)
-                            if x > 50_0000: color = (255, 100, 100, 255)
-                            if x > 100_0000: color = (255, 150, 100, 255)
-                            if x > 150_0000: color = (255, 200, 100, 255)
-                            if x > 200_0000: color = (255, 255, 100, 255)
-                            if x == 250_0000: color = (100, 255, 100, 255)
+                            if x > 250_0000:    color = (100, 255, 100, 255)
+                            elif x > 200_0000:  color = (255, 255, 100, 255)
+                            elif x > 150_0000:  color = (255, 200, 100, 255)
+                            elif x > 100_0000:  color = (255, 150, 100, 255)
+                            elif x > 50_0000:   color = (255, 100, 100, 255)
                             if progress > 0:
                                 Spacer(w=total_w, h=total_h).set_bg(RoundRectBg(fill=(100, 100, 100, 255), radius=total_h//2))
                                 Spacer(w=progress_w, h=progress_h).set_bg(RoundRectBg(fill=color, radius=(total_h-border)//2)).set_offset((border, border))
