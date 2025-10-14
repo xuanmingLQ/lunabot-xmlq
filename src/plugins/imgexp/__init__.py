@@ -9,6 +9,7 @@ file_db = get_file_db('data/imgexp/imgexp.json', logger)
 cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'imgexp')
 
+
 search = CmdHandler(['/search', '/搜图'], logger)
 search.check_cdrate(cd).check_wblist(gbl)
 @search.handle()

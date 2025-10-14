@@ -31,9 +31,12 @@ autowater_levels = {
 }
 
 # 计算图片的phash
-async def calc_phash(image_url):
+async def calc_phash(image_url_or_path):
     # 从网络下载图片
-    image = await download_image(image_url)
+    if not os.path.isfile(image_url_or_path):
+        image = await download_image(image_url_or_path)
+    else:
+        image = Image.open(image_url_or_path)
     def calc(image):
         # 缩小尺寸
         image = image.resize((8, 8)).convert('L')

@@ -43,15 +43,15 @@ class ImageType(Enum):
             for i in img:
                 if not isinstance(i, Image.Image):
                     return False
-                if is_gif(i):
+                if is_animated(i):
                     return False
                 return True
         elif self == ImageType.Any:
             return True
         elif self == ImageType.Animated:
-            return is_gif(img)
+            return is_animated(img)
         elif self == ImageType.Static:
-            return not is_gif(img)
+            return not is_animated(img)
 
     def check_type(self, tar) -> bool:
         if self == ImageType.Multiple:
@@ -64,7 +64,7 @@ class ImageType(Enum):
     def get_type(cls, img) -> 'ImageType':
         if isinstance(img, list):
             return ImageType.Multiple
-        elif is_gif(img):
+        elif is_animated(img):
             return ImageType.Animated
         else:
             return ImageType.Static
@@ -101,7 +101,7 @@ class ImageOperation:
             raise ReplyException(msg.strip())
         
         def apply_limit(img: Union[Image.Image, List[Image.Image]]):
-            if isinstance(img, Image.Image) and not is_gif(img):
+            if isinstance(img, Image.Image) and not is_animated(img):
                 w, h = img.size
                 limit = self.input_limit
                 if w * h > limit:
@@ -409,7 +409,7 @@ gif 0.8 使用优化算法以80%不透明度阈值生成GIF
         return ret
 
     def operate(self, img: Image.Image, args: dict=None, image_type: ImageType=None, frame_idx: int=0, total_frame: int=1) -> Image.Image:
-        if is_gif(img):
+        if is_animated(img):
             return img
         with TempFilePath("gif") as tmp_path:
             if args['opt']:
@@ -1156,7 +1156,7 @@ cutout ai: 使用AI模型抠图
         return ret
     
     def operate(self, img: Image.Image, args: dict=None, image_type: ImageType=None, frame_idx: int=0, total_frame: int=1) -> Image.Image:
-        if is_gif(img):
+        if is_animated(img):
             frames = gif_to_frames(img)
         else:
             frames = [img]
@@ -1192,7 +1192,7 @@ cutout ai: 使用AI模型抠图
             for i in range(len(frames)):
                 frames[i] = remove(frames[i])
 
-        if is_gif(img):
+        if is_animated(img):
             return frames_to_gif(frames, get_gif_duration(img))
         else:
             return frames[0]
@@ -1227,7 +1227,7 @@ async def _(ctx: HandlerContext):
                 height = img.height
                 msg += f"\n分辨率: {width}x{height}"
 
-                if is_gif(img):
+                if is_animated(img):
                     msg += f"\n长度: {img.n_frames}帧"
                     if not img.info.get('duration', 0):
                         msg += f"\n帧间隔/FPS: 未知"

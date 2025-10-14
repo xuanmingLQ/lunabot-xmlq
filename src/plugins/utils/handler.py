@@ -317,6 +317,7 @@ async def get_image_cq(
     logger: Logger = None, 
     low_quality: bool = False, 
     quality: int = 75,
+    send_local_file_as_is: bool = False,
 ):
     """
     获取图片的cq码用于发送
@@ -335,10 +336,12 @@ async def get_image_cq(
         if isinstance(image, str):
             if not os.path.exists(image):
                 raise Exception(f'图片文件不存在: {image}')
+            if send_local_file_as_is:
+                return f'[CQ:image,file=file://{os.path.abspath(image)}]'
             image = open_image(image)
             return await get_image_cq(image, *args)
 
-        is_gif_img = is_gif(image) or image.mode == 'P'
+        is_gif_img = is_animated(image) or image.mode == 'P'
         ext = 'gif' if is_gif_img else ('jpg' if low_quality else 'png')
         with TempFilePath(ext, remove_after=timedelta(minutes=global_config.get('msg_send.tmp_img_keep_minutes'))) as tmp_path:
             if ext == 'gif':

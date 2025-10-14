@@ -171,7 +171,7 @@ def open_image(file_path: Union[str, Path], load=True) -> Image.Image:
         img.load()
     return img
 
-def is_gif(image: Union[str, Image.Image]) -> bool:
+def is_animated(image: Union[str, Image.Image]) -> bool:
     """
     检查图片是否为动图
     """
