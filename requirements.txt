@@ -20,4 +20,4 @@ zhon
 orjson
 tencentcloud
 ffmpeg-python
-# pdf2image   # also need to install poppler-utils
+pdf2image   # also need to install poppler-utils
