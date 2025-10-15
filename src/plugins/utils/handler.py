@@ -1500,7 +1500,7 @@ class HandlerContext:
 
     async def block(self, block_id: str = "", timeout: int = 3 * 60, err_msg: str = None):
         """
-        遇到相同block_idd调用时阻塞当前指令，超时timeout秒后抛出ReplyException
+        遇到相同block_id调用时阻塞当前指令，超时timeout秒后抛出ReplyException
         """
         block_id = str(block_id)
         block_start_time = datetime.now()

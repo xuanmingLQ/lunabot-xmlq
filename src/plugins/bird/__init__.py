@@ -28,6 +28,7 @@ async def get_birds():
 
 # 获取wiki页面图片，返回图片路径列表
 async def get_wiki_page_image(ctx: HandlerContext, name: str, url: str, refresh: bool=False) -> list[str]:
+    await ctx.block(name)
     cache_dir = WIKI_IMAGE_CACHE_PATH.format(name=name)
     if not refresh and (files := glob.glob(os.path.join(cache_dir, "*.jpg"))):
         return sorted(files)
@@ -99,7 +100,7 @@ async def handle_bird(ctx: HandlerContext):
         edit_distance = sorted(edit_distance.items(), key=lambda x:x[1])
         edit_distance = [x for x in edit_distance if x[1] <= MAX_EDIT_DISTANCE_CFG.get()]
         topk = QUERY_TOPK_CFG.get()
-        blur_names += [x[0] for x in edit_distance[:topk]]
+        blur_names = [x[0] for x in edit_distance[:topk]]
         blur_names = blur_names[:topk]
         
         # 查找俗名里面有的
