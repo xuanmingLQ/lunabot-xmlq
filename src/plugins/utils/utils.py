@@ -1186,9 +1186,12 @@ async def _():
     for path, remove_time in _tmp_files_to_remove:
         if now >= remove_time:
             try:
-                if os.path.exists(path):
+                if os.path.isfile(path):
                     # utils_logger.info(f'删除临时文件 {path}')
                     remove_file(path)
+                elif os.path.isdir(path):
+                    # utils_logger.info(f'删除临时文件夹 {path}')
+                    remove_folder(path)
             except:
                 utils_logger.print_exc(f'删除临时文件 {path} 失败')
         else:
@@ -1201,7 +1204,11 @@ async def _():
         try:
             mtime = datetime.fromtimestamp(os.path.getmtime(file))
             if now - mtime > timedelta(days=1):
-                # utils_logger.info(f'删除临时文件 {file}')
-                remove_file(file)
+                if os.path.isfile(file):
+                    # utils_logger.info(f'删除临时文件 {file}')
+                    remove_file(file)
+                elif os.path.isdir(file):
+                    # utils_logger.info(f'删除临时文件夹 {file}')
+                    remove_folder(file)
         except:
             utils_logger.print_exc(f'删除临时文件 {file} 失败')
