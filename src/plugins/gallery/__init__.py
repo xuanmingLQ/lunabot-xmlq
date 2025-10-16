@@ -413,29 +413,31 @@ async def _(ctx: HandlerContext):
     for i, data in enumerate(image_datas, 1):
         try:
             async with TempDownloadFilePath(data['url'], 'gif') as path:
-                img = open_image(path)
-                # 如果是表情并且是静态图，可能获取到jpg，需要手动转换为静态gif
-                need_to_gif = (data.get('sub_type', 1) == 1 and not is_animated(img))
+                def process_image():
+                    img = open_image(path)
+                    # 如果是表情并且是静态图，可能获取到jpg，需要手动转换为静态gif
+                    need_to_gif = (data.get('sub_type', 1) == 1 and not is_animated(img))
 
-                # 根据限制进行缩放
-                scaled = False
-                filesize_mb = os.path.getsize(path) / (1024 * 1024)
-                if filesize_mb > SIZE_LIMIT_MB:
-                    pixels = get_image_pixels(img)
-                    img = limit_image_by_pixels(img, int(pixels * SIZE_LIMIT_MB / filesize_mb))
-                    scaled = True
+                    # 根据限制进行缩放
+                    scaled = False
+                    filesize_mb = os.path.getsize(path) / (1024 * 1024)
+                    if filesize_mb > SIZE_LIMIT_MB:
+                        pixels = get_image_pixels(img)
+                        img = limit_image_by_pixels(img, int(pixels * SIZE_LIMIT_MB / filesize_mb))
+                        scaled = True
 
-                if need_to_gif:
-                    # 转换为静态gif
-                    save_transparent_static_gif(img, path)
-                elif scaled:
-                    if is_animated(img):
-                        save_transparent_gif(img, get_gif_duration(img), path)
-                    else:
-                        img.save(path)
-                    new_size_mb = os.path.getsize(path) / (1024 * 1024)
-                    logger.info(f"缩放过大的图片 {filesize_mb:.2f}M -> {new_size_mb:.2f}M")
-            
+                    if need_to_gif:
+                        # 转换为静态gif
+                        save_transparent_static_gif(img, path)
+                    elif scaled:
+                        if is_animated(img):
+                            save_transparent_gif(img, get_gif_duration(img), path)
+                        else:
+                            img.save(path)
+                        new_size_mb = os.path.getsize(path) / (1024 * 1024)
+                        logger.info(f"缩放过大的图片 {filesize_mb:.2f}M -> {new_size_mb:.2f}M")
+                        
+                await run_in_pool(process_image)
                 pid = await GalleryManager.get().async_add_pic(name, path)
             ok_list.append(pid)
             with open(ADD_LOG_FILE, 'a', encoding='utf-8') as f:
