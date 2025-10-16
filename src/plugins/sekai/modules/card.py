@@ -525,7 +525,7 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
             total += max_height * width
             space += max_height * width - len(cards)
         # value = max(total_width, max_height) * total / (total - space)
-        value = max(total_width, max_height * 0.5) if total_width > 9 else max_height
+        value = max(total_width, max_height * 0.5) if total_width > 9 else max(total_width * 0.5, max_height)
         if value < best_value:
             best_height, best_value = i, value
 
