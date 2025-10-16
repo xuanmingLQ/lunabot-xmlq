@@ -392,13 +392,14 @@ class RadialGradient(Gradient):
 
 
 @dataclass
-class AdaptiveColor:
+class AdaptiveTextColor:
+    pixelwise: bool = False
     light: Color = WHITE
     dark: Color = BLACK
-    threshold: float = 0.3
+    threshold: float = 0.4
 
-ADAPTIVE_WB = AdaptiveColor()
-ADAPTIVE_SHADOW = AdaptiveColor(
+ADAPTIVE_WB = AdaptiveTextColor()
+ADAPTIVE_SHADOW = AdaptiveTextColor(
     light=(255, 255, 255, 100), 
     dark=(0, 0, 0, 100), 
 )
@@ -721,7 +722,7 @@ class Painter:
         text: str, 
         pos: Position, 
         font: Union[FontDesc, Font],
-        fill: Union[Color, LinearGradient, AdaptiveColor] = BLACK,
+        fill: Union[Color, LinearGradient, AdaptiveTextColor] = BLACK,
         align: str = "left"
     ):
         def adjust_overlay_alpha_by_color(overlay: Image.Image, color: Color):
@@ -738,7 +739,7 @@ class Painter:
             gradient = fill
             adaptive = None
             fill = BLACK
-        elif isinstance(fill, AdaptiveColor):
+        elif isinstance(fill, AdaptiveTextColor):
             gradient = None
             adaptive = fill
             fill = fill.light[:3]
@@ -776,7 +777,13 @@ class Painter:
                     pos[0] + self.offset[0] + overlay_size[0], 
                     pos[1] + self.offset[1] + overlay_size[1]
                 ))
-                gray = bg_img.filter(ImageFilter.BoxBlur(radius=8)).convert('L')
+
+                if adaptive.pixelwise:
+                    gray = bg_img.filter(ImageFilter.BoxBlur(radius=8)).convert('L')
+                else:
+                    avg_color = np.array(bg_img).reshape(-1, 4).mean(axis=0)
+                    gray = Image.new('RGB', bg_img.size, tuple(avg_color[:3].astype(int))).convert('L')
+
                 threshold = int(adaptive.threshold * 255)
                 mask = gray.point(lambda p: 255 if p > threshold else 0, 'L')
                 overlay.paste(dark_overlay, (0, 0), mask)
