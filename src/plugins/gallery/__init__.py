@@ -484,7 +484,7 @@ async def _(ctx: HandlerContext):
                         TextBox(f"[{g.mode.value}] {len(g.pics)} 张图片", TextStyle(DEFAULT_FONT, 20, BLACK))
                         TextBox(f"别名: {', '.join(g.aliases) if g.aliases else '无'}", TextStyle(DEFAULT_FONT, 12, (50, 50, 50)), use_real_line_count=True) \
                             .set_w(THUMBNAIL_SIZE[0] * 2).set_content_align('c')
-        return await ctx.asend_reply_msg(
+        return await ctx.asend_msg(
             await get_image_cq(
                 await canvas.get_img(),
                 low_quality=True,

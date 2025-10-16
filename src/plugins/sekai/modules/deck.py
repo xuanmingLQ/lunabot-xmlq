@@ -1408,6 +1408,14 @@ async def compose_deck_recommend_image(
                                     Spacer(w=50, h=50).set_bg(FillBg(fill=DIFF_COLORS[options.music_diff])).set_offset((6, 6))
                                 ImageBox(music_cover, size=(50, 50))
                             TextBox(music_title, TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
+                    
+                    if last_args:
+                        arg_unit, args = extract_unit(last_args)
+                        arg_attr, args = extract_card_attr(last_args)
+                        if arg_unit or arg_attr:
+                            TextBox(f"检测到你的歌曲查询中包含团名/颜色，可能是参数格式不正确\n"
+                                     "如果你想指定仅包含某个团名/颜色的卡牌请用: 纯mmj 纯绿", 
+                                    TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(200, 75, 75)), use_real_line_count=True)
 
                 # 表格
                 gh, vsp, voffset = 120, 12, 18
