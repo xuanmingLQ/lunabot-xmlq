@@ -427,9 +427,7 @@ async def _(ctx: HandlerContext):
 
                 if need_to_gif:
                     # 转换为静态gif
-                    with TempFilePath('gif') as gif_path:
-                        save_transparent_static_gif(img, gif_path)
-                        path = gif_path
+                    save_transparent_static_gif(img, path)
                 elif scaled:
                     if is_animated(img):
                         save_transparent_gif(img, get_gif_duration(img), path)
@@ -447,7 +445,7 @@ async def _(ctx: HandlerContext):
             err_msg += f"上传第{i}张图片失败: {get_exc_desc(e)}\n"
     
     msg = f"成功上传{len(ok_list)}/{len(image_datas)}张图片到画廊\"{name}\"\n" + err_msg
-    return await ctx.asend_reply_msg(msg.strip())
+    return await ctx.asend_fold_msg_adaptive(msg.strip())
 
 
 gall_list = CmdHandler([
