@@ -1073,6 +1073,56 @@ def save_video_first_frame(video_path: str, save_path: str):
     width, height = video_stream['width'], video_stream['height']
     ffmpeg.input(video_path, ss=0).output(save_path, vframes=1, vf=f'scale={width}:{height}').run(overwrite_output=True, quiet=True)
 
+def get_image_pixels(image: Image.Image | list[Image.Image]) -> int:
+    """
+    获取图片的像素数，动图按帧数计算
+    """
+    if isinstance(image, list):
+        return image[0].width * image[0].height * len(image)
+    if is_animated(image):
+        return image.width * image.height * image.n_frames
+    return image.width * image.height
+
+def limit_image_by_pixels(image: Image.Image | list[Image.Image], max_pixels: int) -> Image.Image | list[Image.Image]:
+    """
+    根据最大像素数限制图片大小，输入可以是静态图、动图帧列表或动图对象
+    """
+    if isinstance(image, list):
+        n = len(image)
+        w, h = image[0].width, image[0].height
+    else:
+        w, h = image.width, image.height
+        if is_animated(image):
+            n = image.n_frames
+    pixels = get_image_pixels(image)
+    if pixels <= max_pixels:
+        return image
+    if is_animated(image):
+        # 仅>=10帧时才考虑抽帧 >=64*64时才考虑缩放
+        old_n = n
+        use_n_scale = n >= 10   
+        use_wh_scale = w * h >= 64 * 64
+        if use_n_scale and use_wh_scale:
+            k = (pixels / max_pixels) ** (1 / 3)
+            step = math.ceil(k)
+            w, h = int(w / k), int(h / k)
+        elif use_n_scale:
+            k = (pixels / max_pixels)
+            step = math.ceil(k)
+        else:
+            k = (pixels / max_pixels) ** 0.5
+            step = 1
+            w, h = int(w / k), int(h / k)
+        if isinstance(image, Image.Image):
+            frames = [img.resize((w, h), Image.Resampling.LANCZOS) for i, img in enumerate(ImageSequence.Iterator(image)) if i % step == 0]
+            return frames_to_gif(frames, int(get_gif_duration(image) * old_n / len(frames)))
+        else:
+            return [img.resize((w, h), Image.Resampling.LANCZOS) for i, img in enumerate(image) if i % step == 0]
+    else:
+        k = (pixels / max_pixels) ** 0.5
+        w, h = int(w / k), int(h / k)
+        return image.resize((w, h), Image.Resampling.LANCZOS)
+
 
 # ============================= 其他 ============================ #
     

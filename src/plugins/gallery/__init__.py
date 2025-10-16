@@ -10,7 +10,7 @@ cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'gallery')
 
 THUMBNAIL_SIZE = (64, 64)
-SIZE_LIMIT_MB = 3
+SIZE_LIMIT_MB = 2
 GALLERY_PICS_DIR = 'data/gallery/{name}/'
 PIC_EXTS = ['.jpg', '.jpeg', '.png', '.gif']
 ADD_LOG_FILE = 'data/gallery/add.log'
@@ -210,6 +210,7 @@ class GalleryManager:
             phash=phash,
         )
         g.pics.append(pic)
+        pic.ensure_thumb()
 
         self._save()
         return self.pid_top
@@ -411,17 +412,33 @@ async def _(ctx: HandlerContext):
     ok_list, err_msg = [], ""
     for i, data in enumerate(image_datas, 1):
         try:
-            async with TempDownloadFilePath(data['url'], 'png') as path:
+            async with TempDownloadFilePath(data['url'], 'gif') as path:
+                img = open_image(path)
+                # 如果是表情并且是静态图，可能获取到jpg，需要手动转换为静态gif
+                need_to_gif = (data.get('sub_type', 1) == 1 and not is_animated(img))
+
+                # 根据限制进行缩放
+                scaled = False
                 filesize_mb = os.path.getsize(path) / (1024 * 1024)
                 if filesize_mb > SIZE_LIMIT_MB:
-                    raise Exception(f"第{i}张图片大小{filesize_mb:.2f}MB超过限制{SIZE_LIMIT_MB}MB")
-                with TempFilePath('gif') as gif_path:
-                    # 如果是表情并且是静态图，可能获取到jpg，手动转换为gif
-                    img = open_image(path)
-                    if data.get('sub_type', 1) == 1 and not is_animated(img):
+                    pixels = get_image_pixels(img)
+                    img = limit_image_by_pixels(img, int(pixels * SIZE_LIMIT_MB / filesize_mb))
+                    scaled = True
+
+                if need_to_gif:
+                    # 转换为静态gif
+                    with TempFilePath('gif') as gif_path:
                         save_transparent_static_gif(img, gif_path)
                         path = gif_path
-                    pid = await GalleryManager.get().async_add_pic(name, path)
+                elif scaled:
+                    if is_animated(img):
+                        save_transparent_gif(img, get_gif_duration(img), path)
+                    else:
+                        img.save(path)
+                    new_size_mb = os.path.getsize(path) / (1024 * 1024)
+                    logger.info(f"缩放过大的图片 {filesize_mb:.2f}M -> {new_size_mb:.2f}M")
+            
+                pid = await GalleryManager.get().async_add_pic(name, path)
             ok_list.append(pid)
             with open(ADD_LOG_FILE, 'a', encoding='utf-8') as f:
                 f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | @{ctx.event.user_id} upload pid={pid} to \"{name}\"\n")
@@ -429,7 +446,7 @@ async def _(ctx: HandlerContext):
             logger.print_exc(f"上传第{i}张图片到画廊\"{name}\"失败")
             err_msg += f"上传第{i}张图片失败: {get_exc_desc(e)}\n"
     
-    msg = f"成功上传{len(ok_list)}张图片到画廊\"{name}\"\n" + err_msg
+    msg = f"成功上传{len(ok_list)}/{len(image_datas)}张图片到画廊\"{name}\"\n" + err_msg
     return await ctx.asend_reply_msg(msg.strip())
 
 

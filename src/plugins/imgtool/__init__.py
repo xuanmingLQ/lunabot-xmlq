@@ -103,11 +103,9 @@ class ImageOperation:
         def apply_limit(img: Union[Image.Image, List[Image.Image]]):
             if isinstance(img, Image.Image) and not is_animated(img):
                 w, h = img.size
-                limit = self.input_limit
-                if w * h > limit:
-                    new_w = int((limit / (w * h)) ** 0.5 * w)
-                    new_h = int((limit / (w * h)) ** 0.5 * h)
-                    img = img.resize((new_w, new_h), Image.Resampling.BILINEAR)
+                img = limit_image_by_pixels(img, self.input_limit)
+                new_w, new_h = img.size
+                if (w, h) != (new_w, new_h):
                     logger.info(f"图片操作 {self.name} 对超限输入进行缩放 {w}x{h} -> {new_w}x{new_h}")
             else:
                 is_single_gif = False
@@ -115,16 +113,15 @@ class ImageOperation:
                     is_single_gif = True
                     duration = get_gif_duration(img)
                     img = gif_to_frames(img)
-                w, h = img[0].size
-                n = len(img)
-                limit = self.input_limit // n
-                if w * h > limit:
-                    new_w = int((limit / (w * h)) ** 0.5 * w)
-                    new_h = int((limit / (w * h)) ** 0.5 * h)
-                    img = [i.resize((new_w, new_h), Image.Resampling.BILINEAR) for i in img]
-                    logger.info(f"图片操作 {self.name} 对超限输入进行缩放 {n}x{w}x{h} -> {n}x{new_w}x{new_h}")
+                
+                w, h, n = img[0].size[0], img[0].size[1], len(img)
+                img = limit_image_by_pixels(img, self.input_limit)
+                new_w, new_h, new_n = img[0].size[0], img[0].size[1], len(img)
+
+                if (n, w, h) != (new_n, new_w, new_h):
+                    logger.info(f"图片操作 {self.name} 对超限输入进行缩放 {n}x{w}x{h} -> {new_n}x{new_w}x{new_h}")
                 if is_single_gif:
-                    img = frames_to_gif(img, duration)
+                    img = frames_to_gif(img, int(duration * new_n / n))
             return img
 
         def process_image(img):

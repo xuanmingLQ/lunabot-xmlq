@@ -193,15 +193,18 @@ def gif_to_frames(img: Image.Image) -> List[Image.Image]:
     """
     return [frame.copy() for frame in ImageSequence.Iterator(img)]
 
-def save_transparent_gif(frames: Union[Image.Image, List[Image.Image]], duration: int, save_path: str, alpha_threshold: float = 0.5):
+def save_transparent_gif(image_or_frames: Union[Image.Image, List[Image.Image]], duration: int, save_path: str, alpha_threshold: float = 0.5):
     """
     从帧序列保存透明GIF
     """
     alpha_threshold = max(0.0, min(1.0, alpha_threshold))
     alpha_threshold = int(alpha_threshold * 255)
-    if isinstance(frames, Image.Image):
-        frames = [frames]
-    _save_transparent_gif(frames, duration, save_path, alpha_threshold)
+    if isinstance(image_or_frames, Image.Image):
+        if is_animated(image_or_frames):
+            image_or_frames = gif_to_frames(image_or_frames)
+        else:
+            image_or_frames = [image_or_frames]
+    _save_transparent_gif(image_or_frames, duration, save_path, alpha_threshold)
 
 def save_transparent_static_gif(img: Image, save_path: str, alpha_threshold: float=0.5):
     """
