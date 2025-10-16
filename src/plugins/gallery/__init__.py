@@ -407,6 +407,8 @@ async def _(ctx: HandlerContext):
     is_super = check_superuser(ctx.event)
     if not is_super and g.mode != GalleryMode.Edit:
         raise ReplyException(f'画廊\"{name}\"不允许上传图片')
+
+    await ctx.block(name)
     
     image_datas = await ctx.aget_image_datas()
     ok_list, err_msg = [], ""
@@ -463,13 +465,31 @@ async def _(ctx: HandlerContext):
         galls = GalleryManager.get().get_all_galls()
         if not galls:
             return await ctx.asend_reply_msg('当前没有任何画廊')
-        msg = ""
-        for g in galls.values():
-            msg += f"【{g.name}】\n"
-            msg += f"{len(g.pics)}张图片 模式:{g.mode.value}\n"
-            if g.aliases:
-                msg += f"别名: {', '.join(g.aliases)}\n"
-        return await ctx.asend_fold_msg_adaptive(msg.strip())
+        
+        with Canvas(bg=FillBg((230, 240, 255, 255))).set_padding(8) as canvas:
+            with Grid(row_count=int(math.sqrt(len(galls))), hsep=8, vsep=8):
+                for name, g in galls.items():
+                    thumb = None
+                    for pic in g.pics:
+                        pic.ensure_thumb()
+                        if pic.thumb_path and os.path.exists(pic.thumb_path):
+                            thumb = open_image(pic.thumb_path)
+                            break
+                    with VSplit().set_padding(0).set_sep(4).set_content_align('c').set_item_align('c'):
+                        if thumb:
+                            ImageBox(image=thumb, size=(THUMBNAIL_SIZE[0]*2, THUMBNAIL_SIZE[1]*2), image_size_mode='fit').set_content_align('c')
+                        else:
+                            Spacer(w=THUMBNAIL_SIZE[0]*2, h=THUMBNAIL_SIZE[1]*2)
+                        TextBox(f"{name}", TextStyle(DEFAULT_BOLD_FONT, 24, BLACK))
+                        TextBox(f"[{g.mode.value}] {len(g.pics)} 张图片", TextStyle(DEFAULT_FONT, 20, BLACK))
+                        TextBox(f"别名: {', '.join(g.aliases) if g.aliases else '无'}", TextStyle(DEFAULT_FONT, 12, (50, 50, 50)), use_real_line_count=True) \
+                            .set_w(THUMBNAIL_SIZE[0] * 2).set_content_align('c')
+        return await ctx.asend_reply_msg(
+            await get_image_cq(
+                await canvas.get_img(),
+                low_quality=True,
+            )
+        )
     
     # 列出指定画廊的图片
     g = GalleryManager.get().find_gall(name, raise_if_nofound=True)
@@ -496,3 +516,28 @@ async def _(ctx: HandlerContext):
             low_quality=True,
         )
     )
+
+
+gall_log = CmdHandler([
+    '/gall log',
+], logger)
+gall_log.check_cdrate(cd).check_wblist(gbl).check_superuser()
+@gall_log.handle()
+async def _(ctx: HandlerContext):
+    try: 
+        pid = int(ctx.get_args().strip())
+    except:
+        raise ReplyException('使用方式: /gall log pid')
+
+    lines = []
+    if os.path.exists(ADD_LOG_FILE):
+        with open(ADD_LOG_FILE, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    
+    for line in lines:
+        if f'pid={pid}' in line:
+            return await ctx.asend_reply_msg(line.strip())
+        
+    raise ReplyException(f'pid={pid}的上传记录不存在')
+    
+    
