@@ -1636,7 +1636,7 @@ async def _(ctx: SekaiHandlerContext):
         msg += f"{upload_time_text}\n"
 
     mode = get_user_data_mode(ctx, ctx.user_id)
-    # msg += f"---\n"
+    msg += f"---\n"
     msg += f"该指令查询Suite数据，查询Mysekai数据请使用\"/{ctx.region}msd\"\n"
     # msg += f"数据获取模式: {mode}，使用\"/{ctx.region}抓包模式\"来切换模式\n"
     msg += f"发送\"/抓包\"获取抓包教程"
