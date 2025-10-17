@@ -1562,7 +1562,7 @@ async def _(ctx: SekaiHandlerContext):
     reg_time = get_register_time(ctx.region, uid)
     elapsed = datetime.now() - reg_time
     region_name = get_region_name(ctx.region)
-    return await ctx.asend_reply_msg(f"{region_name}注册时间: {reg_time.strftime('%Y-%m-%d')} ({elapsed.days}天前)")
+    return await ctx.asend_reply_msg(f"{region_name}注册时间: {reg_time.strftime('%Y-%m-%d %H:%M:%S')} ({elapsed.days}天前)")
 
 
 # 检查profile服务器状态
