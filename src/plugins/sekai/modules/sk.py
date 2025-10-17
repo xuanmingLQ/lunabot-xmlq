@@ -1284,7 +1284,7 @@ async def update_ranking():
 
         # 获取榜线数据
         @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
-        async def _get_ranking(ctx: SekaiHandlerContext, eid: int):
+        async def _get_ranking(ctx: SekaiHandlerContext, eid: int, url: str):
             try:
                 data = await request_gameapi(url.format(event_id=eid))
                 return ctx.region, eid, data
@@ -1293,7 +1293,7 @@ async def update_ranking():
                 region_failed[ctx.region] = True
                 return ctx.region, eid, None
             
-        tasks.append(_get_ranking(ctx, event['id']))
+        tasks.append(_get_ranking(ctx, event['id'], url))
 
     if not tasks:
         return
