@@ -2065,8 +2065,11 @@ async def msr_auto_push():
         qids = list(set([qid for qid, gid in msr_sub.get_all_gid_uid(region)]))
         uid_modes = {}
         for qid in qids:
-            if uid := get_player_bind_id(ctx, qid, check_bind=False):
-                uid_modes[uid] = get_user_data_mode(ctx, qid)
+            try:
+                if uid := get_player_bind_id(ctx, qid, check_bind=False):
+                    uid_modes[uid] = get_user_data_mode(ctx, qid)
+            except:
+                pass
         if not uid_modes: continue
 
         # 向api服务器更新msr订阅信息
