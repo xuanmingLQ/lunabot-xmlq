@@ -228,12 +228,45 @@ def validate_uid(ctx: SekaiHandlerContext, uid: str) -> bool:
 def get_gameapi_config(ctx: SekaiHandlerContext) -> GameApiConfig:
     return GameApiConfig(**(gameapi_config.get(ctx.region, {})))
 
+# 请求游戏API data_type: json/bytes/None
+async def request_gameapi(url: str, method: str = 'GET', data_type: str | None = 'json', **kwargs):
+    token = config.get('gameapi_token', '')
+    headers = { 'Authorization': f'Bearer {token}' }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.request(method, url, headers=headers, verify_ssl=False, **kwargs) as resp:
+                if resp.status != 200:
+                    try:
+                        detail = await resp.text()
+                        detail = loads_json(detail)['detail']
+                    except:
+                        pass
+                    utils_logger.error(f"请求游戏API后端 {url} 失败: {resp.status} {detail}")
+                    raise HttpError(resp.status, detail)
+                
+                if data_type is None:
+                    return resp
+                elif data_type == 'json':
+                    if "text/plain" in resp.content_type:
+                        return loads_json(await resp.text())
+                    elif "application/octet-stream" in resp.content_type:
+                        import io
+                        return loads_json(io.BytesIO(await resp.read()).read())
+                    else:
+                        return await resp.json()
+                elif data_type == 'bytes':
+                    return await resp.read()
+                else:
+                    raise Exception(f"不支持的数据类型: {data_type}")
+                
+    except aiohttp.ClientConnectionError as e:
+        raise Exception(f"连接游戏API后端失败，请稍后再试")
+            
 # 获取qq用户绑定的游戏id
 def get_player_bind_id(ctx: SekaiHandlerContext, qid: int, check_bind=True) -> str:
     qid = str(qid)
     bind_list: Dict[str, str] = profile_db.get("bind_list", {}).get(ctx.region, {})
     if check_bind and not bind_list.get(qid, None):
-        # assert_and_reply(get_gameapi_config(ctx).profile_api_url, f"暂不支持查询 {ctx.region} 服务器的玩家信息")
         region = "" if ctx.region == "jp" else ctx.region
         raise ReplyException(f"请使用\"/{region}绑定 你的游戏ID\"绑定账号")
     uid = bind_list.get(qid, None)
@@ -246,7 +279,7 @@ async def get_basic_profile(ctx: SekaiHandlerContext, uid: int, use_cache=True, 
     try:
         url = get_gameapi_config(ctx).profile_api_url
         assert_and_reply(url, f"暂不支持查询 {ctx.region} 服务器的玩家信息")
-        profile = await download_json(url.format(uid=uid) + f"?use_cache={use_remote_cache}")
+        profile = await request_gameapi(url.format(uid=uid) + f"?use_cache={use_remote_cache}")
         if raise_when_no_found:
             assert_and_reply(profile, f"找不到ID为 {uid} 的玩家")
         elif not profile:
@@ -350,7 +383,7 @@ async def get_detailed_profile(
             url = url.format(uid=uid) + f"?mode={mode}"
             if filter:
                 url += f"&filter={','.join(filter)}"
-            profile = await download_json(url)
+            profile = await request_gameapi(url)
         except HttpError as e:
             logger.info(f"获取 {qid} 抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
@@ -1541,10 +1574,8 @@ async def _(ctx: SekaiHandlerContext):
     url = get_gameapi_config(ctx).api_status_url
     assert_and_reply(url, f"暂无 {ctx.region} 的查询服务器")
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, verify_ssl=False) as resp:
-                data = await resp.json()
-                assert data['status'] == 'ok'
+        data = await request_gameapi(url)
+        assert data['status'] == 'ok'
     except Exception as e:
         logger.print_exc(f"profile查询服务状态异常")
         return await ctx.asend_reply_msg(f"profile查询服务异常: {str(e)}")

@@ -18,6 +18,7 @@ from .profile import (
     get_player_frames,
     get_avatar_widget_with_frame,
     process_sensitive_cmd_source,
+    request_gameapi,
 )
 from .music import get_music_cover_thumb
 from .card import get_character_sd_image
@@ -139,7 +140,7 @@ async def get_mysekai_info(
             url = url.format(uid=uid) + f"?mode={mode}"
             if filter:
                 url += f"&filter={','.join(filter)}"
-            mysekai_info = await download_json(url)
+            mysekai_info = await request_gameapi(url)
         except HttpError as e:
             logger.info(f"获取 {qid} mysekai抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
@@ -1012,11 +1013,8 @@ async def get_mysekai_photo_and_time(ctx: SekaiHandlerContext, qid: int, seq: in
     url = get_gameapi_config(ctx).mysekai_photo_api_url
     assert_and_reply(url, f"暂不支持查询 {ctx.region} 的MySekai照片")
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, json=photo, verify_ssl=False) as response:
-            if response.status != 200:
-                raise Exception(f"下载失败: {response.status}")
-            return Image.open(io.BytesIO(await response.read())), photo_time
+    image_bytes = await request_gameapi(url, data_type='bytes', json=photo)
+    return Image.open(io.BytesIO(image_bytes)), photo_time
 
 # 从本地的my.sekai.run网页html提取数据
 async def load_mysekairun_data(ctx: SekaiHandlerContext):
@@ -2057,8 +2055,8 @@ async def msr_auto_push():
         region_name = get_region_name(region)
         ctx = SekaiHandlerContext.from_region(region)
 
-        url = get_gameapi_config(ctx).mysekai_upload_time_api_url
-        if not url: continue
+        get_upload_time_url = get_gameapi_config(ctx).mysekai_upload_time_api_url
+        if not get_upload_time_url: continue
         if region not in msr_sub.regions: continue
 
         # 获取订阅的用户列表和抓包模式
@@ -2076,21 +2074,13 @@ async def msr_auto_push():
         update_msr_sub_url = get_gameapi_config(ctx).update_msr_sub_api_url
         if update_msr_sub_url:
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.put(update_msr_sub_url, json=uid_modes, verify_ssl=False) as resp:
-                        if resp.status != 200:
-                            logger.warning(f"更新{region_name}Mysekai订阅信息失败: HTTP {resp.status}")
+                await request_gameapi(update_msr_sub_url, json=uid_modes, method='PUT')
             except Exception as e:
                 logger.warning(f"更新{region_name}Mysekai订阅信息失败: {get_exc_desc(e)}")
 
         # 获取Mysekai上传时间
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, json=uid_modes, verify_ssl=False) as resp:
-                    if resp.status != 200:
-                        logger.error(f"获取{region_name}Mysekai上传时间失败: HTTP {resp.status}")
-                        continue
-                    upload_times = await resp.json()
+            upload_times = await request_gameapi(get_upload_time_url, json=uid_modes)
         except Exception as e:
             logger.warning(f"获取{region_name}Mysekai上传时间失败: {get_exc_desc(e)}")
             continue

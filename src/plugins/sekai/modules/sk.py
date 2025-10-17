@@ -7,6 +7,7 @@ from ..draw import *
 from .profile import (
     get_gameapi_config,
     get_player_bind_id,
+    request_gameapi,
 )
 from .event import (
     get_current_event, 
@@ -229,13 +230,9 @@ async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_rank
         logger.info(f"从数据库获取 {ctx.region}_{event_id} 最新榜线数据")
         return rankings
     # 从API获取
-    assert_and_reply(get_gameapi_config(ctx).ranking_api_url, f"暂不支持获取{ctx.region}榜线数据")
-    url = get_gameapi_config(ctx).ranking_api_url.format(event_id=event_id % 1000)
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, verify_ssl=False) as resp:
-            if resp.status != 200:
-                raise Exception(f"{resp.status}: {await resp.text()}")
-            data = await resp.json()
+    url = get_gameapi_config(ctx).ranking_api_url
+    assert_and_reply(url, f"暂不支持获取{ctx.region}榜线数据")
+    data = await request_gameapi(url.format(event_id=event_id % 1000))
     assert_and_reply(data, "获取榜线数据失败")
     logger.info(f"从API获取 {ctx.region}_{event_id} 最新榜线数据")
     return [r for r in await parse_rankings(ctx, event_id, data, False) if r.rank in query_ranks]
@@ -1275,7 +1272,8 @@ async def update_ranking():
     for region in ALL_SERVER_REGIONS:
         ctx = SekaiHandlerContext.from_region(region)
 
-        if not get_gameapi_config(ctx).ranking_api_url:
+        url = get_gameapi_config(ctx).ranking_api_url
+        if not url:
             continue
         
         # 获取当前运行中的活动
@@ -1288,12 +1286,8 @@ async def update_ranking():
         @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
         async def _get_ranking(ctx: SekaiHandlerContext, eid: int):
             try:
-                url = get_gameapi_config(ctx).ranking_api_url.format(event_id=eid)
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, verify_ssl=False) as resp:
-                        if resp.status != 200:
-                            raise Exception(f"{resp.status}: {await resp.text()}")
-                        return ctx.region, eid, await resp.json()
+                data = await request_gameapi(url.format(event_id=eid))
+                return ctx.region, eid, data
             except Exception as e:
                 logger.warning(f"获取 {ctx.region} 榜线数据失败: {get_exc_desc(e)}")
                 region_failed[ctx.region] = True

@@ -11,6 +11,7 @@ from .profile import (
     get_detailed_profile,
     get_detailed_profile_card,
     get_player_avatar_info_by_detailed_profile,
+    request_gameapi,
 )
 
 QUERY_SINGLE_EVENT_HELP = """
@@ -683,13 +684,7 @@ async def send_boost(ctx: SekaiHandlerContext, qid: int) -> str:
     assert_and_reply(event and event['eventType'] == 'cheerful_carnival', "当前没有进行中的5v5活动")
     url = get_gameapi_config(ctx).send_boost_api_url
     assert_and_reply(url, "该区服不支持自动送火")
-    url = url.format(uid=uid)
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, verify_ssl=False) as resp:
-            if resp.status != 200:
-                logger.warning(f"自动送火失败，状态码: {resp.status}")
-                raise ReplyException(f"自动送火失败（内部错误）")
-            result = await resp.json()
+    result = await request_gameapi(url.format(uid=uid), method='POST')
     ok_times = result['ok_times']
     failed_reason = result.get('failed_reason', '未知错误')
     ret_msg = f"成功送火{ok_times}次"
