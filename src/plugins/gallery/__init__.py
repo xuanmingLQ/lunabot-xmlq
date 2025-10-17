@@ -338,7 +338,7 @@ async def _(ctx: HandlerContext):
 
 gall_alias_add = CmdHandler([
     '/gall alias add', '/gall add alias',
-], logger)
+], logger, priority=200)
 gall_alias_add.check_cdrate(cd).check_wblist(gbl).check_superuser()
 @gall_alias_add.handle()
 async def _(ctx: HandlerContext):

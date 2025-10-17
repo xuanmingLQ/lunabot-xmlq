@@ -217,7 +217,7 @@ def process_sensitive_cmd_source(data):
 # 验证uid
 def validate_uid(ctx: SekaiHandlerContext, uid: str) -> bool:
     uid = str(uid)
-    if not (10 <= len(uid) <= 20) or not uid.isdigit():
+    if not (13 <= len(uid) <= 20) or not uid.isdigit():
         return False
     reg_time = get_register_time(ctx.region, uid)
     if not reg_time or not (datetime.strptime("2020-09-01", "%Y-%m-%d") <= reg_time <= datetime.now()):
@@ -1953,8 +1953,8 @@ async def _(ctx: HandlerContext):
 
 # 查询绑定历史
 pjsk_bind_history = CmdHandler([
-    "/pjsk bind history", "/pjsk bind his", "/绑定历史",
-], logger)
+    "/pjsk bind history", "/pjsk bind his", "/绑定历史", "/绑定记录",
+], logger, priority=200)
 pjsk_bind_history.check_cdrate(cd).check_wblist(gbl).check_superuser()
 @pjsk_bind_history.handle()
 async def _(ctx: HandlerContext):

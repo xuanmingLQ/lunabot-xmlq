@@ -150,6 +150,37 @@ async def _(ctx: SekaiHandlerContext):
     )
 
 
+chara_bd = SekaiCmdHandler([
+    "/pjsk chara birthday", "/角色生日",
+], regions=['jp'])
+chara_bd.check_cdrate(cd).check_wblist(gbl)
+@chara_bd.handle()
+async def _(ctx: SekaiHandlerContext):
+    args = ctx.get_args().strip()
+    cid = get_cid_by_nickname(args)
+    assert_and_reply(cid, "请输入角色名称")
+
+    msg = ""
+
+    birthday_time = None
+    for card in await ctx.md.cards.get():
+        if card['characterId'] == cid and card['cardRarityType'] == 'rarity_birthday':
+            birthday_time = datetime.fromtimestamp(card['releaseAt'] / 1000) + timedelta(hours=6)
+            break
+    
+    next_birthday = datetime(datetime.now().year, birthday_time.month, birthday_time.day)
+    if next_birthday < datetime.now():
+        next_birthday = datetime(datetime.now().year + 1, birthday_time.month, birthday_time.day)
+
+    msg += f"{args}的下次生日: {next_birthday.strftime('%Y年%m月%d日')} (还有{(next_birthday - datetime.now()).days}天)\n"
+    
+    cu = await ctx.md.game_character_units.find_by_id(cid)
+    msg += f"应援色代码: {cu['colorCode']}\n"
+
+    return await ctx.asend_reply_msg(msg.strip())
+            
+
+
 heyiwei = SekaiCmdHandler([
     "/pjskb30", "/pjskdetail", 
 ])

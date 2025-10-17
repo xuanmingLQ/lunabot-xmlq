@@ -136,6 +136,7 @@ Project Sekai（世界计划）游戏多区服服务
 
 #### 其他
 
+- [查询角色生日](#查询角色生日)
 - [刷新MasterData数据](#刷新MasterData数据)
 - [查询文本中的屏蔽词](#查询文本中的屏蔽词)
 - 🛠️ [开启/关闭群聊功能](#开启/关闭群聊功能)
@@ -1103,6 +1104,14 @@ mnr1箱对应的卡池: `eventmnr1`
 
 ## 其他
 
+
+### 查询角色生日
+`/角色生日` `/pjsk chara birthday`
+> 查询角色下次生日时间和应援色  
+
+- `/角色生日 miku`
+
+
 ### 刷新MasterData数据
 `/pjsk update` `/pjsk refresh`
 > 立刻检查MasterData数据更新  
@@ -1146,7 +1155,7 @@ mnr1箱对应的卡池: `eventmnr1`
 
 
 ### 查询绑定历史
-🛠️ `/绑定历史` `/pjsk bind his` `/pjsk bind history`
+🛠️ `/绑定历史` `/绑定记录` `/pjsk bind his` `/pjsk bind history`
 > 查询用户绑定历史，可以查询某个qq号的绑定历史或某个游戏id的被绑定历史
 
 - `/绑定历史 @user` 查询@的用户的绑定历史

@@ -144,7 +144,7 @@ async def get_word_statistic(bot, group_id, days, word):
 
 
 # 发送每日统计图
-sta = CmdHandler(["/sta", "/sta_day"], logger, priority=100)
+sta = CmdHandler(["/sta day",], logger, priority=100)
 sta.check_cdrate(cd).check_wblist(gbl).check_group()
 @sta.handle()
 async def _(ctx: HandlerContext):
