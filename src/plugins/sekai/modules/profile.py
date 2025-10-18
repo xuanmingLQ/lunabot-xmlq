@@ -2093,10 +2093,8 @@ async def _(ctx: SekaiHandlerContext):
     url = get_gameapi_config(ctx).create_account_api_url
     assert_and_reply(url, f"不支持注册{region_name}帐号")
     data = await request_gameapi(url, method="POST")
-    return await ctx.asend_fold_msg(f"""
-注册{region_name}帐号成功
-{data['inherit_id']}
-{data['inherit_pw']}
-登陆后请及时重新生成引继码
-""".strip())
-
+    return await ctx.asend_fold_msg([
+        f"注册{region_name}帐号成功，引继码和引继密码如下，登陆后请及时重新生成引继码",
+        data['inherit_id'],
+        data['inherit_pw'],
+    ])
