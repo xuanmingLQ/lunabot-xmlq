@@ -7,14 +7,14 @@ rip_img_cache_max_res: 256*256                # 解包资源图片缓存最大�
 jp:
   masterdata:
     sources:
-      - name: "xxx"
-        base_url: "https://raw.githubusercontent.com/xxx/xxx-sekai-master/refs/heads/main/master/"
-        version_url: "https://raw.githubusercontent.com/xxx/xxx-sekai-master/refs/heads/main/versions/current_version.json"
+      - name: "xxx"   # MaterData数据源名称
+        base_url: "https://raw.githubusercontent.com/xxx/xxx-sekai-master/refs/heads/main/master/"    # MasterData数据源基础URL，最终数据路径会类似: {base_url}cards.json
+        version_url: "https://raw.githubusercontent.com/xxx/xxx-sekai-master/refs/heads/main/versions/current_version.json" # MasterData版本信息URL
 
   rip:  # 解包资源数据源
     sources:
-      - name: "xxx"
-        base_url: "https://xxx/jp-assets/"
+      - name: "xxx" # 数据源名称，必须为几个预设的名称，详见 src/plugins/sekai/asset.py 中的 DEFAULT_URL_MAP_METHODS
+        base_url: "https://xxx/jp-assets/"  # 数据源基础URL，最终资源路径会类似: {base_url}character/member/res005_no047/card_normal.png
 
       - name: "xxx"
         base_url: "https://xxx/"
