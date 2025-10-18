@@ -11,12 +11,12 @@ jp:
         base_url: "https://raw.githubusercontent.com/xxx/xxx-sekai-master/refs/heads/main/master/"
         version_url: "https://raw.githubusercontent.com/xxx/xxx-sekai-master/refs/heads/main/versions/current_version.json"
 
-  rip:
+  rip:  # 解包资源数据源
     sources:
       - name: "xxx"
         base_url: "https://xxx/jp-assets/"
 
       - name: "xxx"
         base_url: "https://xxx/"
-        prefixes:
+        prefixes: # 指定该数据源仅用于特定前缀
           - "music"

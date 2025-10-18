@@ -1,4 +1,4 @@
-url: https://xxx/alias/v1/music/{mid}
+url: https://xxx/alias/v1/music/{mid} # 歌曲别名更新API
 
 regions:
   - "jp"

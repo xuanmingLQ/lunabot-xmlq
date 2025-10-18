@@ -1,11 +1,13 @@
 # 日服
 jp:
-  api_status_url:               "https://xxx"
-  profile_api_url:              "https://xxx"
-  suite_api_url:                "https://xxx"
-  mysekai_api_url:              "https://xxx"
-  mysekai_photo_api_url:        "https://xxx"
-  mysekai_upload_time_api_url:  "https://xxx"
-  update_msr_sub_api_url:       "https://xxx"
-  ranking_api_url:              "https://xxx"
-  send_boost_api_url:           "https://xxx"
+  profile_api_url:                "https://xxx/api/jp/user/{uid}/profile"       # 游戏API: 获取用户profile
+  suite_api_url:                  "https://xxx/api/jp/user/{uid}/suite"         # 游戏API: 获取用户suite
+  mysekai_api_url:                "https://xxx/api/jp/user/{uid}/mysekai"       # 游戏API: 获取用户mysekai
+  mysekai_photo_api_url:          "https://xxx/api/jp/mysekai/photo"            # 游戏API: 获取用户ms照片
+  ranking_api_url:                "https://xxx/api/jp/event/{event_id}/ranking" # 游戏API: 获取活动排名
+  send_boost_api_url:             "https://xxx/api/jp/user/{uid}/send_boost"    # 游戏API: 送火
+  create_account_api_url:         "https://xxx/api/jp/create_account"           # 游戏API: 创建账号
+
+# 台服（繁中）
+tw:
+  # ...
