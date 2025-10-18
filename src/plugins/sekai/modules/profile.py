@@ -29,6 +29,8 @@ class GameApiConfig:
     ranking_api_url: Optional[str] = None
     send_boost_api_url: Optional[str] = None
     create_account_api_url: Optional[str] = None
+    ad_result_update_time_api_url: Optional[str] = None
+    ad_result_api_url: Optional[str] = None
 
 
 @dataclass

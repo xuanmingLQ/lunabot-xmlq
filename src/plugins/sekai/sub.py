@@ -28,10 +28,11 @@ GROUP_UNSUB_COMMANDS = [
 class SekaiGroupSubHelper:
     all_subs: List['SekaiGroupSubHelper'] = []
 
-    def __init__(self, id: str, name: str, regions: List[str]):
+    def __init__(self, id: str, name: str, regions: List[str], hide: bool = False):
         self.id = id
         self.name = name
         self.regions = regions
+        self.hide = hide
         self.subs = {
             region: SubHelper(
                 f"{name}({region_name})_群聊",
@@ -117,7 +118,8 @@ async def _(ctx: HandlerContext):
     msg += "使用\"/pjsk开启 英文项目名\"开启订阅\n"
     msg += "所有可开启项目:\n"
     for sub in SekaiGroupSubHelper.all_subs:
-        msg += f"{sub.id}: {sub.name}({', '.join(sub.regions)})\n"
+        if not sub.hide:
+            msg += f"{sub.id}: {sub.name}({', '.join(sub.regions)})\n"
 
     return await ctx.asend_reply_msg(msg.strip())
 
@@ -148,11 +150,12 @@ USER_UNSUB_COMMANDS = [
 class SekaiUserSubHelper:
     all_subs: List['SekaiUserSubHelper'] = []
 
-    def __init__(self, id: str, name: str, regions: List[str], related_group_sub: SekaiGroupSubHelper = None, only_one_group=False):
+    def __init__(self, id: str, name: str, regions: List[str], related_group_sub: SekaiGroupSubHelper = None, only_one_group=False, hide=False):
         self.id = id
         self.name = name
         self.regions = regions
         self.related_group_sub = related_group_sub
+        self.hide = hide
         self.subs = {
             region: SubHelper(
                 f"{name}({region_name})_用户",
@@ -261,6 +264,7 @@ async def _(ctx: HandlerContext):
     msg += "使用\"/pjsk订阅 英文项目名\"进行订阅\n"
     msg += "所有可订阅项目:\n"
     for sub in SekaiUserSubHelper.all_subs:
-        msg += f"{sub.id}: {sub.name}({', '.join(sub.regions)})\n"
+        if not sub.hide:
+            msg += f"{sub.id}: {sub.name}({', '.join(sub.regions)})\n"
         
     return await ctx.asend_reply_msg(msg.strip())
