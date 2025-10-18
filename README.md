@@ -18,7 +18,9 @@ Note: This project is for reference and learning purposes only, and is **not** a
 
 4.  Start the project using `nb-cli`.
 
-5.  (Optional) Start the Project Sekai deck recommendation service:
+5.  Send a message `@yourbot /enable` to enable the bot in the group.
+
+6.  (Optional) Start the Project Sekai deck recommendation service:
 ```bash
 pip install git+https://github.com/NeuraXmy/sekai-deck-recommend-cpp.git
 uvicorn /root/program/qqbot/mybot/src/plugins/sekai/deck_recommender/serve.py:app --port 45556
