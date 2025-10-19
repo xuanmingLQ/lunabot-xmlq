@@ -1,6 +1,7 @@
 from ..utils import *
 from ..water import calc_phash
 from enum import Enum
+import zipfile
 
 
 config = Config('gallery')
@@ -178,6 +179,17 @@ class GalleryManager:
         """
         通过图片ID查找图片
         """
+        if pid < 0:
+            pids = []
+            for g in self.galleries.values():
+                for p in g.pics:
+                    pids.append(p.pid)
+            pids.sort()
+            if pid < -len(pids):
+                if raise_if_nofound:
+                    raise ReplyException(f'画廊仅有{len(pids)}张图片')
+                return None
+            pid = pids[pid]
         for g in self.galleries.values():
             for p in g.pics:
                 if p.pid == pid:
@@ -540,4 +552,29 @@ async def _(ctx: HandlerContext):
         
     raise ReplyException(f'pid={pid}的上传记录不存在')
     
-    
+
+gall_download = CmdHandler([
+    '/gall download', 
+], logger)
+gall_download.check_cdrate(cd).check_wblist(gbl).check_superuser().check_group()
+@gall_download.handle()
+async def _(ctx: HandlerContext):
+    name = ctx.get_args().strip()
+    g = GalleryManager.get().find_gall(name, raise_if_nofound=True)
+    assert_and_reply(g.pics, f'画廊\"{name}\"没有图片')
+
+    with TempFilePath(".zip", remove_after=timedelta(minutes=5)) as zip_path:
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for pic in g.pics:
+                arcname = os.path.basename(pic.path)
+                zipf.write(pic.path, arcname)
+        
+        filesize = os.path.getsize(zip_path) / (1024 * 1024)
+        await ctx.asend_reply_msg(f'正在发送画廊\"{name}\"所有{len(g.pics)}张图片的压缩包({filesize:.2f}M)...')
+
+        await upload_group_file(
+            ctx.bot,
+            ctx.group_id,
+            zip_path,
+            f"{name}-{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+        )

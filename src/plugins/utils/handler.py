@@ -398,6 +398,17 @@ class TempBotOrInternetFilePath:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         remove_file(self.path)
 
+async def upload_group_file(bot: Bot, group_id: int, file_path: str, name: str, folder: str = '/') -> dict:
+    """
+    上传群文件
+    """
+    return await bot.call_api('upload_group_file', **{
+        'group_id': int(group_id),
+        'file': f'file://{os.path.abspath(file_path)}',
+        'name': name,
+        'folder': folder,
+    })
+
 
 def get_avatar_url(user_id: int) -> str:
     """
