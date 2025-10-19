@@ -1157,5 +1157,5 @@ class Painter:
         self.img.paste(bg, self.offset)
 
 
-_painter_pool: ProcessPool = ProcessPool(PAINTER_PROCESS_NUM)
+_painter_pool: ProcessPool = ProcessPool(PAINTER_PROCESS_NUM, name='draw')
 

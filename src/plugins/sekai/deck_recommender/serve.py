@@ -19,6 +19,9 @@ from sekai_deck_recommend import (
     DeckRecommendResult,
 )
 
+import setproctitle
+setproctitle.setproctitle('lunabot-deckrec')
+
 
 def load_json(file_path: str) -> dict:
     with open(file_path, 'rb') as file:

@@ -23,3 +23,4 @@ ffmpeg-python
 pdf2image   # also need to install poppler-utils
 uvloop
 pjsekai.scores
+setproctitle
