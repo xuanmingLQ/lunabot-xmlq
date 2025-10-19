@@ -605,7 +605,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         phenom_imgs.append(await ctx.rip.img(f"mysekai/thumbnail/phenomena/{asset_name}.png"))
         phenom_ids.append(phenom_id)
     current_hour = upload_time.hour
-    phenom_idx = 1 if current_hour < 4 or current_hour >= 16 else 0
+    phenom_idx = 1 if current_hour < h1 or current_hour >= h2 else 0
     cur_phenom_id = phenom_ids[phenom_idx]
     phenom_color_info = get_mysekai_phenomena_color_info(cur_phenom_id)
     phenom_bg = FillBg(LinearGradient(c1=phenom_color_info['sky1'], c2=phenom_color_info['sky2'], p1=(0.25, 1.0), p2=(0.75, 0.0)))
