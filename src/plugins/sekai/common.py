@@ -103,7 +103,7 @@ CARD_RARE_NAMES = [
 ]
 CARD_SUPPLIES_NAMES = [
     ("bloom_festival_limited", "新fes", "新fes限", "新fes限定", "新Fes", "新Fes限定",
-     "bfes", "bfes限", "bfes限定"),
+     "bfes", "bfes限", "bfes限定", "bf",),
     ("unit_event_limited", "wl", "wl限", "wl限定", "worldlink", "worldlink限定", "WL"),
     ("collaboration_limited", "联动", "联动限定"),
     ("colorful_festival_limited", 'cfes', 'cfes限定', "fes", "fes限", "fes限定", "Fes", "Fes限定"),

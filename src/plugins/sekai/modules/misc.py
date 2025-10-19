@@ -298,6 +298,7 @@ async def msr_auto_push():
             try:
                 logger.info(f"在 {gid} 中自动推送用户 {qid} 的广告奖励")
 
+                uid = get_player_bind_id(ctx, qid) 
                 res = await request_gameapi(result_url.format(uid=uid))
                 if not res.get('results'):
                     return
