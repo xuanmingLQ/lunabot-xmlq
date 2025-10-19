@@ -554,12 +554,11 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
                         ImageBox(get_chara_icon_by_chara_id(chara_id), size=(sz, sz))
                         chara_color = color_code_to_rgb((await ctx.md.game_character_units.find_by_id(chara_id))['colorCode'])
                         col_num = max(1, len(range(0, len(cards), best_height)))
+                        row_num = (len(cards) + col_num - 1) // col_num
                         Spacer(w=sz * col_num + 4 * (col_num - 1), h=4).set_bg(FillBg(chara_color))
-                        with HSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
-                            for i in range(0, len(cards), best_height):
-                                with VSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
-                                    for card in cards[i:i + best_height]: 
-                                        draw_card(card)      
+                        with Grid(col_count=col_num, vertical=row_num > col_num).set_content_align('lt').set_item_align('lt').set_sep(4, 4):
+                            for card in cards:
+                                draw_card(card) 
             
     add_watermark(canvas)
     return await canvas.get_img()
