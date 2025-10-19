@@ -788,7 +788,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     
     if ctx.region not in BD_MYSEKAI_REGIONS:
         add_watermark(canvas)
-        add_watermark(canvas2, text=DEFAULT_WATERMARK + ", map view from MiddleRed")
+        add_watermark(canvas2, text=DEFAULT_WATERMARK_CFG.get() + ", map view from MiddleRed")
 
     with Timer("msr:get_imgs", logger):
         return await asyncio.gather(canvas.get_img(), canvas2.get_img())

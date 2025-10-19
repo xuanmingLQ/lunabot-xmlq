@@ -656,7 +656,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
         update_time = datetime.fromtimestamp(basic_profile['update_time'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
     else:
         update_time = "?"
-    text = f"DT: {update_time}  " + DEFAULT_WATERMARK
+    text = f"DT: {update_time}  " + DEFAULT_WATERMARK_CFG.get()
     if bg_settings.image:
         text = text + f"  This background is user-uploaded."
     add_watermark(canvas, text)
