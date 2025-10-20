@@ -1183,7 +1183,7 @@ async def compose_deck_recommend_image(
         options.best_skill_as_leader = False
         # 转移basic_profile中的卡到profile中
         for bp_card in basic_profile['userCards']:
-            if p_card := find_by(profile['userCards'], 'id', bp_card['cardId']):
+            if p_card := find_by(profile['userCards'], 'cardId', bp_card['cardId']):
                 p_card.update(bp_card)
             else:
                 profile['userCards'].append(bp_card)
