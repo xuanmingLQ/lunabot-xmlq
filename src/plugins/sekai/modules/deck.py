@@ -1171,7 +1171,8 @@ async def compose_deck_recommend_image(
         ]
 
     # 使用当前队伍
-    if additional.get('use_current_deck'):
+    use_current_deck = additional.get('use_current_deck', False)
+    if use_current_deck:
         assert_and_reply(options.live_type not in ['challenge'], "暂不支持获取挑战组卡的当前队伍")
         basic_profile = await get_basic_profile(
             ctx, get_player_bind_id(ctx, qid, check_bind=True), 
@@ -1180,6 +1181,12 @@ async def compose_deck_recommend_image(
         options.fixed_cards = [basic_profile['userDeck'][f'member{i}'] for i in range(1, 6)]
         options.fixed_characters = None
         options.best_skill_as_leader = False
+        # 转移basic_profile中的卡到profile中
+        for bp_card in basic_profile['userCards']:
+            if p_card := find_by(profile['userCards'], 'id', bp_card['cardId']):
+                p_card.update(bp_card)
+            else:
+                profile['userCards'].append(bp_card)
 
     # 准备用户数据
     with TempFilePath("json") as userdata_path:
@@ -1381,7 +1388,12 @@ async def compose_deck_recommend_image(
                         if use_max_profile:
                             TextBox(f"({get_region_name(ctx.region)}顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
 
-                    if any([unit_filter, attr_filter, excluded_cards, options.multi_live_score_up_lower_bound]):
+                    if any([
+                        unit_filter, attr_filter, 
+                        excluded_cards, 
+                        options.multi_live_score_up_lower_bound, 
+                        options.keep_after_training_state,
+                    ]):
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(16):
                             setting_style = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(50, 50, 50))
                             TextBox("卡组设置:", setting_style)
@@ -1394,6 +1406,8 @@ async def compose_deck_recommend_image(
                                 TextBox(f"排除 {','.join(map(str, excluded_cards))}", setting_style)
                             if options.multi_live_score_up_lower_bound:
                                 TextBox(f"实效≥{int(options.multi_live_score_up_lower_bound)}%", setting_style)
+                            if options.keep_after_training_state:
+                                TextBox(f"禁用双技能自动切换", setting_style)
                             
                     if recommend_type in ["bonus", "wl_bonus"]:
                         TextBox(f"友情提醒：控分前请核对加成和体力设置", TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(255, 50, 50)))
@@ -1409,13 +1423,20 @@ async def compose_deck_recommend_image(
                                 ImageBox(music_cover, size=(50, 50))
                             TextBox(music_title, TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
                     
+                    info_text = ""
+
                     if last_args:
                         arg_unit, args = extract_unit(last_args)
                         arg_attr, args = extract_card_attr(last_args)
                         if arg_unit or arg_attr:
-                            TextBox(f"检测到你的歌曲查询中包含团名/颜色，可能是参数格式不正确\n"
-                                     "如果你想指定仅包含某个团名/颜色的卡牌请用: 纯mmj 纯绿", 
-                                    TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(200, 75, 75)), use_real_line_count=True)
+                            info_text += "检测到你的歌曲查询中包含团名/颜色，可能是参数格式不正确\n"
+                            info_text += "如果你想指定仅包含某个团名/颜色的卡牌请用: 纯mmj 纯绿\n"
+
+                    if use_max_profile:
+                        info_text += "\"顶配\"指该服务器截止于当前的全卡满养成配置\n"
+
+                    if info_text:  
+                        TextBox(info_text.strip(), TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(200, 75, 75)), use_real_line_count=True)
 
                 # 表格
                 gh, vsp, voffset = 120, 12, 18
