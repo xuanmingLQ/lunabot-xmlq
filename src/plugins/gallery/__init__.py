@@ -11,7 +11,7 @@ cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'gallery')
 
 THUMBNAIL_SIZE = (64, 64)
-SIZE_LIMIT_MB = 2
+SIZE_LIMIT_MB_CFG = config.item('size_limit_mb')
 GALLERY_PICS_DIR = 'data/gallery/{name}/'
 PIC_EXTS = ['.jpg', '.jpeg', '.png', '.gif']
 ADD_LOG_FILE = 'data/gallery/add.log'
@@ -198,7 +198,7 @@ class GalleryManager:
             raise ReplyException(f'画廊图片pid={pid}不存在')
         return None
 
-    async def async_add_pic(self, name_or_alias: str, img_path: str) -> int:
+    async def async_add_pic(self, name_or_alias: str, img_path: str, check_duplicated: bool = True) -> int:
         """
         向画廊添加一张图片，将会直接拷贝img_path的图片，返回图片ID
         """
@@ -206,8 +206,9 @@ class GalleryManager:
         assert g is not None, f'画廊\"{name_or_alias}\"不存在'
     
         phash = await calc_phash(img_path)
-        for p in g.pics:
-            assert p.phash != phash, f'画廊\"{g.name}\"已存在相似图片(pid={p.pid})'
+        if check_duplicated:
+            for p in g.pics:
+                assert p.phash != phash, f'画廊\"{g.name}\"已存在相似图片(pid={p.pid})'
 
         self.pid_top += 1
         _, ext = os.path.splitext(os.path.basename(img_path))
@@ -413,7 +414,14 @@ gall_add = CmdHandler([
 gall_add.check_cdrate(cd).check_wblist(gbl)
 @gall_add.handle()
 async def _(ctx: HandlerContext):
-    name = ctx.get_args().strip()
+    args = ctx.get_args().strip()
+
+    check_duplicated = True
+    if 'force' in args:
+        check_duplicated = False
+        args = args.replace('force', '').strip()
+
+    name = args
     g = GalleryManager.get().find_gall(name, raise_if_nofound=True)
 
     is_super = check_superuser(ctx.event)
@@ -434,10 +442,11 @@ async def _(ctx: HandlerContext):
 
                     # 根据限制进行缩放
                     scaled = False
+                    size_limit = SIZE_LIMIT_MB_CFG.get()
                     filesize_mb = os.path.getsize(path) / (1024 * 1024)
-                    if filesize_mb > SIZE_LIMIT_MB:
+                    if filesize_mb > size_limit:
                         pixels = get_image_pixels(img)
-                        img = limit_image_by_pixels(img, int(pixels * SIZE_LIMIT_MB / filesize_mb))
+                        img = limit_image_by_pixels(img, int(pixels * size_limit / filesize_mb))
                         scaled = True
 
                     if need_to_gif:
@@ -452,7 +461,7 @@ async def _(ctx: HandlerContext):
                         logger.info(f"缩放过大的图片 {filesize_mb:.2f}M -> {new_size_mb:.2f}M")
                         
                 await run_in_pool(process_image)
-                pid = await GalleryManager.get().async_add_pic(name, path)
+                pid = await GalleryManager.get().async_add_pic(name, path, check_duplicated=check_duplicated)
             ok_list.append(pid)
             with open(ADD_LOG_FILE, 'a', encoding='utf-8') as f:
                 f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | @{ctx.event.user_id} upload pid={pid} to \"{name}\"\n")
