@@ -126,7 +126,8 @@ async def get_event_detail(ctx: SekaiHandlerContext, event_or_event_id: Union[in
     if banner_cid:
         unit = get_unit_by_chara_id(banner_cid)
     elif event['eventType'] == 'world_bloom':
-        unit = get_unit_by_chara_id(event_cards[0]['characterId'])
+        if len(event_cards) <= 6:
+            unit = get_unit_by_chara_id(event_cards[0]['characterId'])
     
     assert not require_assets or all(a in ['banner', 'logo', 'bg', 'story_bg', 'ban_chara', 'card_thumbs'] for a in require_assets)
 
@@ -371,6 +372,7 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
                                 if d.bonus_attr: ImageBox(get_attr_icon(d.bonus_attr), size=(None, 24))
                                 if d.unit:  ImageBox(get_unit_icon(d.unit), size=(None, 24))
                                 if d.banner_cid: ImageBox(get_chara_icon_by_chara_id(d.banner_cid), size=(None, 24))
+                                if not any([d.unit, d.banner_cid, d.bonus_attr]): Spacer(24, 24)
 
     add_watermark(canvas)
 

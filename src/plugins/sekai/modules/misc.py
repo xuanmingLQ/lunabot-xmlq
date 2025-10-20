@@ -304,7 +304,7 @@ async def msr_auto_push():
                     return
                 
                 msg = f"[CQ:at,qq={qid}]的{region_name}广告奖励\n"
-                msg += f"时间: {datetime.fromtimestamp(res['time']).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                msg += f"{datetime.fromtimestamp(res['time']).strftime('%Y-%m-%d %H:%M:%S')}\n"
                 msg += "\n".join(res['results'])
 
                 await send_group_msg_by_bot(bot, gid, msg.strip())
