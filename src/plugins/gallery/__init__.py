@@ -71,6 +71,7 @@ class GalleryManager:
             self.galleries[name] = Gallery(
                 name=g['name'],
                 aliases=g.get('aliases', []),
+                cover_pid=g.get('cover_pid', None),
                 mode=GalleryMode(g.get('mode', 'edit')),
                 pics_dir=g['pics_dir'],
                 pics=pics,
