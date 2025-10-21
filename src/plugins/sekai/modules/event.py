@@ -402,15 +402,14 @@ async def get_event_by_ban_name(ctx: SekaiHandlerContext, ban_name: str) -> Opti
                 pass
     if not idx: return None
     assert_and_reply(idx >= 1, "箱数必须大于等于1")
-    chara_ban_stories = await ctx.md.event_stories.find_by('bannerGameCharacterUnitId', cid, mode="all")
     ban_event_id_set = await get_ban_events_id_set(ctx)
-    chara_ban_stories = [s for s in chara_ban_stories if s['eventId'] in ban_event_id_set]
-    assert_and_reply(chara_ban_stories, f"角色{nickname}没有箱活")  
-    event_ids = [s['eventId'] for s in chara_ban_stories]
     events = []
-    for e in await ctx.md.events.get():
-        if e['id'] in event_ids and e['eventType'] in ('marathon', 'cheerful_carnival'):
-            events.append(e)
+    for eid in ban_event_id_set:
+        event = await ctx.md.events.find_by_id(eid)
+        banner_cid = await get_event_banner_chara_id(ctx, event)
+        if banner_cid == cid:
+            events.append(event)
+    assert_and_reply(events, f"角色{nickname}没有箱活")
     assert_and_reply(idx <= len(events), f"角色{nickname}只有{len(events)}个箱活")
     events.sort(key=lambda x: x['startAt'])
     return events[idx-1]
