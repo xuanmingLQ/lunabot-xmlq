@@ -23,6 +23,8 @@ Note: This project is for reference and learning purposes only, and is **not** a
 6.  (Optional) Start the Project Sekai deck recommendation service:
 ```bash
 pip install git+https://github.com/NeuraXmy/sekai-deck-recommend-cpp.git
-uvicorn /root/program/qqbot/mybot/src/plugins/sekai/deck_recommender/serve.py:app --port 45556
+cd lunabot
+uvicorn src/plugins/sekai/deck_recommender/serve.py:app --port 45556
 ```
+
 
