@@ -52,6 +52,7 @@ class Gallery:
     aliases: list[str]
     mode: GalleryMode
     pics_dir: str
+    cover_pid: int | None = None
     pics: list[GalleryPic] = field(default_factory=list)
 
 
@@ -228,9 +229,9 @@ class GalleryManager:
         self._save()
         return self.pid_top
 
-    def del_pic(self, pid: int):
+    def del_pic(self, pid: int) -> int:
         """
-        从画廊删除一张图片
+        从画廊删除一张图片，返回被删除的图片ID
         """
         p = self.find_pic(pid)
         assert p is not None, f'图片ID {pid} 不存在'
@@ -244,6 +245,7 @@ class GalleryManager:
         except Exception as e:
             logger.warning(f'删除画廊图片 {pid} 文件失败: {get_exc_desc(e)}')
         self._save()
+        return p.pid
 
     async def async_reload_gall(self, name_or_alias: str) -> tuple[list[int], list[int]]:
         """
@@ -281,6 +283,17 @@ class GalleryManager:
         self._save()
         return new_pids, del_pids
     
+    def set_cover_pic(self, name_or_alias: str, pid: int):
+        """
+        设置画廊封面图片
+        """
+        g = self.find_gall(name_or_alias)
+        assert g is not None, f'画廊\"{name_or_alias}\"不存在'
+        p = self.find_pic(pid)
+        assert p is not None and p.gall_name == g.name, f'图片pid={pid}不属于画廊\"{g.name}\"'
+        g.cover_pid = pid
+        self._save()
+
 
 # ======================= 指令处理 ======================= # 
 
@@ -330,11 +343,11 @@ gall_del.check_cdrate(cd).check_wblist(gbl).check_superuser()
 @gall_del.handle()
 async def _(ctx: HandlerContext):
     try:
-        pid = int(ctx.get_args().strip())
+        pids = [int(s) for s in ctx.get_args().strip().split()]
     except:
-        raise ReplyException('使用方式: /gall del 图片ID')
-    GalleryManager.get().del_pic(pid)
-    await ctx.asend_reply_msg(f'图片pid={pid}删除成功')
+        raise ReplyException('使用方式: /gall del ID1 ID2...')
+    pids = [GalleryManager.get().del_pic(p) for p in pids]
+    await ctx.asend_reply_msg(f'图片pid={",".join(str(p) for p in pids)}删除成功')
 
 
 gall_reload = CmdHandler([
@@ -470,6 +483,7 @@ async def _(ctx: HandlerContext):
             err_msg += f"上传第{i}张图片失败: {get_exc_desc(e)}\n"
     
     msg = f"成功上传{len(ok_list)}/{len(image_datas)}张图片到画廊\"{name}\"\n" + err_msg
+    msg += "画廊主要收录表情/梗图，请勿上传可能有争议的图片"
     return await ctx.asend_fold_msg_adaptive(msg.strip())
 
 
@@ -490,21 +504,35 @@ async def _(ctx: HandlerContext):
         with Canvas(bg=FillBg((230, 240, 255, 255))).set_padding(8) as canvas:
             with Grid(row_count=int(math.sqrt(len(galls))), hsep=8, vsep=8):
                 for name, g in galls.items():
-                    thumb = None
-                    for pic in g.pics:
-                        pic.ensure_thumb()
-                        if pic.thumb_path and os.path.exists(pic.thumb_path):
-                            thumb = open_image(pic.thumb_path)
-                            break
+                    cover: GalleryPic = GalleryManager.get().find_pic(g.cover_pid or 0)
+                    if not cover and g.pics:
+                        cover = g.pics[0]
+
+                    total_size = 0
+                    for p in glob.glob(os.path.join(g.pics_dir, '*')):
+                        if os.path.isfile(p):
+                            total_size += os.path.getsize(p)
+                    total_size = total_size / (1024 * 1024)
+                    if total_size < 1024:
+                        size_text = f"{total_size:.1f}M"
+                    else:
+                        size_text = f"{total_size/1024:.1f}G"
+
                     with VSplit().set_padding(0).set_sep(4).set_content_align('c').set_item_align('c'):
-                        if thumb:
-                            ImageBox(image=thumb, size=(THUMBNAIL_SIZE[0]*2, THUMBNAIL_SIZE[1]*2), image_size_mode='fit').set_content_align('c')
+                        if cover:
+                            cover.ensure_thumb()
+                            ImageBox(image=open_image(cover.thumb_path), 
+                                     size=(THUMBNAIL_SIZE[0]*2, THUMBNAIL_SIZE[1]*2), image_size_mode='fit').set_content_align('c')
                         else:
                             Spacer(w=THUMBNAIL_SIZE[0]*2, h=THUMBNAIL_SIZE[1]*2)
                         TextBox(f"{name}", TextStyle(DEFAULT_BOLD_FONT, 24, BLACK))
-                        TextBox(f"[{g.mode.value}] {len(g.pics)} 张图片", TextStyle(DEFAULT_FONT, 20, BLACK))
+                        text = f"{len(g.pics)}张 ({size_text})"
+                        if g.mode != GalleryMode.Edit:
+                            text += f" [{g.mode.value}]"
+                        TextBox(text, TextStyle(DEFAULT_FONT, 20, BLACK))
                         TextBox(f"别名: {', '.join(g.aliases) if g.aliases else '无'}", TextStyle(DEFAULT_FONT, 12, (50, 50, 50)), use_real_line_count=True) \
                             .set_w(THUMBNAIL_SIZE[0] * 2).set_content_align('c')
+                        
         return await ctx.asend_msg(
             await get_image_cq(
                 await canvas.get_img(),
@@ -587,3 +615,22 @@ async def _(ctx: HandlerContext):
             zip_path,
             f"{name}-{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
         )
+
+
+gall_cover = CmdHandler([
+    '/gall cover', 
+], logger)
+gall_cover.check_cdrate(cd).check_wblist(gbl).check_superuser()
+@gall_cover.handle()
+async def _(ctx: HandlerContext):
+    args = ctx.get_args().strip().split()
+    if len(args) != 2:
+        raise ReplyException('使用方式: /gall cover 画廊名称 图片ID')
+    name, pid_str = args
+    try:
+        pid = int(pid_str)
+    except:
+        raise ReplyException('图片ID必须是整数')
+
+    GalleryManager.get().set_cover_pic(name, pid)
+    await ctx.asend_reply_msg(f'画廊\"{name}\"封面图片设置为pid={pid}成功')
