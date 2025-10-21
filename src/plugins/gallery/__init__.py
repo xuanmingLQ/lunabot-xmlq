@@ -294,6 +294,35 @@ class GalleryManager:
         g.cover_pid = pid
         self._save()
 
+    async def rehash_gallery(self, name_or_alias: str) -> list[int]:
+        """
+        重新画廊计算hash，移除画廊中重复的图片，返回被删除的图片ID列表
+        """
+        g = self.find_gall(name_or_alias)
+        assert g is not None, f'画廊\"{name_or_alias}\"不存在'
+        
+        all_phash = set()
+        del_pids = []
+
+        for pic in g.pics[:]:
+            phash = await calc_phash(pic.path)
+            if phash in all_phash:
+                g.pics.remove(pic)
+                del_pids.append(pic.pid)
+                try:
+                    if os.path.exists(pic.path):
+                        os.remove(pic.path)
+                    if pic.thumb_path and os.path.exists(pic.thumb_path):
+                        os.remove(pic.thumb_path)
+                except Exception as e:
+                    logger.warning(f'删除画廊图片 {pic.pid} 文件失败: {get_exc_desc(e)}')
+            else:
+                pic.phash = phash
+                all_phash.add(phash)
+
+        self._save()
+        return del_pids
+
 
 # ======================= 指令处理 ======================= # 
 
@@ -634,3 +663,15 @@ async def _(ctx: HandlerContext):
 
     GalleryManager.get().set_cover_pic(name, pid)
     await ctx.asend_reply_msg(f'画廊\"{name}\"封面图片设置为pid={pid}成功')
+
+
+gall_rehash = CmdHandler([
+    '/gall rehash', 
+], logger)
+gall_rehash.check_cdrate(cd).check_wblist(gbl).check_superuser()
+@gall_rehash.handle()
+async def _(ctx: HandlerContext):
+    name = ctx.get_args().strip()
+    await ctx.asend_reply_msg(f'正在为画廊\"{name}\"重新计算hash并移除重复图片...')
+    del_pids = await GalleryManager.get().rehash_gallery(name)
+    await ctx.asend_reply_msg(f'画廊\"{name}\"重新计算hash完成，移除重复图片{len(del_pids)}张: {",".join(str(p) for p in del_pids)}')

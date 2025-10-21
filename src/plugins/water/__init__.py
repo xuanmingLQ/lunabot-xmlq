@@ -38,8 +38,15 @@ async def calc_phash(image_url_or_path):
     else:
         image = Image.open(image_url_or_path)
     def calc(image):
+        # 如果存在A通道：alphablend到纯白色背景上
+        if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
+            image = image.convert('RGBA').resize((64, 64), Image.Resampling.BILINEAR)
+            bg = Image.new("RGBA", image.size, (255, 255, 255, 255))
+            bg.alpha_composite(image)
+            image = bg
+        image = image.convert('RGB')
         # 缩小尺寸
-        image = image.resize((8, 8)).convert('L')
+        image = image.resize((8, 8), Image.Resampling.BILINEAR).convert('L')
         # 计算平均值
         avg = sum(list(image.getdata())) / 64
         # 比较像素的灰度
