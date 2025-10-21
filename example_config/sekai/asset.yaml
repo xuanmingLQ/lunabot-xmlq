@@ -13,7 +13,7 @@ jp:
 
   rip:  # 解包资源数据源
     sources:
-      - name: "xxx" # 数据源名称，必须为几个预设的名称，详见 src/plugins/sekai/asset.py 中的 DEFAULT_URL_MAP_METHODS
+      - name: "xxx" # 数据源名称，由于各家路径格式不同，程序内置了几个预设的名称对应的路径处理，详见 src/plugins/sekai/asset.py 中的 DEFAULT_URL_MAP_METHODS
         base_url: "https://xxx/jp-assets/"  # 数据源基础URL，最终资源路径会类似: {base_url}character/member/res005_no047/card_normal.png
 
       - name: "xxx"
