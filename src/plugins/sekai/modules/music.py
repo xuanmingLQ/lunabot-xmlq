@@ -32,7 +32,7 @@ music_en_titles = WebJsonRes("曲名英文翻译", "https://i18n-json.sekai.best
 
 DIFF_NAMES = [
     ("easy", "Easy", "EASY", "ez", "EZ"),
-    ("normal", "Normal", "NORMAL"), 
+    ("normal", "Normal", "NORMAL", "nm", "NM", ), 
     ("hard", "hd", "Hard", "HARD", "HD"), 
     ("expert", "ex", "Expert", "EXPERT", "EX", "Exp", "EXP", "exp"), 
     ("master", "ma", "Ma", "MA", "Master", "MASTER", "Mas", "mas", "MAS"),
@@ -628,15 +628,26 @@ async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearc
 
 # ======================= 处理逻辑 ======================= #
 
+# 获取歌曲限定时间
+async def get_music_limited_times(ctx: SekaiHandlerContext, mid: int) -> list[tuple[datetime, datetime]]:
+    ret = []
+    for item in await ctx.md.limited_time_musics.find_by('musicId', mid, mode='all'):
+        start = datetime.fromtimestamp(item['startAt'] / 1000)
+        end = datetime.fromtimestamp(item['endAt'] / 1000)
+        ret.append((start, end))
+    return ret
+
 # 检查是否有效歌曲
 async def is_valid_music(ctx: SekaiHandlerContext, mid: int, leak=False) -> bool:
     m = await ctx.md.musics.find_by_id(mid)
+    now = datetime.now()
     if not m:
         return False
-    if not leak and datetime.fromtimestamp(m['publishedAt'] / 1000) > datetime.now():
+    if not leak and datetime.fromtimestamp(m['publishedAt'] / 1000) > now:
         return False
-    if m.get('isFullLength'):
-        return False
+    if limited_times := await get_music_limited_times(ctx, mid):
+        if not any(start <= now <= end for start, end in limited_times):
+            return False
     if m['id'] in (241, 290):
         return False
     return True
@@ -646,13 +657,8 @@ async def get_valid_musics(ctx: SekaiHandlerContext, leak=False) -> List[Dict]:
     musics = await ctx.md.musics.get()
     ret = []
     for m in musics:
-        if not leak and datetime.fromtimestamp(m['publishedAt'] / 1000) > datetime.now():
-            continue
-        if m.get('isFullLength'):
-            continue
-        if m['id'] in (241, 290):
-            continue
-        ret.append(m)
+        if await is_valid_music(ctx, m['id'], leak=leak):
+            ret.append(m)
     return ret
 
 # 在所有服务器根据id检索歌曲（优先在ctx.region)
@@ -831,6 +837,8 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
         if caption not in caption_vocals:
             caption_vocals[caption] = []
         caption_vocals[caption].append(vocal)
+
+    limited_times = await get_music_limited_times(ctx, mid)
         
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
@@ -882,8 +890,17 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                             TextBox(audio_len, style2)
                             TextBox(publish_time, style2)
                             TextBox(bpm_main, style2)
-                
-                 # 难度等级/物量
+
+                # 限定时间
+                if limited_times:
+                    with HSplit().set_content_align('l').set_item_align('l').set_sep(16).set_padding(16):
+                        TextBox("限定时间", TextStyle(font=DEFAULT_HEAVY_FONT, size=24, color=(50, 50, 50)))
+                        with VSplit().set_content_align('l').set_item_align('l').set_sep(4):
+                            for start, end in limited_times:
+                                TextBox(f"{start.strftime('%Y-%m-%d %H:%M')} ~ {end.strftime('%Y-%m-%d %H:%M')}", 
+                                        TextStyle(font=DEFAULT_FONT, size=24, color=(70, 70, 70)))
+                    
+                # 难度等级/物量
                 hs, vs, gw = 8, 12, 180 if not has_append else 150
                 with HSplit().set_content_align('c').set_item_align('c').set_sep(vs).set_padding(32):
                     with Grid(col_count=(6 if has_append else 5), item_size_mode='fixed').set_sep(hsep=hs, vsep=vs):
@@ -1681,10 +1698,12 @@ async def _(ctx: SekaiHandlerContext):
                 play_result_filter.append('ap')
     except:
         return await ctx.asend_reply_msg(help_msg)
+
+    args = args.strip()
     
     lv, ma_lv, mi_lv = None, None, None
     try: 
-        lvs = args.strip().split()
+        lvs = args.split()
         assert len(lvs) == 2
         lvs = list(map(int, lvs))
         ma_lv = max(lvs)
