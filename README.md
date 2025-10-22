@@ -1,12 +1,30 @@
-# lunabot-sekai
+# LunaBot
 
-## How to start
+A multi-functional chatbot based on Nonebot2s
 
-1. generate project using `nb create` .
-2. create your plugin using `nb plugin create` .
-3. writing your plugins under `src/plugins` folder.
-4. run your bot using `nb run --reload` .
+Note: This project is for reference and learning purposes only, and is **not** a completely deployable application.
 
-## Documentation
+- There may be issues with the deployment steps.
 
-See [Docs](https://nonebot.dev/)
+- Missing configurations and data will not be provided.
+
+#### Deployment Steps
+
+1.  Install dependencies using `pip install -r requirements.txt` (Python >=3.10 is recommended)
+
+2.  Copy the configuration from the `example_config` directory to the `config` directory and fill in the missing content as needed.
+
+3.  Rename `.env.example` to `.env`.
+
+4.  Start the project using `nb-cli`.
+
+5.  Send a message `@yourbot /enable` to enable the bot in the group.
+
+6.  (Optional) Start the Project Sekai deck recommendation service:
+```bash
+pip install git+https://github.com/NeuraXmy/sekai-deck-recommend-cpp.git
+cd lunabot
+uvicorn src/plugins/sekai/deck_recommender/serve.py:app --port 45556
+```
+
+
