@@ -27,6 +27,8 @@ import zipfile
 from matplotlib import pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib
+import matplotlib.cm as cm
+import numpy as np
 FONT_NAME = "Source Han Sans CN"
 plt.switch_backend('agg')
 matplotlib.rcParams['font.family'] = [FONT_NAME]
@@ -905,8 +907,8 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
     ranks.sort(key=lambda x: x.time)
     times = [rank.time for rank in ranks]
     scores = [rank.score for rank in ranks]
+    uids = [rank.uid for rank in ranks]
     pred_scores = []
-    pred_times = []
 
     # 时速计算
     speeds = []
@@ -944,13 +946,26 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
 
         draw_daynight_bg(ax, times[0], times[-1])
 
-        # 绘制分数
-        line_scores, = ax.plot(times, scores, 'o', label='分数', color='blue', markersize=1, linewidth=0.5)
-        ax.set_ylim(min_score * 0.95, max_score * 1.1)
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(x)))
-        ax.grid(True, linestyle='-', alpha=0.3, color='gray')
-        plt.annotate(f"{get_board_score_str(scores[-1])}", xy=(times[-1], scores[-1]), xytext=(times[-1], scores[-1]), 
-                     color='blue', fontsize=12, ha='right')
+        # 为每个uid分配一个独特的、非绿色的深色
+        unique_uids = sorted(list(set(uids)))
+        num_unique_uids = len(unique_uids)
+        num_part1 = num_unique_uids // 2
+        num_part2 = num_unique_uids - num_part1
+        colors1 = cm.nipy_spectral(np.linspace(0.0, 0.3, num_part1))
+        colors2 = cm.nipy_spectral(np.linspace(0.75, 0.95, num_part2))
+        if num_unique_uids > 0:
+            combined_colors = np.vstack((colors1, colors2))
+            np.random.shuffle(combined_colors)
+        else:
+            combined_colors = []
+        uid_to_color = {uid: color for uid, color in zip(unique_uids, combined_colors)}
+        point_colors = [uid_to_color.get(uid) for uid in uids]
+
+        # 绘制分数，为不同uid的数据点使用不同颜色
+        ax.scatter(times, scores, c=point_colors, s=5)
+        if scores: 
+            plt.annotate(f"{get_board_score_str(scores[-1])}", xy=(times[-1], scores[-1]), xytext=(times[-1], scores[-1]),
+                        color=point_colors[-1], fontsize=12, ha='right')
 
         # 绘制预测线
         if final_score:
@@ -968,7 +983,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
         fig.autofmt_xdate()
         plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} T{rank} 分数线")
 
-        lines = [line_scores, line_speeds]
+        lines = [line_speeds]
         labels = [l.get_label() for l in lines]
         ax.legend(lines, labels, loc='upper left')
 
