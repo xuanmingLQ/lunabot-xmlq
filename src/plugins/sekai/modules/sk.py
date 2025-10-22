@@ -946,20 +946,24 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
 
         draw_daynight_bg(ax, times[0], times[-1])
 
-        # 为每个uid分配一个独特的、非绿色的深色
         unique_uids = sorted(list(set(uids)))
         num_unique_uids = len(unique_uids)
-        num_part1 = num_unique_uids // 2
-        num_part2 = num_unique_uids - num_part1
-        colors1 = cm.nipy_spectral(np.linspace(0.0, 0.3, num_part1))
-        colors2 = cm.nipy_spectral(np.linspace(0.75, 0.95, num_part2))
-        if num_unique_uids > 0:
-            combined_colors = np.vstack((colors1, colors2))
-            np.random.shuffle(combined_colors)
+        if len(uids) / num_unique_uids < 10:
+            # 数量太多，直接使用同一个颜色
+            point_colors = ['blue' for _ in uids]
         else:
-            combined_colors = []
-        uid_to_color = {uid: color for uid, color in zip(unique_uids, combined_colors)}
-        point_colors = [uid_to_color.get(uid) for uid in uids]
+            # 为每个uid分配一个独特的、非绿色的深色
+            num_part1 = num_unique_uids // 2
+            num_part2 = num_unique_uids - num_part1
+            colors1 = cm.nipy_spectral(np.linspace(0.0, 0.3, num_part1))
+            colors2 = cm.nipy_spectral(np.linspace(0.75, 0.95, num_part2))
+            if num_unique_uids > 0:
+                combined_colors = np.vstack((colors1, colors2))
+                np.random.shuffle(combined_colors)
+            else:
+                combined_colors = []
+            uid_to_color = {uid: color for uid, color in zip(unique_uids, combined_colors)}
+            point_colors = [uid_to_color.get(uid) for uid in uids]
 
         # 绘制分数，为不同uid的数据点使用不同颜色
         ax.scatter(times, scores, c=point_colors, s=5)
