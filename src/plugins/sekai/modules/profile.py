@@ -550,7 +550,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                 ])
                 for img in honor_imgs:
                     if img: 
-                        ImageBox(img, size=(None, 48))
+                        ImageBox(img, size=(None, 48), shadow=True)
             # 卡组
             with HSplit().set_content_align('c').set_item_align('c').set_sep(6).set_padding((16, 0)):
                 card_ids = [pcard['cardId'] for pcard in pcards]
@@ -560,7 +560,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                     for card, pcard in zip(cards, pcards)
                 ]
                 for i in range(len(card_imgs)):
-                    ImageBox(card_imgs[i], size=(90, 90), image_size_mode='fill')
+                    ImageBox(card_imgs[i], size=(90, 90), image_size_mode='fill', shadow=True)
         return ret
 
     # 打歌部分

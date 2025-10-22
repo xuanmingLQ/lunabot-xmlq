@@ -1165,7 +1165,7 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
         with Grid(col_count=5).set_content_align('c').set_item_align('c').set_sep(8, 4).set_padding(8).set_bg(roundrect_bg()).set_w(w+16):
             for color_code, img in zip(fcolorcodes, fimgs):
                 with VSplit().set_content_align('c').set_item_align('c').set_sep(8):
-                    ImageBox(img, size=(None, 100), use_alphablend=True)
+                    ImageBox(img, size=(None, 100), use_alphablend=True, shadow=True)
                     if color_code:
                         Frame().set_size((100, 20)).set_bg(RoundRectBg(
                             fill=color_code_to_rgb(color_code), 

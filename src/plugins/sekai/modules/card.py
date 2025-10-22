@@ -280,9 +280,9 @@ async def compose_card_list_image(ctx: SekaiHandlerContext, cards: List[Dict], q
                                 GW = 300
                                 with HSplit().set_content_align('c').set_w(GW).set_padding(8).set_sep(16):
                                     if normal is not None:
-                                        ImageBox(normal, size=(100, 100), image_size_mode='fill')
+                                        ImageBox(normal, size=(100, 100), image_size_mode='fill', shadow=True)
                                     if after is not None:
-                                        ImageBox(after,  size=(100, 100), image_size_mode='fill')
+                                        ImageBox(after,  size=(100, 100), image_size_mode='fill', shadow=True)
 
                                 name_text = card['prefix']
                                 TextBox(name_text, TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=BLACK)).set_w(GW).set_content_align('c')
@@ -809,7 +809,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
                 # 卡面
                 with VSplit().set_padding(16).set_sep(8).set_content_align('lt').set_item_align('lt'):
                     for img in card_images:
-                        ImageBox(img, size=(500, None))
+                        ImageBox(img, size=(500, None), shadow=True)
 
                 # 关联活动
                 if event_detail:
@@ -900,7 +900,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
                     with HSplit().set_padding(16).set_sep(16).set_content_align('l').set_item_align('l'):
                         TextBox("缩略图", label_style)
                         for img in thumbs:
-                            ImageBox(img, size=(100, None))
+                            ImageBox(img, size=(100, None), shadow=True)
 
                     # 衣装
                     if len(cos3d_imgs) > 0:
@@ -908,7 +908,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
                             TextBox("衣装", label_style)
                             with Grid(col_count=5).set_sep(8, 8):
                                 for img in cos3d_imgs:
-                                    ImageBox(img, size=(80, None))
+                                    ImageBox(img, size=(80, None), shadow=True)
 
                     # 提示
                     with VSplit().set_padding(12).set_sep(6).set_content_align('l').set_item_align('l'):
