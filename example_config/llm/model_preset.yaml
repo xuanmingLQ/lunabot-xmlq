@@ -1,0 +1,40 @@
+translation: 
+  - na:gemini-2.5-flash
+  - or:qwen3-free
+  - ay:gemini-2.5-flash
+
+translator: na:gemini-2.5-flash
+
+basic_chat_mm: na:gemini-2.5-flash-thinking
+
+chat:
+  image_caption: na:gemini-2.5-flash
+
+  private:
+    text: "&basic_chat_mm"
+    mm: "&basic_chat_mm"
+    tool: "&basic_chat_mm"
+    image: gg:gemini-2.0-flash-exp
+  
+  group:
+    text: "&basic_chat_mm"
+    mm: "&basic_chat_mm"
+    tool: "&basic_chat_mm"
+    image: gg:gemini-2.0-flash-exp
+
+cron: 
+  - na:gemini-2.5-flash-thinking
+  - ay:gemini-2.5-flash-thinking
+  - or:gemini-2.5-flash
+
+sekai:
+  story_summary:
+    event: 
+      - na:gemini-2.5-flash
+      - ay:gemini-2.5-flash
+      - or:gemini-2.5-flash
+    card: 
+      - na:gemini-2.5-flash
+      - ay:gemini-2.5-flash
+      - or:gemini-2.5-flash
+
