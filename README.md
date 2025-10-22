@@ -1,6 +1,6 @@
 # LunaBot
 
-A multi-functional chatbot based on Nonebot2s
+A multi-functional chatbot based on Nonebot2
 
 Note: This project is for reference and learning purposes only, and is **not** a completely deployable application.
 

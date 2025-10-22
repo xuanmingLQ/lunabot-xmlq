@@ -31,9 +31,6 @@ MYSEKAI_REFRESH_HOURS = {
     "tw": [5, 17],
 }
 
-# MYSEKAI_REGIONS = ['jp', 'tw', 'cn', 'kr']
-# BD_MYSEKAI_REGIONS = ['cn', 'tw', 'kr']
-
 MYSEKAI_REGIONS = ['jp',  'cn']
 BD_MYSEKAI_REGIONS = ['cn',]
 
@@ -148,7 +145,6 @@ async def get_mysekai_info(
             logger.info(f"获取 {qid} mysekai抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
                 # local_err = e.message.get('local_err', None)
-                # haruki_err = e.message.get('haruki_err', None)
                 haruki_err = e.message
                 msg = f"获取你的{get_region_name(ctx.region)}Mysekai抓包数据失败，发送\"/抓包\"指令可获取帮助\n"
                 # if local_err is not None: msg += f"[本地数据] {local_err}\n"
@@ -204,7 +200,6 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
                     if local_source := mysekai_info.get('local_source'):
                         source += f"({local_source})"
                     mode = get_user_data_mode(ctx, ctx.user_id)
-                    # update_time = datetime.fromtimestamp(mysekai_info['upload_time'] / 1000) # DEBUG
                     update_time = datetime.fromtimestamp(mysekai_info['upload_time'])
                     update_time_text = update_time.strftime('%m-%d %H:%M:%S') + f" ({get_readable_datetime(update_time, show_original_time=False)})"
                     with HSplit().set_content_align('lb').set_item_align('lb').set_sep(5):
@@ -591,7 +586,6 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     with Timer("msr:get_mysekai_info", logger):
         mysekai_info, pmsg = await get_mysekai_info(ctx, qid, raise_exc=True)
 
-    # upload_time = datetime.fromtimestamp(mysekai_info['upload_time'] / 1000) # DEBUG
     upload_time = datetime.fromtimestamp(mysekai_info['upload_time'])
     if upload_time < get_mysekai_last_refresh_time(ctx) and check_time:
         raise ReplyException(f"数据已过期: {upload_time.strftime('%m-%d %H:%M:%S')} from {mysekai_info.get('source', '?')}")
@@ -1949,18 +1943,6 @@ async def _(ctx: SekaiHandlerContext):
 
     msg = f"{process_hide_uid(ctx, uid, keep=6)}({ctx.region.upper()}) Mysekai数据\n"
 
-    if local_err:
-        local_err = local_err[local_err.find(']')+1:].strip()
-        msg += f"[本地数据]\n获取失败: {local_err}\n"
-    else:
-        msg += "[本地数据]\n"
-        upload_time = datetime.fromtimestamp(local_profile['upload_time'] / 1000)
-        upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
-        if ctx.region in BD_MYSEKAI_REGIONS:
-            process_sensitive_cmd_source(local_profile)
-        if local_source := local_profile.get('local_source'):
-            upload_time_text = local_source + " " + upload_time_text
-        msg += f"{upload_time_text}\n"
 
     if haruki_err:
         haruki_err = haruki_err[haruki_err.find(']')+1:].strip()

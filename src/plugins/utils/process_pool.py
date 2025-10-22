@@ -10,7 +10,6 @@ def init_worker_process(name: str | None = None):
     else:
         setproctitle.setproctitle(f'lunabot-worker-{name}')
 
-
 def init_nb_and_do_func(f, *args, **kwargs):
     nonebot.init()
     return f(*args, **kwargs)
@@ -36,4 +35,8 @@ def is_main_process():
 
 if is_main_process():
     setproctitle.setproctitle('lunabot-main')
+
+
+
+
 

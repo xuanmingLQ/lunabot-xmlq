@@ -33,7 +33,6 @@ class GameApiConfig:
     ad_result_update_time_api_url: Optional[str] = None
     ad_result_api_url: Optional[str] = None
 
-
 @dataclass
 class PlayerAvatarInfo:
     card_id: int
@@ -227,7 +226,6 @@ def validate_uid(ctx: SekaiHandlerContext, uid: str) -> bool:
     if not reg_time or not (datetime.strptime("2020-09-01", "%Y-%m-%d") <= reg_time <= datetime.now()):
         return False
     return True
-
 # 获取游戏api相关配置
 def get_gameapi_config(ctx: SekaiHandlerContext) -> GameApiConfig:
     return GameApiConfig(**(gameapi_config.get(ctx.region, {})))
@@ -370,12 +368,10 @@ async def get_detailed_profile(
         except Exception as e:
             logger.info(f"获取 {qid} 抓包数据失败: 未绑定游戏账号")
             raise e
-        
         # 检测是否隐藏抓包信息
         if not ignore_hide and is_user_hide_suite(ctx, qid):
             logger.info(f"获取 {qid} 抓包数据失败: 用户已隐藏抓包信息")
             raise ReplyException(f"你已隐藏抓包信息，发送\"/{ctx.region}展示抓包\"可重新展示")
-        
         # 服务器不支持
         url = get_gameapi_config(ctx).suite_api_url
         if not url:
@@ -396,8 +392,6 @@ async def get_detailed_profile(
         except HttpError as e:
             logger.info(f"获取 {qid} 抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
-                # local_err = e.message.get('local_err', None)
-                # haruki_err = e.message.get('haruki_err', None)
                 haruki_err = e.message
                 msg = f"获取你的{get_region_name(ctx.region)}Suite抓包数据失败，发送\"/抓包\"指令可获取帮助\n"
                 # if local_err is not None: msg += f"[本地数据] {local_err}\n"
@@ -464,7 +458,6 @@ async def get_detailed_profile_card(ctx: SekaiHandlerContext, profile: dict, err
                     if local_source := profile.get('local_source'):
                         source += f"({local_source})"
                     mode = mode or get_user_data_mode(ctx, ctx.user_id)
-                    # update_time = datetime.fromtimestamp(profile['upload_time'] / 1000) # DEBUG
                     update_time = datetime.fromtimestamp(profile['upload_time'])
                     update_time_text = update_time.strftime('%m-%d %H:%M:%S') + f" ({get_readable_datetime(update_time, show_original_time=False)})"
                     user_id = process_hide_uid(ctx, game_data['userId'])
@@ -1654,20 +1647,7 @@ async def _(ctx: SekaiHandlerContext):
     task1 = get_detailed_profile(ctx, qid, raise_exc=False, mode="local", filter=['upload_time'])
     task2 = get_detailed_profile(ctx, qid, raise_exc=False, mode="haruki", filter=['upload_time'])
     (local_profile, local_err), (haruki_profile, haruki_err) = await asyncio.gather(task1, task2)
-
     msg = f"{process_hide_uid(ctx, uid, keep=6)}({ctx.region.upper()}) Suite数据\n"
-
-    if local_err:
-        local_err = local_err[local_err.find(']')+1:].strip()
-        msg += f"[本地数据]\n获取失败: {local_err}\n"
-    else:
-        msg += "[本地数据]\n"
-        upload_time = datetime.fromtimestamp(local_profile['upload_time'] / 1000)
-        upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
-        if local_source := local_profile.get('local_source'):
-            upload_time_text = local_source + " " + upload_time_text
-        msg += f"{upload_time_text}\n"
-
     if haruki_err:
         haruki_err = haruki_err[haruki_err.find(']')+1:].strip()
         msg += f"[Haruki工具箱]\n获取失败: {haruki_err}\n"
@@ -1688,7 +1668,6 @@ async def _(ctx: SekaiHandlerContext):
     else:
         msg += "[Haruki工具箱]\n"
         upload_time = datetime.fromtimestamp(haruki_profile if isinstance(haruki_profile, int) else haruki_profile['upload_time'])
-        # upload_time = datetime.fromtimestamp(haruki_profile['upload_time'] )
         upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
         msg += f"{upload_time_text}\n"
     mode = get_user_data_mode(ctx, ctx.user_id)

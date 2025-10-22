@@ -522,7 +522,6 @@ MasterDataManager.set_index_keys("limitedTimeMusics", ['id', 'musicId'])
 
 # ================================ MasterData自定义下载 ================================ #
 
-# COMPACT_DATA_REGIONS = ['kr', 'cn', 'tw']
 COMPACT_DATA_REGIONS = [ 'cn']
 
 def convert_compact_data(data: Dict[str, Any]) -> List[Dict[str, Any]]:

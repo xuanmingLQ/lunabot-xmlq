@@ -636,6 +636,7 @@ async def get_music_limited_times(ctx: SekaiHandlerContext, mid: int) -> list[tu
         end = datetime.fromtimestamp(item['endAt'] / 1000)
         ret.append((start, end))
     return ret
+
 # 检查是否有效歌曲
 async def is_valid_music(ctx: SekaiHandlerContext, mid: int, leak=False) -> bool:
     m = await ctx.md.musics.find_by_id(mid)
@@ -656,13 +657,8 @@ async def get_valid_musics(ctx: SekaiHandlerContext, leak=False) -> List[Dict]:
     musics = await ctx.md.musics.get()
     ret = []
     for m in musics:
-        if not leak and datetime.fromtimestamp(m['publishedAt'] / 1000) > datetime.now():
-            continue
-        if m.get('isFullLength'):
-            continue
-        if m['id'] in (241, 290):
-            continue
-        ret.append(m)
+        if await is_valid_music(ctx, m['id'], leak=leak):
+            ret.append(m)
     return ret
 
 # 在所有服务器根据id检索歌曲（优先在ctx.region)
@@ -841,9 +837,9 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
         if caption not in caption_vocals:
             caption_vocals[caption] = []
         caption_vocals[caption].append(vocal)
-        
+
     limited_times = await get_music_limited_times(ctx, mid)
-      
+        
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_item_bg(roundrect_bg()):
@@ -1702,8 +1698,9 @@ async def _(ctx: SekaiHandlerContext):
                 play_result_filter.append('ap')
     except:
         return await ctx.asend_reply_msg(help_msg)
-    
+
     args = args.strip()
+    
     lv, ma_lv, mi_lv = None, None, None
     try: 
         lvs = args.split()

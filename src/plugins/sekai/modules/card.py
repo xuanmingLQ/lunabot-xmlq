@@ -558,7 +558,7 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
                         Spacer(w=sz * col_num + 4 * (col_num - 1), h=4).set_bg(FillBg(chara_color))
                         with Grid(row_count=row_num, vertical=row_num > col_num).set_content_align('lt').set_item_align('lt').set_sep(4, 4):
                             for card in cards:
-                                draw_card(card)     
+                                draw_card(card) 
             
     add_watermark(canvas)
     return await canvas.get_img()

@@ -876,6 +876,9 @@ class Painter:
         stroke_width: int=1,
         corners = (True, True, True, True),
     ):
+        if min(size) <= 0:
+            return self
+
         if isinstance(fill, Gradient):
             gradient = fill
             fill = BLACK
@@ -911,6 +914,9 @@ class Painter:
         stroke: Color=None,
         stroke_width: int=1,
     ):
+        if min(size) <= 0 or start_angle >= end_angle:
+            return self
+
         if isinstance(fill, Gradient):
             gradient = fill
             fill = BLACK
@@ -946,7 +952,10 @@ class Painter:
         shadow_alpha: float=0.3,
         corners = (True, True, True, True),
         edge_strength: float=0.6,
-    ):
+    ):  
+        if min(size) <= 0:
+            return self
+
         sw = shaodow_width
         pos = (pos[0] + self.offset[0], pos[1] + self.offset[1])
         draw_pos = (pos[0] - sw, pos[1] - sw)

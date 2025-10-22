@@ -779,7 +779,7 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
 
 # ======================= 处理逻辑 ======================= #
 
-RECOMMEND_SERVE_URL = "http://localhost:45556/recommend"
+RECOMMEND_SERVE_URL = config.item('deck.recommend_server_url')
 
 # 添加OMAKASE音乐
 def add_omakase_music(music_metas: list[dict]) -> list[dict]:
@@ -1423,13 +1423,20 @@ async def compose_deck_recommend_image(
                                 ImageBox(music_cover, size=(50, 50))
                             TextBox(music_title, TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
                     
+                    info_text = ""
+
                     if last_args:
                         arg_unit, args = extract_unit(last_args)
                         arg_attr, args = extract_card_attr(last_args)
                         if arg_unit or arg_attr:
-                            TextBox(f"检测到你的歌曲查询中包含团名/颜色，可能是参数格式不正确\n"
-                                     "如果你想指定仅包含某个团名/颜色的卡牌请用: 纯mmj 纯绿", 
-                                    TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(200, 75, 75)), use_real_line_count=True)
+                            info_text += "检测到你的歌曲查询中包含团名/颜色，可能是参数格式不正确\n"
+                            info_text += "如果你想指定仅包含某个团名/颜色的卡牌请用: 纯mmj 纯绿\n"
+
+                    if use_max_profile:
+                        info_text += "\"顶配\"指该服务器截止于当前的全卡满养成配置\n"
+
+                    if info_text:  
+                        TextBox(info_text.strip(), TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(200, 75, 75)), use_real_line_count=True)
 
                 # 表格
                 gh, vsp, voffset = 120, 12, 18

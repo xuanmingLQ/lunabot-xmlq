@@ -143,10 +143,8 @@ async def extract_wl_event(ctx: SekaiHandlerContext, args: str) -> Tuple[dict, s
         event['aggregateAt'] = chapter['aggregateAt']
         event['wl_cid'] = chapter.get('gameCharacterId', None)
         args = args.replace(carg, "").replace("wl", "")
-
         logger.info(f"查询WL活动章节: chapter_arg={carg} wl_id={event['id']}")
         return event, args
-
 # 给图表绘制一个昼夜颜色背景
 def draw_daynight_bg(ax, start_time: datetime, end_time: datetime):
     def get_time_bg_color(time: datetime) -> str:
@@ -165,7 +163,6 @@ def draw_daynight_bg(ax, start_time: datetime, end_time: datetime):
         start = bg_times[i]
         end = bg_times[i] + interval
         ax.axvspan(start, end, facecolor=bg_colors[i], edgecolor=None, zorder=0)
-
 # 从榜线列表中找到最近的前一个榜线
 def find_prev_ranking(ranks: List[Ranking], rank: int) -> Optional[Ranking]:
     most_prev = None
@@ -175,7 +172,6 @@ def find_prev_ranking(ranks: List[Ranking], rank: int) -> Optional[Ranking]:
         if not most_prev or r.rank > most_prev.rank:
             most_prev = r
     return most_prev
-
 # 从榜线列表中找到最近的后一个榜线
 def find_next_ranking(ranks: List[Ranking], rank: int) -> Optional[Ranking]:
     most_next = None
@@ -185,14 +181,12 @@ def find_next_ranking(ranks: List[Ranking], rank: int) -> Optional[Ranking]:
         if not most_next or r.rank < most_next.rank:
             most_next = r
     return most_next
-
 # 从榜线数据解析Rankings
 async def parse_rankings(ctx: SekaiHandlerContext, event_id: int, data: dict, ignore_no_update: bool) -> List[Ranking]:
     # 普通活动
     if event_id < 1000:
         top100 = [Ranking.from_sk(item) for item in data['top100']['rankings']]
         border = [Ranking.from_sk(item) for item in data['border']['borderRankings'] if item['rank'] != 100]
-    
     # WL活动
     else:
         cid = await get_wl_chapter_cid(ctx, event_id)
@@ -200,12 +194,10 @@ async def parse_rankings(ctx: SekaiHandlerContext, event_id: int, data: dict, ig
         top100 = [Ranking.from_sk(item) for item in top100_rankings['rankings']]
         border_rankings = find_by(data['border'].get('userWorldBloomChapterRankingBorders', []), 'gameCharacterId', cid)
         border = [Ranking.from_sk(item) for item in border_rankings['borderRankings'] if item['rank'] != 100]
-
     for item in top100:
         item.uid = str(item.uid)
     for item in border:
         item.uid = str(item.uid)
-
     if ignore_no_update:
         # 过滤掉没有更新的border榜线
         border_has_diff = False
@@ -1281,25 +1273,18 @@ async def _(ctx: SekaiHandlerContext):
         await compose_winrate_predict_image(ctx),
         low_quality=True,
     ))
-
-
 # ======================= 定时任务 ======================= #
-
 UPDATE_RANKING_LOG_INTERVAL_TIMES = 30
 RECORD_TIME_AFTER_EVENT_END = 60 * 0
 ranking_update_times = { region: 0 for region in ALL_SERVER_REGIONS }
 ranking_update_failures = { region: 0 for region in ALL_SERVER_REGIONS }
-
-
 @repeat_with_interval(SK_RECORD_INTERVAL, '更新榜线数据', logger, every_output=False, error_limit=1)
 async def update_ranking():
     tasks = []
     region_failed = {}
-    
     # 获取所有服务器的榜线数据
     for region in ALL_SERVER_REGIONS:
         ctx = SekaiHandlerContext.from_region(region)
-
         url_border = get_gameapi_config(ctx).ranking_border_api_url
         if not url_border:
             continue
@@ -1311,7 +1296,6 @@ async def update_ranking():
             continue
         if datetime.now() > datetime.fromtimestamp(event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END):
             continue
-
         # 获取榜线数据
         @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
         async def _get_ranking(ctx: SekaiHandlerContext, eid: int, url_border: str, url_top100:str):

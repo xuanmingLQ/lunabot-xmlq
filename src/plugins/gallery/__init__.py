@@ -246,6 +246,7 @@ class GalleryManager:
         except Exception as e:
             logger.warning(f'删除画廊图片 {pid} 文件失败: {get_exc_desc(e)}')
         self._save()
+        return p.pid
 
     async def async_reload_gall(self, name_or_alias: str) -> tuple[list[int], list[int]]:
         """
@@ -322,6 +323,7 @@ class GalleryManager:
 
         self._save()
         return del_pids
+
 
 # ======================= 指令处理 ======================= # 
 
@@ -617,7 +619,7 @@ async def _(ctx: HandlerContext):
         
     raise ReplyException(f'pid={pid}的上传记录不存在')
     
-    
+
 gall_download = CmdHandler([
     '/gall download', 
 ], logger)
@@ -644,6 +646,7 @@ async def _(ctx: HandlerContext):
             f"{name}-{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
         )
 
+
 gall_cover = CmdHandler([
     '/gall cover', 
 ], logger)
@@ -661,6 +664,7 @@ async def _(ctx: HandlerContext):
 
     GalleryManager.get().set_cover_pic(name, pid)
     await ctx.asend_reply_msg(f'画廊\"{name}\"封面图片设置为pid={pid}成功')
+
 
 gall_rehash = CmdHandler([
     '/gall rehash', 
