@@ -46,6 +46,12 @@ class GalleryPic:
             self.thumb_path = None
 
 
+class GalleryPicRepeatedException(Exception):
+    def __init__(self, pid: int):
+        super().__init__(f'画廊中已存在相似图片(pid={pid})')
+        self.pid = pid
+
+
 @dataclass
 class Gallery:
     name: str
@@ -210,7 +216,8 @@ class GalleryManager:
         phash = await calc_phash(img_path)
         if check_duplicated:
             for p in g.pics:
-                assert p.phash != phash, f'画廊\"{g.name}\"已存在相似图片(pid={p.pid})'
+                if p.phash == phash:
+                    raise GalleryPicRepeatedException(p.pid)
 
         self.pid_top += 1
         _, ext = os.path.splitext(os.path.basename(img_path))
@@ -541,19 +548,53 @@ async def _(ctx: HandlerContext):
     
     image_datas = await ctx.aget_image_datas()
     ok_list, err_msg = [], ""
+    repeats: list[tuple[Image.Image, int]] = []
+    REPEAT_IMAGE_SHOW_SIZE = (128, 128)
     for i, data in enumerate(image_datas, 1):
-        try:
-            async with TempDownloadFilePath(data['url'], 'gif') as path:
+        async with TempDownloadFilePath(data['url'], 'gif') as path:
+            try:
                 await run_in_pool(process_image_for_gallery, path, data.get('sub_type', 1))
                 pid = await GalleryManager.get().async_add_pic(name, path, check_duplicated=check_duplicated)
-            ok_list.append(pid)
-            with open(ADD_LOG_FILE, 'a', encoding='utf-8') as f:
-                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | @{ctx.event.user_id} upload pid={pid} to \"{name}\"\n")
-        except Exception as e:
-            logger.print_exc(f"上传第{i}张图片到画廊\"{name}\"失败")
-            err_msg += f"上传第{i}张图片失败: {get_exc_desc(e)}\n"
+                ok_list.append(pid)
+                with open(ADD_LOG_FILE, 'a', encoding='utf-8') as f:
+                    f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | @{ctx.event.user_id} upload pid={pid} to \"{name}\"\n")
+            except GalleryPicRepeatedException as e:
+                img = open_image(path)
+                img.thumbnail(REPEAT_IMAGE_SHOW_SIZE)
+                repeats.append((img, e.pid))
+            except Exception as e:
+                logger.print_exc(f"上传第{i}张图片到画廊\"{name}\"失败")
+                err_msg += f"上传第{i}张图片失败: {get_exc_desc(e)}\n"
+
+    repeat_img = None
+    if repeats:
+        with Canvas(bg=FillBg((230, 240, 255, 255))).set_padding(8) as canvas:
+            with VSplit().set_padding(0).set_sep(16).set_item_align('lt').set_content_align('lt'):
+                TextBox(f"查重错误可使用\"/上传 force\"强制上传图片", TextStyle(DEFAULT_FONT, 16, BLACK))
+                with Grid(row_count=int(math.sqrt(len(repeats) * 2)), hsep=8, vsep=8).set_item_align('t').set_content_align('t'):
+                    for img, pid in repeats:
+                        img2 = None
+                        pic = GalleryManager.get().find_pic(pid, raise_if_nofound=False)
+                        if pic and os.path.exists(pic.path):
+                            img2 = open_image(pic.path)
+                            img2.thumbnail(REPEAT_IMAGE_SHOW_SIZE)
+                        with HSplit().set_padding(0).set_sep(4):
+                            with VSplit().set_padding(0).set_sep(4).set_content_align('c').set_item_align('c'):
+                                ImageBox(image=img, size=REPEAT_IMAGE_SHOW_SIZE, image_size_mode='fit').set_content_align('c')
+                                TextBox(f"待上传图片", TextStyle(DEFAULT_FONT, 16, BLACK))
+                            with VSplit().set_padding(0).set_sep(4).set_content_align('c').set_item_align('c'):
+                                if img2:
+                                    ImageBox(image=img2, size=REPEAT_IMAGE_SHOW_SIZE, image_size_mode='fit').set_content_align('c')
+                                else:
+                                    Spacer(w=REPEAT_IMAGE_SHOW_SIZE[0], h=REPEAT_IMAGE_SHOW_SIZE[1])
+                                TextBox(f"pid: {pid}", TextStyle(DEFAULT_FONT, 16, BLACK))
+                                
+        repeat_img = await canvas.get_img()
     
     msg = f"成功上传{len(ok_list)}/{len(image_datas)}张图片到画廊\"{name}\"\n" + err_msg
+    if repeats:
+        msg += f"{len(repeats)}张图片与已有图片重复:"
+        msg += await get_image_cq(repeat_img, low_quality=True)
     msg += "画廊主要收录表情/梗图，请勿上传可能有争议的图片"
     return await ctx.asend_fold_msg_adaptive(msg.strip())
 
@@ -573,7 +614,7 @@ async def _(ctx: HandlerContext):
             return await ctx.asend_reply_msg('当前没有任何画廊')
         
         with Canvas(bg=FillBg((230, 240, 255, 255))).set_padding(8) as canvas:
-            with Grid(row_count=int(math.sqrt(len(galls))), hsep=8, vsep=8):
+            with Grid(row_count=int(math.sqrt(len(galls))), hsep=8, vsep=8).set_item_align('t').set_content_align('t'):
                 for name, g in galls.items():
                     cover: GalleryPic = GalleryManager.get().find_pic(g.cover_pid or 0)
                     if not cover and g.pics:
