@@ -1121,9 +1121,9 @@ async def get_avatar_widget_with_frame(ctx: SekaiHandlerContext, avatar_img: Ima
     except:
         pass
     with Frame().set_size((avatar_w, avatar_w)).set_content_align('c').set_allow_draw_outside(True) as ret:
-        ImageBox(avatar_img, size=(avatar_w, avatar_w), use_alphablend=False).set_bg(roundrect_bg(radius=6))
+        ImageBox(avatar_img, size=(avatar_w, avatar_w), use_alphablend=False, shadow=True)
         if frame_img:
-            ImageBox(frame_img, use_alphablend=True)
+            ImageBox(frame_img, use_alphablend=True, shadow=True)
     return ret
 
 # 合成区域道具升级材料图片

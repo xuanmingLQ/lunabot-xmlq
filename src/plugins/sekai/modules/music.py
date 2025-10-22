@@ -859,7 +859,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                 with HSplit().set_content_align('c').set_item_align('c').set_sep(16):
                     # 封面
                     with Frame().set_padding(32):
-                        ImageBox(cover_img, size=(None, 300))
+                        ImageBox(cover_img, size=(None, 300), shadow=True)
 
                     # 信息
                     style1 = TextStyle(font=DEFAULT_HEAVY_FONT, size=30, color=(50, 50, 50))

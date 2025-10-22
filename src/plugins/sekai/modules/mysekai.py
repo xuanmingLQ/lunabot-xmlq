@@ -539,7 +539,7 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
         # 绘制稀有资源发光
         light_strength = (phenomena_color_info['ground'][0] 
                         + phenomena_color_info['ground'][1] 
-                        + phenomena_color_info['ground'][2]) / (3 * 255) * 0.4
+                        + phenomena_color_info['ground'][2]) / (3 * 255)
         for call in res_draw_calls:
             if call.light_size:
                 ImageBox(ctx.static_imgs.get("mysekai/light.png"), size=(call.light_size, call.light_size), 
