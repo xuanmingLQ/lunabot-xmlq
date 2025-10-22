@@ -1121,7 +1121,7 @@ async def get_avatar_widget_with_frame(ctx: SekaiHandlerContext, avatar_img: Ima
     except:
         pass
     with Frame().set_size((avatar_w, avatar_w)).set_content_align('c').set_allow_draw_outside(True) as ret:
-        ImageBox(avatar_img, size=(avatar_w, avatar_w), use_alphablend=False)
+        ImageBox(avatar_img, size=(avatar_w, avatar_w), use_alphablend=False).set_bg(roundrect_bg(radius=6))
         if frame_img:
             ImageBox(frame_img, use_alphablend=True)
     return ret
@@ -1245,9 +1245,15 @@ async def compose_area_item_upgrade_materials_image(ctx: SekaiHandlerContext, qi
         if q >= 10000000:
             return f"{q//10000000}kw"
         elif q >= 10000:
-            return f"{q//10000}w"
+            x, y = q//10000, (q%10000)//1000
+            if x < 10 and y > 0:
+                return f"{x}w{y}"
+            return f"{x}w"
         elif q >= 1000:
-            return f"{q//1000}k"
+            x, y = q//1000, (q%1000)//100
+            if x < 10 and y > 0:
+                return f"{x}k{y}"
+            return f"{x}k"
         else:
             return str(q)
     

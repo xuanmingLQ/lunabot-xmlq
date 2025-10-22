@@ -912,7 +912,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
 
     # 时速计算
     speeds = []
-    min_period = timedelta(minutes=30)
+    min_period = timedelta(minutes=50)
     max_period = timedelta(minutes=60)
     left = 0
     for right in range(0, len(ranks)):
@@ -966,7 +966,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
             point_colors = [uid_to_color.get(uid) for uid in uids]
 
         # 绘制分数，为不同uid的数据点使用不同颜色
-        ax.scatter(times, scores, c=point_colors, s=5)
+        ax.scatter(times, scores, c=point_colors, s=2)
         if scores: 
             plt.annotate(f"{get_board_score_str(scores[-1])}", xy=(times[-1], scores[-1]), xytext=(times[-1], scores[-1]),
                         color=point_colors[-1], fontsize=12, ha='right')

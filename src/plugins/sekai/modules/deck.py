@@ -779,7 +779,7 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
 
 # ======================= 处理逻辑 ======================= #
 
-RECOMMEND_SERVE_URL = "http://localhost:45556/recommend"
+RECOMMEND_SERVE_URL_CFG = config.item("deck.url")
 
 # 添加OMAKASE音乐
 def add_omakase_music(music_metas: list[dict]) -> list[dict]:
@@ -946,14 +946,14 @@ async def do_deck_recommend(
         payload = {
             'create_ts': datetime.now().timestamp(),
             'region': options.region,
-            'masterdata_path': f"{SEKAI_ASSET_DIR}/masterdata/{options.region}/",
+            'masterdata_path': os.path.abspath(f"{SEKAI_ASSET_DIR}/masterdata/{options.region}/"),
             'masterdata_update_ts': last_deck_recommend_masterdata_update_time[options.region].timestamp(),
-            'musicmetas_path': MUSICMETAS_SAVE_PATH,
+            'musicmetas_path': os.path.abspath(MUSICMETAS_SAVE_PATH),
             'musicmetas_update_ts': last_deck_recommend_musicmetas_update_time[options.region].timestamp(),
             'options': options.to_dict(),
         }
         async with aiohttp.ClientSession() as session:
-            async with session.post(RECOMMEND_SERVE_URL, json=payload) as resp:
+            async with session.post(RECOMMEND_SERVE_URL_CFG.get(), json=payload) as resp:
                 if resp.status != 200:
                     raise ReplyException(f"组卡请求失败: HTTP {resp.status}")
                 data = await resp.json()
@@ -1194,7 +1194,7 @@ async def compose_deck_recommend_image(
             await adump_json(profile, userdata_path)
 
         options.region = ctx.region
-        options.user_data_file_path = userdata_path
+        options.user_data_file_path = os.path.abspath(userdata_path)
         log_options(ctx, uid, options)
         # 还原profile避免画头像问题
         profile['userCards'] = original_usercards

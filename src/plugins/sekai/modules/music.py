@@ -859,7 +859,6 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                 with HSplit().set_content_align('c').set_item_align('c').set_sep(16):
                     # 封面
                     with Frame().set_padding(32):
-                        Spacer(w=300, h=300).set_bg(FillBg((0, 0, 0, 100))).set_offset((4, 4))
                         ImageBox(cover_img, size=(None, 300))
 
                     # 信息
