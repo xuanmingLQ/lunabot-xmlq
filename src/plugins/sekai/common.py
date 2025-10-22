@@ -88,11 +88,11 @@ CARD_ATTRS = [
     "pure",
 ]
 CARD_ATTR_NAMES = [
-    ("cool", "COOL", "Cool", "帅气", "蓝星", "蓝", "八芒星", "爆炸"),
-    ("happy", "HAPPY", "Happy", "快乐", "橙心", "橙", "心", "爱心", '黄'),
-    ("mysterious", "MYSTERIOUS", "Mysterious", "神秘", "紫月", "紫", "月", "月亮"),
-    ("cute", "CUTE", "Cute", "可爱", "粉花", "粉", "花", "花朵"),
-    ("pure", "PURE", "Pure", "纯洁", "绿草", "绿", "草", "小草"),
+    ("cool", "COOL", "Cool", "帅气", "蓝星", "蓝"),
+    ("happy", "HAPPY", "Happy", "快乐", "橙心", "橙", '黄'),
+    ("mysterious", "MYSTERIOUS", "Mysterious", "神秘", "紫月", "紫"),
+    ("cute", "CUTE", "Cute", "可爱", "粉花", "粉"),
+    ("pure", "PURE", "Pure", "纯洁", "绿草", "绿"),
 ]
 CARD_RARE_NAMES = [
     ("rarity_1", "1星", "一星", "1x", "1"),
