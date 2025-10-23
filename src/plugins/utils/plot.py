@@ -867,7 +867,17 @@ class TextBox(Widget):
     
 
 class ImageBox(Widget):
-    def __init__(self, image: Union[str, Image.Image], image_size_mode=None, size=None, use_alphablend=False, alpha_adjust=1.0):
+    def __init__(
+        self, 
+        image: Union[str, Image.Image], 
+        image_size_mode=None, 
+        size=None, 
+        use_alphablend=False, 
+        alpha_adjust=1.0,
+        shadow=False,
+        shadow_width=6,
+        shadow_alpha=0.6,
+    ):
         """
         image_size_mode: 'fit', 'fill', 'original'
         """
@@ -893,6 +903,7 @@ class ImageBox(Widget):
 
         self.set_use_alphablend(use_alphablend)
         self.set_alpha_adjust(alpha_adjust)
+        self.set_shadow(shadow, shadow_width, shadow_alpha)
 
     def set_alpha_adjust(self, alpha_adjust: float):
         self.alpha_adjust = alpha_adjust
@@ -900,6 +911,12 @@ class ImageBox(Widget):
 
     def set_use_alphablend(self, use_alphablend):
         self.use_alphablend = use_alphablend
+        return self
+
+    def set_shadow(self, shadow: bool, shadow_width=6, shadow_alpha=0.3):
+        self.shadow = shadow
+        self.shadow_width = shadow_width
+        self.shadow_alpha = shadow_alpha
         return self
 
     def set_image(self, image: Union[str, Image.Image]):
@@ -937,9 +954,15 @@ class ImageBox(Widget):
     def _draw_content(self, p: Painter):
         w, h = self._get_content_size()
         if self.use_alphablend:
-            p.paste_with_alphablend(self.image, (0, 0), (w, h), self.alpha_adjust)
+            p.paste_with_alphablend(
+                self.image, (0, 0), (w, h), self.alpha_adjust, 
+                use_shadow=self.shadow, shadow_width=self.shadow_width, shadow_alpha=self.shadow_alpha,
+            )
         else:
-            p.paste(self.image, (0, 0), (w, h))
+            p.paste(
+                self.image, (0, 0), (w, h),
+                use_shadow=self.shadow, shadow_width=self.shadow_width, shadow_alpha=self.shadow_alpha,
+            )
 
 
 class Spacer(Widget):

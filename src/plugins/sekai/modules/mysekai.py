@@ -539,7 +539,7 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
         # 绘制稀有资源发光
         light_strength = (phenomena_color_info['ground'][0] 
                         + phenomena_color_info['ground'][1] 
-                        + phenomena_color_info['ground'][2]) / (3 * 255) * 0.4
+                        + phenomena_color_info['ground'][2]) / (3 * 255)
         for call in res_draw_calls:
             if call.light_size:
                 ImageBox(ctx.static_imgs.get("mysekai/light.png"), size=(call.light_size, call.light_size), 
@@ -718,14 +718,14 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                             color = (100, 100, 100) if i != phenom_idx else (0, 0, 0)
                             with VSplit().set_content_align('c').set_item_align('c').set_sep(5).set_bg(roundrect_bg()).set_padding(8):
                                 TextBox(phenom_texts[i], TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=color)).set_w(60).set_content_align('c')
-                                ImageBox(phenom_imgs[i], size=(None, 50), use_alphablend=True)   
+                                ImageBox(phenom_imgs[i], size=(None, 50), use_alphablend=True) 
             
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16).set_bg(roundrect_bg()):
                 # 到访角色列表
                 with HSplit().set_bg(roundrect_bg()).set_content_align('c').set_item_align('c').set_padding(16).set_sep(16):
                     gate_icon = ctx.static_imgs.get(f'mysekai/gate_icon/gate_{gate_id}.png')
                     with Frame().set_size((64, 64)).set_margin((16, 0)).set_content_align('rb'):
-                        ImageBox(gate_icon, size=(64, 64), use_alphablend=True).set_offset((0, -4))
+                        ImageBox(gate_icon, size=(64, 64), use_alphablend=True, shadow=True).set_offset((0, -4))
                         TextBox(
                             f"Lv.{gate_level}", 
                             TextStyle(DEFAULT_FONT, 16, UNIT_COLORS[gate_id-1], use_shadow=True, shadow_color=ADAPTIVE_SHADOW),
@@ -738,10 +738,10 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                             if cid not in read_cids:
                                 gcid = (await ctx.md.game_character_units.find_by_id(cid))['gameCharacterId']
                                 chara_item_icon = await ctx.rip.img(f"mysekai/item_preview/material/item_memoria_{gcid}.png")
-                                ImageBox(chara_item_icon, size=(40, None), use_alphablend=True).set_offset((80 - 40, 80 - 40))
+                                ImageBox(chara_item_icon, size=(40, None), use_alphablend=True, shadow=True).set_offset((80 - 40, 80 - 40))
                             if cid == reservation_cid:
                                 invitation_icon = ctx.static_imgs.get('mysekai/invitationcard.png')
-                                ImageBox(invitation_icon, size=(25, None), use_alphablend=True).set_offset((10, 80 - 30))
+                                ImageBox(invitation_icon, size=(25, None), use_alphablend=True, shadow=True).set_offset((10, 80 - 30))
                     Spacer(w=16, h=1)
 
                 # 每个地区的资源
@@ -769,7 +769,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                                             ImageBox(res_img, size=(40, 40), use_alphablend=True)
                                             if has_music_record:
                                                 music_record_icon = ctx.static_imgs.get('mysekai/music_record.png')
-                                                ImageBox(music_record_icon, size=(25, 25), use_alphablend=True).set_offset((5, 5))
+                                                ImageBox(music_record_icon, size=(25, 25), use_alphablend=True, shadow=True).set_offset((5, 5))
                                     else:
                                         ImageBox(res_img, size=(40, 40), use_alphablend=True)
                                     TextBox(
@@ -1165,7 +1165,7 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
         with Grid(col_count=5).set_content_align('c').set_item_align('c').set_sep(8, 4).set_padding(8).set_bg(roundrect_bg()).set_w(w+16):
             for color_code, img in zip(fcolorcodes, fimgs):
                 with VSplit().set_content_align('c').set_item_align('c').set_sep(8):
-                    ImageBox(img, size=(None, 100), use_alphablend=True)
+                    ImageBox(img, size=(None, 100), use_alphablend=True, shadow=True)
                     if color_code:
                         Frame().set_size((100, 20)).set_bg(RoundRectBg(
                             fill=color_code_to_rgb(color_code), 

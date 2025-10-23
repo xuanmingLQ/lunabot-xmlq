@@ -46,6 +46,12 @@ class GalleryPic:
             self.thumb_path = None
 
 
+class GalleryPicRepeatedException(Exception):
+    def __init__(self, pid: int):
+        super().__init__(f'画廊中已存在相似图片(pid={pid})')
+        self.pid = pid
+
+
 @dataclass
 class Gallery:
     name: str
@@ -210,7 +216,8 @@ class GalleryManager:
         phash = await calc_phash(img_path)
         if check_duplicated:
             for p in g.pics:
-                assert p.phash != phash, f'画廊\"{g.name}\"已存在相似图片(pid={p.pid})'
+                if p.phash == phash:
+                    raise GalleryPicRepeatedException(p.pid)
 
         self.pid_top += 1
         _, ext = os.path.splitext(os.path.basename(img_path))
@@ -229,6 +236,45 @@ class GalleryManager:
 
         self._save()
         return self.pid_top
+
+    async def async_replace_pic(self, pid: int, img_path: str, check_duplicated: bool = True) -> int:
+        """
+        替换画廊中的一张图片，返回图片ID
+        """
+        p = self.find_pic(pid)
+        assert p is not None, f'图片ID {pid} 不存在'
+        g = self.find_gall(p.gall_name)
+        assert g is not None, f'图片ID {pid} 所属画廊\"{p.gall_name}\"不存在'
+
+        phash = await calc_phash(img_path)
+        if check_duplicated:
+            for other_p in g.pics:
+                if other_p.pid != p.pid:
+                    assert other_p.phash != phash, f'画廊\"{g.name}\"已存在相似图片(pid={other_p.pid})'
+
+        # 删除旧文件
+        try:
+            if os.path.exists(p.path):
+                os.remove(p.path)
+            if p.thumb_path and os.path.exists(p.thumb_path):
+                os.remove(p.thumb_path)
+        except Exception as e:
+            logger.warning(f'删除画廊图片 {pid} 文件失败: {get_exc_desc(e)}')
+
+        # 复制新文件
+        _, ext = os.path.splitext(os.path.basename(img_path))
+        time_str = datetime.now().strftime('%Y-%m-%d_%H-%M%-S')
+        dst_path = create_parent_folder(os.path.join(g.pics_dir, f"{time_str}_{p.pid}{ext}"))
+        shutil.copy2(img_path, dst_path)
+
+        # 更新信息
+        p.path = dst_path
+        p.phash = phash
+        p.thumb_path = None
+        p.ensure_thumb()
+
+        self._save()
+        return p.pid
 
     def del_pic(self, pid: int) -> int:
         """
@@ -295,7 +341,7 @@ class GalleryManager:
         g.cover_pid = pid
         self._save()
 
-    async def rehash_gallery(self, name_or_alias: str) -> list[int]:
+    async def async_rehash_gallery(self, name_or_alias: str) -> list[int]:
         """
         重新画廊计算hash，移除画廊中重复的图片，返回被删除的图片ID列表
         """
@@ -323,6 +369,33 @@ class GalleryManager:
 
         self._save()
         return del_pids
+
+
+# 处理本地文件用于添加到画廊
+def process_image_for_gallery(path: str, sub_type: int):
+    img = open_image(path)
+    # 如果是表情并且是静态图，可能获取到jpg，需要手动转换为静态gif
+    need_to_gif = (sub_type and not is_animated(img))
+
+    # 根据限制进行缩放
+    scaled = False
+    size_limit = SIZE_LIMIT_MB_CFG.get()
+    filesize_mb = os.path.getsize(path) / (1024 * 1024)
+    if filesize_mb > size_limit:
+        pixels = get_image_pixels(img)
+        img = limit_image_by_pixels(img, int(pixels * size_limit / filesize_mb))
+        scaled = True
+
+    if need_to_gif:
+        # 转换为静态gif
+        save_transparent_static_gif(img, path)
+    elif scaled:
+        if is_animated(img):
+            save_transparent_gif(img, get_gif_duration(img), path)
+        else:
+            img.save(path)
+        new_size_mb = os.path.getsize(path) / (1024 * 1024)
+        logger.info(f"缩放过大的图片 {filesize_mb:.2f}M -> {new_size_mb:.2f}M")
 
 
 # ======================= 指令处理 ======================= # 
@@ -475,44 +548,53 @@ async def _(ctx: HandlerContext):
     
     image_datas = await ctx.aget_image_datas()
     ok_list, err_msg = [], ""
+    repeats: list[tuple[Image.Image, int]] = []
+    REPEAT_IMAGE_SHOW_SIZE = (128, 128)
     for i, data in enumerate(image_datas, 1):
-        try:
-            async with TempDownloadFilePath(data['url'], 'gif') as path:
-                def process_image():
-                    img = open_image(path)
-                    # 如果是表情并且是静态图，可能获取到jpg，需要手动转换为静态gif
-                    need_to_gif = (data.get('sub_type', 1) == 1 and not is_animated(img))
-
-                    # 根据限制进行缩放
-                    scaled = False
-                    size_limit = SIZE_LIMIT_MB_CFG.get()
-                    filesize_mb = os.path.getsize(path) / (1024 * 1024)
-                    if filesize_mb > size_limit:
-                        pixels = get_image_pixels(img)
-                        img = limit_image_by_pixels(img, int(pixels * size_limit / filesize_mb))
-                        scaled = True
-
-                    if need_to_gif:
-                        # 转换为静态gif
-                        save_transparent_static_gif(img, path)
-                    elif scaled:
-                        if is_animated(img):
-                            save_transparent_gif(img, get_gif_duration(img), path)
-                        else:
-                            img.save(path)
-                        new_size_mb = os.path.getsize(path) / (1024 * 1024)
-                        logger.info(f"缩放过大的图片 {filesize_mb:.2f}M -> {new_size_mb:.2f}M")
-                        
-                await run_in_pool(process_image)
+        async with TempDownloadFilePath(data['url'], 'gif') as path:
+            try:
+                await run_in_pool(process_image_for_gallery, path, data.get('sub_type', 1))
                 pid = await GalleryManager.get().async_add_pic(name, path, check_duplicated=check_duplicated)
-            ok_list.append(pid)
-            with open(ADD_LOG_FILE, 'a', encoding='utf-8') as f:
-                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | @{ctx.event.user_id} upload pid={pid} to \"{name}\"\n")
-        except Exception as e:
-            logger.print_exc(f"上传第{i}张图片到画廊\"{name}\"失败")
-            err_msg += f"上传第{i}张图片失败: {get_exc_desc(e)}\n"
+                ok_list.append(pid)
+                with open(ADD_LOG_FILE, 'a', encoding='utf-8') as f:
+                    f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | @{ctx.event.user_id} upload pid={pid} to \"{name}\"\n")
+            except GalleryPicRepeatedException as e:
+                img = open_image(path)
+                img.thumbnail(REPEAT_IMAGE_SHOW_SIZE)
+                repeats.append((img, e.pid))
+            except Exception as e:
+                logger.print_exc(f"上传第{i}张图片到画廊\"{name}\"失败")
+                err_msg += f"上传第{i}张图片失败: {get_exc_desc(e)}\n"
+
+    repeat_img = None
+    if repeats:
+        with Canvas(bg=FillBg((230, 240, 255, 255))).set_padding(8) as canvas:
+            with VSplit().set_padding(0).set_sep(16).set_item_align('lt').set_content_align('lt'):
+                TextBox(f"查重错误可使用\"/上传 force\"强制上传图片", TextStyle(DEFAULT_FONT, 16, BLACK))
+                with Grid(row_count=int(math.sqrt(len(repeats) * 2)), hsep=8, vsep=8).set_item_align('t').set_content_align('t'):
+                    for img, pid in repeats:
+                        img2 = None
+                        pic = GalleryManager.get().find_pic(pid, raise_if_nofound=False)
+                        if pic and os.path.exists(pic.path):
+                            img2 = open_image(pic.path)
+                            img2.thumbnail(REPEAT_IMAGE_SHOW_SIZE)
+                        with HSplit().set_padding(0).set_sep(4):
+                            with VSplit().set_padding(0).set_sep(4).set_content_align('c').set_item_align('c'):
+                                ImageBox(image=img, size=REPEAT_IMAGE_SHOW_SIZE, image_size_mode='fit').set_content_align('c')
+                                TextBox(f"待上传图片", TextStyle(DEFAULT_FONT, 16, BLACK))
+                            with VSplit().set_padding(0).set_sep(4).set_content_align('c').set_item_align('c'):
+                                if img2:
+                                    ImageBox(image=img2, size=REPEAT_IMAGE_SHOW_SIZE, image_size_mode='fit').set_content_align('c')
+                                else:
+                                    Spacer(w=REPEAT_IMAGE_SHOW_SIZE[0], h=REPEAT_IMAGE_SHOW_SIZE[1])
+                                TextBox(f"pid: {pid}", TextStyle(DEFAULT_FONT, 16, BLACK))
+                                
+        repeat_img = await canvas.get_img()
     
     msg = f"成功上传{len(ok_list)}/{len(image_datas)}张图片到画廊\"{name}\"\n" + err_msg
+    if repeats:
+        msg += f"{len(repeats)}张图片与已有图片重复:"
+        msg += await get_image_cq(repeat_img, low_quality=True)
     msg += "画廊主要收录表情/梗图，请勿上传可能有争议的图片"
     return await ctx.asend_fold_msg_adaptive(msg.strip())
 
@@ -532,7 +614,7 @@ async def _(ctx: HandlerContext):
             return await ctx.asend_reply_msg('当前没有任何画廊')
         
         with Canvas(bg=FillBg((230, 240, 255, 255))).set_padding(8) as canvas:
-            with Grid(row_count=int(math.sqrt(len(galls))), hsep=8, vsep=8):
+            with Grid(row_count=int(math.sqrt(len(galls))), hsep=8, vsep=8).set_item_align('t').set_content_align('t'):
                 for name, g in galls.items():
                     cover: GalleryPic = GalleryManager.get().find_pic(g.cover_pid or 0)
                     if not cover and g.pics:
@@ -674,5 +756,34 @@ gall_rehash.check_cdrate(cd).check_wblist(gbl).check_superuser()
 async def _(ctx: HandlerContext):
     name = ctx.get_args().strip()
     await ctx.asend_reply_msg(f'正在为画廊\"{name}\"重新计算hash并移除重复图片...')
-    del_pids = await GalleryManager.get().rehash_gallery(name)
+    del_pids = await GalleryManager.get().async_rehash_gallery(name)
     await ctx.asend_reply_msg(f'画廊\"{name}\"重新计算hash完成，移除重复图片{len(del_pids)}张: {",".join(str(p) for p in del_pids)}')
+
+
+gall_replace = CmdHandler([
+    '/gall replace', 
+], logger)
+gall_replace.check_cdrate(cd).check_wblist(gbl).check_superuser()
+@gall_replace.handle()
+async def _(ctx: HandlerContext):
+    args = ctx.get_args().strip()
+
+    try:
+        check_duplicated = True
+        if 'force' in args:
+            check_duplicated = False
+            args.remove('force')
+        pid = int(args)
+    except:
+        raise ReplyException('使用方式: /gall replace pid')
+
+    image_data = await ctx.aget_image_datas(return_first=True, max_count=1)
+    if not image_data:
+        raise ReplyException('请附加要替换的图片')
+    
+    async with TempDownloadFilePath(image_data['url'], 'gif') as path:
+        await run_in_pool(process_image_for_gallery, path, image_data.get('sub_type', 1))
+        pid = await GalleryManager.get().async_replace_pic(pid, path, check_duplicated=check_duplicated)
+
+    await ctx.asend_reply_msg(f'成功替换图片pid={pid}')
+    

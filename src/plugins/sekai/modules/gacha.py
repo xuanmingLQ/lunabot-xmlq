@@ -520,7 +520,7 @@ async def compose_gacha_detail_image(ctx: SekaiHandlerContext, gacha: Gacha):
                             card_size = 80
                             for card in pickup_cards:
                                 with VSplit().set_padding(0).set_sep(1).set_content_align('c').set_item_align('c'):
-                                    ImageBox(card_thumbs[card.id], size=(card_size, card_size))
+                                    ImageBox(card_thumbs[card.id], size=(card_size, card_size), shadow=True)
                                     TextBox(f"{card.id} ({get_float_str(card.rate * 100, 4)}%)", small_style)
                 # 抽卡概率
                 with VSplit().set_padding(16).set_sep(8).set_content_align('c').set_item_align('c'):
@@ -627,7 +627,7 @@ async def compose_gacha_spin_image(ctx: SekaiHandlerContext, gacha: Gacha, cards
             with Grid(col_count=col_num).set_padding(0).set_sep(sep, sep).set_content_align('c').set_item_align('c'):
                 for item in grid_items:
                     if isinstance(item, int):
-                        ImageBox(card_thumbs[item], size=(thumb_size, thumb_size))
+                        ImageBox(card_thumbs[item], size=(thumb_size, thumb_size), shadow=True)
                     else:
                         TextBox(item, style2, use_real_line_count=True) \
                             .set_size((thumb_size, thumb_size)).set_content_align('c').set_bg(roundrect_bg())

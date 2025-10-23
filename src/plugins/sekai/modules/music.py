@@ -859,8 +859,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                 with HSplit().set_content_align('c').set_item_align('c').set_sep(16):
                     # 封面
                     with Frame().set_padding(32):
-                        Spacer(w=300, h=300).set_bg(FillBg((0, 0, 0, 100))).set_offset((4, 4))
-                        ImageBox(cover_img, size=(None, 300))
+                        ImageBox(cover_img, size=(None, 300), shadow=True)
 
                     # 信息
                     style1 = TextStyle(font=DEFAULT_HEAVY_FONT, size=30, color=(50, 50, 50))
@@ -1214,7 +1213,7 @@ async def compose_music_brief_list_image(
                 style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=WHITE)
 
                 with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(16):
-                    ImageBox(cover, size=(80, 80))
+                    ImageBox(cover, size=(80, 80), shadow=True)
                     with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
                         TextBox(f"【{ctx.region.upper()}-{mid}】{music_name}", style1).set_w(250)
                         time_text = f"  {publish_time.strftime('%Y-%m-%d %H:%M:%S')}"
