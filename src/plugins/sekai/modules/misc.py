@@ -258,7 +258,7 @@ async def _(ctx: SekaiHandlerContext):
 
             with VSplit().set_sep(4).set_padding(16).set_content_align('l').set_item_align('l'):
                 with HSplit().set_sep(8).set_padding(0).set_content_align('l').set_item_align('l'):
-                    TextBox(f"距离下次生日还有{(next_time - datetime.now()).days}天", style1)
+                    TextBox(f"({get_region_name(ctx.region)}) 距离下次生日还有{(next_time - datetime.now()).days}天", style1)
                     Spacer(w=16)
                     TextBox(f"应援色", style1)
                     TextBox(colorcode, TextStyle(DEFAULT_FONT, 20, ADAPTIVE_WB)) \
