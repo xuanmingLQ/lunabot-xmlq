@@ -34,6 +34,14 @@ ALL_SERVER_REGION_NAMES = ['日服', '国际服', '台服', '韩服', '国服']
 NEED_TRANSLATE_REGIONS = ['jp', 'en', 'kr']
 TRANSLATED_REGIONS = ['cn', 'tw']
 
+REGION_TZ = {
+    'jp': timezone(timedelta(hours=9)),
+    'en': timezone(timedelta(hours=0)),
+    'cn': timezone(timedelta(hours=8)),
+    'tw': timezone(timedelta(hours=8)),
+    'kr': timezone(timedelta(hours=9)),
+}
+
 UNITS = [
     "light_sound",
     "idol",
