@@ -231,15 +231,14 @@ def get_mysekai_last_refresh_time(ctx: SekaiHandlerContext) -> datetime:
         last_refresh_time = now.replace(hour=h2, minute=0, second=0, microsecond=0)
     # 五周年后的生日掉落更新产生的刷新
     if is_fifth_anniversary(ctx.region):
-        next_refresh_time = last_refresh_time + timedelta(hours=12)
         for cid in range(1, 27):
             dt = get_character_next_birthday_dt(ctx.region, cid)
             start = dt - timedelta(days=3)
             end = dt
-            if last_refresh_time < start < next_refresh_time:
+            if last_refresh_time < start <= now:
                 last_refresh_time = start
                 break
-            if last_refresh_time < end < next_refresh_time:
+            if last_refresh_time < end <= now:
                 last_refresh_time = end
                 break
     logger.debug(f"计算出的Mysekai上次资源刷新时间: {last_refresh_time}")
