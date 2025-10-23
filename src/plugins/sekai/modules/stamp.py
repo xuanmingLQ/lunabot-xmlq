@@ -49,7 +49,7 @@ async def compose_character_all_stamp_image(ctx: SekaiHandlerContext, cid):
                 for sid, img in stamp_id_imgs:
                     text_color = (0, 0, 200, 255) if check_stamp_can_make(sid) else (200, 0, 0, 255)
                     with VSplit().set_padding(4).set_sep(4):
-                        ImageBox(img, size=(None, 100), use_alphablend=True)
+                        ImageBox(img, size=(None, 100), use_alphablend=True, shadow=True)
                         TextBox(str(sid), style=TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=text_color))
     add_watermark(canvas)
     return await canvas.get_img()

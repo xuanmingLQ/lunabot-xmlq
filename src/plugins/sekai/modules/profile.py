@@ -550,7 +550,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                 ])
                 for img in honor_imgs:
                     if img: 
-                        ImageBox(img, size=(None, 48))
+                        ImageBox(img, size=(None, 48), shadow=True)
             # 卡组
             with HSplit().set_content_align('c').set_item_align('c').set_sep(6).set_padding((16, 0)):
                 card_ids = [pcard['cardId'] for pcard in pcards]
@@ -560,7 +560,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                     for card, pcard in zip(cards, pcards)
                 ]
                 for i in range(len(card_imgs)):
-                    ImageBox(card_imgs[i], size=(90, 90), image_size_mode='fill')
+                    ImageBox(card_imgs[i], size=(90, 90), image_size_mode='fill', shadow=True)
         return ret
 
     # 打歌部分
@@ -1121,9 +1121,9 @@ async def get_avatar_widget_with_frame(ctx: SekaiHandlerContext, avatar_img: Ima
     except:
         pass
     with Frame().set_size((avatar_w, avatar_w)).set_content_align('c').set_allow_draw_outside(True) as ret:
-        ImageBox(avatar_img, size=(avatar_w, avatar_w), use_alphablend=False)
+        ImageBox(avatar_img, size=(avatar_w, avatar_w), use_alphablend=False, shadow=True)
         if frame_img:
-            ImageBox(frame_img, use_alphablend=True)
+            ImageBox(frame_img, use_alphablend=True, shadow=True)
     return ret
 
 # 合成区域道具升级材料图片
@@ -1245,9 +1245,15 @@ async def compose_area_item_upgrade_materials_image(ctx: SekaiHandlerContext, qi
         if q >= 10000000:
             return f"{q//10000000}kw"
         elif q >= 10000:
-            return f"{q//10000}w"
+            x, y = q//10000, (q%10000)//1000
+            if x < 10 and y > 0:
+                return f"{x}w{y}"
+            return f"{x}w"
         elif q >= 1000:
-            return f"{q//1000}k"
+            x, y = q//1000, (q%1000)//100
+            if x < 10 and y > 0:
+                return f"{x}k{y}"
+            return f"{x}k"
         else:
             return str(q)
     
