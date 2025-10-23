@@ -175,19 +175,14 @@ async def _(ctx: SekaiHandlerContext):
     # 获取角色生日信息
     async def get_bd_info(cid: int) -> dict:
         info = { 'cid': cid }
+        m, d = get_character_birthday(cid)
+        info['month'] = m
+        info['day'] = d
+        info['next'] = get_character_next_birthday_dt(ctx.region, cid)
+
         for card in await ctx.md.cards.get():
             if card['characterId'] == cid and card['cardRarityType'] == 'rarity_birthday':
                 info.setdefault('cards', []).append(card)
-                if 'next' not in info:
-                    birthday_time = datetime.fromtimestamp(card['releaseAt'] / 1000)
-                    next_birthday = birthday_time.replace(year=datetime.now().year)
-                    if next_birthday < datetime.now():
-                        next_birthday = next_birthday.replace(year=next_birthday.year + 1)
-                    info['next'] = next_birthday
-                    region_tz = REGION_TZ[ctx.region]
-                    local_next = next_birthday.astimezone(region_tz)
-                    info['month'] = local_next.month
-                    info['day'] = local_next.day
         return info
 
     args = ctx.get_args().strip()
@@ -196,7 +191,7 @@ async def _(ctx: SekaiHandlerContext):
     bd_infos.sort(key=lambda x: x['next'])
 
     # 判断是否五周年
-    is_fifth_anniv = sum([len(info['cards']) for info in bd_infos]) >= 26 * 4
+    is_fifth_anniv = is_fifth_anniversary(ctx.region)
 
     if not args:
         info = bd_infos[0]

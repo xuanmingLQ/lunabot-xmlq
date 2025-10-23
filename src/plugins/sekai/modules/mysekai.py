@@ -24,13 +24,6 @@ from .music import get_music_cover_thumb
 from .card import get_character_sd_image
 
 
-MYSEKAI_REFRESH_HOURS = {
-    "jp": [4, 16],
-    "kr": [4, 16],
-    "cn": [5, 17],
-    "tw": [5, 17],
-}
-
 MYSEKAI_REGIONS = ['jp', 'tw', 'cn', 'kr']
 BD_MYSEKAI_REGIONS = ['cn', 'tw', 'kr']
 
@@ -90,6 +83,13 @@ bd_msr_bind_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bd_msr_bind.json", logger)
 
 
 # ======================= 处理逻辑 ======================= #
+
+# 获取ms自然刷新小时
+def get_mysekai_refresh_hours(ctx: SekaiHandlerContext) -> Tuple[int, int]:
+    return (
+        region_hour_to_local(ctx.region, 5),
+        region_hour_to_local(ctx.region, 17),
+    )
 
 # 判断ms资源稀有等级（0, 1, 2)
 def get_mysekai_res_rarity(key: str) -> int:
@@ -217,7 +217,8 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
 
 # 获取mysekai上次资源刷新时间
 def get_mysekai_last_refresh_time(ctx: SekaiHandlerContext) -> datetime:
-    h1, h2 = MYSEKAI_REFRESH_HOURS.get(ctx.region)
+    # 自然刷新
+    h1, h2 = get_mysekai_refresh_hours(ctx)
     now = datetime.now()
     last_refresh_time = None
     now = datetime.now()
@@ -228,6 +229,20 @@ def get_mysekai_last_refresh_time(ctx: SekaiHandlerContext) -> datetime:
         last_refresh_time = now.replace(hour=h1, minute=0, second=0, microsecond=0)
     else:
         last_refresh_time = now.replace(hour=h2, minute=0, second=0, microsecond=0)
+    # 五周年后的生日掉落更新产生的刷新
+    if is_fifth_anniversary(ctx.region):
+        next_refresh_time = last_refresh_time + timedelta(hours=12)
+        for cid in range(1, 27):
+            dt = get_character_next_birthday_dt(ctx.region, cid)
+            start = dt - timedelta(days=3)
+            end = dt
+            if last_refresh_time < start < next_refresh_time:
+                last_refresh_time = start
+                break
+            if last_refresh_time < end < next_refresh_time:
+                last_refresh_time = end
+                break
+    logger.debug(f"计算出的Mysekai上次资源刷新时间: {last_refresh_time}")
     return last_refresh_time
 
 # 从蓝图ID获取家具，不存在返回None
@@ -597,7 +612,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     schedule = mysekai_info['mysekaiPhenomenaSchedules']
     phenom_imgs = []
     phenom_ids = []
-    h1, h2 = MYSEKAI_REFRESH_HOURS.get(ctx.region, (4, 16))
+    h1, h2 = get_mysekai_refresh_hours(ctx)
     phenom_texts = [f"{h1}:00", f"{h2}:00", f"{h1}:00", f"{h2}:00"]
     for i, item in enumerate(schedule):
         phenom_id = item['mysekaiPhenomenaId']
