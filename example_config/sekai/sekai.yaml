@@ -34,6 +34,7 @@ story_summary:
 
 
 deck:
+  url: "http://localhost:45556/recommend"
   default_algs: ['dfs', 'ga']
   timeout:
     default: 5
