@@ -953,7 +953,7 @@ async def do_deck_recommend(
             'options': options.to_dict(),
         }
         async with aiohttp.ClientSession() as session:
-            async with session.post(RECOMMEND_SERVE_URL, json=payload) as resp:
+            async with session.post(RECOMMEND_SERVE_URL.get(), json=payload) as resp:
                 if resp.status != 200:
                     raise ReplyException(f"组卡请求失败: HTTP {resp.status}")
                 data = await resp.json()
