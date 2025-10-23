@@ -218,7 +218,7 @@ async def _(ctx: SekaiHandlerContext):
     style2 = TextStyle(DEFAULT_FONT, 20, BLACK)
 
     card_thumbs = await batch_gather(*[get_card_full_thumbnail(ctx, card, False) for card in info['cards']])
-    card_images = await batch_gather(*[get_card_image(ctx, card, False) for card in info['cards']])
+    card_image = await get_card_image(ctx, random.choice(info['cards']), False)
     next_time: datetime = info['next']
     month = info['month']
     day = info['day']
@@ -244,7 +244,7 @@ async def _(ctx: SekaiHandlerContext):
     cid = info['cid']
     colorcode = (await ctx.md.game_character_units.find_by_id(cid))['colorCode']
 
-    with Canvas(bg=ImageBg(random.choice(card_images))).set_padding(BG_PADDING) as canvas:
+    with Canvas(bg=ImageBg(card_image)).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('c').set_item_align('c').set_padding(16).set_sep(8) \
             .set_item_bg(roundrect_bg()).set_bg(roundrect_bg()):
         
