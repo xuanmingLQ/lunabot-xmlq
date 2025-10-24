@@ -1,5 +1,4 @@
 from ..utils import *
-from ..water import calc_phash
 from enum import Enum
 import zipfile
 
@@ -12,6 +11,7 @@ gbl = get_group_black_list(file_db, logger, 'gallery')
 
 THUMBNAIL_SIZE = (64, 64)
 SIZE_LIMIT_MB_CFG = config.item('size_limit_mb')
+PHASH_DIFFERENCE_THRESHOLD_CFG = config.item('phash_difference_threshold')
 GALLERY_PICS_DIR = 'data/gallery/{name}/'
 PIC_EXTS = ['.jpg', '.jpeg', '.png', '.gif']
 ADD_LOG_FILE = 'data/gallery/add.log'
@@ -98,6 +98,37 @@ class GalleryManager:
             return False
         return True
 
+    async def _calc_hash(self, path: str):
+        image = Image.open(path)
+        def calc(image):
+            # 如果存在A通道：alphablend到纯白色背景上
+            if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
+                image = image.convert('RGBA').resize((64, 64), Image.Resampling.BILINEAR)
+                bg = Image.new("RGBA", image.size, (255, 255, 255, 255))
+                bg.alpha_composite(image)
+                image = bg
+            image = image.convert('RGB')
+            # 缩小尺寸并转为灰度图
+            image = image.resize((16, 16), Image.Resampling.BILINEAR).convert('L')
+            # 转为base64字符串
+            return image.tobytes().hex()
+        return await run_in_pool(calc, image)
+
+    async def _is_sim_hash(self, phash1: str, phash2: str, threshold: int) -> bool:
+        def calc():
+            img1 = np.frombuffer(bytes.fromhex(phash1), dtype=np.uint8)
+            img2 = np.frombuffer(bytes.fromhex(phash2), dtype=np.uint8)
+            diff = np.sum(np.abs(img1.astype(np.int16) - img2.astype(np.int16)))
+            return diff <= threshold
+        return await run_in_pool(calc)
+    
+    async def _check_duplicated(self, phash: str, gallery: Gallery) -> int | None:
+        for p in gallery.pics:
+            if await self._is_sim_hash(phash, p.phash, PHASH_DIFFERENCE_THRESHOLD_CFG.get()):
+                return p.pid
+        return None
+
+    
 
     @classmethod
     def get(cls) -> 'GalleryManager':
@@ -213,11 +244,10 @@ class GalleryManager:
         g = self.find_gall(name_or_alias)
         assert g is not None, f'画廊\"{name_or_alias}\"不存在'
     
-        phash = await calc_phash(img_path)
+        phash = await self._calc_hash(img_path)
         if check_duplicated:
-            for p in g.pics:
-                if p.phash == phash:
-                    raise GalleryPicRepeatedException(p.pid)
+            if sim_pid := await self._check_duplicated(phash, g):
+                raise GalleryPicRepeatedException(sim_pid)
 
         self.pid_top += 1
         _, ext = os.path.splitext(os.path.basename(img_path))
@@ -246,11 +276,11 @@ class GalleryManager:
         g = self.find_gall(p.gall_name)
         assert g is not None, f'图片ID {pid} 所属画廊\"{p.gall_name}\"不存在'
 
-        phash = await calc_phash(img_path)
+        phash = await self._calc_hash(img_path)
         if check_duplicated:
-            for other_p in g.pics:
-                if other_p.pid != p.pid:
-                    assert other_p.phash != phash, f'画廊\"{g.name}\"已存在相似图片(pid={other_p.pid})'
+            if sim_pid := await self._check_duplicated(phash, g):
+                if sim_pid != pid:
+                    raise GalleryPicRepeatedException(sim_pid)
 
         # 删除旧文件
         try:
@@ -308,9 +338,11 @@ class GalleryManager:
             for p in g.pics:
                 if os.path.abspath(p.path) == os.path.abspath(file):
                     continue
-            phash = await calc_phash(file)
-            if any(p.phash == phash for p in g.pics):
+            phash = await self._calc_hash(file)
+            
+            if await self._check_duplicated(phash, g):
                 continue
+
             _, ext = os.path.splitext(os.path.basename(file))
             if ext.lower() in PIC_EXTS:
                 self.pid_top += 1
@@ -341,34 +373,38 @@ class GalleryManager:
         g.cover_pid = pid
         self._save()
 
-    async def async_rehash_gallery(self, name_or_alias: str) -> list[int]:
+    async def async_check_gallery(self, name_or_alias: str, rehash: bool) -> dict[int, list[int]]:
         """
-        重新画廊计算hash，移除画廊中重复的图片，返回被删除的图片ID列表
+        重新检查画廊重复图片，返回一个字典，key为首个图片id，value为重复图片id列表
         """
         g = self.find_gall(name_or_alias)
         assert g is not None, f'画廊\"{name_or_alias}\"不存在'
         
-        all_phash = set()
-        del_pids = []
+        ret: dict[int, tuple[str, list[int]]] = {}
 
         for pic in g.pics[:]:
-            phash = await calc_phash(pic.path)
-            if phash in all_phash:
-                g.pics.remove(pic)
-                del_pids.append(pic.pid)
-                try:
-                    if os.path.exists(pic.path):
-                        os.remove(pic.path)
-                    if pic.thumb_path and os.path.exists(pic.thumb_path):
-                        os.remove(pic.thumb_path)
-                except Exception as e:
-                    logger.warning(f'删除画廊图片 {pic.pid} 文件失败: {get_exc_desc(e)}')
-            else:
+            if rehash:
+                phash = await self._calc_hash(pic.path)
                 pic.phash = phash
-                all_phash.add(phash)
+            else:
+                phash = pic.phash
 
-        self._save()
-        return del_pids
+            sim_pid = None
+            for k, v in ret.items():
+                phash2 = v[0]
+                if await self._is_sim_hash(phash, phash2, PHASH_DIFFERENCE_THRESHOLD_CFG.get()):
+                    sim_pid = k
+                    break
+
+            if sim_pid is not None:
+                ret[sim_pid][1].append(pic.pid)
+            else:
+                ret[pic.pid] = (phash, [])
+
+        if rehash:
+            self._save()
+        ret = { k : v[1] for k, v in ret.items() if v[1] }
+        return ret
 
 
 # 处理本地文件用于添加到画廊
@@ -748,16 +784,75 @@ async def _(ctx: HandlerContext):
     await ctx.asend_reply_msg(f'画廊\"{name}\"封面图片设置为pid={pid}成功')
 
 
-gall_rehash = CmdHandler([
-    '/gall rehash', 
+gall_check = CmdHandler([
+    '/gall check', 
 ], logger)
-gall_rehash.check_cdrate(cd).check_wblist(gbl).check_superuser()
-@gall_rehash.handle()
+gall_check.check_cdrate(cd).check_wblist(gbl).check_superuser()
+@gall_check.handle()
 async def _(ctx: HandlerContext):
     name = ctx.get_args().strip()
-    await ctx.asend_reply_msg(f'正在为画廊\"{name}\"重新计算hash并移除重复图片...')
-    del_pids = await GalleryManager.get().async_rehash_gallery(name)
-    await ctx.asend_reply_msg(f'画廊\"{name}\"重新计算hash完成，移除重复图片{len(del_pids)}张: {",".join(str(p) for p in del_pids)}')
+
+    rehash = False
+    if 'rehash' in name:
+        rehash = True
+        name = name.replace('rehash', '').strip()
+
+    all = False
+    if name == 'all':
+        all = True
+        name = name.replace('all', '').strip()
+
+    async def check(name: str):
+        if rehash:
+            msg = f'正在为画廊\"{name}\"重新计算hash并检查重复图片...'
+        else:
+            msg = f'正在为画廊\"{name}\"检查重复图片...'
+        await ctx.asend_reply_msg(msg)
+        res = await GalleryManager.get().async_check_gallery(name, rehash=rehash)
+
+        if not res:
+            return await ctx.asend_reply_msg(f'画廊\"{name}\"重新计算hash完成，未发现重复图片')
+
+        REPEAT_IMAGE_SHOW_SIZE = (128, 128)
+        with Canvas(bg=FillBg((230, 240, 255, 255))).set_padding(8) as canvas:
+            with VSplit().set_padding(16).set_sep(8).set_item_align('lt').set_content_align('lt'):
+                for first_pid, repeat_pids in res.items():
+                    pids = [first_pid] + repeat_pids
+                    with HSplit().set_padding(0).set_sep(4).set_item_align('lt').set_content_align('lt'):
+                        for pid in pids:
+                            img = None
+                            pic = GalleryManager.get().find_pic(pid, raise_if_nofound=False)
+                            def open_img():
+                                if pic and os.path.exists(pic.path):
+                                    img = open_image(pic.path)
+                                    img.thumbnail(REPEAT_IMAGE_SHOW_SIZE)
+                                    return img
+                                return None
+                            img = await run_in_pool(open_img)
+                            with VSplit().set_padding(0).set_sep(4).set_content_align('c').set_item_align('c'):
+                                if img:
+                                    ImageBox(image=img, size=REPEAT_IMAGE_SHOW_SIZE, image_size_mode='fit').set_content_align('c')
+                                else:
+                                    Spacer(w=REPEAT_IMAGE_SHOW_SIZE[0], h=REPEAT_IMAGE_SHOW_SIZE[1])
+                                TextBox(f"pid: {pid}", TextStyle(DEFAULT_FONT, 16, BLACK))
+        
+        repeat_img = await canvas.get_img()
+        if rehash:
+            msg = f'画廊\"{name}\"重新计算hash完成，发现重复图片组共{len(res)}组:\n'
+        else:
+            msg = f'画廊\"{name}\"检查完成，发现重复图片组共{len(res)}组:\n'
+        msg += await get_image_cq(repeat_img, low_quality=True)
+        msg += f'推荐移除的重复图片pid:'
+        for first_pid, repeat_pids in res.items():
+            msg += '\n' + ' '.join(str(pid) for pid in repeat_pids)
+        return await ctx.asend_fold_msg_adaptive(msg.strip())
+    
+    if all:
+        galls = GalleryManager.get().get_all_galls()
+        for name in galls.keys():
+            await check(name)
+    else:
+        await check(name)
 
 
 gall_replace = CmdHandler([
@@ -783,7 +878,10 @@ async def _(ctx: HandlerContext):
     
     async with TempDownloadFilePath(image_data['url'], 'gif') as path:
         await run_in_pool(process_image_for_gallery, path, image_data.get('sub_type', 1))
-        pid = await GalleryManager.get().async_replace_pic(pid, path, check_duplicated=check_duplicated)
+        try:
+            pid = await GalleryManager.get().async_replace_pic(pid, path, check_duplicated=check_duplicated)
+        except GalleryPicRepeatedException as e:
+            raise ReplyException(f'替换失败: 画廊中已存在相似图片(pid={e.pid})')
 
     await ctx.asend_reply_msg(f'成功替换图片pid={pid}')
     

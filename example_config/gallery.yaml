@@ -1,1 +1,2 @@
 size_limit_mb: 1
+phash_difference_threshold: 1000
