@@ -24,7 +24,7 @@ from .card import (
 
 
 md_update_group_sub = SekaiGroupSubHelper("update", "MasterData更新通知", ALL_SERVER_REGIONS)
-ad_result_sub = SekaiUserSubHelper("ad", "广告奖励推送", ['jp'])
+ad_result_sub = SekaiUserSubHelper("ad", "广告奖励推送", ['jp'], hide=True)
 
 
 # ======================= 指令处理 ======================= #
