@@ -30,10 +30,10 @@ BD_MYSEKAI_REGIONS = ['cn', 'tw', 'kr']
 bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", BD_MYSEKAI_REGIONS)
 msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", MYSEKAI_REGIONS, only_one_group=True)
 
-MYSEKAI_HARVEST_MAP_IMAGE_SCALE_CFG = config.item('mysekai_harvest_map_image_scale')
+MYSEKAI_HARVEST_MAP_IMAGE_SCALE_CFG = config.item('mysekai.map_image_scale')
 MYSEKAI_HARVEST_MAP_SITE_BG_IMAGE_DOWNSAMPLE = 0.5
 
-MYSEKAI_RARE_RES_KEYS_CFG = config.item('mysekai_rare_res_keys')
+MYSEKAI_RARE_RES_KEYS_CFG = config.item('mysekai.rare_res_keys')
 MYSEKAI_HARVEST_FIXTURE_IMAGE_NAME = {
     1001: "oak.png",
     1002: "pine.png",
@@ -77,7 +77,7 @@ SITE_ID_ORDER = (
     5, 7, 6, 8,
 )
 
-MSR_PUSH_CONCURRENCY_CFG = config.item('msr_push_concurrency')
+MSR_PUSH_CONCURRENCY_CFG = config.item('mysekai.msr_push_concurrency')
 
 bd_msr_bind_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bd_msr_bind.json", logger)
 
@@ -319,8 +319,11 @@ def get_mysekai_phenomena_color_info(phenomena_id: int) -> dict:
         sky1 = color_code_to_rgb(phenomena_colors['sky1'])
         sky2 = color_code_to_rgb(phenomena_colors['sky2'])
 
-        ground_bright_factor = 0.5
-        ground = lerp_color(ground, WHITE, ground_bright_factor)
+        brightness = config.get('mysekai.map_brightness')
+        if brightness > 1.0:
+            ground = lerp_color(ground, WHITE, brightness - 1.0)
+        else:
+            ground = lerp_color(ground, BLACK, 1.0 - brightness)
 
         return {
             'ground': ground,
@@ -541,9 +544,9 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                 # 稀有资源（非活动道具）添加发光
                 if rarity == 2 and not res_key.startswith("material"):
                     if item['small_icon']:
-                        call.light_size = int(45 * scale * 3)
+                        call.light_size = int(45 * scale * config.get('mysekai.rare_res_light.small_size'))
                     else:
-                        call.light_size = int(45 * scale * 6)
+                        call.light_size = int(45 * scale * config.get('mysekai.rare_res_light.large_size'))
 
                 res_draw_calls.append(call)
                     
@@ -554,6 +557,8 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
         light_strength = (phenomena_color_info['ground'][0] 
                         + phenomena_color_info['ground'][1] 
                         + phenomena_color_info['ground'][2]) / (3 * 255)
+        effect = config.get('mysekai.rare_res_light.map_brightness_effect')
+        light_strength = 1.0 * (1.0 - effect) + light_strength * effect
         for call in res_draw_calls:
             if call.light_size:
                 ImageBox(ctx.static_imgs.get("mysekai/light.png"), size=(call.light_size, call.light_size), 
