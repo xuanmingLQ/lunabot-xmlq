@@ -339,9 +339,6 @@ class GalleryManager:
                 if os.path.abspath(p.path) == os.path.abspath(file):
                     continue
             phash = await self._calc_hash(file)
-            
-            if await self._check_duplicated(phash, g):
-                continue
 
             _, ext = os.path.splitext(os.path.basename(file))
             if ext.lower() in PIC_EXTS:
@@ -535,29 +532,53 @@ gall_pick = CmdHandler([
 gall_pick.check_cdrate(cd).check_wblist(gbl)
 @gall_pick.handle()
 async def _(ctx: HandlerContext):
+    limit = config.get('pick_limit')
+    HELP = """
+使用方式: 
+/看 画廊名称 
+/看 画廊名称 x2
+/看 pid1 pid2...
+""".strip()
+
     args = ctx.get_args().strip()
     if not args:
-        raise ReplyException('使用方式: /看 画廊名称 或 /看 图片ID')
+        raise ReplyException(HELP)
 
-    pic, name = None, None
+    pics, names = None, None
     try: 
-        pic = GalleryManager.get().find_pic(int(args), raise_if_nofound=True)
-        name = pic.gall_name
+        pids = [int(x) for x in args.split()]
+        pics = [GalleryManager.get().find_pic(pid, raise_if_nofound=True) for pid in pids]
+        names = [pic.gall_name for pic in pics]
     except: 
-        pic = None
-        name = args
+        pics = None
+        num = 1
+        if 'x' in args:
+            args, num_str = args.rsplit('x', 1)
+            try: num = int(num_str)
+            except: raise ReplyException(HELP)
+            assert_and_reply(1 <= num <= limit, f'一次查看图片数量必须在1到{limit}之间')
+        names = [args.strip()]
 
-    g = GalleryManager.get().find_gall(name, raise_if_nofound=True)
-    is_super = check_superuser(ctx.event)
-    if not is_super and g.mode == GalleryMode.Off:
-        raise ReplyException(f'画廊\"{name}\"已关闭')
+    for name in names:
+        g = GalleryManager.get().find_gall(name, raise_if_nofound=True)
+        is_super = check_superuser(ctx.event)
+        if not is_super and g.mode == GalleryMode.Off:
+            raise ReplyException(f'画廊\"{name}\"已关闭')
 
-    if pic is None:
+    if pics is None:
         if not g.pics:
             raise ReplyException(f'画廊\"{name}\"没有图片')
-        pic = random.choice(g.pics)
+        pics = [random.choice(g.pics) for _ in range(num)]
 
-    await ctx.asend_msg(await get_image_cq(pic.path, send_local_file_as_is=True))
+    if len(pics) > limit:
+        raise ReplyException(f'一次最多查看{limit}张图片')
+
+    if len(pics) == 1:
+        await ctx.asend_msg(await get_image_cq(pics[0].path, send_local_file_as_is=True))
+    else:
+        await ctx.asend_fold_msg_adaptive(''.join(
+            [await get_image_cq(p.path, send_local_file_as_is=True) for p in pics]
+        ))
 
 
 gall_add = CmdHandler([
