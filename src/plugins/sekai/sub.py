@@ -113,13 +113,15 @@ async def _(ctx: HandlerContext):
 
     if not has_sub:
         msg += "无\n"
-    
+
     msg += "---\n"
-    msg += "使用\"/pjsk开启 英文项目名\"开启订阅\n"
     msg += "所有可开启项目:\n"
     for sub in SekaiGroupSubHelper.all_subs:
         if not sub.hide:
             msg += f"{sub.id}: {sub.name}({', '.join(sub.regions)})\n"
+    
+    msg += "---\n"
+    msg += "使用\"/pjsk开启 英文项目名\"开启订阅\n"
 
     return await ctx.asend_reply_msg(msg.strip())
 
@@ -230,10 +232,10 @@ class SekaiUserSubHelper:
         return self.subs[region].clear()
     
 
-user_sub_list = CmdHandler([
+user_sub_list = SekaiCmdHandler([
     "/pjsk_sub_list", "/pjsk sub list", "/pjsk_subs", "/pjsk subs",
     "/pjsk订阅", "/pjsk 订阅", "/pjsk用户订阅", "/pjsk 用户订阅",
-], logger, priority=100)
+], priority=100)
 user_sub_list.check_cdrate(cd).check_wblist(gbl)
 @user_sub_list.handle()
 async def _(ctx: HandlerContext):
@@ -261,10 +263,12 @@ async def _(ctx: HandlerContext):
         msg += "无\n"
 
     msg += "---\n"
-    msg += "使用\"/pjsk订阅 英文项目名\"进行订阅\n"
     msg += "所有可订阅项目:\n"
     for sub in SekaiUserSubHelper.all_subs:
         if not sub.hide:
             msg += f"{sub.id}: {sub.name}({', '.join(sub.regions)})\n"
+
+    msg += "---\n"
+    msg += "使用\"/pjsk订阅 项目\"订阅，例如发送\"/cnpjsk订阅 live\"订阅国服live提醒"
         
     return await ctx.asend_reply_msg(msg.strip())

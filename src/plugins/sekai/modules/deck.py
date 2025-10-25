@@ -243,6 +243,7 @@ def extract_target(args: str, options: DeckRecommendOptions) -> str:
     
 # 从args中提取固定卡牌
 def extract_fixed_cards_and_characters(args: str, options: DeckRecommendOptions) -> str:
+    args = args.replace('＃', '#')
     if '#' in args:
         args, fixed_args = args.split('#', 1)
         fixed_cards, fixed_characters = [], []

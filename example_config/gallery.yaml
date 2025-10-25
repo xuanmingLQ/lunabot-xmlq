@@ -1,1 +1,3 @@
 size_limit_mb: 1
+pick_limit: 5
+phash_difference_threshold: 1000
