@@ -34,7 +34,7 @@ plt.switch_backend('agg')
 matplotlib.rcParams['font.family'] = [FONT_NAME]
 matplotlib.rcParams['axes.unicode_minus'] = False  
 
-SK_RECORD_INTERVAL = 60
+SK_RECORD_INTERVAL = 180
 
 SKL_QUERY_RANKS = [
     *range(10, 51, 10),
