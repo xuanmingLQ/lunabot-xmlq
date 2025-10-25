@@ -24,23 +24,16 @@ from .music import get_music_cover_thumb
 from .card import get_character_sd_image
 
 
-MYSEKAI_REFRESH_HOURS = {
-    "jp": [4, 16],
-    "kr": [4, 16],
-    "cn": [5, 17],
-    "tw": [5, 17],
-}
-
 MYSEKAI_REGIONS = ['jp',  'cn']
 BD_MYSEKAI_REGIONS = ['cn',]
 
 bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", BD_MYSEKAI_REGIONS)
 msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", MYSEKAI_REGIONS, only_one_group=True)
 
-MYSEKAI_HARVEST_MAP_IMAGE_SCALE_CFG = config.item('mysekai_harvest_map_image_scale')
+MYSEKAI_HARVEST_MAP_IMAGE_SCALE_CFG = config.item('mysekai.map_image_scale')
 MYSEKAI_HARVEST_MAP_SITE_BG_IMAGE_DOWNSAMPLE = 0.5
 
-MYSEKAI_RARE_RES_KEYS_CFG = config.item('mysekai_rare_res_keys')
+MYSEKAI_RARE_RES_KEYS_CFG = config.item('mysekai.rare_res_keys')
 MYSEKAI_HARVEST_FIXTURE_IMAGE_NAME = {
     1001: "oak.png",
     1002: "pine.png",
@@ -84,12 +77,19 @@ SITE_ID_ORDER = (
     5, 7, 6, 8,
 )
 
-MSR_PUSH_CONCURRENCY_CFG = config.item('msr_push_concurrency')
+MSR_PUSH_CONCURRENCY_CFG = config.item('mysekai.msr_push_concurrency')
 
 bd_msr_bind_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bd_msr_bind.json", logger)
 
 
 # ======================= 处理逻辑 ======================= #
+
+# 获取ms自然刷新小时
+def get_mysekai_refresh_hours(ctx: SekaiHandlerContext) -> Tuple[int, int]:
+    return (
+        region_hour_to_local(ctx.region, 5),
+        region_hour_to_local(ctx.region, 17),
+    )
 
 # 判断ms资源稀有等级（0, 1, 2)
 def get_mysekai_res_rarity(key: str) -> int:
@@ -217,7 +217,8 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
 
 # 获取mysekai上次资源刷新时间
 def get_mysekai_last_refresh_time(ctx: SekaiHandlerContext) -> datetime:
-    h1, h2 = MYSEKAI_REFRESH_HOURS.get(ctx.region)
+    # 自然刷新
+    h1, h2 = get_mysekai_refresh_hours(ctx)
     now = datetime.now()
     last_refresh_time = None
     now = datetime.now()
@@ -228,6 +229,19 @@ def get_mysekai_last_refresh_time(ctx: SekaiHandlerContext) -> datetime:
         last_refresh_time = now.replace(hour=h1, minute=0, second=0, microsecond=0)
     else:
         last_refresh_time = now.replace(hour=h2, minute=0, second=0, microsecond=0)
+    # 五周年后的生日掉落更新产生的刷新
+    if is_fifth_anniversary(ctx.region):
+        for cid in range(1, 27):
+            dt = get_character_next_birthday_dt(ctx.region, cid)
+            start = dt - timedelta(days=3)
+            end = dt
+            if last_refresh_time < start <= now:
+                last_refresh_time = start
+                break
+            if last_refresh_time < end <= now:
+                last_refresh_time = end
+                break
+    logger.debug(f"计算出的Mysekai上次资源刷新时间: {last_refresh_time}")
     return last_refresh_time
 
 # 从蓝图ID获取家具，不存在返回None
@@ -305,8 +319,11 @@ def get_mysekai_phenomena_color_info(phenomena_id: int) -> dict:
         sky1 = color_code_to_rgb(phenomena_colors['sky1'])
         sky2 = color_code_to_rgb(phenomena_colors['sky2'])
 
-        ground_bright_factor = 0.5
-        ground = lerp_color(ground, WHITE, ground_bright_factor)
+        brightness = config.get('mysekai.map_brightness')
+        if brightness > 1.0:
+            ground = lerp_color(ground, WHITE, brightness - 1.0)
+        else:
+            ground = lerp_color(ground, BLACK, 1.0 - brightness)
 
         return {
             'ground': ground,
@@ -527,9 +544,9 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                 # 稀有资源（非活动道具）添加发光
                 if rarity == 2 and not res_key.startswith("material"):
                     if item['small_icon']:
-                        call.light_size = int(45 * scale * 3)
+                        call.light_size = int(45 * scale * config.get('mysekai.rare_res_light.small_size'))
                     else:
-                        call.light_size = int(45 * scale * 6)
+                        call.light_size = int(45 * scale * config.get('mysekai.rare_res_light.large_size'))
 
                 res_draw_calls.append(call)
                     
@@ -540,6 +557,8 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
         light_strength = (phenomena_color_info['ground'][0] 
                         + phenomena_color_info['ground'][1] 
                         + phenomena_color_info['ground'][2]) / (3 * 255)
+        effect = config.get('mysekai.rare_res_light.map_brightness_effect')
+        light_strength = 1.0 * (1.0 - effect) + light_strength * effect
         for call in res_draw_calls:
             if call.light_size:
                 ImageBox(ctx.static_imgs.get("mysekai/light.png"), size=(call.light_size, call.light_size), 
@@ -597,7 +616,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     schedule = mysekai_info['mysekaiPhenomenaSchedules']
     phenom_imgs = []
     phenom_ids = []
-    h1, h2 = MYSEKAI_REFRESH_HOURS.get(ctx.region, (4, 16))
+    h1, h2 = get_mysekai_refresh_hours(ctx)
     phenom_texts = [f"{h1}:00", f"{h2}:00", f"{h1}:00", f"{h2}:00"]
     for i, item in enumerate(schedule):
         phenom_id = item['mysekaiPhenomenaId']

@@ -8,7 +8,7 @@ import traceback
 import orjson
 import yaml
 from uuid import uuid4
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field, asdict
 from tenacity import retry, stop_after_attempt, wait_fixed
 import asyncio

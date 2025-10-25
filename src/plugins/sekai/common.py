@@ -34,6 +34,14 @@ ALL_SERVER_REGION_NAMES = ['日服', '国服']
 NEED_TRANSLATE_REGIONS = ['jp']
 TRANSLATED_REGIONS = ['cn']
 
+REGION_UTC_OFFSET = {
+    'jp': 9,
+    'en': -7,
+    'cn': 8,
+    'tw': 8,
+    'kr': 9,
+}
+
 UNITS = [
     "light_sound",
     "idol",
@@ -138,6 +146,30 @@ MUSIC_TAG_UNIT_MAP = {
 }
 
 # ======================= 通用功能 ======================= #
+
+# 将指定区服上的小时转换为本地小时 （例如日服烤森刷新5点, 转换为本地则返回4点）
+def region_hour_to_local(region: str, hour: int) -> int:
+    return hour + REGION_UTC_OFFSET['cn'] - REGION_UTC_OFFSET[region]
+
+# 将指定区服上的时间转换为本地时间 （例如日服烤森刷新5点, 转换为本地则返回4点）
+def region_dt_to_local(region: str, dt: datetime) -> datetime:
+    return dt + timedelta(hours=REGION_UTC_OFFSET['cn']) - timedelta(hours=REGION_UTC_OFFSET[region])
+
+# 区服是否已经五周年更新
+def is_fifth_anniversary(region: str) -> bool:
+    return region in config.get('fifth_anniv_regions')
+
+# 获取角色生日
+def get_character_birthday(cid: int) -> Tuple[int, int]:
+    return Config('sekai.character_birthday').get('birthdays')[cid]
+
+# 获取角色下次生日时间点
+def get_character_next_birthday_dt(region: str, cid: int) -> datetime:
+    m, d = get_character_birthday(cid)
+    next_birthday = datetime.now().replace(month=m, day=d, hour=0, minute=0, second=0, microsecond=0)
+    if next_birthday < datetime.now():
+        next_birthday = next_birthday.replace(year=next_birthday.year + 1)
+    return region_dt_to_local(region, next_birthday)
 
 # 获取角色昵称数据
 def get_character_nickname_data() -> List[CharacterNicknameData]:

@@ -13,11 +13,18 @@ from .profile import (
     process_hide_uid,
     request_gameapi,
 )
-from .card import has_after_training, only_has_after_training
+from .card import (
+    has_after_training, 
+    only_has_after_training,
+    get_character_name_by_id,
+    get_card_full_thumbnail,
+    get_card_image,
+    get_character_sd_image,
+)
 
 
 md_update_group_sub = SekaiGroupSubHelper("update", "MasterData更新通知", ALL_SERVER_REGIONS)
-ad_result_sub = SekaiUserSubHelper("ad", "广告奖励推送", ['jp'])
+ad_result_sub = SekaiUserSubHelper("ad", "广告奖励推送", ['jp'], hide=True)
 
 
 # ======================= 指令处理 ======================= #
@@ -160,33 +167,138 @@ async def _(ctx: SekaiHandlerContext):
 
 
 chara_bd = SekaiCmdHandler([
-    "/pjsk chara birthday", "/角色生日",
-], regions=['jp'])
+    "/pjsk chara birthday", "/角色生日", "/生日",
+])
 chara_bd.check_cdrate(cd).check_wblist(gbl)
 @chara_bd.handle()
 async def _(ctx: SekaiHandlerContext):
+    # 获取角色生日信息
+    async def get_bd_info(cid: int) -> dict:
+        info = { 'cid': cid }
+        m, d = get_character_birthday(cid)
+        info['month'] = m
+        info['day'] = d
+        info['next'] = get_character_next_birthday_dt(ctx.region, cid)
+
+        for card in await ctx.md.cards.get():
+            if card['characterId'] == cid and card['cardRarityType'] == 'rarity_birthday':
+                info.setdefault('cards', []).append(card)
+        return info
+
     args = ctx.get_args().strip()
-    cid = get_cid_by_nickname(args)
-    assert_and_reply(cid, "请输入角色名称")
 
-    msg = ""
+    bd_infos: list[dict] = [await get_bd_info(i) for i in range(1, 27)]
+    bd_infos.sort(key=lambda x: x['next'])
 
-    birthday_time = None
-    for card in await ctx.md.cards.get():
-        if card['characterId'] == cid and card['cardRarityType'] == 'rarity_birthday':
-            birthday_time = datetime.fromtimestamp(card['releaseAt'] / 1000) + timedelta(hours=6)
-            break
-    
-    next_birthday = datetime(datetime.now().year, birthday_time.month, birthday_time.day)
-    if next_birthday < datetime.now():
-        next_birthday = datetime(datetime.now().year + 1, birthday_time.month, birthday_time.day)
+    # 判断是否五周年
+    is_fifth_anniv = is_fifth_anniversary(ctx.region)
 
-    msg += f"{args}的下次生日: {next_birthday.strftime('%Y年%m月%d日')} (还有{(next_birthday - datetime.now()).days}天)\n"
-    
-    cu = await ctx.md.game_character_units.find_by_id(cid)
-    msg += f"应援色代码: {cu['colorCode']}\n"
+    if not args:
+        info = bd_infos[0]
+    elif args.isdigit():
+        idx = int(args) - 1
+        assert_and_reply(0 <= idx < len(bd_infos), "角色生日索引超出范围")
+        info = bd_infos[idx]
+    else:
+        cid = get_cid_by_nickname(args)
+        assert_and_reply(cid, f"""
+使用方式:
+查询最近的角色生日: "{ctx.original_trigger_cmd}"
+查询第二近的角色生日: "{ctx.original_trigger_cmd} 2"
+查询指定角色下次生日: "{ctx.original_trigger_cmd} 角色名"
+""".strip())
+        info = find_by(bd_infos, 'cid', cid)
 
-    return await ctx.asend_reply_msg(msg.strip())
+    style1 = TextStyle(DEFAULT_BOLD_FONT, 24, BLACK)
+    style2 = TextStyle(DEFAULT_FONT, 20, BLACK)
+
+    card_thumbs = await batch_gather(*[get_card_full_thumbnail(ctx, card, False) for card in info['cards']])
+    card_image = await get_card_image(ctx, random.choice(info['cards']), False)
+    next_time: datetime = info['next']
+    month = info['month']
+    day = info['day']
+
+    if is_fifth_anniv:
+        gacha_start,    gacha_end   = next_time - timedelta(days=4), next_time + timedelta(days=3)
+        live_start,     live_end    = next_time - timedelta(days=0), next_time + timedelta(days=1)
+        drop_start,     drop_end    = next_time - timedelta(days=3), next_time + timedelta(days=0)
+        flower_start,   flower_end  = next_time - timedelta(days=3), next_time + timedelta(days=3)
+        party_start,    party_end   = next_time - timedelta(days=0), next_time + timedelta(days=3)
+    else:
+        gacha_start,    gacha_end   = next_time - timedelta(days=0), next_time + timedelta(days=7)
+        live_start,     live_end    = next_time - timedelta(days=0), next_time + timedelta(days=1)
+
+    def draw_time_range(label: str, start: datetime, end: datetime):
+        end = end - timedelta(minutes=1)
+        with HSplit().set_sep(8).set_content_align('l').set_item_align('l'):
+            TextBox(f"{label} ", style1)
+            start_text = f"{start.strftime('%m-%d %H:%M')}({get_readable_datetime(start, False)})"
+            end_text = f"{end.strftime('%m-%d %H:%M')}({get_readable_datetime(end, False)})"
+            TextBox(f"{start_text} ~ {end_text}", style2)
+
+    cid = info['cid']
+    colorcode = (await ctx.md.game_character_units.find_by_id(cid))['colorCode']
+
+    with Canvas(bg=ImageBg(card_image)).set_padding(BG_PADDING) as canvas:
+        with VSplit().set_content_align('c').set_item_align('c').set_padding(16).set_sep(8) \
+            .set_item_bg(roundrect_bg()).set_bg(roundrect_bg()):
+        
+            with HSplit().set_sep(16).set_padding(16).set_content_align('c').set_item_align('c'):
+                ImageBox(await get_character_sd_image(cid), size=(None, 80), shadow=True)
+                title_img = await SekaiHandlerContext.from_region("jp").rip.img(f"character/label_horizontal/chr_h_lb_{cid}.png")
+                ImageBox(title_img, size=(None, 60))
+                TextBox(f"{month}月{day}日", 
+                        TextStyle(DEFAULT_HEAVY_FONT, 32, (100, 100, 100), 
+                                  use_shadow=True, shadow_offset=2, shadow_color=color_code_to_rgb(colorcode)))
+
+            with VSplit().set_sep(4).set_padding(16).set_content_align('l').set_item_align('l'):
+                with HSplit().set_sep(8).set_padding(0).set_content_align('l').set_item_align('l'):
+                    TextBox(f"({get_region_name(ctx.region)}) 距离下次生日还有{(next_time - datetime.now()).days}天", style1)
+                    Spacer(w=16)
+                    TextBox(f"应援色", style1)
+                    TextBox(colorcode, TextStyle(DEFAULT_FONT, 20, ADAPTIVE_WB)) \
+                        .set_bg(RoundRectBg(color_code_to_rgb(colorcode), radius=4)).set_padding(8)
+
+                draw_time_range("卡池开放时间", gacha_start, gacha_end)
+                draw_time_range("虚拟LIVE时间", live_start, live_end)
+
+            if is_fifth_anniv:
+                with VSplit().set_sep(4).set_padding(16).set_content_align('l').set_item_align('l'):
+                    draw_time_range("露滴掉落时间", drop_start, drop_end)
+                    draw_time_range("浇水开放时间", flower_start, flower_end)
+                    draw_time_range("派对开放时间", party_start, party_end)
+
+            with HSplit().set_sep(4).set_padding(16).set_content_align('l').set_item_align('l'):
+                TextBox(f"卡牌", style1)
+                Spacer(w=8)
+                with Grid(col_count=6).set_sep(4, 4):
+                    for i in range(len(card_thumbs)):
+                        with VSplit().set_sep(2).set_content_align('c').set_item_align('c'):
+                            ImageBox(card_thumbs[i], size=(80, 80), shadow=True)
+                            TextBox(f"{info['cards'][i]['id']}", TextStyle(DEFAULT_FONT, 16, (50, 50, 50)))
+                
+            with Grid(col_count=13).set_sep(0, 0).set_padding(16).set_content_align('c').set_item_align('c'):
+                idx = 0
+                start_cid = 6
+                for i, item in enumerate(bd_infos):
+                    if item['cid'] == start_cid:
+                        idx = i
+                        break
+                for _ in range(len(bd_infos)):
+                    chara_id = bd_infos[idx % len(bd_infos)]['cid']
+                    idx += 1
+                    b = ImageBox(get_chara_icon_by_chara_id(chara_id), size=(40, 40)).set_padding(4)
+                    if chara_id == cid:
+                        b.set_bg(roundrect_bg(radius=8))
+
+    add_watermark(canvas)
+
+    return await ctx.asend_reply_msg(
+        await get_image_cq(
+            await canvas.get_img(),
+            low_quality=True,
+        )
+    )
             
 
 
