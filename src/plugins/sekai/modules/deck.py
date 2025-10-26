@@ -871,7 +871,6 @@ async def do_deck_recommend(
     with Timer("deckrec:checkupdate", logger):
         async with data_update_lock:
             global last_deck_recommend_masterdata_version
-            global last_deck_recommend_masterdata_update_time
             global last_deck_recommend_musicmetas_update_time
             
             # 更新masterdata
@@ -916,7 +915,6 @@ async def do_deck_recommend(
                     ]
                 await asyncio.gather(*mds)
                 last_deck_recommend_masterdata_version[ctx.region] = await ctx.md.get_version()
-                last_deck_recommend_masterdata_update_time[ctx.region] = datetime.now()
 
             # 更新musicmetas
             if last_deck_recommend_musicmetas_update_time.get(ctx.region) is None \
@@ -948,7 +946,7 @@ async def do_deck_recommend(
             'create_ts': datetime.now().timestamp(),
             'region': options.region,
             'masterdata_path': os.path.abspath(f"{SEKAI_ASSET_DIR}/masterdata/{options.region}/"),
-            'masterdata_update_ts': last_deck_recommend_masterdata_update_time[options.region].timestamp(),
+            'masterdata_version': str(last_deck_recommend_masterdata_version[options.region]),
             'musicmetas_path': os.path.abspath(MUSICMETAS_SAVE_PATH),
             'musicmetas_update_ts': last_deck_recommend_musicmetas_update_time[options.region].timestamp(),
             'options': options.to_dict(),
