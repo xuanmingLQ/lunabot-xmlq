@@ -552,6 +552,7 @@ async def _(ctx: HandlerContext):
     except: 
         pics = None
         num = 1
+        args = args.replace('*', 'x').replace('×', 'x')
         if 'x' in args:
             args, num_str = args.rsplit('x', 1)
             try: num = int(num_str)
@@ -677,10 +678,14 @@ async def _(ctx: HandlerContext):
                         if os.path.isfile(p):
                             total_size += os.path.getsize(p)
                     total_size = total_size / (1024 * 1024)
-                    if total_size < 1024:
-                        size_text = f"{total_size:.1f}M"
+                    if total_size == 0:
+                        size_text = ""
+                    elif total_size < 1:
+                        size_text = "(<1M)"
+                    elif total_size < 1024:
+                        size_text = f"({total_size:.0f}M)"
                     else:
-                        size_text = f"{total_size/1024:.1f}G"
+                        size_text = f"({total_size/1024:.0f}G)"
 
                     with VSplit().set_padding(0).set_sep(4).set_content_align('c').set_item_align('c'):
                         if cover:
@@ -689,10 +694,12 @@ async def _(ctx: HandlerContext):
                                      size=(THUMBNAIL_SIZE[0]*2, THUMBNAIL_SIZE[1]*2), image_size_mode='fit').set_content_align('c')
                         else:
                             Spacer(w=THUMBNAIL_SIZE[0]*2, h=THUMBNAIL_SIZE[1]*2)
-                        TextBox(f"{name}", TextStyle(DEFAULT_BOLD_FONT, 24, BLACK))
-                        text = f"{len(g.pics)}张 ({size_text})"
-                        if g.mode != GalleryMode.Edit:
-                            text += f" [{g.mode.value}]"
+                        with HSplit().set_padding(0).set_sep(2).set_content_align('c').set_item_align('c'):
+                            TextBox(f"{name}", TextStyle(DEFAULT_BOLD_FONT, 24, BLACK))
+                            if g.mode != GalleryMode.Edit:
+                                TextBox(f"[{g.mode.value}]", TextStyle(DEFAULT_FONT, 20, BLACK))
+
+                        text = f"{len(g.pics)}张 {size_text}"
                         TextBox(text, TextStyle(DEFAULT_FONT, 20, BLACK))
                         TextBox(f"别名: {', '.join(g.aliases) if g.aliases else '无'}", TextStyle(DEFAULT_FONT, 12, (50, 50, 50)), use_real_line_count=True) \
                             .set_w(THUMBNAIL_SIZE[0] * 2).set_content_align('c')
