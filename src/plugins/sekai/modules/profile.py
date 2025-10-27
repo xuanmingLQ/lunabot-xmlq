@@ -1789,6 +1789,7 @@ upload_profile_bg = SekaiCmdHandler([
 upload_profile_bg.check_cdrate(cd).check_wblist(gbl).check_cdrate(profile_bg_upload_rate_limit)
 @upload_profile_bg.handle()
 async def _(ctx: SekaiHandlerContext):
+    return await ctx.asend_reply_msg("禁用个人背景")
     await ctx.block_region(key=str(ctx.user_id))
 
     args = ctx.get_args().strip()

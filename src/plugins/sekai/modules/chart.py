@@ -4,7 +4,7 @@ from ..handler import *
 from ..asset import *
 from ..draw import *
 from .music import *
-import pjsekai.scores
+import sekaiworld.scores
 
 # ======================= 处理逻辑 ======================= #
 
@@ -73,7 +73,7 @@ async def generate_music_chart(
 
     with TempFilePath('svg') as svg_path:
         def get_svg(style_sheet):
-            score = pjsekai.scores.Score.open(sus_path, encoding='UTF-8')
+            score = sekaiworld.scores.Score.open(sus_path, encoding='UTF-8')
 
             if random_clip_length_rate is not None:
                 clip_len = int(len(score.notes) * random_clip_length_rate)
@@ -86,7 +86,7 @@ async def generate_music_chart(
                 score._init_notes()
                 score._init_events()    
 
-            score.meta = pjsekai.scores.score.Meta(
+            score.meta = sekaiworld.scores.score.Meta(
                 title=f"[{ctx.region.upper()}-{music_id}] {music_title}",
                 artist=artist,
                 difficulty=difficulty,
@@ -95,7 +95,7 @@ async def generate_music_chart(
                 songid=str(music_id),
             )
             style_sheet = Path(f'{CHART_ASSET_DIR}/css/{style_sheet}.css').read_text()
-            drawing = pjsekai.scores.Drawing(
+            drawing = sekaiworld.scores.Drawing(
                 score=score,
                 style_sheet=style_sheet,
                 note_host=f'file://{note_host}',
