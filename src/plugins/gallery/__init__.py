@@ -1,6 +1,7 @@
 from ..utils import *
 from enum import Enum
 import zipfile
+import subprocess
 
 
 config = Config('gallery')
@@ -653,7 +654,7 @@ async def _(ctx: HandlerContext):
 
 
 gall_list = CmdHandler([
-    '/gall list', '/看所有',
+    '/gall list', '/看所有', "/看全部",
 ], logger)
 gall_list.check_cdrate(cd).check_wblist(gbl)
 @gall_list.handle()
@@ -907,4 +908,67 @@ async def _(ctx: HandlerContext):
             raise ReplyException(f'替换失败: 画廊中已存在相似图片(pid={e.pid})')
 
     await ctx.asend_reply_msg(f'成功替换图片pid={pid}')
-    
+
+
+gall_download_all = CmdHandler([
+    '/gall download link', '/下载图包', '/下载看', '/下载画廊',
+], logger, priority=101)
+gall_download_all.check_cdrate(cd).check_wblist(gbl)
+@gall_download_all.handle()
+async def _(ctx: HandlerContext):
+    return await ctx.asend_msg(config.get('sync.share_link'))
+
+
+# ======================= 定时任务 ======================= # 
+
+# 自动同步画廊图片到百度网盘
+for sync_time in config.get('sync.sync_times'):
+    @scheduler.scheduled_job("cron", hour=sync_time[0], minute=sync_time[1], second=sync_time[2])
+    async def sync_bypy():
+        if not config.get('sync.enable'):
+            return
+        remote_dir = config.get('sync.remote_dir')
+        local_dir = f"data/gallery/tmp/"
+        verbose = config.get('sync.verbose')
+
+        def sync(g: Gallery):
+            try:
+                logger.info(f'开始同步画廊\"{g.name}\"到百度网盘({remote_dir})')
+                for p in g.pics:
+                    if os.path.exists(p.path):
+                        _, ext = os.path.splitext(os.path.basename(p.path))
+                        dst = os.path.join(local_dir, g.name, f"{p.pid}{ext}")
+                        create_parent_folder(dst)
+                        shutil.copy2(p.path, dst)
+                
+                command = [
+                    'bypy',
+                    'syncup',
+                    os.path.join(local_dir, g.name),
+                    os.path.join(remote_dir, g.name),
+                    'True', '-v'
+                ]
+                process = subprocess.Popen(
+                    command, 
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.STDOUT, 
+                    text=True,
+                    encoding='utf-8'
+                )
+                while True:
+                    output = process.stdout.readline()
+                    if output == '' and process.poll() is not None:
+                        break
+                    if output and verbose:
+                        logger.info(f"[bypy] {output.strip()}")
+                if process.returncode != 0:
+                    raise Exception(f'bypy执行失败: code={process.returncode}')
+                
+                logger.info(f'画廊\"{g.name}\"同步完成')
+            except Exception as e:
+                logger.error(f'同步画廊\"{g.name}\"失败: {get_exc_desc(e)}')
+
+        for g in GalleryManager.get().galleries.values():
+            await run_in_pool(sync, g)
+            remove_folder(local_dir)
+        

@@ -989,6 +989,10 @@ def set_profile_bg_settings(
         create_parent_folder(image_path)
         image.save(image_path, **save_kwargs)
         settings.setdefault(uid, {})['vertical'] = target_w < target_h
+        if 'blur' not in settings.get(uid, {}):
+            settings.setdefault(uid, {})['blur'] = 1
+        if 'alpha' not in settings.get(uid, {}):
+            settings.setdefault(uid, {})['alpha'] = 50
 
     if blur is not None:
         blur = max(0, min(10, blur))
@@ -1891,10 +1895,35 @@ async def _(ctx: SekaiHandlerContext):
             vertical = True
         elif '横屏' in args:
             vertical = False
+
+        if '全模糊' in args:
+            blur = 10
+        elif '无模糊' in args or '不模糊' in args:
+            blur = 0
         elif '模糊' in args:
-            blur = int(args.replace('模糊', ''))
+            numarg = args.split('模糊')[1].strip()
+            num = ''
+            for c in numarg:
+                if c.isdigit():
+                    num += c
+                elif num:
+                    break
+            blur = int(num)
+
+        if '不透明' in args:
+            alpha = 255
+        elif '全透明' in args:
+            alpha = 0
         elif '透明' in args:
-            alpha = (100 - int(args.replace('透明', ''))) * 255 // 100
+            numarg = args.split('透明')[1].strip()
+            num = ''
+            for c in numarg:
+                if c.isdigit():
+                    num += c
+                elif num:
+                    break
+            alpha = (100 - int(num)) * 255 // 100
+
         else:
             raise Exception()
     except:
