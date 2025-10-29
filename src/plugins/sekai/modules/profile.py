@@ -6,7 +6,7 @@ from ..draw import *
 from .honor import compose_full_honor_image
 from .resbox import get_res_box_info, get_res_icon
 from ...utils.safety import *
-
+from ....api.game.user import get_suite
 
 SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
 profile_db = get_file_db(f"{SEKAI_PROFILE_DIR}/db.json", logger)
@@ -372,6 +372,7 @@ async def get_detailed_profile(
         if not ignore_hide and is_user_hide_suite(ctx, qid):
             logger.info(f"获取 {qid} 抓包数据失败: 用户已隐藏抓包信息")
             raise ReplyException(f"你已隐藏抓包信息，发送\"/{ctx.region}展示抓包\"可重新展示")
+        '''
         # 服务器不支持
         url = get_gameapi_config(ctx).suite_api_url
         if not url:
@@ -402,7 +403,24 @@ async def get_detailed_profile(
         except Exception as e:
             logger.info(f"获取 {qid} 抓包数据失败: {get_exc_desc(e)}")
             raise e
-            
+        '''
+        try:
+            res = await get_suite(ctx.region, uid)
+            if res['code'] != 0 :
+                raise Exception(res['msg'])
+            profile = res['data']
+        except HttpError as e:
+            logger.info(f"获取 {qid} 抓包数据失败: {get_exc_desc(e)}")
+            if e.status_code == 404:
+                msg = f"获取你的{get_region_name(ctx.region)}Suite抓包数据失败，发送\"/抓包\"指令可获取帮助\n"
+                # if local_err is not None: msg += f"[本地数据] {local_err}\n"
+                if e.message is not None: msg += f"[Haruki工具箱] {e.message}\n"
+                raise ReplyException(msg.strip())
+            else:
+                raise
+        except Exception as e:
+            logger.info(f"获取 {qid} 抓包数据失败: {get_exc_desc(e)}")
+            raise
         if not profile:
             logger.info(f"获取 {qid} 抓包数据失败: 找不到ID为 {uid} 的玩家")
             raise ReplyException(f"找不到ID为 {uid} 的玩家")
@@ -428,7 +446,6 @@ async def get_detailed_profile(
             return None, str(e)
         
     return profile, ""
-
 # 从玩家详细信息获取该玩家头像的PlayerAvatarInfo
 async def get_player_avatar_info_by_detailed_profile(ctx: SekaiHandlerContext, detail_profile: dict) -> PlayerAvatarInfo:
     deck_id = detail_profile['userGamedata']['deck']
@@ -1664,18 +1681,24 @@ async def _(ctx: SekaiHandlerContext):
         upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
         msg += f"{upload_time_text}\n"
 '''
+    res = await get_suite(region=ctx.region,user_id=get_player_bind_id(ctx, qid, check_bind=True),filter=['upload_time'])
+    ''' #DEBUGG
     (haruki_profile, haruki_err) = await get_detailed_profile(ctx, qid, raise_exc=False, mode="haruki", filter=['upload_time'])
-    
+    ''' 
     msg = f"{process_hide_uid(ctx, uid, keep=6)}({ctx.region.upper()}) Suite数据\n"
     
-    if haruki_err:
-        haruki_err = haruki_err[haruki_err.find(']')+1:].strip()
-        msg += f"[Haruki工具箱]\n获取失败: {haruki_err}\n"
+    if res['code']!=0:
+        msg+=f"获取失败：{res['msg']}\n"
+        # haruki_err = haruki_err[haruki_err.find(']')+1:].strip()
+        # msg += f"[Haruki工具箱]\n获取失败: {haruki_err}\n"
     else:
-        msg += "[Haruki工具箱]\n"
-        upload_time = datetime.fromtimestamp(haruki_profile if isinstance(haruki_profile, int) else haruki_profile['upload_time'])
-        upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
+        upload_time=datetime.fromtimestamp(res['data']['upload_time'])
+        upload_time_text = upload_time.strftime('%m-%d %H:%M:%S')+ f"({get_readable_datetime(upload_time, show_original_time=False)})"
         msg += f"{upload_time_text}\n"
+        # msg += "[Haruki工具箱]\n"
+        # upload_time = datetime.fromtimestamp(haruki_profile if isinstance(haruki_profile, int) else haruki_profile['upload_time'])
+        # upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
+        # msg += f"{upload_time_text}\n"
     mode = get_user_data_mode(ctx, ctx.user_id)
     msg += f"---\n"
     msg += f"该指令查询Suite数据，查询Mysekai数据请使用\"/{ctx.region}msd\"\n"
