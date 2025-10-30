@@ -199,9 +199,13 @@ def remove_by_predicate(lst: List[Any], predicate: Callable):
 
 # ============================ 异步和任务 ============================ #
 
-import uvloop
+try:
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+except:
+    print("uvloop not installed, using default asyncio event loop")
+
 from nonebot_plugin_apscheduler import scheduler
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 from concurrent.futures import ThreadPoolExecutor
 _default_pool_executor = ThreadPoolExecutor(max_workers=global_config.get('default_thread_pool_size'))
