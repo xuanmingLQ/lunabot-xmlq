@@ -11,8 +11,8 @@ from .profile import (
     get_detailed_profile, 
     get_detailed_profile_card, 
     get_card_full_thumbnail,
-    get_user_challenge_live_info,
 )
+from .education import get_user_challenge_live_info
 from .card import get_unit_by_card_id, has_after_training
 from .music import DIFF_NAMES, search_music, MusicSearchOptions, extract_diff, is_valid_music
 from .mysekai import MYSEKAI_REGIONS
