@@ -1060,9 +1060,17 @@ async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
         if release_time > datetime.now():
             continue
         episodes = await ctx.md.card_episodes.find_by("cardId", card['id'], mode='all')
+        
+        match card['cardRarityType']:
+            case "rarity_1": level = 20
+            case "rarity_2": level = 30
+            case "rarity_3": level = 50
+            case "rarity_4": level = 60
+            case "rarity_birthday": level = 60
+
         p["userCards"].append({
             "cardId": card['id'],
-            "level": 1,
+            "level": level,
             "skillLevel": 4,
             "masterRank": 5,
             "specialTrainingStatus": "done" if has_after_training(card) else "none",
