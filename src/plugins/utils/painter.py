@@ -367,7 +367,12 @@ class LinearGradient(Gradient):
         elif self.method == 'separate':
             vector_pixel_to_p1 = coords - pixel_p1
             vector_p2_to_p1 = pixel_p2 - pixel_p1
-            t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
+            if abs(vector_p2_to_p1[0]) < 1e-6:
+                t = vector_pixel_to_p1[:, :, 1] / vector_p2_to_p1[1]
+            elif abs(vector_p2_to_p1[1]) < 1e-6:
+                t = vector_pixel_to_p1[:, :, 0] / vector_p2_to_p1[0]
+            else:
+                t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
         t_clamped = np.clip(t, 0, 1) 
         colors = (1 - t_clamped[:, :, np.newaxis]) * self.c1 + t_clamped[:, :, np.newaxis] * self.c2
         colors = np.clip(colors, 0, 255).astype(np.uint8)

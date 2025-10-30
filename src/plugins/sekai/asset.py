@@ -486,6 +486,8 @@ class RegionMasterDataCollection:
         self.player_frames                                                  = RegionMasterDataWrapper(region, "playerFrames")
         self.player_frame_groups                                            = RegionMasterDataWrapper(region, "playerFrameGroups")
         self.limited_time_musics                                            = RegionMasterDataWrapper(region, "limitedTimeMusics")
+        self.bonds                                                          = RegionMasterDataWrapper(region, "bonds")
+        self.levels                                                         = RegionMasterDataWrapper(region, "levels")
 
     async def get(self, name: str):
         wrapper = RegionMasterDataWrapper(self._region, name)
@@ -518,6 +520,7 @@ MasterDataManager.set_index_keys("cardEpisodes", ['id', 'cardId'])
 MasterDataManager.set_index_keys("shopItems", ['id', 'resourceBoxId'])
 MasterDataManager.set_index_keys("areaItemLevels", ['areaItemId'])
 MasterDataManager.set_index_keys("limitedTimeMusics", ['id', 'musicId'])
+MasterDataManager.set_index_keys("levels", ['id', 'levelType'])
 
 
 # ================================ MasterData自定义下载 ================================ #

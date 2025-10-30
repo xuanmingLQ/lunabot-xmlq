@@ -10,7 +10,6 @@ from .profile import (
     get_player_avatar_info_by_detailed_profile,
 )
 
-
 @dataclass
 class AreaItemFilter:
     unit: str = None        # 某个团的世界里面的所有道具
@@ -60,7 +59,6 @@ async def get_user_challenge_live_info(ctx: SekaiHandlerContext, profile: dict) 
 # 合成挑战live详情图片
 async def compose_challenge_live_detail_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
     profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True)
-    avatar_info = await get_player_avatar_info_by_detailed_profile(ctx, profile)
 
     challenge_info = await get_user_challenge_live_info(ctx, profile)
 
@@ -97,11 +95,12 @@ async def compose_challenge_live_detail_image(ctx: SekaiHandlerContext, qid: int
                         with Frame().set_w(w1).set_content_align('c'):
                             ImageBox(get_chara_icon_by_chara_id(cid), size=(None, 40))
                         TextBox(rank, text_style).set_w(w2).set_content_align('c')
-                        TextBox(score, text_style).set_w(w3).set_content_align('c')
+                        TextBox(score, text_style.replace(font=DEFAULT_BOLD_FONT)).set_w(w3).set_content_align('c')
+
                         with Frame().set_w(w4).set_content_align('lt'):
                             x = challenge_info[cid][1]
                             progress = max(min(x / max_score, 1), 0)
-                            total_w, total_h, border = w4, 10, 2
+                            total_w, total_h, border = w4, 14, 2
                             progress_w = int((total_w - border * 2) * progress)
                             progress_h = total_h - border * 2
                             color = (255, 50, 50, 255)
@@ -113,8 +112,18 @@ async def compose_challenge_live_detail_image(ctx: SekaiHandlerContext, qid: int
                             if progress > 0:
                                 Spacer(w=total_w, h=total_h).set_bg(RoundRectBg(fill=(100, 100, 100, 255), radius=total_h//2))
                                 Spacer(w=progress_w, h=progress_h).set_bg(RoundRectBg(fill=color, radius=(total_h-border)//2)).set_offset((border, border))
+
+                                def draw_line(line_x: int):
+                                    p = line_x / max_score
+                                    if p <= 0 or p >= 1: return
+                                    lx = int((total_w - border * 2) * p)
+                                    color = (100, 100, 100, 255) if line_x < x else (150, 150, 150, 255)
+                                    Spacer(w=1, h=total_h//2-1).set_bg(FillBg(color)).set_offset((border + lx - 1, total_h//2))
+                                for line_x in range(0, max_score, 50_0000):
+                                    draw_line(line_x)
                             else:
                                 Spacer(w=total_w, h=total_h).set_bg(RoundRectBg(fill=(100, 100, 100, 100), radius=total_h//2))
+
                         TextBox(jewel, text_style).set_w(w5).set_content_align('c')
                         TextBox(fragment, text_style).set_w(w6).set_content_align('c')
 
@@ -186,7 +195,6 @@ async def get_user_power_bonus(ctx: SekaiHandlerContext, profile: dict) -> Dict[
 # 合成加成详情图片
 async def compose_power_bonus_detail_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
     profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True)
-    avatar_info = await get_player_avatar_info_by_detailed_profile(ctx, profile)
 
     bonus = await get_user_power_bonus(ctx, profile)
     chara_bonus = bonus['chara']
@@ -434,13 +442,130 @@ async def compose_area_item_upgrade_materials_image(ctx: SekaiHandlerContext, qi
         cache_key = f"{ctx.region}_area_item_{filter.unit}_{filter.cid}_{filter.attr}_{filter.flower}_{filter.tree}"
     return await canvas.get_img(scale=0.75, cache_key=cache_key)
 
+# 合成羁绊等级图片
+async def compose_bonds_image(ctx: SekaiHandlerContext, qid: int, cid: int) -> Image.Image:
+    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True)
+
+    user_bonds = profile.get('userBonds')
+    assert_and_reply(user_bonds, "你的Suite数据来源没有提供userBonds数据")
+
+    def extract_cid_from_bgid(bgid: int) -> tuple[int, int]:
+        return bgid // 100 % 100, bgid % 100
+
+    # 收集羁绊等级需要的经验信息
+    bond_level_exps: dict[int, int] = {}
+    max_level = 0
+    for item in await ctx.md.levels.find_by('levelType', 'bonds', mode='all'):
+        lv, exp = item['level'], item['totalExp']
+        bond_level_exps[lv] = exp
+        max_level = max(max_level, lv)
+    
+    # 收集cid所有可能的羁绊角色
+    bonds: dict[int, dict] = {}
+    for item in await ctx.md.bonds.get():
+        c1, c2 = extract_cid_from_bgid(item['groupId'])
+        if c1 == cid or c2 == cid:
+            if c2 == cid:
+                c1, c2 = c2, c1
+            bonds[c2] = {}
+
+    # 收集用户的羁绊等级
+    for item in user_bonds:
+        c1, c2 = extract_cid_from_bgid(item['bondsGroupId'])
+        if c1 == cid or c2 == cid:
+            if c2 == cid:
+                c1, c2 = c2, c1
+            bonds[c2] = item
+        
+    header_h, row_h = 56, 48
+    header_style = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(25, 25, 25, 255))
+    text_style = TextStyle(font=DEFAULT_FONT, size=20, color=(50, 50, 50, 255))
+    w1, w2, w3, w4 = 100, 80, 350, 150
+
+    # 绘图
+    async def get_chara_color(c: int):
+        return color_code_to_rgb((await ctx.md.game_character_units.find_by_id(c))['colorCode'])
+
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
+        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
+            await get_detailed_profile_card(ctx, profile, err_msg)
+            with VSplit().set_content_align('l').set_item_align('l').set_sep(8).set_padding(16).set_bg(roundrect_bg()):
+
+                # 标题
+                with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_h(header_h).set_padding(4).set_bg(roundrect_bg()):
+                    TextBox("角色", header_style).set_w(w1).set_content_align('c')
+                    TextBox("等级", header_style).set_w(w2).set_content_align('c')
+                    TextBox(f"进度(上限{max_level}级)", header_style).set_w(w3).set_content_align('c')
+                    TextBox("升级经验", header_style).set_w(w4).set_content_align('c')
+
+                color1 = await get_chara_color(cid)
+
+                # 项目
+                index = 0
+                for c2 in range(1, 27):
+                    if c2 == cid: continue 
+                    bg_color = (255, 255, 255, 150) if index % 2 == 0 else (255, 255, 255, 100)
+                    index += 1
+
+                    has_bond = c2 in bonds
+                    
+                    level = 0
+                    if has_bond and bonds[c2]:
+                        level = bonds[c2]['rank']
+
+                    level_text, need_exp_text = "-", "-"
+                    if has_bond:
+                        if level:
+                            level_text = str(level)
+                        exp = bonds[c2]['exp'] if bonds[c2] else 0
+                        if exp:
+                            next_level = level + 1
+                            need_exp_text = str(bond_level_exps[next_level] - exp) if next_level <= max_level else "MAX"
+
+                    color2 = await get_chara_color(c2)
+
+                    with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_h(row_h).set_padding(4).set_bg(roundrect_bg(fill=bg_color)):
+                        with Frame().set_w(w1).set_content_align('c'):
+                            ImageBox(get_chara_icon_by_chara_id(cid),   size=(None, 40)).set_offset((-13, 0))
+                            ImageBox(get_chara_icon_by_chara_id(c2),    size=(None, 40)).set_offset((13, 0))
+
+                        TextBox(level_text, text_style.replace(font=DEFAULT_BOLD_FONT)).set_w(w2).set_content_align('c')
+
+                        with Frame().set_w(w3).set_content_align('lt'):
+                            x = level
+                            progress = max(min(x / max_level, 1), 0)
+                            total_w, total_h, border = w3, 14, 2
+                            progress_w = int((total_w - border * 2) * progress)
+                            progress_h = total_h - border * 2
+                            color = LinearGradient(c1=color1, c2=color2, p1=(0, 0.5), p2=(1, 0.5))
+                            if has_bond and progress > 0:
+                                Spacer(w=total_w, h=total_h).set_bg(RoundRectBg(fill=(100, 100, 100, 255), radius=total_h//2))
+                                Spacer(w=progress_w, h=progress_h).set_bg(RoundRectBg(fill=color, radius=(total_h-border)//2)).set_offset((border, border))
+
+                                def draw_line(line_x: int):
+                                    p = line_x / max_level
+                                    if p <= 0 or p >= 1: return
+                                    lx = int((total_w - border * 2) * p)
+                                    color = (100, 100, 100, 255) if line_x < x else (150, 150, 150, 255)
+                                    Spacer(w=1, h=total_h//2-1).set_bg(FillBg(color)).set_offset((border + lx - 1, total_h//2))
+                                for line_x in range(0, max_level, 10):
+                                    draw_line(line_x)
+                            else:
+                                Spacer(w=total_w, h=total_h).set_bg(RoundRectBg(fill=(100, 100, 100, 100), radius=total_h//2))
+
+                        TextBox(need_exp_text, text_style).set_w(w4).set_content_align('c')
+
+    add_watermark(canvas)
+    return await canvas.get_img()
+
+
 
 # ======================= 指令处理 ======================= #
 
 # 挑战信息
 pjsk_challenge_info = SekaiCmdHandler([
     "/pjsk challenge info", "/pjsk_challenge_info",
-    "/挑战信息", "/挑战详情", "/挑战进度", "/挑战一览",
+    "/挑战信息", "/挑战详情", "/挑战进度", "/挑战一览", 
 ])
 pjsk_challenge_info.check_cdrate(cd).check_wblist(gbl)
 @pjsk_challenge_info.handle()
@@ -454,7 +579,7 @@ async def _(ctx: SekaiHandlerContext):
 # 加成信息
 pjsk_power_bonus_info = SekaiCmdHandler([
     "/pjsk power bonus info", "/pjsk_power_bonus_info",
-    "/加成信息", "/加成详情", "/加成进度", "/加成一览",
+    "/加成信息", "/加成详情", "/加成进度", "/加成一览", "/角色加成",
 ])
 pjsk_power_bonus_info.check_cdrate(cd).check_wblist(gbl)
 @pjsk_power_bonus_info.handle()
@@ -518,6 +643,25 @@ async def _(ctx: SekaiHandlerContext):
     )
     return await ctx.asend_reply_msg(await get_image_cq(
         await compose_area_item_upgrade_materials_image(ctx, qid, filter),
+        low_quality=True,
+    ))
+
+
+# 查询羁绊等级
+pjsk_bonds = SekaiCmdHandler([
+    "/pjsk bonds", "/pjsk bond",
+    "/羁绊", "/羁绊等级", "/角色羁绊", "/羁绊信息", 
+    "/牵绊等级", "/牵绊", "/角色牵绊", "/牵绊信息",
+])
+pjsk_bonds.check_cdrate(cd).check_wblist(gbl)
+@pjsk_bonds.handle()
+async def _(ctx: SekaiHandlerContext):
+    args = ctx.get_args().strip()
+    cid = get_cid_by_nickname(args)
+    assert_and_reply(cid is not None, f"请指定其中一个角色名称")
+
+    return await ctx.asend_reply_msg(await get_image_cq(
+        await compose_bonds_image(ctx, ctx.user_id, cid),
         low_quality=True,
     ))
 

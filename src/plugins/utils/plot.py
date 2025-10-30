@@ -722,6 +722,24 @@ class TextStyle:
     shadow_offset: Tuple[int, int] | int = 1
     shadow_color: Tuple[int, int, int, int] = SHADOW
 
+    def replace(
+        self,
+        font: str = None,
+        size: int = None,
+        color: Tuple[int, int, int, int] = None,
+        use_shadow: bool = None,
+        shadow_offset: Tuple[int, int] | int = None,
+        shadow_color: Tuple[int, int, int, int] = None,
+    ):
+        return TextStyle(
+            font = font if font is not None else self.font,
+            size = size if size is not None else self.size,
+            color = color if color is not None else self.color,
+            use_shadow = use_shadow if use_shadow is not None else self.use_shadow,
+            shadow_offset = shadow_offset if shadow_offset is not None else self.shadow_offset,
+            shadow_color = shadow_color if shadow_color is not None else self.shadow_color,
+        )
+
 
 class TextBox(Widget):
     def __init__(self, text: str = '', style: TextStyle = None, line_count=None, line_sep=2, wrap=True, overflow='shrink', use_real_line_count=False):
