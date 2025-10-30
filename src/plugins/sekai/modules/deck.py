@@ -293,7 +293,7 @@ def extract_fixed_cards_and_characters(args: str, options: DeckRecommendOptions)
     return args.strip()
 
 # 从args中提取卡牌设置
-def extract_card_config(args: str, options: DeckRecommendOptions) -> str:
+def extract_card_config(args: str, options: DeckRecommendOptions, default_nochange=False) -> str:
     def get_prefix_digit(s: str) -> Optional[int]:
         d = ""
         for c in s:
@@ -342,11 +342,18 @@ def extract_card_config(args: str, options: DeckRecommendOptions) -> str:
                 break
         return args.strip()
 
-    options.rarity_1_config = DEFAULT_CARD_CONFIG_12
-    options.rarity_2_config = DEFAULT_CARD_CONFIG_12
-    options.rarity_3_config = DEFAULT_CARD_CONFIG_34bd
-    options.rarity_4_config = DEFAULT_CARD_CONFIG_34bd
-    options.rarity_birthday_config = DEFAULT_CARD_CONFIG_34bd
+    if default_nochange:
+        options.rarity_1_config = NOCHANGE_CARD_CONFIG
+        options.rarity_2_config = NOCHANGE_CARD_CONFIG
+        options.rarity_3_config = NOCHANGE_CARD_CONFIG
+        options.rarity_4_config = NOCHANGE_CARD_CONFIG
+        options.rarity_birthday_config = NOCHANGE_CARD_CONFIG
+    else:
+        options.rarity_1_config = DEFAULT_CARD_CONFIG_12
+        options.rarity_2_config = DEFAULT_CARD_CONFIG_12
+        options.rarity_3_config = DEFAULT_CARD_CONFIG_34bd
+        options.rarity_4_config = DEFAULT_CARD_CONFIG_34bd
+        options.rarity_birthday_config = DEFAULT_CARD_CONFIG_34bd
 
     segs = args.split()
 
@@ -767,12 +774,8 @@ async def extract_mysekai_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.timeout_ms = int(RECOMMEND_TIMEOUT_CFG.get() * 1000)
     options.live_type = "mysekai"
 
-    # 卡牌设置
-    options.rarity_1_config = NOCHANGE_CARD_CONFIG
-    options.rarity_2_config = NOCHANGE_CARD_CONFIG
-    options.rarity_3_config = NOCHANGE_CARD_CONFIG
-    options.rarity_4_config = NOCHANGE_CARD_CONFIG
-    options.rarity_birthday_config = NOCHANGE_CARD_CONFIG
+    args = extract_fixed_cards_and_characters(args, options)
+    args = extract_card_config(args, options, default_nochange=True)
 
     # 指定活动团和颜色
     options.event_unit, args = extract_unit(args, default=None)
@@ -780,7 +783,7 @@ async def extract_mysekai_options(ctx: SekaiHandlerContext, args: str) -> Dict:
 
     # 活动id
     if not options.event_unit and not options.event_attr:
-        event, wl_cid, args = await extract_target_event(ctx, args, need_event_prefix=True)
+        event, wl_cid, args = await extract_target_event(ctx, args, need_event_prefix=False)
         options.event_id = event['id']
         options.world_bloom_character_id = wl_cid
     elif options.event_unit or options.event_attr:
