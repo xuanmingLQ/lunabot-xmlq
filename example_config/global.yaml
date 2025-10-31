@@ -57,7 +57,8 @@ painter:
         - data/utils/assets/random_triangle_bg_images/halloween/1.png
         - data/utils/assets/random_triangle_bg_images/halloween/2.png
         - data/utils/assets/random_triangle_bg_images/halloween/3.png
-      image_weights: [1, 2, 1]
+        - data/utils/assets/random_triangle_bg_images/halloween/4.png
+      image_weights: [2, 5, 1, 2]
       image_colors:
         - [255, 255, 255]
       image_color_weights: [1]

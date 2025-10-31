@@ -1207,13 +1207,13 @@ class Painter:
             r, g, b = colorsys.hls_to_rgb(h, l * ml, s * ms)
             return [int(255 * c) for c in (r, g, b)] + [a]
 
-        ofs, s = 0.025, 4
+        ofs, s = 0.02, 4
         bg = LinearGradient(
-            c1=h2c(mh, 0.5, 1.0), c2=h2c(mh + ofs, 0.9, 0.5),
+            c1=h2c(mh, 0.6, 0.7), c2=h2c(mh + ofs, 2.25, 0.5),
             p1=(0, 1), p2=(1, 0)
         ).get_img((w // s, h // s))
         bg.alpha_composite(LinearGradient(
-            c1=h2c(mh, 0.9, 0.7, 100), c2=h2c(mh - ofs, 0.5, 0.5, 100),
+            c1=h2c(mh, 1.0, 0.7, 100), c2=h2c(mh - ofs, 0.5, 0.5, 100),
             p1=(0, 0), p2=(1, 1)
         ).get_img((w // s, h // s)))
         bg.alpha_composite(Image.new("RGBA", (w // s, h // s), (255, 255, 255, 100)))
