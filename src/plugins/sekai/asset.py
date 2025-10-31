@@ -488,6 +488,7 @@ class RegionMasterDataCollection:
         self.limited_time_musics                                            = RegionMasterDataWrapper(region, "limitedTimeMusics")
         self.bonds                                                          = RegionMasterDataWrapper(region, "bonds")
         self.levels                                                         = RegionMasterDataWrapper(region, "levels")
+        self.character_mission_v2_parameter_groups                          = RegionMasterDataWrapper(region, "characterMissionV2ParameterGroups")
 
     async def get(self, name: str):
         wrapper = RegionMasterDataWrapper(self._region, name)

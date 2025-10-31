@@ -558,6 +558,113 @@ async def compose_bonds_image(ctx: SekaiHandlerContext, qid: int, cid: int) -> I
     add_watermark(canvas)
     return await canvas.get_img()
 
+# 合成队长次数图片
+async def compose_leader_count_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
+    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True)
+
+    ucms = profile.get('userCharacterMissionV2s')
+    ucm_ss = profile.get('userCharacterMissionV2Statuses')
+    assert_and_reply(ucms, "你的Suite数据来源没有提供userCharacterMissionV2s数据")
+    assert_and_reply(ucm_ss, "你的Suite数据来源没有提供userCharacterMissionV2Statuses数据")
+
+    # 获取游玩次数上限和ex每次次数
+    max_playcount = 0
+    ex_seq_pc_list: list[tuple[int, int]] = []
+    for item in await ctx.md.character_mission_v2_parameter_groups.find_by('id', 1, mode='all'):
+        max_playcount = max(max_playcount, item['requirement'])
+    for item in await ctx.md.character_mission_v2_parameter_groups.find_by('id', 101, mode='all'):
+        ex_seq_pc_list.append((item['seq'], item['requirement']))
+    ex_seq_pc_list.append((100000, 0))
+    ex_seq_pc_list.sort()
+    
+    # 收集用户游玩次数
+    playcounts: dict[int, int] = {}
+    playcounts_ex: dict[int, int] = {}
+    ex_level: dict[int, int] = {}
+    for item in find_by(ucms, 'characterMissionType', 'play_live', mode='all'):
+        playcounts[item['characterId']] = item['progress']
+    for item in find_by(ucms, 'characterMissionType', 'play_live_ex', mode='all'):
+        playcounts_ex[item['characterId']] = item['progress']
+        ex_level[item['characterId']] = 0
+    for item in find_by(ucm_ss, 'parameterGroupId', 101, mode='all'):
+        cid, seq = item['characterId'], item['seq']
+        ex_level[cid] = max(ex_level.get(cid, 0), seq)
+        for i in range(len(ex_seq_pc_list)):
+            if ex_seq_pc_list[i+1][0] > seq:
+                playcounts_ex[cid] += ex_seq_pc_list[i][1]
+                break
+        
+    header_h, row_h = 56, 48
+    header_style = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(25, 25, 25, 255))
+    text_style = TextStyle(font=DEFAULT_FONT, size=20, color=(50, 50, 50, 255))
+    w1, w2, w3, w4, w5 = 80, 100, 100, 100, 350
+
+    # 绘图
+    async def get_chara_color(c: int):
+        return color_code_to_rgb((await ctx.md.game_character_units.find_by_id(c))['colorCode'])
+
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
+        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
+            await get_detailed_profile_card(ctx, profile, err_msg)
+            with VSplit().set_content_align('l').set_item_align('l').set_sep(8).set_padding(16).set_bg(roundrect_bg()):
+
+                # 标题
+                with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_h(header_h).set_padding(4).set_bg(roundrect_bg()):
+                    TextBox("角色", header_style).set_w(w1).set_content_align('c')
+                    TextBox("队长次数", header_style).set_w(w2).set_content_align('c')
+                    TextBox("EX等级", header_style).set_w(w3).set_content_align('c')
+                    TextBox("EX次数", header_style).set_w(w4).set_content_align('c')
+                    TextBox(f"进度(上限{max_playcount})", header_style).set_w(w5).set_content_align('c')
+
+                # 项目
+                index = 0
+                for cid in range(1, 27):
+                    bg_color = (255, 255, 255, 150) if index % 2 == 0 else (255, 255, 255, 100)
+                    index += 1
+
+                    pc = 0 if cid not in playcounts else playcounts[cid]
+                    pc_text = "-" if cid not in playcounts else str(playcounts[cid])
+                    pc_ex_text = "-" if cid not in playcounts_ex else str(playcounts_ex[cid])
+                    ex_level_text = "-" if cid not in ex_level else f"x{ex_level[cid]}"
+
+                    with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_h(row_h).set_padding(4).set_bg(roundrect_bg(fill=bg_color)):
+                        with Frame().set_w(w1).set_content_align('c'):
+                            ImageBox(get_chara_icon_by_chara_id(cid), size=(None, 40))
+
+                        TextBox(pc_text, text_style.replace(font=DEFAULT_BOLD_FONT)).set_w(w2).set_content_align('c')
+                        TextBox(ex_level_text, text_style.replace(font=DEFAULT_BOLD_FONT)).set_w(w3).set_content_align('c')
+                        TextBox(pc_ex_text, text_style.replace(font=DEFAULT_BOLD_FONT)).set_w(w4).set_content_align('c')
+
+                        with Frame().set_w(w5).set_content_align('lt'):
+                            x = pc
+                            progress = max(min(x / max_playcount, 1), 0)
+                            total_w, total_h, border = w5, 14, 2
+                            progress_w = int((total_w - border * 2) * progress)
+                            progress_h = total_h - border * 2
+                            color = (255, 50, 50, 255)
+                            if x > 50000:    color = (100, 255, 100, 255)
+                            elif x > 40000:  color = (255, 255, 100, 255)
+                            elif x > 30000:  color = (255, 200, 100, 255)
+                            elif x > 20000:  color = (255, 150, 100, 255)
+                            elif x > 10000:  color = (255, 100, 100, 255)
+                            if progress > 0:
+                                Spacer(w=total_w, h=total_h).set_bg(RoundRectBg(fill=(100, 100, 100, 255), radius=total_h//2))
+                                Spacer(w=progress_w, h=progress_h).set_bg(RoundRectBg(fill=color, radius=(total_h-border)//2)).set_offset((border, border))
+
+                                def draw_line(line_x: int):
+                                    p = line_x / max_playcount
+                                    if p <= 0 or p >= 1: return
+                                    lx = int((total_w - border * 2) * p)
+                                    color = (100, 100, 100, 255) if line_x < x else (150, 150, 150, 255)
+                                    Spacer(w=1, h=total_h//2-1).set_bg(FillBg(color)).set_offset((border + lx - 1, total_h//2))
+                                for line_x in range(0, max_playcount, 10000):
+                                    draw_line(line_x)
+                            else:
+                                Spacer(w=total_w, h=total_h).set_bg(RoundRectBg(fill=(100, 100, 100, 100), radius=total_h//2))
+
+    add_watermark(canvas)
+    return await canvas.get_img()
+
 
 
 # ======================= 指令处理 ======================= #
@@ -662,6 +769,20 @@ async def _(ctx: SekaiHandlerContext):
 
     return await ctx.asend_reply_msg(await get_image_cq(
         await compose_bonds_image(ctx, ctx.user_id, cid),
+        low_quality=True,
+    ))
+
+
+# 查询队长次数
+pjsk_leader_count = SekaiCmdHandler([
+    "/pjsk leader count",
+    "/队长次数", "/角色次数", "/队长游玩次数", "/角色游玩次数",
+])
+pjsk_leader_count.check_cdrate(cd).check_wblist(gbl)
+@pjsk_leader_count.handle()
+async def _(ctx: SekaiHandlerContext):
+    return await ctx.asend_reply_msg(await get_image_cq(
+        await compose_leader_count_image(ctx, ctx.user_id),
         low_quality=True,
     ))
 
