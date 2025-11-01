@@ -367,7 +367,12 @@ class LinearGradient(Gradient):
         elif self.method == 'separate':
             vector_pixel_to_p1 = coords - pixel_p1
             vector_p2_to_p1 = pixel_p2 - pixel_p1
-            t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
+            if abs(vector_p2_to_p1[0]) < 1e-6:
+                t = vector_pixel_to_p1[:, :, 1] / vector_p2_to_p1[1]
+            elif abs(vector_p2_to_p1[1]) < 1e-6:
+                t = vector_pixel_to_p1[:, :, 0] / vector_p2_to_p1[0]
+            else:
+                t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
         t_clamped = np.clip(t, 0, 1) 
         colors = (1 - t_clamped[:, :, np.newaxis]) * self.c1 + t_clamped[:, :, np.newaxis] * self.c2
         colors = np.clip(colors, 0, 255).astype(np.uint8)
@@ -406,6 +411,20 @@ ADAPTIVE_SHADOW = AdaptiveTextColor(
 
 
 # =========================== 绘图类 =========================== #
+
+
+@dataclass
+class RandomTriangleBgPreset:
+    image_paths: list[str]
+    image_weights: list[float]
+    image_colors: list[Color]
+    image_color_weights: list[float]
+    scale: float = 1.0
+    dense: float = 1.0
+    time_colors: list[tuple[int, Color]] | None = None
+    main_hsl: list[int] | None = None
+    periods: list[tuple[str, str]] | None = None
+
 
 @dataclass
 class PainterOperation:
@@ -715,12 +734,11 @@ class Painter:
 
     def draw_random_triangle_bg(
         self, 
-        use_time_color: bool, 
-        main_hue: float, 
+        main_hue: float | None, 
         size_fixed_rate: float,
         exclude_on_hash: bool = False
     ):
-        return self.add_operation("_impl_draw_random_triangle_bg", exclude_on_hash, (use_time_color, main_hue, size_fixed_rate))
+        return self.add_operation("_impl_draw_random_triangle_bg", exclude_on_hash, (main_hue, size_fixed_rate))
 
 
     def _impl_text(
@@ -1114,9 +1132,11 @@ class Painter:
         self.img.alpha_composite(overlay, (draw_pos[0], draw_pos[1]))
         return self
 
-    def _impl_draw_random_triangle_bg(self, use_time_color: bool, main_hue: float, size_fixed_rate: float):
-        timecolors = global_config.get('painter.random_triangle_bg_timecolors')
-        def get_timecolor(t: datetime):
+    def _impl_draw_random_triangle_bg(self, main_hue: float | None, size_fixed_rate: float):
+        def get_timecolor(timecolors: list[tuple[int, Color]], t: datetime):
+            """
+            从时间颜色列表中获取当前时间的颜色
+            """
             if t.hour < timecolors[0][0]:
                 return timecolors[0][1:]
             elif t.hour >= timecolors[-1][0]:
@@ -1136,54 +1156,82 @@ class Painter:
                     ) 
                 
         now = datetime.now()
-        # now = datetime.strptime("2024-06-21 23:00", "%Y-%m-%d %H:%M")
 
-        w, h = self.size
-        if use_time_color:
-            mh, ms, ml = get_timecolor(now)
-        else:
+        # 根据时间段选择预设
+        presets = global_config.get('painter.random_triangle_bg_presets', [])
+        preset = None
+        for p in presets:
+            p = RandomTriangleBgPreset(**p)
+            assert p.main_hsl or p.time_colors, "Preset must have main_hls or time_colors"
+            if not p.periods:
+                preset = p
+                break
+            for start_s, end_s in p.periods:
+                start = datetime.strptime(start_s, "%m-%d %H:%M").replace(year=now.year)
+                end = datetime.strptime(end_s, "%m-%d %H:%M").replace(year=now.year)
+                if start <= now <= end:
+                    preset = p
+                    break
+            if preset:
+                break
+
+        assert main_hue or preset, "No valid random triangle bg preset found"
+
+        # 加载预设图片
+        images, image_weights = [], []
+        for i, image_path in enumerate(preset.image_paths):
+            try:
+                img = Image.open(image_path).convert("RGBA")
+                images.append(img)
+                image_weights.append(preset.image_weights[i])
+            except:
+                print(f"Warning: failed to load random triangle bg image: {image_path}")
+        
+        # 确定主色调
+        if main_hue is not None:
+            # 如果指定颜色则忽略timecolor和preset
             mh = main_hue
             ms = 1.0
             ml = 1.0
-
+        elif preset.time_colors:
+            mh, ms, ml = get_timecolor(preset.time_colors, now)
+        else:
+            mh = preset.main_hsl[0]
+            ms = preset.main_hsl[1]
+            ml = preset.main_hsl[2]
+        
+        w, h = self.size
+        
         def h2c(h, s, l, a=255):
             h = (h + 1.0) % 1.0 
             r, g, b = colorsys.hls_to_rgb(h, l * ml, s * ms)
             return [int(255 * c) for c in (r, g, b)] + [a]
 
-        ofs, s = 0.025, 4
+        ofs, s = 0.02, 4
         bg = LinearGradient(
-            c1=h2c(mh, 0.5, 1.0), c2=h2c(mh + ofs, 0.9, 0.5),
+            c1=h2c(mh, 0.6, 0.7), c2=h2c(mh + ofs, 2.25, 0.5),
             p1=(0, 1), p2=(1, 0)
         ).get_img((w // s, h // s))
         bg.alpha_composite(LinearGradient(
-            c1=h2c(mh, 0.9, 0.7, 100), c2=h2c(mh - ofs, 0.5, 0.5, 100),
+            c1=h2c(mh, 1.0, 0.7, 100), c2=h2c(mh - ofs, 0.5, 0.5, 100),
             p1=(0, 0), p2=(1, 1)
         ).get_img((w // s, h // s)))
         bg.alpha_composite(Image.new("RGBA", (w // s, h // s), (255, 255, 255, 100)))
         bg = bg.resize((w, h), Image.Resampling.LANCZOS)
 
-        preset_tris = [
-            Image.open(f"data/utils/assets/tri{i+1}.png").convert("RGBA").resize((128, 128), Image.Resampling.BILINEAR)
-            for i in range(3)
-        ]
-        preset_colors = [
-            # (255, 255, 255),
-            (255, 189, 246),
-            (183, 246, 255),
-            (255, 247, 146),
-        ]
-
-        def draw_tri(x, y, rot, size, color, type):
-            img = preset_tris[type]
+        def draw_tri(x, y, rot, size, alpha):
+            if not images: return
+            img = random.choices(images, weights=image_weights, k=1)[0]
+            color = random.choices(preset.image_colors, weights=preset.image_color_weights, k=1)[0]
+            color = (*color, alpha) if len(color) == 3 else (*color[:3], color[3] * alpha // 255)
             img = img.resize((size, size), Image.Resampling.BILINEAR)
             img = img.rotate(rot, expand=True)
             img = ImageChops.multiply(img, Image.new("RGBA", img.size, color))
             bg.alpha_composite(img, (int(x) - img.width // 2, int(y) - img.height // 2))
 
         factor = min(w, h) / 2048 * 1.5
-        size_factor = (1.0 + (factor - 1.0) * (1.0 - size_fixed_rate))
-        dense_factor = 1.0 + (factor * factor - 1.0) * size_fixed_rate
+        size_factor = (1.0 + (factor - 1.0) * (1.0 - size_fixed_rate)) * preset.scale
+        dense_factor = (1.0 + (factor * factor - 1.0) * size_fixed_rate) * preset.dense
 
         def rand_tri(num, sz):
             for i in range(num):
@@ -1206,10 +1254,7 @@ class Painter:
                     alpha = 255
                 if alpha <= 10:
                     continue
-                color = random.choice(preset_colors) 
-                color = (*color, alpha)
-                type = random.choice([1, 1, 1, 1, 1, 1, 0, 2])
-                draw_tri(x, y, rot, size, color, type)
+                draw_tri(x, y, rot, size, alpha)
 
         rand_tri(int(20 * dense_factor), (128 * size_factor, 16 * size_factor))
         rand_tri(int(200 * dense_factor), (64 * size_factor, 16 * size_factor))

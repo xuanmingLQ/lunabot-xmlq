@@ -47,8 +47,11 @@ class Config:
             return
         mtime = int(os.path.getmtime(self.path))
         if self.name not in Config._data or Config._data[self.name].mtime != mtime:
-            with open(self.path, 'r') as f:
-                data = yaml.safe_load(f)
+            try:
+                with open(self.path, 'r') as f:
+                    data = yaml.safe_load(f)
+            except Exception as e:
+                print(f"[WARNING] 读取配置文件 {self.path} 失败: {e}")
             Config._data[self.name] = ConfigData(mtime=mtime, data=data)
 
     def get_all(self) -> dict:

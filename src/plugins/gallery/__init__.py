@@ -1,6 +1,7 @@
 from ..utils import *
 from enum import Enum
 import zipfile
+import subprocess
 
 
 config = Config('gallery')
@@ -552,6 +553,7 @@ async def _(ctx: HandlerContext):
     except: 
         pics = None
         num = 1
+        args = args.replace('*', 'x').replace('×', 'x')
         if 'x' in args:
             args, num_str = args.rsplit('x', 1)
             try: num = int(num_str)
@@ -652,7 +654,7 @@ async def _(ctx: HandlerContext):
 
 
 gall_list = CmdHandler([
-    '/gall list', '/看所有',
+    '/gall list', '/看所有', "/看全部",
 ], logger)
 gall_list.check_cdrate(cd).check_wblist(gbl)
 @gall_list.handle()
@@ -677,10 +679,14 @@ async def _(ctx: HandlerContext):
                         if os.path.isfile(p):
                             total_size += os.path.getsize(p)
                     total_size = total_size / (1024 * 1024)
-                    if total_size < 1024:
-                        size_text = f"{total_size:.1f}M"
+                    if total_size == 0:
+                        size_text = ""
+                    elif total_size < 1:
+                        size_text = "(<1M)"
+                    elif total_size < 1024:
+                        size_text = f"({total_size:.0f}M)"
                     else:
-                        size_text = f"{total_size/1024:.1f}G"
+                        size_text = f"({total_size/1024:.0f}G)"
 
                     with VSplit().set_padding(0).set_sep(4).set_content_align('c').set_item_align('c'):
                         if cover:
@@ -689,10 +695,12 @@ async def _(ctx: HandlerContext):
                                      size=(THUMBNAIL_SIZE[0]*2, THUMBNAIL_SIZE[1]*2), image_size_mode='fit').set_content_align('c')
                         else:
                             Spacer(w=THUMBNAIL_SIZE[0]*2, h=THUMBNAIL_SIZE[1]*2)
-                        TextBox(f"{name}", TextStyle(DEFAULT_BOLD_FONT, 24, BLACK))
-                        text = f"{len(g.pics)}张 ({size_text})"
-                        if g.mode != GalleryMode.Edit:
-                            text += f" [{g.mode.value}]"
+                        with HSplit().set_padding(0).set_sep(2).set_content_align('c').set_item_align('c'):
+                            TextBox(f"{name}", TextStyle(DEFAULT_BOLD_FONT, 24, BLACK))
+                            if g.mode != GalleryMode.Edit:
+                                TextBox(f"[{g.mode.value}]", TextStyle(DEFAULT_FONT, 20, BLACK))
+
+                        text = f"{len(g.pics)}张 {size_text}"
                         TextBox(text, TextStyle(DEFAULT_FONT, 20, BLACK))
                         TextBox(f"别名: {', '.join(g.aliases) if g.aliases else '无'}", TextStyle(DEFAULT_FONT, 12, (50, 50, 50)), use_real_line_count=True) \
                             .set_w(THUMBNAIL_SIZE[0] * 2).set_content_align('c')
@@ -900,4 +908,67 @@ async def _(ctx: HandlerContext):
             raise ReplyException(f'替换失败: 画廊中已存在相似图片(pid={e.pid})')
 
     await ctx.asend_reply_msg(f'成功替换图片pid={pid}')
-    
+
+
+gall_download_all = CmdHandler([
+    '/gall download link', '/下载图包', '/下载看', '/下载画廊',
+], logger, priority=101)
+gall_download_all.check_cdrate(cd).check_wblist(gbl)
+@gall_download_all.handle()
+async def _(ctx: HandlerContext):
+    return await ctx.asend_msg(config.get('sync.share_link'))
+
+
+# ======================= 定时任务 ======================= # 
+
+# 自动同步画廊图片到百度网盘
+for sync_time in config.get('sync.sync_times'):
+    @scheduler.scheduled_job("cron", hour=sync_time[0], minute=sync_time[1], second=sync_time[2])
+    async def sync_bypy():
+        if not config.get('sync.enable'):
+            return
+        remote_dir = config.get('sync.remote_dir')
+        local_dir = f"data/gallery/tmp/"
+        verbose = config.get('sync.verbose')
+
+        def sync(g: Gallery):
+            try:
+                logger.info(f'开始同步画廊\"{g.name}\"到百度网盘({remote_dir})')
+                for p in g.pics:
+                    if os.path.exists(p.path):
+                        _, ext = os.path.splitext(os.path.basename(p.path))
+                        dst = os.path.join(local_dir, g.name, f"{p.pid}{ext}")
+                        create_parent_folder(dst)
+                        shutil.copy2(p.path, dst)
+                
+                command = [
+                    'bypy',
+                    'syncup',
+                    os.path.join(local_dir, g.name),
+                    os.path.join(remote_dir, g.name),
+                    'True', '-v'
+                ]
+                process = subprocess.Popen(
+                    command, 
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.STDOUT, 
+                    text=True,
+                    encoding='utf-8'
+                )
+                while True:
+                    output = process.stdout.readline()
+                    if output == '' and process.poll() is not None:
+                        break
+                    if output and verbose:
+                        logger.info(f"[bypy] {output.strip()}")
+                if process.returncode != 0:
+                    raise Exception(f'bypy执行失败: code={process.returncode}')
+                
+                logger.info(f'画廊\"{g.name}\"同步完成')
+            except Exception as e:
+                logger.error(f'同步画廊\"{g.name}\"失败: {get_exc_desc(e)}')
+
+        for g in GalleryManager.get().galleries.values():
+            await run_in_pool(sync, g)
+            remove_folder(local_dir)
+        

@@ -14,6 +14,8 @@ logger = get_logger("Chat")
 file_db = get_file_db("data/chat/db.json", logger)
 gwl = get_group_white_list(file_db, logger, 'chat')
 
+at_trigger_chat_gbl = get_group_black_list(file_db, logger, 'atchat', is_service=False)
+
 chat_cd = ColdDown(file_db, logger, config.item('chat_cd'), cold_down_name="chat_cd")
 tts_cd = ColdDown(file_db, logger, config.item('tts_cd'), cold_down_name="tts_cd")
 img_trans_cd = ColdDown(file_db, logger, config.item('img_trans_cd'), cold_down_name="img_trans_cd")
@@ -274,8 +276,8 @@ async def _(ctx: HandlerContext):
             query_text = query_text.strip().removeprefix("/chat")
             triggered_by_chat_cmd = True
 
-        # 如果当前群组正在自动聊天，只有通过/chat触发的消息才回复
-        if is_group_msg(event) and autochat_sub.is_subbed(event.group_id):
+        # 如果当前群组正在自动聊天或者关闭@触发，只有通过/chat触发的消息才回复
+        if is_group_msg(event) and (autochat_sub.is_subbed(event.group_id) or not at_trigger_chat_gbl.check(event)):
             if not triggered_by_chat_cmd:
                 return
 
@@ -826,7 +828,7 @@ async def autochat_msg_to_readable_text(cfg: Dict[str, Any], group_id: int, msg:
             elif mtype == "face":
                 text += f"[表情]"
             elif mtype == "image":
-                if random.random() < cfg['image_caption_prob']:
+                if random.random() < cfg['image_caption']['prob']:
                     text += await get_image_caption(
                         mdata, 
                         cfg['image_caption']['model'],

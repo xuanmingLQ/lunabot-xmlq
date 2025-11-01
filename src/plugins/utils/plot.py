@@ -103,14 +103,13 @@ class ImageBg(WidgetBg):
                     p.paste(self.img, (x, y))
 
 class RandomTriangleBg(WidgetBg):
-    def __init__(self, time_color, main_hue: float=None, size_fixed_rate: float=0.0):
+    def __init__(self, main_hue: float | None=None, size_fixed_rate: float=0.0):
         super().__init__()
-        self.time_color = time_color
         self.main_hue = main_hue
         self.size_fixed_rate = size_fixed_rate
 
     def draw(self, p: Painter):
-        p.draw_random_triangle_bg(self.time_color, self.main_hue, self.size_fixed_rate)
+        p.draw_random_triangle_bg(self.main_hue, self.size_fixed_rate)
 
 
 # =========================== 布局类型 =========================== #
@@ -721,6 +720,24 @@ class TextStyle:
     use_shadow: bool = False
     shadow_offset: Tuple[int, int] | int = 1
     shadow_color: Tuple[int, int, int, int] = SHADOW
+
+    def replace(
+        self,
+        font: str = None,
+        size: int = None,
+        color: Tuple[int, int, int, int] = None,
+        use_shadow: bool = None,
+        shadow_offset: Tuple[int, int] | int = None,
+        shadow_color: Tuple[int, int, int, int] = None,
+    ):
+        return TextStyle(
+            font = font if font is not None else self.font,
+            size = size if size is not None else self.size,
+            color = color if color is not None else self.color,
+            use_shadow = use_shadow if use_shadow is not None else self.use_shadow,
+            shadow_offset = shadow_offset if shadow_offset is not None else self.shadow_offset,
+            shadow_color = shadow_color if shadow_color is not None else self.shadow_color,
+        )
 
 
 class TextBox(Widget):

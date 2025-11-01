@@ -23,8 +23,20 @@ async def get_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, format: str) ->
     if format == "gif":
         with TempFilePath("gif") as path:
             img = await get_stamp_image(ctx, sid)
-            img = img.resize((int(img.width * GIF_STAMP_SCALE), int(img.height * GIF_STAMP_SCALE)), Image.Resampling.LANCZOS)
-            save_transparent_static_gif(img, path)
+            img = img.resize((int(img.width * GIF_STAMP_SCALE), int(img.height * GIF_STAMP_SCALE)), Image.Resampling.LANCZOS).convert("RGBA")
+            # 将图片中半透明像素处理为白底的不透明像素
+            img = np.array(img)
+            alpha_channel = img[:, :, 3] / 255.0
+            alpha_mask = alpha_channel >= 0.1
+            for c in range(3):
+                img[:, :, c] = np.where(
+                    alpha_mask,
+                    (img[:, :, c] * alpha_channel + 255 * (1 - alpha_channel)).astype(np.uint8),
+                    img[:, :, c]
+                )
+            img[:, :, 3] = np.where(alpha_mask, 255, img[:, :, 3])
+            img = Image.fromarray(img)
+            save_transparent_static_gif(img, path, alpha_threshold=0.1)
             return await get_image_cq(path)
     else:
         return await get_image_cq(await get_stamp_image(ctx, sid))
