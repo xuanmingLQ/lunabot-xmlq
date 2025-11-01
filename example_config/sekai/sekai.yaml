@@ -34,6 +34,15 @@ story_summary:
     target_len_short: 200
     output_progress: true
 
+stamp:
+  gif_scale: 2.0
+  cutout:
+    enable: false
+    daily_limit: 5
+    tolerance: 200
+    edge: 10
+    prompt: |
+      请你将以下图片的文字去掉，保留其他部分不变
 
 deck:
   url: "http://localhost:45556/recommend"

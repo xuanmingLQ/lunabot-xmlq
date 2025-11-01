@@ -1,39 +1,46 @@
+basic_chat_mm: gg:gemini-2.5-flash-thinking
+
 translation: 
+  - gg:gemini-2.5-flash
   - na:gemini-2.5-flash
-  - or:qwen3-free
   - ay:gemini-2.5-flash
 
-translator: na:gemini-2.5-flash
-
-basic_chat_mm: na:gemini-2.5-flash-thinking
+translator: gg:gemini-2.5-flash
 
 chat:
-  image_caption: na:gemini-2.5-flash
+  image_caption: gg:gemini-2.5-flash
 
   private:
     text: "&basic_chat_mm"
     mm: "&basic_chat_mm"
     tool: "&basic_chat_mm"
-    image: gg:gemini-2.0-flash-exp
+    image: or:gemini-2.5-flash-image
   
   group:
     text: "&basic_chat_mm"
     mm: "&basic_chat_mm"
     tool: "&basic_chat_mm"
-    image: gg:gemini-2.0-flash-exp
+    image: or:gemini-2.5-flash-image-free
 
 cron: 
-  - na:gemini-2.5-flash-thinking
-  - ay:gemini-2.5-flash-thinking
+  - gg:gemini-2.5-flash
+  - na:gemini-2.5-flash
+  - ay:gemini-2.5-flash
   - or:gemini-2.5-flash
 
 sekai:
+  stamp_cutout:
+    - or:gemini-2.5-flash-image
+    - or:gemini-2.5-flash-image
+
   story_summary:
     event: 
+      - gg:gemini-2.5-flash
       - na:gemini-2.5-flash
       - ay:gemini-2.5-flash
       - or:gemini-2.5-flash
     card: 
+      - gg:gemini-2.5-flash
       - na:gemini-2.5-flash
       - ay:gemini-2.5-flash
       - or:gemini-2.5-flash
