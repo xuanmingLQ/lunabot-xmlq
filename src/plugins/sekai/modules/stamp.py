@@ -4,6 +4,9 @@ from ..handler import *
 from ..asset import *
 from ..draw import *
 from .stamp_maker import make_stamp, check_stamp_can_make
+from ...imgtool import cutout_image, shrink_image
+from ...llm import ChatSession, ChatSessionResponse
+
 
 GIF_STAMP_SCALE = 2.0
 
@@ -101,6 +104,10 @@ async def make_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, text: str, for
             return await get_image_cq(path)
     else:
         return await get_image_cq(img)
+
+# 检查某个表情是否有用于制作的底图，如果没有则请求LLM抠图
+async def ensure_stamp_maker_base_image(ctx: SekaiHandlerContext, sid: int):
+    pass
 
 
 # ======================= 指令处理 ======================= #
