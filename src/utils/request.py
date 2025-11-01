@@ -1,16 +1,18 @@
 import aiohttp,os
 from dotenv import load_dotenv
 from urllib.parse import urlencode
-from ..plugins.utils import loads_json,utils_logger,HttpError
+from ..plugins.utils import loads_json,get_logger,HttpError
 load_dotenv()
 base_url=os.getenv('API_BASE_PATH')
+
+api_logger = get_logger("Api")
 
 async def server(path:str, method:str, json:dict|None=None, params:dict|None=None)->dict:
     global base_url
     url = f"{base_url}{path}"
     if params:
         url = f"{url}?{parse_query(params)}"
-    utils_logger.info(url)
+    api_logger.info(url)
     #headers
     try:
         async with aiohttp.ClientSession() as session:
@@ -21,7 +23,7 @@ async def server(path:str, method:str, json:dict|None=None, params:dict|None=Non
                         detail = loads_json(detail)['detail']
                     except Exception:
                         pass
-                    utils_logger.error(f"请求后端API {url} 失败: {resp.status} {detail}")
+                    api_logger.error(f"请求后端API {url} 失败: {resp.status} {detail}")
                     raise HttpError(resp.status, detail)
                 return await resp.json()
     except aiohttp.ClientConnectionError as e:

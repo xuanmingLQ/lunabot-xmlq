@@ -25,7 +25,6 @@ def get_profile(region:str, user_id:str):
         method="get",
         params={
             'region':region,
-            'userId':user_id,
-            'filter':filter
+            'userId':user_id
         }
     )

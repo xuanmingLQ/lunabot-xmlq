@@ -29,6 +29,8 @@ import matplotlib.dates as mdates
 import matplotlib
 import matplotlib.cm as cm
 import numpy as np
+from ....api.game.event import get_ranking
+
 FONT_NAME = "Source Han Sans CN"
 plt.switch_backend('agg')
 matplotlib.rcParams['font.family'] = [FONT_NAME]
@@ -224,18 +226,10 @@ async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_rank
         logger.info(f"从数据库获取 {ctx.region}_{event_id} 最新榜线数据")
         return rankings
     # 从API获取
-    url_border = get_gameapi_config(ctx).ranking_border_api_url
-    assert_and_reply(url_border, f"暂不支持获取{ctx.region}榜线数据")
-    data_border = await request_gameapi(url_border.format(event_id=event_id % 1000))
-    assert_and_reply(data_border, "获取榜线数据失败")
-    url_top100 = get_gameapi_config(ctx).ranking_top100_api_url
-    assert_and_reply(url_top100, f"暂不支持获取{ctx.region}榜线数据")
-    data_top100 = await request_gameapi(url_top100.format(event_id=event_id % 1000))
-    assert_and_reply(data_top100, "获取榜线数据失败")
-    data = {
-        'border':data_border,
-        'top100':data_top100
-    }
+    res = await get_ranking(ctx.region, event_id)
+    if res['code']!=0:
+        raise ReplyException(res['msg'])
+    data = res['data']
     logger.info(f"从API获取 {ctx.region}_{event_id} 最新榜线数据")
     return [r for r in await parse_rankings(ctx, event_id, data, False) if r.rank in query_ranks]
 
@@ -1285,12 +1279,6 @@ async def update_ranking():
     # 获取所有服务器的榜线数据
     for region in ALL_SERVER_REGIONS:
         ctx = SekaiHandlerContext.from_region(region)
-        url_border = get_gameapi_config(ctx).ranking_border_api_url
-        if not url_border:
-            continue
-        url_top100 = get_gameapi_config(ctx).ranking_top100_api_url
-        if not url_top100:
-            continue
         # 获取当前运行中的活动
         if not (event := await get_current_event(ctx, fallback="prev")):
             continue
@@ -1298,21 +1286,19 @@ async def update_ranking():
             continue
         # 获取榜线数据
         @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
-        async def _get_ranking(ctx: SekaiHandlerContext, eid: int, url_border: str, url_top100:str):
+        async def _get_ranking(ctx: SekaiHandlerContext, eid: int):
             try:
-                data_border = await request_gameapi(url_border.format(event_id=eid))
-                data_top100 = await request_gameapi(url_top100.format(event_id=eid))
-                data = {
-                    'border': data_border,
-                    'top100': data_top100
-                }
+                res = await get_ranking(ctx.region, eid)
+                if res['code']!=0:
+                    raise Exception(res['msg'])
+                data = res['data']
                 return ctx.region, eid, data
             except Exception as e:
                 logger.warning(f"获取 {ctx.region} 榜线数据失败: {get_exc_desc(e)}")
                 region_failed[ctx.region] = True
                 return ctx.region, eid, None
             
-        tasks.append(_get_ranking(ctx, event['id'], url_border, url_top100))
+        tasks.append(_get_ranking(ctx, event['id']))
 
     if not tasks:
         return

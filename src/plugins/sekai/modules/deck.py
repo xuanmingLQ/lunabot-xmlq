@@ -276,6 +276,17 @@ def extract_fixed_cards_and_characters(args: str, options: DeckRecommendOptions)
             options.fixed_characters = fixed_characters
 
     return args.strip()
+# 从args中提取排除卡牌设置
+# TODO
+def extract_exclude_cards(args:str, options: DeckRecommendOptions)->str:
+    
+    exclude_card_id_pattern = re.compile(r"-\d+")
+    exclude_card_ids = exclude_card_id_pattern.findall(args)
+    if len(exclude_card_ids)>0:
+        options.exclude_cards = list(map(lambda x: int(x[1:]),exclude_card_ids))
+        for exclude_card_id in exclude_card_ids:
+            args = args.replace(exclude_card_id, "").strip()
+    return args
 
 # 从args中提取卡牌设置
 def extract_card_config(args: str, options: DeckRecommendOptions) -> str:
@@ -521,6 +532,7 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
 
     args = extract_multilive_options(args, options)
     args = extract_fixed_cards_and_characters(args, options)
+    args = extract_exclude_cards(args,options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
 
@@ -564,6 +576,7 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
     additional, args = extract_addtional_options(args)
 
     args = extract_fixed_cards_and_characters(args, options)
+    args = extract_exclude_cards(args,options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
 
@@ -629,6 +642,7 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
 
     args = extract_multilive_options(args, options)
     args = extract_fixed_cards_and_characters(args, options)
+    args = extract_exclude_cards(args,options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
 
@@ -684,6 +698,7 @@ async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) ->
 
     args = extract_multilive_options(args, options)
     args = extract_fixed_cards_and_characters(args, options)
+    args = extract_exclude_cards(args,options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
 

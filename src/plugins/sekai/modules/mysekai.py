@@ -22,7 +22,7 @@ from .profile import (
 )
 from .music import get_music_cover_thumb
 from .card import get_character_sd_image
-
+from ....api.game.user import get_mysekai
 
 MYSEKAI_REGIONS = ['jp',  'cn']
 BD_MYSEKAI_REGIONS = ['cn',]
@@ -126,36 +126,24 @@ async def get_mysekai_info(
         except Exception as e:
             logger.info(f"获取 {qid} mysekai抓包数据失败: 未绑定游戏账号")
             raise e
-        
-        # 服务器不支持
-        url = get_gameapi_config(ctx).mysekai_api_url
-        if not url:
-            raise ReplyException(f"暂不支持{get_region_name(ctx.region)}的Mysekai抓包数据查询")
-
-        # 获取模式
-        mode = mode or get_user_data_mode(ctx, qid)
-
-        # 尝试下载
         try:
-            url = url.format(uid=uid) + f"?mode={mode}"
-            if filter:
-                url += f"&key={','.join(filter)}"
-            mysekai_info = await request_gameapi(url)
+            res = await get_mysekai(ctx.region, uid, filter)
+            if res['code']!=0:
+                raise ReplyException(res['msg'])
+            mysekai_info = res['data']
         except HttpError as e:
             logger.info(f"获取 {qid} mysekai抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
-                # local_err = e.message.get('local_err', None)
-                haruki_err = e.message
                 msg = f"获取你的{get_region_name(ctx.region)}Mysekai抓包数据失败，发送\"/抓包\"指令可获取帮助\n"
                 # if local_err is not None: msg += f"[本地数据] {local_err}\n"
-                if haruki_err is not None: msg += f"[Haruki工具箱] {haruki_err}\n"
+                if  e.message is not None: msg += f"[Haruki工具箱] { e.message}\n"
                 raise ReplyException(msg.strip())
             else:
                 raise e
         except Exception as e:
             logger.info(f"获取 {qid} mysekai抓包数据失败: {get_exc_desc(e)}")
             raise e
-        
+
         if not mysekai_info:
             logger.info(f"获取 {qid} mysekai抓包数据失败: 找不到ID为 {uid} 的玩家")
             raise ReplyException(f"找不到ID为 {uid} 的玩家")

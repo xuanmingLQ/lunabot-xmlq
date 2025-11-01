@@ -6,7 +6,7 @@ from ..draw import *
 from .honor import compose_full_honor_image
 from .resbox import get_res_box_info, get_res_icon
 from ...utils.safety import *
-from ....api.game.user import get_suite
+from ....api.game.user import get_suite, get_profile
 
 SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
 profile_db = get_file_db(f"{SEKAI_PROFILE_DIR}/db.json", logger)
@@ -281,9 +281,10 @@ def get_player_bind_id(ctx: SekaiHandlerContext, qid: int, check_bind=True) -> s
 async def get_basic_profile(ctx: SekaiHandlerContext, uid: int, use_cache=True, use_remote_cache=True, raise_when_no_found=True) -> dict:
     cache_path = f"{SEKAI_PROFILE_DIR}/profile_cache/{ctx.region}/{uid}.json"
     try:
-        url = get_gameapi_config(ctx).profile_api_url
-        assert_and_reply(url, f"暂不支持查询 {ctx.region} 服务器的玩家信息")
-        profile = await request_gameapi(url.format(uid=uid) + f"?use_cache={use_remote_cache}")
+        res = await get_profile(ctx.region, uid)
+        if res['code']!=0:
+            raise ReplyException(res['msg'])
+        profile = res['data']
         if raise_when_no_found:
             assert_and_reply(profile, f"找不到ID为 {uid} 的玩家")
         elif not profile:
@@ -372,42 +373,11 @@ async def get_detailed_profile(
         if not ignore_hide and is_user_hide_suite(ctx, qid):
             logger.info(f"获取 {qid} 抓包数据失败: 用户已隐藏抓包信息")
             raise ReplyException(f"你已隐藏抓包信息，发送\"/{ctx.region}展示抓包\"可重新展示")
-        '''
-        # 服务器不支持
-        url = get_gameapi_config(ctx).suite_api_url
-        if not url:
-            raise ReplyException(f"暂不支持查询{get_region_name(ctx.region)}的抓包数据")
         
-        # 数据获取模式
-        mode = mode or get_user_data_mode(ctx, qid)
-
-        # 尝试下载
-        try:   
-            url = url.format(uid=uid) + f"?mode={mode}"
-            if filter:
-                url += f"&key={','.join(filter)}"
-            elif ( haruki_profile_keys:= config.get("haruki_profile_keys", [])):
-                url += f"&key={','.join(haruki_profile_keys)}"
-                pass
-            profile = await request_gameapi(url)
-        except HttpError as e:
-            logger.info(f"获取 {qid} 抓包数据失败: {get_exc_desc(e)}")
-            if e.status_code == 404:
-                haruki_err = e.message
-                msg = f"获取你的{get_region_name(ctx.region)}Suite抓包数据失败，发送\"/抓包\"指令可获取帮助\n"
-                # if local_err is not None: msg += f"[本地数据] {local_err}\n"
-                if haruki_err is not None: msg += f"[Haruki工具箱] {haruki_err}\n"
-                raise ReplyException(msg.strip())
-            else:
-                raise e
-        except Exception as e:
-            logger.info(f"获取 {qid} 抓包数据失败: {get_exc_desc(e)}")
-            raise e
-        '''
         try:
-            res = await get_suite(ctx.region, uid)
+            res = await get_suite(ctx.region, uid,filter)
             if res['code'] != 0 :
-                raise Exception(res['msg'])
+                raise ReplyException(res['msg'])
             profile = res['data']
         except HttpError as e:
             logger.info(f"获取 {qid} 抓包数据失败: {get_exc_desc(e)}")
@@ -1381,8 +1351,8 @@ async def _(ctx: SekaiHandlerContext):
     async def check_bind(region: str) -> Optional[Tuple[str, str, str]]:
         try:
             region_ctx = SekaiHandlerContext.from_region(region)
-            if not get_gameapi_config(region_ctx).profile_api_url:
-                return None
+            # if not get_gameapi_config(region_ctx).profile_api_url:
+            #     return None
             # 检查格式
             if not validate_uid(region_ctx, args):
                 return region, None, f"ID格式错误"
@@ -1666,39 +1636,16 @@ async def _(ctx: SekaiHandlerContext):
     cqs = extract_cq_code(await ctx.aget_msg())
     qid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
     uid = get_player_bind_id(ctx, qid, check_bind=True)
-    ''' # DEBUG
-    task1 = get_detailed_profile(ctx, qid, raise_exc=False, mode="local", filter=['upload_time'])
-    task2 = get_detailed_profile(ctx, qid, raise_exc=False, mode="haruki", filter=['upload_time'])
-    (local_profile, local_err), (haruki_profile, haruki_err) = await asyncio.gather(task1, task2)
-    msg = f"{process_hide_uid(ctx, uid, keep=6)}({ctx.region.upper()}) Suite数据\n"
-    if haruki_err:
-        haruki_err = haruki_err[haruki_err.find(']')+1:].strip()
-        msg += f"[Haruki工具箱]\n获取失败: {haruki_err}\n"
-    else:
-        msg += "[Haruki工具箱]\n"
-        upload_time = datetime.fromtimestamp(haruki_profile['upload_time'] / 1000)
-        # upload_time = datetime.fromtimestamp(haruki_profile['upload_time'] )
-        upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
-        msg += f"{upload_time_text}\n"
-'''
     res = await get_suite(region=ctx.region,user_id=get_player_bind_id(ctx, qid, check_bind=True),filter=['upload_time'])
-    ''' #DEBUGG
-    (haruki_profile, haruki_err) = await get_detailed_profile(ctx, qid, raise_exc=False, mode="haruki", filter=['upload_time'])
-    ''' 
+
     msg = f"{process_hide_uid(ctx, uid, keep=6)}({ctx.region.upper()}) Suite数据\n"
     
     if res['code']!=0:
         msg+=f"获取失败：{res['msg']}\n"
-        # haruki_err = haruki_err[haruki_err.find(']')+1:].strip()
-        # msg += f"[Haruki工具箱]\n获取失败: {haruki_err}\n"
     else:
         upload_time=datetime.fromtimestamp(res['data']['upload_time'])
         upload_time_text = upload_time.strftime('%m-%d %H:%M:%S')+ f"({get_readable_datetime(upload_time, show_original_time=False)})"
         msg += f"{upload_time_text}\n"
-        # msg += "[Haruki工具箱]\n"
-        # upload_time = datetime.fromtimestamp(haruki_profile if isinstance(haruki_profile, int) else haruki_profile['upload_time'])
-        # upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
-        # msg += f"{upload_time_text}\n"
     mode = get_user_data_mode(ctx, ctx.user_id)
     msg += f"---\n"
     msg += f"该指令查询Suite数据，查询Mysekai数据请使用\"/{ctx.region}msd\"\n"
