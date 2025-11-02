@@ -40,9 +40,9 @@ stamp:
     enable: false
     daily_limit: 5
     tolerance: 200
-    edge: 10
+    edge: 20
     prompt: |
-      请你将以下图片的文字去掉，保留其他部分不变
+      请你将第一张图片的文字去掉，保留其他部分内容和大小比例严格不变（其他图片用于被文字遮挡部分的角色外观的参考）
 
 deck:
   url: "http://localhost:45556/recommend"
