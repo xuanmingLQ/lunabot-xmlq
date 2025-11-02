@@ -348,8 +348,10 @@ async def _(ctx: SekaiHandlerContext):
     except:
         return await ctx.asend_reply_msg(f"使用方式: {ctx.original_trigger_cmd} 123")
 
-    path, _ = await ensure_stamp_maker_base_image(ctx, sid, use_cutout=False)
-    assert_and_reply(path, f"该表情还没有底图，使用\"/pjsk表情刷新{sid}\"生成底图")
+    res = await ensure_stamp_maker_base_image(ctx, sid, use_cutout=False)
+    assert_and_reply(res, f"该表情还没有底图，使用\"/pjsk表情刷新{sid}\"生成底图")
+
+    path, _ = res
 
     if gif:
         with TempFilePath("gif") as gif_path:
