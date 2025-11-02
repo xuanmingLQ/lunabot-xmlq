@@ -6,6 +6,7 @@ from ..draw import *
 from .stamp_maker import make_stamp, STAMP_MAKER_BASE_DIR
 from ...imgtool import cutout_image, shrink_image
 from ...llm import ChatSession, ChatSessionResponse, get_model_preset
+from .card import get_character_sd_image
 
 GIF_STAMP_SCALE_CFG = config.item('stamp.gif_scale')
 STAMP_BASE_IMAGE_DIR = f"{STAMP_MAKER_BASE_DIR}/images"
@@ -143,11 +144,21 @@ async def ensure_stamp_maker_base_image(ctx: SekaiHandlerContext, sid: int, use_
     # 请求LLM抠图
     await ctx.asend_reply_msg(f"正在进行表情{sid}的AI抠图...")
 
+    stamp = await ctx.md.stamps.find_by_id(sid)
+    assert_and_reply(stamp, f"表情 {sid} 不存在")
+    c1 = stamp.get('characterId1')
+    c2 = stamp.get('characterId2')
+    assert_and_reply(c1 or c2, f"表情 {sid} 不支持抠图")
+
     img = await get_stamp_image(ctx, sid)
     w, h = img.size
     black = Image.new("RGBA", (w, h), (0, 0, 0, 255))
     black.alpha_composite(img)
-    img = black
+    imgs = [black]
+
+    imgs.append(await get_character_sd_image(c1))
+    if c2:
+        imgs.append(await get_character_sd_image(c2))
 
     model = get_model_preset('sekai.stamp_cutout')
     prompt = config.get('stamp.cutout.prompt')
@@ -156,14 +167,14 @@ async def ensure_stamp_maker_base_image(ctx: SekaiHandlerContext, sid: int, use_
 
     logger.info(f"请求LLM表情抠图 sid={sid}")
     session = ChatSession()
-    session.append_user_content(prompt, [img])
+    session.append_user_content(prompt, imgs)
 
     def process_resp(resp: ChatSessionResponse):
         assert resp.images, "LLM未返回抠图结果"
         return resp.images[0]
 
     image: Image.Image = await session.get_response(model, process_resp, image_response=True)
-    image = image.resize((w, h), Image.Resampling.LANCZOS)
+    image = resize_keep_ratio(image, max(w, h) * 2)
 
     image = await run_in_pool(cutout_image, image, tolerance)
     image = await run_in_pool(shrink_image, image, 0, edge)
