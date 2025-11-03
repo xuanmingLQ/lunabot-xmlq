@@ -680,7 +680,7 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
 
 # 5v5自动送火
 async def send_boost(ctx: SekaiHandlerContext, qid: int) -> str:
-    uid = get_player_bind_id(ctx, qid)
+    uid = get_player_bind_id(ctx)
     event = await get_current_event(ctx)
     assert_and_reply(event and event['eventType'] == 'cheerful_carnival', "当前没有进行中的5v5活动")
     url = get_gameapi_config(ctx).send_boost_api_url

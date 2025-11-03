@@ -1313,7 +1313,7 @@ async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Ima
         
     # 无抓包的模式
     else:
-        profile = await get_basic_profile(ctx, get_player_bind_id(ctx, qid))
+        profile = await get_basic_profile(ctx, get_player_bind_id(ctx))
         avatar_info = await get_player_avatar_info_by_basic_profile(ctx, profile)
 
         music_num = len(mids)

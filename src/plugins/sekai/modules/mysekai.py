@@ -8,6 +8,8 @@ from ..sub import SekaiUserSubHelper, SekaiGroupSubHelper
 from .profile import (
     get_gameapi_config, 
     get_player_bind_id, 
+    get_player_bind_count,
+    get_player_bind_id_index,
     SEKAI_PROFILE_DIR,
     get_basic_profile,
     get_player_avatar_info_by_basic_profile,
@@ -122,7 +124,7 @@ async def get_mysekai_info(
     try:
         # 获取绑定的玩家id
         try:
-            uid = get_player_bind_id(ctx, qid)
+            uid = get_player_bind_id(ctx)
         except Exception as e:
             logger.info(f"获取 {qid} mysekai抓包数据失败: 未绑定游戏账号")
             raise e
@@ -592,7 +594,7 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
 # 合成mysekai资源图片 返回图片列表
 async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_harvested: bool, check_time: bool) -> List[Image.Image]:
     with Timer("msr:get_basic_profile", logger):
-        uid = get_player_bind_id(ctx, qid)
+        uid = get_player_bind_id(ctx)
 
         # 字节服额外验证
         if bd_limit_uid := get_bd_msr_limit_uid(ctx, qid):
@@ -832,7 +834,7 @@ async def compose_mysekai_fixture_list_image(
     # 获取玩家已获得的蓝图对应的家具ID
     obtained_fids = None
     if qid:
-        uid = get_player_bind_id(ctx, qid)
+        uid = get_player_bind_id(ctx)
         basic_profile = await get_basic_profile(ctx, uid)
         mysekai_info, mimsg = await get_mysekai_info(ctx, qid, raise_exc=True)
 
@@ -1421,7 +1423,7 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
 # 合成mysekai唱片列表
 async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, show_id: bool = False) -> Image.Image:
     mysekai_info, pmsg = await get_mysekai_info(ctx, qid, raise_exc=True)
-    uid = get_player_bind_id(ctx, qid, check_bind=True)
+    uid = get_player_bind_id(ctx)
     basic_profile = await get_basic_profile(ctx, uid)
     user_records = mysekai_info['updatedResources'].get('userMysekaiMusicRecords', [])
 
@@ -1503,7 +1505,7 @@ async def compose_mysekai_talk_list_image(
     show_all_talks: bool = False,
 ) -> Image.Image:
     # 获取玩家已获得的蓝图对应的家具ID
-    uid = get_player_bind_id(ctx, qid)
+    uid = get_player_bind_id(ctx)
     basic_profile = await get_basic_profile(ctx, uid)
     mysekai_info, mimsg = await get_mysekai_info(ctx, qid, raise_exc=True)
     assert_and_reply(
@@ -1802,7 +1804,7 @@ def get_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str | None:
 def update_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str:
     assert_and_reply(ctx.region in BD_MYSEKAI_REGIONS, "指令对此区服无效")
     assert_and_reply(bd_msr_sub.is_subbed(ctx.region, ctx.group_id), "指令在此群无效")
-    uid = get_player_bind_id(ctx, qid, check_bind=True)
+    uid = get_player_bind_id(ctx)
     qid = str(qid)
     msr_binds: dict[str, str] = bd_msr_bind_db.get(f"{ctx.region}_bind", {})
     last_bind = msr_binds.get(qid)
@@ -1954,7 +1956,7 @@ pjsk_check_mysekai_data.check_cdrate(cd).check_wblist(gbl)
 async def _(ctx: SekaiHandlerContext):
     cqs = extract_cq_code(await ctx.aget_msg())
     qid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
-    uid = get_player_bind_id(ctx, qid, check_bind=True)
+    uid = get_player_bind_id(ctx)
 
     task1 = get_mysekai_info(ctx, qid, raise_exc=False, mode="local", filter=['upload_time'])
     task2 = get_mysekai_info(ctx, qid, raise_exc=False, mode="haruki", filter=['upload_time'])
@@ -2082,11 +2084,12 @@ async def msr_auto_push():
         qids = list(set([qid for qid, gid in msr_sub.get_all_gid_uid(region)]))
         uid_modes = {}
         for qid in qids:
-            try:
-                if uid := get_player_bind_id(ctx, qid, check_bind=False):
-                    uid_modes[uid] = get_user_data_mode(ctx, qid)
-            except:
-                pass
+            for i in range(get_player_bind_count(ctx, qid)):
+                try:
+                    if uid := get_player_bind_id(ctx, qid, index=i):
+                        uid_modes[uid] = get_user_data_mode(ctx, qid)
+                except:
+                    pass
         if not uid_modes: continue
 
         # 向api服务器更新msr订阅信息
@@ -2117,29 +2120,35 @@ async def msr_auto_push():
             if check_in_blacklist(qid): continue
             if not gbl.check_id(gid): continue
             if region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(region, gid): continue
-
-            msr_last_push_time = file_db.get(f"{region}_msr_last_push_time", {})
-
-            uid = get_player_bind_id(ctx, qid, check_bind=False)
-            if not uid or int(uid) not in need_push_uids:
-                continue
-
-            # 检查这个uid-qid刷新后是否已经推送过
-            key = f"{uid}-{qid}"
-            if key in msr_last_push_time:
-                last_push_time = datetime.fromtimestamp(msr_last_push_time[key] / 1000)
-                if last_push_time >= last_refresh_time:
-                    continue
-            msr_last_push_time[key] = int(datetime.now().timestamp() * 1000)
-            file_db.set(f"{region}_msr_last_push_time", msr_last_push_time)
             
-            tasks.append((gid, qid))
+            for i in range(get_player_bind_count(ctx, qid)):
+                msr_last_push_time = file_db.get(f"{region}_msr_last_push_time", {})
+
+                uid = get_player_bind_id(ctx, qid, index=i)
+                if not uid or int(uid) not in need_push_uids:
+                    continue
+
+                # 检查这个uid-qid刷新后是否已经推送过
+                key = f"{uid}-{qid}"
+                if key in msr_last_push_time:
+                    last_push_time = datetime.fromtimestamp(msr_last_push_time[key] / 1000)
+                    if last_push_time >= last_refresh_time:
+                        continue
+                msr_last_push_time[key] = int(datetime.now().timestamp() * 1000)
+                file_db.set(f"{region}_msr_last_push_time", msr_last_push_time)
+                
+                tasks.append((gid, qid, uid))
 
         async def push(task):
-            gid, qid = task
+            gid, qid, uid = task
             user_ctx = SekaiHandlerContext.from_region(region)
             user_ctx.user_id = int(qid)
             user_ctx.group_id = int(gid)
+
+            index = get_player_bind_id_index(ctx, qid, uid)
+            if index is None: return
+            user_ctx.arg_text = f"u{index}"
+            
             try:
                 logger.info(f"在 {gid} 中自动推送用户 {qid} 的{region_name}Mysekai资源查询")
                 contents = [

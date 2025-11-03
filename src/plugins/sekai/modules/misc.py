@@ -10,6 +10,7 @@ from .profile import (
     get_card_full_thumbnail, 
     get_gameapi_config,
     get_player_bind_id,
+    get_player_bind_count,
     process_hide_uid,
     request_gameapi,
 )
@@ -361,11 +362,12 @@ async def msr_auto_push():
         qids = list(set([qid for qid, gid in ad_result_sub.get_all_gid_uid(region)]))
         uids = set()
         for qid in qids:
-            try:
-                if uid := get_player_bind_id(ctx, qid, check_bind=False):
-                    uids.add(uid)
-            except:
-                pass
+            for i in range(get_player_bind_count(ctx, qid)):
+                try:
+                    if uid := get_player_bind_id(ctx, qid, index=i):
+                        uids.add(uid)
+                except:
+                    pass
         if not uids: continue
 
         # 获取广告奖励更新时间
@@ -387,30 +389,30 @@ async def msr_auto_push():
             if check_in_blacklist(qid): continue
             if not gbl.check_id(gid): continue
 
-            ad_result_pushed_time = file_db.get(f"{region}_ad_result_pushed_time", {})
+            for i in range(get_player_bind_count(ctx, qid)):
+                ad_result_pushed_time = file_db.get(f"{region}_ad_result_pushed_time", {})
 
-            uid = get_player_bind_id(ctx, qid, check_bind=False)
-            if not uid or uid not in need_push_uids:
-                continue
-
-            # 检查这个uid-qid是否已经推送过
-            update_ts = int(update_times.get(uid, 0))
-            key = f"{uid}-{qid}"
-            if key in ad_result_pushed_time:
-                last_push_ts = int(ad_result_pushed_time.get(key, 0))
-                if last_push_ts >= update_ts:
+                uid = get_player_bind_id(ctx, qid, index=i)
+                if not uid or uid not in need_push_uids:
                     continue
-            ad_result_pushed_time[key] = update_ts
-            file_db.set(f"{region}_ad_result_pushed_time", ad_result_pushed_time)
-            
-            tasks.append((gid, qid))
+
+                # 检查这个uid-qid是否已经推送过
+                update_ts = int(update_times.get(uid, 0))
+                key = f"{uid}-{qid}"
+                if key in ad_result_pushed_time:
+                    last_push_ts = int(ad_result_pushed_time.get(key, 0))
+                    if last_push_ts >= update_ts:
+                        continue
+                ad_result_pushed_time[key] = update_ts
+                file_db.set(f"{region}_ad_result_pushed_time", ad_result_pushed_time)
+                
+                tasks.append((gid, qid, uid))
 
         async def push(task):
-            gid, qid = task
+            gid, qid, uid = task
             try:
                 logger.info(f"在 {gid} 中自动推送用户 {qid} 的广告奖励")
 
-                uid = get_player_bind_id(ctx, qid) 
                 res = await request_gameapi(result_url.format(uid=uid))
                 if not res.get('results'):
                     return
