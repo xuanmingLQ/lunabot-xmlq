@@ -1,5 +1,5 @@
 from .utils import *
-from nonebot import on_command, get_bot
+from nonebot import on_command, get_bot, get_bots
 from nonebot.rule import to_me as rule_to_me
 from nonebot.adapters.onebot.v11 import GroupMessageEvent, PrivateMessageEvent, Bot, MessageEvent, ActionFailed
 from nonebot.adapters.onebot.v11.message import Message as OutMessage
@@ -8,7 +8,6 @@ import requests
 
 
 SUPERUSER_CFG = global_config.item('superuser')
-BOT_NAME_CFG  = global_config.item('bot_name')
 
 
 # ============================ 消息处理 ============================ #
@@ -775,7 +774,14 @@ def apply_limit_to_parts(fold_parts: List[List[FoldMsgPart]], limit: int, seq: i
     return [cur_fold] if cur_fold else []
 
 @send_msg_func
-async def send_fold_msg(bot, group_id: Optional[int], user_id: Optional[int], contents: Union[str, List[str]], fallback_method=None):
+async def send_fold_msg(
+    bot, 
+    group_id: Optional[int], 
+    user_id: Optional[int], 
+    contents: Union[str, List[str]], 
+    fallback_method=None, 
+    first_is_user=False,
+):
     """
     发送私聊或群聊折叠消息
     fallback_method in ['seperate', 'join_newline', 'join', 'none']
@@ -790,14 +796,23 @@ async def send_fold_msg(bot, group_id: Optional[int], user_id: Optional[int], co
         if group_id and check_group_disabled(group_id):
             utils_logger.warning(f'取消发送消息到被全局禁用的群 {group_id}')
             return
-        msg_list = [{
-            "type": "node",
-            "data": {
-                "user_id": bot.self_id,
-                "nickname": BOT_NAME_CFG.get(),
-                "content": content
-            }
-        } for content in contents]
+        selfname = await get_group_member_name(bot, group_id, bot.self_id)
+        msg_list = []
+        for i in range(len(contents)):
+            if i == 0 and first_is_user:
+                uid = user_id
+                nickname = await get_group_member_name(bot, group_id, user_id)
+            else:
+                uid = int(bot.self_id)
+                nickname = selfname
+            msg_list.append({
+                "type": "node",
+                "data": {
+                    "user_id": uid,
+                    "nickname": nickname,
+                    "content": contents[i],
+                }
+            })
         try:
             if group_id:
                 ret = await bot.send_group_forward_msg(group_id=group_id, messages=msg_list)
@@ -807,7 +822,14 @@ async def send_fold_msg(bot, group_id: Optional[int], user_id: Optional[int], co
             ret = await fold_msg_fallback(bot, group_id, user_id, contents, e, fallback_method)
     return ret
 
-async def fold_msg_fallback(bot, group_id: Optional[int], user_id: Optional[int], contents: List[str], e: Exception, method: Optional[str]):
+async def fold_msg_fallback(
+    bot,
+    group_id: Optional[int], 
+    user_id: Optional[int], 
+    contents: List[str], 
+    e: Exception, 
+    method: Optional[str],
+):
     """
     发送折叠消息失败的fallback
     method: 为None使用默认fallback方法
@@ -847,6 +869,7 @@ async def send_fold_msg_adaptive(
     need_reply: bool=True, 
     reply_message_id: int=None,
     fallback_method: str=None,
+    first_is_user=False,
 ):
     """
     根据消息长度以及是否是群聊消息动态判断是否需要发送折叠消息
@@ -882,7 +905,7 @@ async def send_fold_msg_adaptive(
         return ret
     else:
         # 折叠消息
-        return await send_fold_msg(bot, group_id, user_id, contents, fallback_method=fallback_method)
+        return await send_fold_msg(bot, group_id, user_id, contents, fallback_method=fallback_method, first_is_user=first_is_user)
   
 async def send_private_fold_msg_adaptive_by_bot(
     bot,
@@ -1451,16 +1474,19 @@ class HandlerContext:
         show_command: bool=True,
         fallback_method: Optional[str]=None,
     ):
+        first_is_user = False
         if isinstance(contents, str):
             contents = [contents]
         if show_command:
-            contents = [f"{get_event_sender_name(self.event)}: {self.event.get_plaintext()}"] + contents
+            contents = [self.event.get_plaintext()] + contents
+            first_is_user = True
         return send_fold_msg(
             bot=self.bot,
             group_id=self.group_id,
             user_id=self.user_id,
             contents=contents,
-            fallback_method=fallback_method
+            fallback_method=fallback_method,
+            first_is_user=first_is_user,
         )
 
     def asend_fold_msg_adaptive(
@@ -1470,11 +1496,13 @@ class HandlerContext:
         need_reply: bool=True,
         fallback_method: Optional[str]=None,
     ):
+        first_is_user = False
         if isinstance(contents, str):
             contents = [contents]
         fold_contents = contents
         if need_reply:
-            fold_contents = [f"{get_event_sender_name(self.event)}: {self.event.get_plaintext()}"] + contents
+            fold_contents = [self.event.get_plaintext()] + contents
+            first_is_user = True
         return send_fold_msg_adaptive(
             bot=self.bot,
             group_id=self.group_id,
@@ -1484,7 +1512,8 @@ class HandlerContext:
             threshold=threshold,
             need_reply=need_reply,
             reply_message_id=self.message_id,
-            fallback_method=fallback_method
+            fallback_method=fallback_method,
+            first_is_user=first_is_user,
         )
 
     async def asend_video(self, path: str):

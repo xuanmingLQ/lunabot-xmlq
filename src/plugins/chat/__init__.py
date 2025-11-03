@@ -252,7 +252,6 @@ chat_request = CmdHandler(
 @chat_request.handle()
 async def _(ctx: HandlerContext):
     bot, event = ctx.bot, ctx.event
-    bot_name = BOT_NAME_CFG.get()
     global sessions, query_msg_ids, autochat_msg_ids
     session = None
     try:
@@ -282,6 +281,7 @@ async def _(ctx: HandlerContext):
                 return
 
         # 空消息不回复
+        bot_name = await get_group_member_name(bot, event.group_id, bot.self_id) if is_group_msg(event) else "NoNeed@BotName"
         if query_text.replace(f"@{bot_name}", "").strip() == "" or query_text is None:
             return
         
@@ -320,7 +320,7 @@ async def _(ctx: HandlerContext):
 
         # 清除文本形式的at
         if has_text_at:
-            query_text = query_text.replace(f"@{BOT_NAME_CFG.get()}", "")
+            query_text = query_text.replace(f"@{bot_name}", "")
 
         # 如果在对话中指定模型名
         if "model:" in query_text:

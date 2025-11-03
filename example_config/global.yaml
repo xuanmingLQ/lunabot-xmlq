@@ -1,4 +1,3 @@
-bot_name: "xxx"
 log_level: "INFO"
 superuser:
   - 12345678
