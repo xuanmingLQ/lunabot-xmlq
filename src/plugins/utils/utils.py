@@ -795,7 +795,8 @@ class FileDB:
 
     def get(self, key: str, default: Any=None) -> Any:
         assert isinstance(key, str), f'key必须是字符串，当前类型: {type(key)}'
-        return deepcopy(self.data.get(key, default))
+        # return deepcopy(self.data.get(key, default))
+        return self.data.get(key, default)
 
     def set(self, key: str, value: Any):
         assert isinstance(key, str), f'key必须是字符串，当前类型: {type(key)}'
