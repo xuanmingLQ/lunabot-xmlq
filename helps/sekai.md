@@ -177,7 +177,7 @@ Project Sekai（世界计划）游戏多区服服务
 
 
 ### 设置主账号
-`/主账号` `/设置主账号` `/pjsk set main` `/pjsk set primary`
+`/主账号` `/设置主账号` `/pjsk set main`
 > 设置主账号为指定序号账号  
 支持服务器: `所有`  
 

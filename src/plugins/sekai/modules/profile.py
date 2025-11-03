@@ -1222,7 +1222,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # 解绑id
 pjsk_unbind = SekaiCmdHandler([
-    "/pjsk unbind", "/pjsk_unbind", "/pjsk解绑", "/解绑",
+    "/pjsk unbind", "/pjsk解绑", "/解绑",
 ], parse_uid_arg=False)
 pjsk_unbind.check_cdrate(cd).check_wblist(gbl)
 @pjsk_unbind.handle()
@@ -1247,7 +1247,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # 设置主账号
 pjsk_set_main = SekaiCmdHandler([
-    "/pjsk set main", "/pjsk_set_main", "/pjsk主账号", "/设置主账号", "/主账号",
+    "/pjsk set main", "/pjsk主账号", "/设置主账号", "/主账号",
 ], parse_uid_arg=False)
 pjsk_set_main.check_cdrate(cd).check_wblist(gbl)
 @pjsk_set_main.handle()
