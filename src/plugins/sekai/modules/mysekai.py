@@ -243,7 +243,7 @@ def get_mysekai_last_refresh_time(ctx: SekaiHandlerContext) -> datetime:
             if last_refresh_time < end <= now:
                 last_refresh_time = end
                 break
-    logger.debug(f"计算出的Mysekai上次资源刷新时间: {last_refresh_time}")
+    # logger.debug(f"计算出的Mysekai上次资源刷新时间: {last_refresh_time}")
     return last_refresh_time
 
 # 从蓝图ID获取家具，不存在返回None

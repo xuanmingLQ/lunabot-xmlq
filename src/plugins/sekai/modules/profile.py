@@ -472,7 +472,7 @@ def get_gameapi_config(ctx: SekaiHandlerContext) -> GameApiConfig:
 
 # 请求游戏API data_type: json/bytes/None
 async def request_gameapi(url: str, method: str = 'GET', data_type: str | None = 'json', **kwargs):
-    logger.debug(f"请求游戏API后端: {method} {url}")
+    # logger.debug(f"请求游戏API后端: {method} {url}")
     token = config.get('gameapi_token', '')
     headers = { 'Authorization': f'Bearer {token}' }
     try:
