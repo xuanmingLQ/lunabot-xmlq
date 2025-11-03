@@ -82,6 +82,11 @@ class ChatSession:
             return
         if imgs is None: 
             imgs = []
+
+        for i in range(len(imgs)):
+            if isinstance(imgs[i], Image.Image):
+                imgs[i] = get_image_b64(imgs[i])
+        
         if len(imgs) > 0:
             content = [{"type": "text", "text": text}]
             for img in imgs:

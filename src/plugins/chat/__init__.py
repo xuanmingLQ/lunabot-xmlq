@@ -828,7 +828,8 @@ async def autochat_msg_to_readable_text(cfg: Dict[str, Any], group_id: int, msg:
             elif mtype == "face":
                 text += f"[表情]"
             elif mtype == "image":
-                if random.random() < cfg['image_caption']['prob']:
+                prob = cfg['image_caption']['image_prob'] if mdata['sub_type'] == 0 else cfg['image_caption']['emotion_prob']
+                if random.random() < prob:
                     text += await get_image_caption(
                         mdata, 
                         cfg['image_caption']['model'],

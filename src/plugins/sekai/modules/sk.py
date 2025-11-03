@@ -492,7 +492,7 @@ async def get_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str,
         return 'uid', uid
     args = args.strip()
     if not args:
-        if uid := get_player_bind_id(ctx, ctx.user_id, check_bind=False):
+        if uid := get_player_bind_id(ctx, check_bind=False):
             return 'self', uid
     else:
         segs = [s for s in args.split() if s]

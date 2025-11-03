@@ -13,6 +13,61 @@ cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'imgtool')
 
 
+# ============================= cpp程序调用 ============================= # 
+
+def execute_imgtool_cpp(image: Image.Image | List[Image.Image], command: str, *args) -> Image.Image | List[Image.Image]:
+    """
+    调用imgtool-cpp程序处理图片
+    """
+    is_single_frame = isinstance(image, Image.Image)
+    if is_single_frame:
+        image = [image]
+    ret = []
+    w, h = image[0].size
+    n = len(image)
+    with TempFilePath('input') as input_path:
+        with TempFilePath('output') as output_path:
+            # 保存输入文件
+            with open(input_path, 'wb') as f:
+                f.write(int(n).to_bytes(4, sys.byteorder))
+                f.write(int(h).to_bytes(4, sys.byteorder))
+                f.write(int(w).to_bytes(4, sys.byteorder))
+                for i in range(n):
+                    frame = image[i].convert('RGBA')
+                    f.write(frame.tobytes('raw', 'RGBA'))
+
+            cli_path = "data/imgtool/imgtool-cpp"
+            logger.info(f"调用imgtool-cpp程序: {command} " + " ".join(map(str, args)) + f" 输入尺寸: {n}x{w}x{h}")
+            assert_and_reply(os.path.exists(cli_path), "imgtool-cpp程序不存在，请使用src/plugins/imgtool/compile_imgtool_cpp.sh编译")
+            cmd = f"{cli_path} {input_path} {output_path} {command} " + " ".join(map(str, args))
+            assert_and_reply(os.system(cmd) == 0, "调用imgtool-cpp程序失败")
+
+            # 读取输出文件
+            with open(output_path, 'rb') as f:
+                n = int.from_bytes(f.read(4), sys.byteorder)
+                h = int.from_bytes(f.read(4), sys.byteorder)
+                w = int.from_bytes(f.read(4), sys.byteorder)
+                for i in range(n):
+                    frame = Image.new('RGBA', (w, h))
+                    frame.frombytes(f.read(w * h * 4), 'raw', 'RGBA')
+                    ret.append(frame)
+            logger.info(f"imgtool-cpp程序执行完毕，输出尺寸: {n}x{w}x{h}")
+
+    return ret[0] if is_single_frame else ret
+
+def cutout_image(image: Image.Image | List[Image.Image], tolerance: int) -> Image.Image | List[Image.Image]:
+    """
+    抠图，tolerance为rgb距离平方的容差
+    """
+    return execute_imgtool_cpp(image, "cutout", tolerance)
+
+def shrink_image(image: Image.Image | List[Image.Image], alpha_threshold: int, edge: int) -> Image.Image | List[Image.Image]:
+    """
+    将图片边缘的透明部分裁剪掉，alpha_threshold为alpha通道阈值，edge为裁剪后保留的边缘宽度
+    """
+    return execute_imgtool_cpp(image, "shrink", alpha_threshold, edge)
+
+
 # ============================= 基础设施 ============================= # 
 
 IMAGE_LIST_CLEAN_INTERVAL_CFG = config.item('image_list_clean_interval')  # 图片列表清理间隔(s)
@@ -332,7 +387,7 @@ async def operate_image(ctx: HandlerContext) -> Image.Image:
         return await ctx.asend_reply_msg(await get_image_cq(img))
 
 # 图片操作Handler
-img_op = CmdHandler("/img", logger, priority=100)
+img_op = CmdHandler(["/img", "/imgtool"], logger, priority=100)
 img_op.check_cdrate(cd).check_wblist(gbl)
 @img_op.handle()
 async def _(ctx: HandlerContext):
@@ -1158,32 +1213,8 @@ cutout ai: 使用AI模型抠图
         else:
             frames = [img]
 
-        n, w, h = len(frames), img.width, img.height
-
         if args['method'] == 'floodfill':
-            with TempFilePath('input') as input_path:
-                with TempFilePath('output') as output_path:
-                    # 图像输入文件
-                    with open(input_path, 'wb') as f:
-                        f.write(int(n).to_bytes(4, sys.byteorder))
-                        f.write(int(h).to_bytes(4, sys.byteorder))
-                        f.write(int(w).to_bytes(4, sys.byteorder))
-                        for i in range(n):
-                            frame = frames[i].convert('RGBA')
-                            f.write(frame.tobytes('raw', 'RGBA'))
-
-                    # 调用抠图
-                    cmd = f"data/imgtool/cutout {input_path} {output_path} {args['tolerance']}"
-                    assert_and_reply(os.system(cmd) == 0, "抠图失败")
-
-                    # 读取输出文件
-                    with open(output_path, 'rb') as f:
-                        frames = []
-                        for i in range(n):
-                            frame = Image.new('RGBA', (w, h))
-                            frame.frombytes(f.read(w * h * 4), 'raw', 'RGBA')
-                            frames.append(frame)
-        
+            frames = cutout_image(frames, args['tolerance'])
         elif args['method'] == 'ai':
             from rembg import remove
             for i in range(len(frames)):
@@ -1193,7 +1224,69 @@ cutout ai: 使用AI模型抠图
             return frames_to_gif(frames, get_gif_duration(img))
         else:
             return frames[0]
-            
+
+class ShrinkOperation(ImageOperation):
+    def __init__(self):
+        super().__init__("shrink", ImageType.Any, ImageType.Any, 'single')
+        self.help = """
+裁剪透明，将图像边缘透明部分裁剪掉，使用方式:
+shrink: 裁剪透明部分，默认透明度阈值为10（alpha小于等于阈值的像素被认为是透明）
+shrink 50: 裁剪透明部分，透明度阈值为50
+shrink 10 +10: 裁剪透明部分，透明度阈值为10，并在裁剪区域外扩展10像素
+""".strip()
+        
+    def parse_args(self, args: List[str]) -> dict:
+        ret = {'alpha_threshold': 0, 'edge': 0 }
+        assert_and_reply(len(args) <= 2, "最多只支持两个参数")
+        for arg in args:
+            if '+' in arg:
+                ret['edge'] = int(arg.replace('+', ''))
+                assert_and_reply(0 <= ret['edge'] <= 100, "扩展像素只能在0-100之间")
+            elif arg.isdigit():
+                ret['alpha_threshold'] = int(arg)
+                assert_and_reply(0 <= ret['alpha_threshold'] <= 255, "透明度阈值只能在0-255之间（默认阈值为0）")
+        return ret
+    
+    def operate(self, img: Image.Image, args: dict=None, image_type: ImageType=None, frame_idx: int=0, total_frame: int=1) -> Image.Image:
+        if is_animated(img):
+            frames = gif_to_frames(img)
+        else:
+            frames = [img]
+
+        frames = shrink_image(frames, args['alpha_threshold'], args['edge'])
+
+        if is_animated(img):
+            return frames_to_gif(frames, get_gif_duration(img))
+        else:
+            return frames[0]
+
+class BackgroundOperation(ImageOperation):
+    def __init__(self):
+        super().__init__("bg", ImageType.Any, ImageType.Any, 'batch')
+        self.help = """
+为图片添加背景色，使用方式:
+bg: 使用默认白色作为背景颜色
+bg 255 255 255: 使用RGB颜色值
+bg #ff00ff: 使用颜色代码
+""".strip()
+        
+    def parse_args(self, args: List[str]) -> dict:
+        ret = {'color': (255, 255, 255) }
+        assert_and_reply(not args or len(args) == 1 or len(args) == 3, "需要一个(颜色代码)或三个(RGB)参数")
+        if len(args) == 1:
+            ret['color'] = color_code_to_rgb(args[0])[:3]
+        elif len(args) == 3:
+            r = int(args[0])
+            g = int(args[1])
+            b = int(args[2])
+            assert_and_reply(0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255, "RGB颜色值必须在0-255之间")
+            ret['color'] = (r, g, b)
+        return ret
+    
+    def operate(self, img: Image.Image, args: dict=None, image_type: ImageType=None, frame_idx: int=0, total_frame: int=1) -> Image.Image:
+        bg = Image.new('RGBA', img.size, args['color'] + (255,))
+        bg.alpha_composite(img.convert('RGBA'))
+        return bg
             
 
 # 注册所有图片操作

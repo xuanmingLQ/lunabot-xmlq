@@ -1091,6 +1091,7 @@ def limit_image_by_pixels(image: Image.Image | list[Image.Image], max_pixels: in
     """
     根据最大像素数限制图片大小，输入可以是静态图、动图帧列表或动图对象
     """
+    n = None
     if isinstance(image, list):
         n = len(image)
         w, h = image[0].width, image[0].height
@@ -1101,7 +1102,7 @@ def limit_image_by_pixels(image: Image.Image | list[Image.Image], max_pixels: in
     pixels = get_image_pixels(image)
     if pixels <= max_pixels:
         return image
-    if is_animated(image):
+    if n is not None:
         # 仅>=10帧时才考虑抽帧 >=64*64时才考虑缩放
         old_n = n
         use_n_scale = n >= 10   
