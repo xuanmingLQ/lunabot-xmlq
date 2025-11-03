@@ -367,6 +367,27 @@ def set_player_main_bind_id(ctx: SekaiHandlerContext, qid: str, index: int) -> s
 
     return f"已将你的{region_name}主账号修改为{process_hide_uid(ctx, new_main_uid, keep=6)}"
 
+# 使用索引交换账号顺序
+def swap_player_bind_id(ctx: SekaiHandlerContext, qid: str, index1: int, index2: int) -> str:
+    all_bind_list: Dict[str, str | list[str]] = profile_db.get("bind_list", {})
+    qid = str(qid)
+    region = ctx.region
+    region_name = get_region_name(region)
+
+    if region not in all_bind_list:
+        all_bind_list[region] = {}
+
+    uids = to_list(all_bind_list[region].get(qid, []))
+    assert_and_reply(uids, f"你还没有绑定任何{region_name}账号")
+    assert_and_reply(0 <= index1 < len(uids), f"指定的账号序号1大于已绑定的{region_name}账号数量({len(uids)})")
+    assert_and_reply(0 <= index2 < len(uids), f"指定的账号序号2大于已绑定的{region_name}账号数量({len(uids)})")
+
+    uids[index1], uids[index2] = uids[index2], uids[index1]
+    all_bind_list[region][qid] = uids
+    profile_db.set("bind_list", all_bind_list)
+
+    return f"已将你绑定的{region_name}第{index1 + 1}个账号序号和第{index2 + 1}个账号交换顺序"
+
 
 # 验证用户游戏帐号
 async def verify_user_game_account(ctx: SekaiHandlerContext):
@@ -1263,6 +1284,29 @@ async def _(ctx: SekaiHandlerContext):
 """.strip())
     
     msg = set_player_main_bind_id(ctx, qid, index=index)
+    return await ctx.asend_reply_msg(msg)
+
+
+# 交换绑定账号顺序
+pjsk_swap_bind = SekaiCmdHandler([
+    "/pjsk swap bind", "/pjsk交换绑定", 
+    "/交换绑定", "/绑定交换", "/交换账号", "/交换账号顺序",
+], parse_uid_arg=False)
+pjsk_swap_bind.check_cdrate(cd).check_wblist(gbl)
+@pjsk_swap_bind.handle()
+async def _(ctx: SekaiHandlerContext):
+    args = ctx.get_args().strip().split()
+    qid = ctx.user_id
+    try:
+        index1 = int(args[0]) - 1
+        index2 = int(args[1]) - 1
+    except:
+        raise ReplyException(f"""
+使用方式:
+交换你绑定的第x个和第y个账号的位置: {ctx.original_trigger_cmd} x y
+""".strip())
+    
+    msg = swap_player_bind_id(ctx, qid, index1=index1, index2=index2)
     return await ctx.asend_reply_msg(msg)
 
 
