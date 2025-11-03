@@ -2082,12 +2082,12 @@ async def msr_auto_push():
 
         # 获取订阅的用户列表和抓包模式
         qids = list(set([qid for qid, gid in msr_sub.get_all_gid_uid(region)]))
-        uid_modes = {}
+        uid_modes: list[tuple[int, int]] = []
         for qid in qids:
             for i in range(get_player_bind_count(ctx, qid)):
                 try:
                     if uid := get_player_bind_id(ctx, qid, index=i):
-                        uid_modes[uid] = get_user_data_mode(ctx, qid)
+                        uid_modes.append((uid, get_user_data_mode(ctx, qid)))
                 except:
                     pass
         if not uid_modes: continue
@@ -2100,19 +2100,20 @@ async def msr_auto_push():
             except Exception as e:
                 logger.warning(f"更新{region_name}Mysekai订阅信息失败: {get_exc_desc(e)}")
 
-        # 获取Mysekai上传时间
+        # 获取不同uid_mode的Mysekai上传时间
         try:
-            upload_times = await request_gameapi(get_upload_time_url, json=uid_modes)
+            upload_times: list[int] = await request_gameapi(get_upload_time_url, json=uid_modes)
         except Exception as e:
             logger.warning(f"获取{region_name}Mysekai上传时间失败: {get_exc_desc(e)}")
             continue
+        upload_times: dict[tuple[str, str], int] = { uid_mode: ts for uid_mode, ts in zip(uid_modes, upload_times) }
 
-        need_push_uids = [] # 需要推送的uid（有及时更新数据并且没有距离太久的）
+        need_push_uid_modes = [] # 需要推送的uid_mode（有及时更新数据并且没有距离太久的）
         last_refresh_time = get_mysekai_last_refresh_time(ctx)
-        for uid, ts in upload_times.items():
+        for uid_mode, ts in upload_times.items():
             update_time = datetime.fromtimestamp(ts / 1000)
             if update_time > last_refresh_time and datetime.now() - update_time < timedelta(minutes=10):
-                need_push_uids.append(int(uid))
+                need_push_uid_modes.append(uid_mode)
 
         tasks = []
                 
@@ -2125,7 +2126,8 @@ async def msr_auto_push():
                 msr_last_push_time = file_db.get(f"{region}_msr_last_push_time", {})
 
                 uid = get_player_bind_id(ctx, qid, index=i)
-                if not uid or int(uid) not in need_push_uids:
+                mode = get_user_data_mode(ctx, qid)
+                if not uid or (uid, mode) not in need_push_uid_modes:
                     continue
 
                 # 检查这个uid-qid刷新后是否已经推送过
