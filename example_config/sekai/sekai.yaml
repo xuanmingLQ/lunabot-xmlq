@@ -10,7 +10,19 @@ draw:
   widget_bg_color: [255, 255, 255, 100]
   widget_bg_radius: 10
 
-daily_bind_limit: 3
+bind:
+  daily_limits:
+    jp: 5
+    cn: 5
+    tw: 5
+    kr: 5
+    en: 5
+  total_limits:
+    jp: 5
+    cn: 5
+    tw: 5
+    kr: 5
+    en: 5
 
 profile_bg_image_size: 
   horizontal: [1300, 650]
