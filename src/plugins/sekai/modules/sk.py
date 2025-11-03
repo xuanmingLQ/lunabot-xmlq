@@ -30,6 +30,7 @@ import matplotlib
 import matplotlib.cm as cm
 import numpy as np
 from ....api.game.event import get_ranking
+from ....utils.request import ApiError
 
 FONT_NAME = "Source Han Sans CN"
 plt.switch_backend('agg')
@@ -226,10 +227,10 @@ async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_rank
         logger.info(f"从数据库获取 {ctx.region}_{event_id} 最新榜线数据")
         return rankings
     # 从API获取
-    res = await get_ranking(ctx.region, event_id)
-    if res['code']!=0:
-        raise ReplyException(res['msg'])
-    data = res['data']
+    try:
+        data = await get_ranking(ctx.region, event_id)
+    except ApiError as e:
+        raise ReplyException(e.msg)
     logger.info(f"从API获取 {ctx.region}_{event_id} 最新榜线数据")
     return [r for r in await parse_rankings(ctx, event_id, data, False) if r.rank in query_ranks]
 
@@ -1288,10 +1289,7 @@ async def update_ranking():
         @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
         async def _get_ranking(ctx: SekaiHandlerContext, eid: int):
             try:
-                res = await get_ranking(ctx.region, eid)
-                if res['code']!=0:
-                    raise Exception(res['msg'])
-                data = res['data']
+                data = await get_ranking(ctx.region, eid)
                 return ctx.region, eid, data
             except Exception as e:
                 logger.warning(f"获取 {ctx.region} 榜线数据失败: {get_exc_desc(e)}")

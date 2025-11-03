@@ -1,3 +1,11 @@
 size_limit_mb: 1
 pick_limit: 5
 phash_difference_threshold: 1000
+
+sync:
+  enable: True
+  sync_times: 
+    - [3, 00, 00] # H, M, S
+  verbose: True
+  remote_dir: "LunabotGallery"
+  share_link: "..."

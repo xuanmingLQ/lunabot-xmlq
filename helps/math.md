@@ -15,8 +15,9 @@
 
 
 ### 计算表达式
-`/eval` `/计算`
-> 基于Python的asteval库，提供简单的科学计算功能  
+`/eval` `/计算`  
+> 基于Python的asteval库，提供简单的科学计算功能    
+
 - `/eval 1+1`
 - `/eval sin(pi/2)*sqrt(2)`
 

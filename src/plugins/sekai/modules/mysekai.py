@@ -127,10 +127,7 @@ async def get_mysekai_info(
             logger.info(f"获取 {qid} mysekai抓包数据失败: 未绑定游戏账号")
             raise e
         try:
-            res = await get_mysekai(ctx.region, uid, filter)
-            if res['code']!=0:
-                raise ReplyException(res['msg'])
-            mysekai_info = res['data']
+            mysekai_info = await get_mysekai(ctx.region, uid, filter)
         except HttpError as e:
             logger.info(f"获取 {qid} mysekai抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
@@ -1960,7 +1957,7 @@ async def _(ctx: SekaiHandlerContext):
         upload_time_text = upload_time.strftime('%m-%d %H:%M:%S') + f"({get_readable_datetime(upload_time, show_original_time=False)})"
         msg += f"{upload_time_text}\n"
     '''
-    (haruki_profile, haruki_err) = await get_mysekai_info(ctx, qid, raise_exc=False, mode="local", filter=['upload_time'])
+    (haruki_profile, haruki_err) = await get_mysekai_info(ctx, qid, raise_exc=False, mode="local", filter='upload_time')
     
     msg = f"{process_hide_uid(ctx, uid, keep=6)}({ctx.region.upper()}) Mysekai数据\n"
     

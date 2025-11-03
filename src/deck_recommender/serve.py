@@ -100,7 +100,7 @@ def options_to_str(options: DeckRecommendOptions) -> str:
 # =========================== API =========================== #
 
 recommender = SekaiDeckRecommend()
-last_masterdata_update_ts = {}
+last_masterdata_version = {}
 last_musicmetas_update_ts = {}
 
 app = FastAPI()
@@ -114,18 +114,18 @@ async def recommend_deck(request: Request):
         region = data['region']
         masterdata_path         = data['masterdata_path']
         musicmetas_path         = data['musicmetas_path']
-        masterdata_update_ts    = data['masterdata_update_ts']
+        masterdata_version      = data['masterdata_version']
         musicmetas_update_ts    = data['musicmetas_update_ts']
         options = DeckRecommendOptions.from_dict(data['options'])
 
         log(f"收到 {create_time.strftime('%Y-%m-%d %H:%M:%S')} 的组卡请求 region={region}, {options_to_str(options)}")
 
         # 更新 masterdata 和 musicmeta
-        global last_masterdata_update_ts, last_musicmetas_update_ts
-        if last_masterdata_update_ts.get(region) != masterdata_update_ts:
-            log(f"更新 {region} MasterData: {datetime.fromtimestamp(masterdata_update_ts).strftime('%Y-%m-%d %H:%M:%S')}")
+        global last_masterdata_version, last_musicmetas_update_ts
+        if last_masterdata_version.get(region) != masterdata_version:
+            log(f"更新 {region} MasterData: v{masterdata_version}")
             recommender.update_masterdata(masterdata_path, region)
-            last_masterdata_update_ts[region] = masterdata_update_ts
+            last_masterdata_version[region] = masterdata_version
         if last_musicmetas_update_ts.get(region) != musicmetas_update_ts:
             log(f"更新 {region} MusicMetas: {datetime.fromtimestamp(musicmetas_update_ts).strftime('%Y-%m-%d %H:%M:%S')}")
             recommender.update_musicmetas(musicmetas_path, region)

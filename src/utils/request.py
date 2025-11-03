@@ -3,15 +3,23 @@ from dotenv import load_dotenv
 from urllib.parse import urlencode
 from ..plugins.utils import loads_json,get_logger,HttpError
 load_dotenv()
-base_url=os.getenv('API_BASE_PATH')
+api_base_url=os.getenv('API_BASE_PATH')
+download_base_url=os.getenv('ASSETS_BASE_PATH')
 
 api_logger = get_logger("Api")
-
-async def server(path:str, method:str, json:dict|None=None, params:dict|None=None)->dict:
-    global base_url
-    url = f"{base_url}{path}"
-    if params:
-        url = f"{url}?{parse_query(params)}"
+download_logger = get_logger("Assets")
+class ApiError(Exception):
+    def __init__(self, path, msg, *args):
+        self.path=path
+        self.msg = msg
+        super().__init__(*args)
+    pass
+# 一般Api请求
+async def server(path:str, method:str, json:dict|None=None, query:dict|None=None)->dict:
+    global api_base_url
+    url = f"{api_base_url}{path}"
+    if query:
+        url = f"{url}?{parse_query(query)}"
     api_logger.info(url)
     #headers
     try:
@@ -25,19 +33,46 @@ async def server(path:str, method:str, json:dict|None=None, params:dict|None=Non
                         pass
                     api_logger.error(f"请求后端API {url} 失败: {resp.status} {detail}")
                     raise HttpError(resp.status, detail)
-                return await resp.json()
+                res = await resp.json()
+                if res["code"]!=0:
+                    raise ApiError(path, res["msg"])
+                return res["data"]
     except aiohttp.ClientConnectionError as e:
         raise Exception(f"连接后端API失败，请稍后再试")
     pass
-def parse_query(params:dict|None):
-    if params is None:
+# 下载资源
+async def download_data(path:str, params:list|None=None, query:dict|None=None):
+    global download_base_url
+    url = f"{download_base_url}{path}"
+    if params: url = "/".join([url]+params)
+    if query:
+        url=f"{url}?{parse_query(query)}"
+    download_logger.info(url)
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.request("get",url) as resp:
+                if resp.status != 200:
+                    try:
+                        detail = await resp.text()
+                        detail = loads_json(detail)['detail']
+                    except Exception:
+                        pass
+                    download_logger.error(f"下载资源 {url} 失败: {resp.status} {detail}")
+                    raise HttpError(resp.status, detail)
+                return await resp.read()
+    except aiohttp.ClientConnectionError as e:
+        raise Exception(f"连接资源Api失败，请稍后再试")
+    pass
+# 把查询参数转换为查询字符串
+def parse_query(query:dict|None):
+    if query is None:
         return ''
-    querys = {}
-    for key,val in params.items():
+    queryCopy = {}
+    for key,val in query.items():
         if val is None:
             continue
         if isinstance(val,list):
-            querys[key] = ','.join(val)
+            queryCopy[key] = ','.join(val)
         else:
-            querys[key]=val
-    return urlencode(querys)
+            queryCopy[key]=val
+    return urlencode(queryCopy)

@@ -54,8 +54,8 @@ def get_attr_icon(attr: str, size: int = None):
     return img
 
 
-SEKAI_BLUE_BG = RandomTriangleBg(True)
-SEKAI_RED_BG = RandomTriangleBg(False, main_hue=0.05)
+SEKAI_BLUE_BG = RandomTriangleBg()
+SEKAI_RED_BG = RandomTriangleBg(main_hue=0.05)
 
 BG_PADDING = 20
 WIDGET_BG_COLOR_CFG = config.item("draw.widget_bg_color")

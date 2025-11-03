@@ -1,5 +1,8 @@
 from ..utils import *
 from .common import *
+from ...api.assets.masterdata import get_masterdata_version, download_masterdata
+from ...api.assets.rip import download_rip_assets
+from ...utils.request import ApiError
 import threading
 
 asset_config = Config('sekai.asset')
@@ -68,7 +71,18 @@ class RegionMasterDbManager:
         # logger.info(f"开始更新 {self.region} 的 {len(self.sources)} 个 MasterDB 的版本信息")
         last_version = self.latest_source.version if self.latest_source else DEFAULT_VERSION
         last_asset_version = self.latest_source.asset_version if self.latest_source else DEFAULT_VERSION
-        await asyncio.gather(*[source.update_version() for source in self.sources])
+        # await asyncio.gather(*[source.update_version() for source in self.sources])
+        try:
+            version_datas = await get_masterdata_version(self.region) # 获取指定服务器的所有数据源的版本信息
+            for source in self.sources: 
+                if source.name in version_datas:
+                    version_data = version_datas[source.name]
+                    source.version = str(get_multi_keys(version_data, ['cdnVersion', 'data_version', 'dataVersion']))
+                    source.asset_version = get_multi_keys(version_data, ['asset_version', 'assetVersion'])
+        except Exception as e:
+            logger.error(f"获取{self.region} masterdata的版本信息失败：{get_exc_desc(e)}")
+            return
+
         self.sources.sort(key=lambda x: get_version_order(x.version), reverse=True)
         self.latest_source = self.sources[0]
         self.version_update_time = datetime.now()
@@ -196,20 +210,24 @@ class MasterDataManager:
         从远程数据源更新数据
         """
         cache_path = self.get_cache_path(region)
-        if not source.base_url.endswith("/"):
-            source.base_url += "/"
-        url = f"{source.base_url}{self.name}.json"
+        # if not source.base_url.endswith("/"):
+        #     source.base_url += "/"
+        # url = f"{source.base_url}{self.name}.json"
 
         # 下载数据
         download_fn = self.download_fn.get('all', self.download_fn.get(region))
         timeout = asset_config.get('default_masterdata_download_timeout')
         async def _download():
             if not download_fn:
-                self.data[region] = await download_json(url)
+                # self.data[region] = await download_json(url)
+                self.data[region] = await download_masterdata(region, source.name, self.name)
             else:
-                self.data[region] = await download_fn(source.base_url)
+                # self.data[region] = await download_fn(source.base_url)
+                self.data[region] = await download_fn(region, source.name)
         try:
             await asyncio.wait_for(_download(), timeout)
+        except ApiError as e:
+            logger.error(f"下载 MasterData [{region}.{self.name}] 失败：{e.msg}")
         except asyncio.TimeoutError:
             logger.warning(f"下载 MasterData [{region}.{self.name}] 超时")
             return
@@ -486,6 +504,9 @@ class RegionMasterDataCollection:
         self.player_frames                                                  = RegionMasterDataWrapper(region, "playerFrames")
         self.player_frame_groups                                            = RegionMasterDataWrapper(region, "playerFrameGroups")
         self.limited_time_musics                                            = RegionMasterDataWrapper(region, "limitedTimeMusics")
+        self.bonds                                                          = RegionMasterDataWrapper(region, "bonds")
+        self.levels                                                         = RegionMasterDataWrapper(region, "levels")
+        self.character_mission_v2_parameter_groups                          = RegionMasterDataWrapper(region, "characterMissionV2ParameterGroups")
 
     async def get(self, name: str):
         wrapper = RegionMasterDataWrapper(self._region, name)
@@ -518,6 +539,7 @@ MasterDataManager.set_index_keys("cardEpisodes", ['id', 'cardId'])
 MasterDataManager.set_index_keys("shopItems", ['id', 'resourceBoxId'])
 MasterDataManager.set_index_keys("areaItemLevels", ['areaItemId'])
 MasterDataManager.set_index_keys("limitedTimeMusics", ['id', 'musicId'])
+MasterDataManager.set_index_keys("levels", ['id', 'levelType'])
 
 
 # ================================ MasterData自定义下载 ================================ #
@@ -540,11 +562,13 @@ def convert_compact_data(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     return ret
             
 @MasterDataManager.download_function("resourceBoxes", regions=COMPACT_DATA_REGIONS)
-async def resource_boxes_download_fn(base_url):
+async def resource_boxes_download_fn(region:str, source:str):
     # resbox = await download_json(f"{base_url}/compactResourceBoxes.json")
     # resbox_detail = await download_json(f"{base_url}/compactResourceBoxDetails.json")
-    resbox = await download_json(f"{base_url}/resourceBoxes.json")
-    resbox_detail = await download_json(f"{base_url}/resourceBoxDetails.json")
+    resbox = await download_masterdata(region,source,"resourceBoxes")
+    resbox_detail = await download_masterdata(region,source,"resourceBoxDetails")
+    # resbox = await download_json(f"{base_url}/resourceBoxes.json")
+    # resbox_detail = await download_json(f"{base_url}/resourceBoxDetails.json")
     def convert(resbox, resbox_detail):
         # resbox = convert_compact_data(resbox)
         # resbox_detail = convert_compact_data(resbox_detail)
@@ -559,6 +583,7 @@ async def resource_boxes_download_fn(base_url):
             item['details'] = details.get(key, [])
         return resbox
     return await run_in_pool(convert, resbox, resbox_detail)
+
 
 # @MasterDataManager.download_function("costume3ds", regions=COMPACT_DATA_REGIONS)
 # async def costume3ds_download_fn(base_url):
@@ -795,8 +820,22 @@ class RegionRipAssetManger:
                     return f.read()
             except:
                 pass
-        
+
         # 尝试从网络下载
+        try:
+            data = await download_rip_assets(self.region, path)
+            if use_cache:
+                create_parent_folder(cache_path)
+                with open(cache_path, "wb") as f:
+                    f.write(data)
+            return data
+        except Exception as e:
+            e = get_exc_desc(e)
+            # logger.print_exc(f"从数据源 [{source.name}] 获取 {self.region} 解包资源 {path} 失败: {e}, url={url}")
+            logger.warning(f"从数据源获取 {self.region} 解包资源 {path} 失败: {e}")
+            if not allow_error:
+                raise Exception(f"从数据源获取 {self.region} 的解包资源 {path} 失败：{e}")
+        '''
         error_list: List[Tuple[str, str]] = []
         for source in self.sources:
             if source.prefixes and not any([path.startswith(prefix) for prefix in source.prefixes]):
@@ -807,6 +846,7 @@ class RegionRipAssetManger:
                 if not source.base_url.endswith("/"):
                     source.base_url += "/"
                 url = source.url_map_method(source.base_url + path)
+                logger.info(f"DEBUG: {url}")
                 data = await self._download_data(url, get_cfg_or_value(timeout))
                 if use_cache:
                     create_parent_folder(cache_path)
@@ -819,7 +859,6 @@ class RegionRipAssetManger:
                 error_list.append((source.name, e))
                 # logger.print_exc(f"从数据源 [{source.name}] 获取 {self.region} 解包资源 {path} 失败: {e}, url={url}")
                 logger.warning(f"从数据源 [{source.name}] 获取 {self.region} 解包资源 {path} 失败: {e}, url={url}")
-
         if not allow_error:
             error_list_text = ""
             for source_name, err in error_list:
@@ -827,6 +866,7 @@ class RegionRipAssetManger:
             raise Exception(f"从所有数据源获取 {self.region} 解包资源 {path} 失败:\n{error_list_text.strip()}")
         
         logger.warning(f"从所有数据源获取 {self.region} 解包资源 {path} 失败: {error_list}，返回默认值")
+        '''
         return default
 
     async def get_asset_cache_path(
