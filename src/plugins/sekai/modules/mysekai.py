@@ -2149,7 +2149,7 @@ async def msr_auto_push():
 
             index = get_player_bind_id_index(ctx, qid, uid)
             if index is None: return
-            user_ctx.arg_text = f"u{index}"
+            user_ctx.arg_text = f"u{index+1}"
             
             try:
                 logger.info(f"在 {gid} 中自动推送用户 {qid} 的{region_name}Mysekai资源查询")
