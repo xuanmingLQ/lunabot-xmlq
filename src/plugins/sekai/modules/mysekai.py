@@ -217,13 +217,12 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
                 TextBox(f"获取数据失败:{err_msg}", TextStyle(font=DEFAULT_FONT, size=20, color=RED), line_count=3).set_w(240)
     return f
 
-# 获取mysekai上次资源刷新时间
-def get_mysekai_last_refresh_time(ctx: SekaiHandlerContext) -> datetime:
+# 获取mysekai上次资源刷新时间和刷新原因(natural/bdstart_{cid}/bdend_{cid})
+def get_mysekai_last_refresh_time_and_reason(ctx: SekaiHandlerContext, dt: datetime=None) -> Tuple[datetime, str]:
     # 自然刷新
     h1, h2 = get_mysekai_refresh_hours(ctx)
-    now = datetime.now()
+    now = dt or datetime.now()
     last_refresh_time = None
-    now = datetime.now()
     if now.hour < h1:
         last_refresh_time = now.replace(hour=h2, minute=0, second=0, microsecond=0)
         last_refresh_time -= timedelta(days=1)
@@ -238,13 +237,10 @@ def get_mysekai_last_refresh_time(ctx: SekaiHandlerContext) -> datetime:
             start = dt - timedelta(days=3)
             end = dt
             if last_refresh_time < start <= now:
-                last_refresh_time = start
-                break
+                return start, f'bdstart_{cid}'
             if last_refresh_time < end <= now:
-                last_refresh_time = end
-                break
-    # logger.debug(f"计算出的Mysekai上次资源刷新时间: {last_refresh_time}")
-    return last_refresh_time
+                return end, f'bdend_{cid}'
+    return last_refresh_time, 'natural'
 
 # 从蓝图ID获取家具，不存在返回None
 async def get_fixture_by_blueprint_id(ctx: SekaiHandlerContext, bid: int) -> Optional[dict]:
@@ -608,29 +604,63 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         mysekai_info, pmsg = await get_mysekai_info(ctx, qid, raise_exc=True)
 
     upload_time = datetime.fromtimestamp(mysekai_info['upload_time'] / 1000)
-    if upload_time < get_mysekai_last_refresh_time(ctx) and check_time:
+    if upload_time < get_mysekai_last_refresh_time_and_reason(ctx)[0] and check_time:
         raise ReplyException(f"数据已过期: {upload_time.strftime('%m-%d %H:%M:%S')} from {mysekai_info.get('source', '?')}")
     
     assert_and_reply('userMysekaiHarvestMaps' in mysekai_info.get('updatedResources', {}), 
                      f"你的Mysekai抓包数据不完整，可以尝试退出游戏到标题界面后重新上传抓包数据")
 
-    # 天气预报图片
+    # 获取天气预报信息
     schedule = mysekai_info['mysekaiPhenomenaSchedules']
-    phenom_imgs = []
-    phenom_ids = []
+    phenom_ids = [item['mysekaiPhenomenaId'] for item in schedule]
     h1, h2 = get_mysekai_refresh_hours(ctx)
-    phenom_texts = [f"{h1}:00", f"{h2}:00", f"{h1}:00", f"{h2}:00"]
-    for i, item in enumerate(schedule):
-        phenom_id = item['mysekaiPhenomenaId']
-        asset_name = (await ctx.md.mysekai_phenomenas.find_by_id(phenom_id))['iconAssetbundleName']
-        phenom_imgs.append(await ctx.rip.img(f"mysekai/thumbnail/phenomena/{asset_name}.png"))
-        phenom_ids.append(phenom_id)
+
+    # 判断当前天气
     current_hour = upload_time.hour
     phenom_idx = 1 if current_hour < h1 or current_hour >= h2 else 0
     cur_phenom_id = phenom_ids[phenom_idx]
     phenom_color_info = get_mysekai_phenomena_color_info(cur_phenom_id)
     phenom_bg = FillBg(LinearGradient(c1=phenom_color_info['sky1'], c2=phenom_color_info['sky2'], p1=(0.25, 1.0), p2=(0.75, 0.0)))
 
+    # 获取待绘制天气绘制参数
+    phenom_start_dt = upload_time.replace(hour=h1, minute=0, second=0, microsecond=0)
+    if current_hour < h1:
+        phenom_start_dt -= timedelta(days=1)
+    phenom_imgs, phenom_texts, phenom_bg_fills, phenom_text_fills = [], [], [], []
+
+    async def add_phenom(refresh_reason: str, is_current: bool, start_dt: datetime, phenom_id=None):
+        phenom_texts.append(start_dt.strftime('%H:%M'))
+        if refresh_reason == 'natural':
+            asset_name = (await ctx.md.mysekai_phenomenas.find_by_id(phenom_id))['iconAssetbundleName']
+            phenom_imgs.append(await ctx.rip.img(f"mysekai/thumbnail/phenomena/{asset_name}.png"))
+            phenom_bg_fills.append((255, 255, 255, 150) if is_current else (255, 255, 255, 75))
+        else:
+            refresh_reason = refresh_reason.split('_')
+            bd_status, cid = refresh_reason[0], int(refresh_reason[1])
+            img = await ctx.rip.img(f"thumbnail/material/material{cid+173}.png")    # 露滴道具
+            img = img.resize((50, 50), Image.LANCZOS)
+            if bd_status == "bdend":
+                draw = ImageDraw.Draw(img)
+                draw.line((0, 0, img.width, img.height), fill=(150, 150, 150, 255), width=5)
+                draw.line((0, img.height, img.width, 0), fill=(150, 150, 150, 255), width=5)
+            phenom_imgs.append(img)
+            phenom_bg_fills.append((255, 255, 200, 255) if is_current else (255, 255, 200, 150))
+        phenom_text_fills.append((0, 0, 0, 255) if is_current else (125, 125, 125, 255))
+
+    for i, item in enumerate(schedule):
+        i_is_current = (i == phenom_idx)  # 是否是当前天气（需要进一步判断生日刷新）
+        # 判断到下一次自然刷新之前是否有生日刷新
+        phenom_end_dt = phenom_start_dt + timedelta(hours=11, minutes=59)
+        last_refresh_of_end, reason = get_mysekai_last_refresh_time_and_reason(ctx, phenom_end_dt)
+        mid_is_current = None
+        if last_refresh_of_end != phenom_start_dt:
+            mid_is_current = upload_time >= last_refresh_of_end
+            i_is_current = i_is_current and not mid_is_current
+        await add_phenom('natural', i_is_current, phenom_start_dt, phenom_ids[i])
+        if mid_is_current is not None:
+            await add_phenom(reason, mid_is_current, last_refresh_of_end)
+        phenom_start_dt += timedelta(hours=12)
+    
     # 获取到访角色和对话记录
     chara_visit_data = mysekai_info['userMysekaiGateCharacterVisit']
     gate_id = chara_visit_data['userMysekaiGate']['mysekaiGateId']
@@ -736,9 +766,8 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                 with HSplit().set_sep(8).set_content_align('lb').set_bg(roundrect_bg()).set_padding(10):
                     for i in range(len(phenom_imgs)):
                         with Frame():
-                            color = (100, 100, 100) if i != phenom_idx else (0, 0, 0)
-                            with VSplit().set_content_align('c').set_item_align('c').set_sep(5).set_bg(roundrect_bg()).set_padding(8):
-                                TextBox(phenom_texts[i], TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=color)).set_w(60).set_content_align('c')
+                            with VSplit().set_content_align('c').set_item_align('c').set_sep(5).set_bg(roundrect_bg(fill=phenom_bg_fills[i])).set_padding(8):
+                                TextBox(phenom_texts[i], TextStyle(font=DEFAULT_BOLD_FONT, size=15, color=phenom_text_fills[i])).set_w(60).set_content_align('c')
                                 ImageBox(phenom_imgs[i], size=(None, 50), use_alphablend=True) 
             
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16).set_bg(roundrect_bg()):
@@ -2109,7 +2138,7 @@ async def msr_auto_push():
         upload_times: dict[tuple[str, str], int] = { uid_mode: ts for uid_mode, ts in zip(uid_modes, upload_times) }
 
         need_push_uid_modes = [] # 需要推送的uid_mode（有及时更新数据并且没有距离太久的）
-        last_refresh_time = get_mysekai_last_refresh_time(ctx)
+        last_refresh_time = get_mysekai_last_refresh_time_and_reason(ctx)[0]
         for uid_mode, ts in upload_times.items():
             update_time = datetime.fromtimestamp(ts / 1000)
             if update_time > last_refresh_time and datetime.now() - update_time < timedelta(minutes=10):
