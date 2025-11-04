@@ -47,7 +47,7 @@
 
 
 ### 上传图片
-`/上传` `添加` `/gall add` `/gall upload`
+`/上传` `/添加` `/gall add` `/gall upload`
 > 上传图片到指定画廊  
 添加`force`参数能够禁用查重  
 
