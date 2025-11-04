@@ -164,10 +164,11 @@ def get_character_birthday(cid: int) -> Tuple[int, int]:
     return Config('sekai.character_birthday').get('birthdays')[cid]
 
 # 获取角色下次生日时间点
-def get_character_next_birthday_dt(region: str, cid: int) -> datetime:
+def get_character_next_birthday_dt(region: str, cid: int, dt: datetime = None) -> datetime:
+    dt = dt or datetime.now()
     m, d = get_character_birthday(cid)
-    next_birthday = datetime.now().replace(month=m, day=d, hour=0, minute=0, second=0, microsecond=0)
-    if next_birthday < datetime.now():
+    next_birthday = dt.replace(month=m, day=d, hour=0, minute=0, second=0, microsecond=0)
+    if next_birthday < dt:
         next_birthday = next_birthday.replace(year=next_birthday.year + 1)
     return region_dt_to_local(region, next_birthday)
 

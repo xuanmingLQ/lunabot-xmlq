@@ -233,7 +233,7 @@ def get_mysekai_last_refresh_time_and_reason(ctx: SekaiHandlerContext, dt: datet
     # 五周年后的生日掉落更新产生的刷新
     if is_fifth_anniversary(ctx.region):
         for cid in range(1, 27):
-            dt = get_character_next_birthday_dt(ctx.region, cid)
+            dt = get_character_next_birthday_dt(ctx.region, cid, now - timedelta(days=1))
             start = dt - timedelta(days=3)
             end = dt
             if last_refresh_time < start <= now:
