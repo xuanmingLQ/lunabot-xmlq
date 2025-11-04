@@ -557,7 +557,7 @@ async def get_basic_profile_card(ctx: SekaiHandlerContext, profile: dict) -> Fra
 
             with VSplit().set_content_align('c').set_item_align('l').set_sep(5):
                 game_data = profile['user']
-                user_id = process_hide_uid(ctx, game_data['userId'])
+                user_id = process_hide_uid(ctx, game_data['userId'], keep=6)
                 colored_text_box(
                     truncate(game_data['name'], 64),
                     TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2, shadow_color=ADAPTIVE_SHADOW),
@@ -709,7 +709,7 @@ async def get_detailed_profile_card(ctx: SekaiHandlerContext, profile: dict, err
                     mode = mode or get_user_data_mode(ctx, ctx.user_id)
                     update_time = datetime.fromtimestamp(profile['upload_time'] / 1000)
                     update_time_text = update_time.strftime('%m-%d %H:%M:%S') + f" ({get_readable_datetime(update_time, show_original_time=False)})"
-                    user_id = process_hide_uid(ctx, game_data['userId'])
+                    user_id = process_hide_uid(ctx, game_data['userId'], keep=6)
                     colored_text_box(
                         truncate(game_data['name'], 64),
                         TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2),
