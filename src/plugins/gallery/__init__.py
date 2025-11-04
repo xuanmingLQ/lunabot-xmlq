@@ -12,7 +12,8 @@ gbl = get_group_black_list(file_db, logger, 'gallery')
 
 THUMBNAIL_SIZE = (64, 64)
 SIZE_LIMIT_MB_CFG = config.item('size_limit_mb')
-PHASH_DIFFERENCE_THRESHOLD_CFG = config.item('phash_difference_threshold')
+HASH1_DIFFERENCE_THRESHOLD_CFG = config.item('hash1_difference_threshold')
+HASH2_DIFFERENCE_THRESHOLD_CFG = config.item('hash2_difference_threshold')
 GALLERY_PICS_DIR = 'data/gallery/{name}/'
 PIC_EXTS = ['.jpg', '.jpeg', '.png', '.gif']
 ADD_LOG_FILE = 'data/gallery/add.log'
@@ -30,8 +31,52 @@ class GalleryPic:
     gall_name: str
     pid: int
     path: str
-    phash: str
+    hash1: str = None
+    hash2: str = None
     thumb_path: str | None = None
+
+    @classmethod
+    def load(cls, data: dict) -> 'GalleryPic':
+        return cls(
+            gall_name=data['gall_name'],
+            pid=data['pid'],
+            path=data['path'],
+            hash1=data.get('hash1', None),
+            hash2=data.get('hash2', None),
+            thumb_path=data.get('thumb_path', None),
+        )
+
+    def calc_hash(self):
+        image = Image.open(self.path)
+        # 如果存在A通道：alphablend到纯白色背景上
+        if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
+            image = image.convert('RGBA').resize((64, 64), Image.Resampling.BILINEAR)
+            bg = Image.new("RGBA", image.size, (255, 255, 255, 255))
+            bg.alpha_composite(image)
+            image = bg
+        image = image.convert('RGB')
+        image = image.resize((16, 16), Image.Resampling.BILINEAR).convert('L')
+        # hash2: 用于MAE计算，直接转为b64字符串
+        self.hash2 = image.tobytes().hex()
+        # hash1: 用于快速比较，计算64位感知哈希
+        image = image.resize((8, 8), Image.Resampling.BILINEAR)
+        pixels = np.array(image).flatten()
+        avg = pixels.mean()
+        bits = 0
+        for idx, p in enumerate(pixels):
+            if p >= avg:
+                bits |= 1 << (63 - idx)
+        self.hash1 = f"{bits:016x}"
+
+    def is_same(self, other: 'GalleryPic') -> bool:
+        # 通过hash1快速排除不同的图片
+        if (int(self.hash1, 16) ^ int(other.hash1, 16)).bit_count() > HASH1_DIFFERENCE_THRESHOLD_CFG.get():
+            return False
+        # hash2精确判断
+        img1 = np.frombuffer(bytes.fromhex(self.hash2), dtype=np.uint8)
+        img2 = np.frombuffer(bytes.fromhex(other.hash2), dtype=np.uint8)
+        diff = np.sum(np.abs(img1.astype(np.int16) - img2.astype(np.int16)))
+        return diff <= HASH2_DIFFERENCE_THRESHOLD_CFG.get()
 
     def ensure_thumb(self):
         try:
@@ -74,14 +119,13 @@ class GalleryManager:
         self.pid_top = file_db.get('pid_top', 0)
         self.galleries = {}
         for name, g in file_db.get('galleries', {}).items():
-            pics = [GalleryPic(**p) for p in g.get('pics', [])]
             self.galleries[name] = Gallery(
                 name=g['name'],
                 aliases=g.get('aliases', []),
                 cover_pid=g.get('cover_pid', None),
                 mode=GalleryMode(g.get('mode', 'edit')),
                 pics_dir=g['pics_dir'],
-                pics=pics,
+                pics=[GalleryPic.load(p) for p in g.get('pics', [])],
             )
         logger.info(f'成功加载{len(self.galleries)}个画廊, pid_top={self.pid_top}')
 
@@ -99,38 +143,15 @@ class GalleryManager:
             return False
         return True
 
-    async def _calc_hash(self, path: str):
-        image = Image.open(path)
-        def calc(image):
-            # 如果存在A通道：alphablend到纯白色背景上
-            if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
-                image = image.convert('RGBA').resize((64, 64), Image.Resampling.BILINEAR)
-                bg = Image.new("RGBA", image.size, (255, 255, 255, 255))
-                bg.alpha_composite(image)
-                image = bg
-            image = image.convert('RGB')
-            # 缩小尺寸并转为灰度图
-            image = image.resize((16, 16), Image.Resampling.BILINEAR).convert('L')
-            # 转为base64字符串
-            return image.tobytes().hex()
-        return await run_in_pool(calc, image)
-
-    async def _is_sim_hash(self, phash1: str, phash2: str, threshold: int) -> bool:
-        def calc():
-            img1 = np.frombuffer(bytes.fromhex(phash1), dtype=np.uint8)
-            img2 = np.frombuffer(bytes.fromhex(phash2), dtype=np.uint8)
-            diff = np.sum(np.abs(img1.astype(np.int16) - img2.astype(np.int16)))
-            return diff <= threshold
-        return await run_in_pool(calc)
-    
-    async def _check_duplicated(self, phash: str, gallery: Gallery) -> int | None:
+    async def _async_check_duplicated(self, pic: GalleryPic, gallery: Gallery) -> int | None:
         with Timer("check_duplicated", logger):
-            for p in gallery.pics:
-                if await self._is_sim_hash(phash, p.phash, PHASH_DIFFERENCE_THRESHOLD_CFG.get()):
-                    return p.pid
-            return None
-
-    
+            def check():
+                for p in gallery.pics:
+                    if pic.is_same(p):
+                        return p.pid
+                return None
+            return await run_in_pool(check)
+        
 
     @classmethod
     def get(cls) -> 'GalleryManager':
@@ -245,10 +266,16 @@ class GalleryManager:
         """
         g = self.find_gall(name_or_alias)
         assert g is not None, f'画廊\"{name_or_alias}\"不存在'
+
+        pic = GalleryPic(
+            gall_name=g.name, 
+            pid=self.pid_top+1,
+            path=img_path, 
+        )
+        await run_in_pool(pic.calc_hash)
     
-        phash = await self._calc_hash(img_path)
         if check_duplicated:
-            if sim_pid := await self._check_duplicated(phash, g):
+            if sim_pid := await self._async_check_duplicated(pic, g):
                 raise GalleryPicRepeatedException(sim_pid)
 
         self.pid_top += 1
@@ -257,15 +284,9 @@ class GalleryManager:
         dst_path = create_parent_folder(os.path.join(g.pics_dir, f"{time_str}_{self.pid_top}{ext}"))
         shutil.copy2(img_path, dst_path)
 
-        pic = GalleryPic(
-            gall_name=g.name, 
-            pid=self.pid_top, 
-            path=dst_path, 
-            phash=phash,
-        )
+        pic.path = dst_path
         g.pics.append(pic)
         pic.ensure_thumb()
-
         self._save()
         return self.pid_top
 
@@ -278,9 +299,15 @@ class GalleryManager:
         g = self.find_gall(p.gall_name)
         assert g is not None, f'图片ID {pid} 所属画廊\"{p.gall_name}\"不存在'
 
-        phash = await self._calc_hash(img_path)
+        new_pic = GalleryPic(
+            gall_name=g.name, 
+            pid=p.pid, 
+            path=img_path, 
+        )
+        await run_in_pool(new_pic.calc_hash)
+
         if check_duplicated:
-            if sim_pid := await self._check_duplicated(phash, g):
+            if sim_pid := await self._async_check_duplicated(new_pic, g):
                 if sim_pid != pid:
                     raise GalleryPicRepeatedException(sim_pid)
 
@@ -301,7 +328,8 @@ class GalleryManager:
 
         # 更新信息
         p.path = dst_path
-        p.phash = phash
+        p.hash1 = new_pic.hash1
+        p.hash2 = new_pic.hash2
         p.thumb_path = None
         p.ensure_thumb()
 
@@ -328,7 +356,7 @@ class GalleryManager:
 
     async def async_reload_gall(self, name_or_alias: str) -> tuple[list[int], list[int]]:
         """
-        从画廊的图片目录重新加载图片，返回[新加载的图片pids, 失效的图片pids]
+        从画廊的图片目录重新加载图片（不去重），返回[新加载的图片pids, 失效的图片pids]
         """
         g = self.find_gall(name_or_alias)
         assert g is not None, f'画廊\"{name_or_alias}\"不存在'
@@ -340,8 +368,6 @@ class GalleryManager:
             for p in g.pics:
                 if os.path.abspath(p.path) == os.path.abspath(file):
                     continue
-            phash = await self._calc_hash(file)
-
             _, ext = os.path.splitext(os.path.basename(file))
             if ext.lower() in PIC_EXTS:
                 self.pid_top += 1
@@ -349,10 +375,11 @@ class GalleryManager:
                     gall_name=g.name, 
                     pid=self.pid_top, 
                     path=file,
-                    phash=phash,
                 )
+                await run_in_pool(pic.calc_hash)
                 g.pics.append(pic)
                 new_pids.append(pic.pid)
+
         # 检查失效的图片
         for pic in g.pics[:]:
             if not os.path.exists(pic.path):
@@ -376,34 +403,31 @@ class GalleryManager:
         """
         重新检查画廊重复图片，返回一个字典，key为首个图片id，value为重复图片id列表
         """
-        g = self.find_gall(name_or_alias)
-        assert g is not None, f'画廊\"{name_or_alias}\"不存在'
-        
-        ret: dict[int, tuple[str, list[int]]] = {}
+        def check():
+            g = self.find_gall(name_or_alias)
+            assert g is not None, f'画廊\"{name_or_alias}\"不存在'
+            
+            ret: dict[int, tuple[GalleryPic, list[int]]] = {}  # ret[pid] = (first_pic, dup_pids)
+            for pic in g.pics[:]:
+                if rehash:
+                    pic.calc_hash()
 
-        for pic in g.pics[:]:
+                sim_pid = None
+                for k, v in ret.items():
+                    if pic.is_same(v[0]):
+                        sim_pid = k
+                        break
+
+                if sim_pid is not None:
+                    ret[sim_pid][1].append(pic.pid)
+                else:
+                    ret[pic.pid] = (pic, [])
+
             if rehash:
-                phash = await self._calc_hash(pic.path)
-                pic.phash = phash
-            else:
-                phash = pic.phash
-
-            sim_pid = None
-            for k, v in ret.items():
-                phash2 = v[0]
-                if await self._is_sim_hash(phash, phash2, PHASH_DIFFERENCE_THRESHOLD_CFG.get()):
-                    sim_pid = k
-                    break
-
-            if sim_pid is not None:
-                ret[sim_pid][1].append(pic.pid)
-            else:
-                ret[pic.pid] = (phash, [])
-
-        if rehash:
-            self._save()
-        ret = { k : v[1] for k, v in ret.items() if v[1] }
-        return ret
+                self._save()
+            ret = { k : v[1] for k, v in ret.items() if v[1] }
+            return ret
+        return await run_in_pool(check)
 
 
 # 处理本地文件用于添加到画廊
@@ -603,6 +627,7 @@ async def _(ctx: HandlerContext):
 
     await ctx.block(name)
     
+    start_time = datetime.now()
     image_datas = await ctx.aget_image_datas()
     ok_list, err_msg = [], ""
     repeats: list[tuple[Image.Image, int]] = []
@@ -622,6 +647,8 @@ async def _(ctx: HandlerContext):
             except Exception as e:
                 logger.print_exc(f"上传第{i}张图片到画廊\"{name}\"失败")
                 err_msg += f"上传第{i}张图片失败: {get_exc_desc(e)}\n"
+    cost_time = (datetime.now() - start_time).total_seconds()
+    logger.info(f"上传{len(ok_list)}/{len(image_datas)}张图片到画廊\"{name}\"完成, 耗时{cost_time:.2f}秒")
 
     repeat_img = None
     if repeats:
