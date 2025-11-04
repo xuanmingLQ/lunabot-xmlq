@@ -1,4 +1,4 @@
-from ...utils import server
+from ...utils import server,ApiError
 def get_ranking(region:str,event_id:str):
     return server(
         path="/event/ranking",
@@ -8,3 +8,5 @@ def get_ranking(region:str,event_id:str):
             'eventId':event_id
         }
     )
+def send_boost():
+    raise ApiError("","不支持自动送火")

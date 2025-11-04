@@ -3,9 +3,15 @@ from ..common import *
 from ..handler import *
 from ..asset import *
 from ..draw import *
-from .stamp_maker import make_stamp, check_stamp_can_make
+from .stamp_maker import make_stamp, STAMP_MAKER_BASE_DIR
+from ...imgtool import cutout_image, shrink_image
+from ...llm import ChatSession, ChatSessionResponse, get_model_preset
+from .card import get_character_sd_image
 
-GIF_STAMP_SCALE = 2.0
+GIF_STAMP_SCALE_CFG = config.item('stamp.gif_scale')
+STAMP_BASE_IMAGE_DIR = f"{STAMP_MAKER_BASE_DIR}/images"
+STAMP_CUTOUT_IMAGE_DIR = f"{STAMP_MAKER_BASE_DIR}/cutouts"
+cutout_ratelimit = RateLimit(file_db, logger, config.item('stamp.cutout.daily_limit'), 'd', rate_limit_name='pjsk_stamp_cutout')
 
 # ======================= 处理逻辑 ======================= #
 
@@ -23,7 +29,8 @@ async def get_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, format: str) ->
     if format == "gif":
         with TempFilePath("gif") as path:
             img = await get_stamp_image(ctx, sid)
-            img = img.resize((int(img.width * GIF_STAMP_SCALE), int(img.height * GIF_STAMP_SCALE)), Image.Resampling.LANCZOS).convert("RGBA")
+            scale = GIF_STAMP_SCALE_CFG.get()
+            img = img.resize((int(img.width * scale), int(img.height * scale)), Image.Resampling.LANCZOS).convert("RGBA")
             # 将图片中半透明像素处理为白底的不透明像素
             img = np.array(img)
             alpha_channel = img[:, :, 3] / 255.0
@@ -51,15 +58,23 @@ async def compose_character_all_stamp_image(ctx: SekaiHandlerContext, cid):
     stamp_id_imgs = [(sid, img) for sid, img in zip(stamp_ids, stamp_imgs) if img]
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        with VSplit().set_sep(8).set_item_align('l'):
+        with VSplit().set_sep(8).set_item_align('l').set_bg(roundrect_bg()).set_padding(8):
             TextBox(
-                f"发送\"{ctx.original_trigger_cmd} ID\"获取单张表情\n"
-                f"发送\"{ctx.original_trigger_cmd} ID 文本\"制作表情(仅蓝色ID支持制作)",
-                style=TextStyle(font=DEFAULT_FONT, size=24, color=(50, 50, 50, 255)), use_real_line_count=True) \
+                f"发送\"{ctx.original_trigger_cmd} 序号\"获取单张表情\n"
+                f"发送\"{ctx.original_trigger_cmd} 序号 文本\"制作表情\n"
+                f"序号为绿色的表情有人工抠图处理的底图\n"
+                f"序号为蓝色的表情有AI抠图处理的底图",
+                style=TextStyle(font=DEFAULT_FONT, size=24, color=(0, 0, 0, 255)), use_real_line_count=True) \
                 .set_padding(16).set_bg(roundrect_bg())
             with Grid(col_count=5).set_sep(4, 4).set_item_bg(roundrect_bg()):
                 for sid, img in stamp_id_imgs:
-                    text_color = (0, 0, 200, 255) if check_stamp_can_make(sid) else (200, 0, 0, 255)
+                    text_color = (200, 0, 0, 255)
+                    if res := await ensure_stamp_maker_base_image(ctx, sid, use_cutout=False):
+                        p, info = res
+                        if p and not info:
+                            text_color = (0, 150, 0, 255)
+                        elif p and info:
+                            text_color = (0, 0, 200, 255)
                     with VSplit().set_padding(4).set_sep(4):
                         ImageBox(img, size=(None, 100), use_alphablend=True, shadow=True)
                         TextBox(str(sid), style=TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=text_color))
@@ -71,8 +86,7 @@ async def make_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, text: str, for
     stamp = await ctx.md.stamps.find_by_id(sid)
     assert_and_reply(stamp, f"表情 {sid} 不存在")
     cid = stamp.get('characterId1')
-    cid2 = stamp.get('characterId2')
-    assert_and_reply(cid and not cid2, f"该表情不支持制作")
+    assert_and_reply(cid, f"该表情不支持制作")
     nickname = get_character_first_nickname(cid)
     text_zoom_ratio = 1.0
     line_count = 0
@@ -81,8 +95,11 @@ async def make_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, text: str, for
         text_zoom_ratio = min(text_zoom_ratio, 0.3 + dst_len * 0.04)
         line_count += 1
     text_y_offset = int(15 - 30 * (1.0 - text_zoom_ratio))
+
+    base_image_path, addtional_info = await ensure_stamp_maker_base_image(ctx, sid, use_cutout=True)
+
     img = make_stamp(
-        id = sid,
+        base_image_path = base_image_path,
         character = nickname, 
         text = text,
         degree = 5,
@@ -93,15 +110,77 @@ async def make_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, text: str, for
         text_y_offset = text_y_offset,
         disable_different_font_size = False
     )
-    assert_and_reply(img, f"该表情ID不支持制作\n使用/pjsk stamp 角色简称 查询哪些表情支持制作")
     if format == 'gif':
-        img = img.resize((int(img.width * GIF_STAMP_SCALE), int(img.height * GIF_STAMP_SCALE)), Image.Resampling.LANCZOS)
+        scale = GIF_STAMP_SCALE_CFG.get()
+        img = img.resize((int(img.width * scale), int(img.height * scale)), Image.Resampling.LANCZOS)
         with TempFilePath("gif") as path:
             save_transparent_static_gif(img, path)
-            return await get_image_cq(path)
+            return await get_image_cq(path) + addtional_info
     else:
-        return await get_image_cq(img)
+        return await get_image_cq(img) + addtional_info
 
+# 检查某个表情是否有用于制作的底图，没有底图的情况可以请求LLM抠图或返回None，返回[底图路径,额外信息]
+async def ensure_stamp_maker_base_image(ctx: SekaiHandlerContext, sid: int, use_cutout: bool) -> tuple[str, str] | None:
+    await ctx.block(f"sid={sid}")
+    filename = f"{sid:06d}.png"
+    base_image_path = f"{STAMP_BASE_IMAGE_DIR}/{filename}"
+    if os.path.isfile(base_image_path):
+        return base_image_path, ""
+    cutout_image_path = f"{STAMP_CUTOUT_IMAGE_DIR}/{filename}"
+    cutout_info = f"该表情底图使用AI自动抠图，若抠图错误可使用\"/pjsk表情刷新{sid}\"重新抠图"
+    if os.path.isfile(cutout_image_path):
+        return cutout_image_path, cutout_info
+    
+    if not use_cutout:
+        return None
+    
+    if not config.get('stamp.cutout.enable'):
+        raise ReplyException(f"表情{sid}没有可用的底图")
+    
+    if not await cutout_ratelimit.check(ctx.event):
+        raise NoReplyException()
+    
+    # 请求LLM抠图
+    await ctx.asend_reply_msg(f"正在进行表情{sid}的AI抠图...")
+
+    stamp = await ctx.md.stamps.find_by_id(sid)
+    assert_and_reply(stamp, f"表情 {sid} 不存在")
+    c1 = stamp.get('characterId1')
+    c2 = stamp.get('characterId2')
+    assert_and_reply(c1 or c2, f"表情 {sid} 不支持抠图")
+
+    img = await get_stamp_image(ctx, sid)
+    w, h = img.size
+    black = Image.new("RGBA", (w, h), (0, 0, 0, 255))
+    black.alpha_composite(img)
+    imgs = [black]
+
+    imgs.append(await get_character_sd_image(c1))
+    if c2:
+        imgs.append(await get_character_sd_image(c2))
+
+    model = get_model_preset('sekai.stamp_cutout')
+    prompt = config.get('stamp.cutout.prompt')
+    tolerance = config.get('stamp.cutout.tolerance')
+    edge = config.get('stamp.cutout.edge')
+
+    logger.info(f"请求LLM表情抠图 sid={sid}")
+    session = ChatSession()
+    session.append_user_content(prompt, imgs)
+
+    def process_resp(resp: ChatSessionResponse):
+        assert resp.images, "LLM未返回抠图结果"
+        return resp.images[0]
+
+    image: Image.Image = await session.get_response(model, process_resp, image_response=True)
+    image = resize_keep_ratio(image, max(w, h) * 2)
+
+    image = await run_in_pool(cutout_image, image, tolerance)
+    image = await run_in_pool(shrink_image, image, 0, edge)
+    create_parent_folder(cutout_image_path)
+    image.save(cutout_image_path)
+    return cutout_image_path, cutout_info
+    
 
 # ======================= 指令处理 ======================= #
 
@@ -194,7 +273,7 @@ async def _(ctx: SekaiHandlerContext):
             stamp = random.choice(stamps)
             if cid and stamp.get('characterId1') != cid and stamp.get('characterId2') != cid:
                 continue
-            if can_make and not check_stamp_can_make(stamp['id']):
+            if can_make and not await ensure_stamp_maker_base_image(ctx, stamp['id'], use_cutout=False):
                 continue
             return stamp['id']
         return None
@@ -218,3 +297,67 @@ async def _(ctx: SekaiHandlerContext):
         sid = await get_rand_sid(cid, False)
         assert_and_reply(sid, f"没有符合条件的表情")
         return await ctx.asend_reply_msg(await get_stamp_image_cq(ctx, sid, format))
+    
+
+# 刷新表情底图
+pjsk_stamp_refresh = SekaiCmdHandler([
+    "/pjsk stamp refresh", "/pjsk表情刷新", "/pjsk刷新表情",
+    "/pjsk刷新表情底图", "/pjsk表情刷新底图",
+])
+pjsk_stamp_refresh.check_cdrate(cd).check_wblist(gbl)
+@pjsk_stamp_refresh.handle()
+async def _(ctx: SekaiHandlerContext):
+    await ctx.block_region()
+    args = ctx.get_args().strip()
+    try:
+        sid = int(args)
+        assert sid >= 0
+    except:
+        return await ctx.asend_reply_msg(f"使用方式: {ctx.original_trigger_cmd} 123")
+
+    filename = f"{sid:06d}.png"
+    base_image_path = f"{STAMP_BASE_IMAGE_DIR}/{filename}"
+    cutout_image_path = f"{STAMP_CUTOUT_IMAGE_DIR}/{filename}"
+    assert_and_reply(not os.path.isfile(base_image_path), f"表情{sid}人工抠图底图已存在")
+    if os.path.isfile(cutout_image_path):
+        os.remove(cutout_image_path)
+
+    path, _ = await ensure_stamp_maker_base_image(ctx, sid, use_cutout=True)
+    with TempFilePath("gif") as gif_path:
+        save_transparent_static_gif(open_image(path), gif_path)
+        img_cq = await get_image_cq(gif_path)
+    return await ctx.asend_reply_msg(f"表情{sid}底图已刷新\n{img_cq}")
+
+
+# 查看表情底图
+pjsk_stamp_base = SekaiCmdHandler([
+    "/pjsk stamp base", "/pjsk表情底图",
+])
+pjsk_stamp_base.check_cdrate(cd).check_wblist(gbl)
+@pjsk_stamp_base.handle()
+async def _(ctx: SekaiHandlerContext):
+    args = ctx.get_args().strip()
+    gif = True
+    if "png" in args:
+        gif = False
+        args = args.replace("png", "").strip()
+    try:
+        sid = int(args)
+        assert sid >= 0
+    except:
+        return await ctx.asend_reply_msg(f"使用方式: {ctx.original_trigger_cmd} 123")
+
+    res = await ensure_stamp_maker_base_image(ctx, sid, use_cutout=False)
+    assert_and_reply(res, f"该表情还没有底图，使用\"/pjsk表情刷新{sid}\"生成底图")
+
+    path, _ = res
+
+    if gif:
+        with TempFilePath("gif") as gif_path:
+            save_transparent_static_gif(open_image(path), gif_path)
+            img_cq = await get_image_cq(gif_path)
+    else:
+        img_cq = await get_image_cq(path)
+
+    return await ctx.asend_reply_msg(img_cq + f"使用\"/pjsk表情刷新{sid}\"可重新生成底图")
+

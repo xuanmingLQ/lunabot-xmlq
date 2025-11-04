@@ -17,7 +17,7 @@ from .profile import (
 from .event import extract_ban_event
 from .resbox import get_res_icon
 import rapidfuzz
-
+from ....api.assets.music import get_music_alias
 
 music_group_sub = SekaiGroupSubHelper("music", "新曲通知", ALL_SERVER_REGIONS)
 music_user_sub = SekaiUserSubHelper("music", "新曲@提醒", ALL_SERVER_REGIONS, related_group_sub=music_group_sub)
@@ -306,7 +306,8 @@ async def sync_music_alias():
     async def sync(mid: int) -> bool:
         try:
             url = cfg.url.format(mid=mid)
-            data = await download_json(url)
+            # data = await download_json(url)
+            data = await get_music_alias(mid)
             await asyncio.sleep(cfg.sync_batch_interval)  
             assert data['music_id'] == mid
             aliases = data['aliases']
@@ -1313,7 +1314,7 @@ async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Ima
         
     # 无抓包的模式
     else:
-        profile = await get_basic_profile(ctx, get_player_bind_id(ctx, qid))
+        profile = await get_basic_profile(ctx, get_player_bind_id(ctx))
         avatar_info = await get_player_avatar_info_by_basic_profile(ctx, profile)
 
         music_num = len(mids)

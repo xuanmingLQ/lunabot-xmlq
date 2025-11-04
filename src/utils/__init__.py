@@ -1,3 +1,3 @@
-from .request import server,download_data
+from .request import server,download_data,ApiError
 
-__all__ = ("server","download_data")
+__all__ = ("server","download_data","ApiError")

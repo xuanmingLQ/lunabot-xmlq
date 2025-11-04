@@ -36,6 +36,7 @@ class SekaiHandlerContext(HandlerContext):
     static_imgs: StaticImageRes = None
     create_from_region: bool = False
     prefix_arg: str = None
+    uid_arg: str = None
 
     @classmethod
     def from_region(cls, region: str) -> 'SekaiHandlerContext':
@@ -61,6 +62,7 @@ class SekaiCmdHandler(CmdHandler):
         commands: List[str],
         regions: List[str] = None, 
         prefix_args: List[str] = None,
+        parse_uid_arg: bool = True,
         **kwargs
     ):
         self.available_regions = regions or self.DEFAULT_AVAILABLE_REGIONS
@@ -75,6 +77,7 @@ class SekaiCmdHandler(CmdHandler):
                     all_region_commands.append(cmd.replace("/", f"/{region}{prefix}"))
         all_region_commands = list(set(all_region_commands))
         self.original_commands = commands
+        self.parse_uid_arg = parse_uid_arg
         super().__init__(all_region_commands, logger, **kwargs)
 
     async def additional_context_process(self, context: HandlerContext):
@@ -110,8 +113,24 @@ class SekaiCmdHandler(CmdHandler):
             f"该指令不支持 {cmd_region} 服务器，可用的服务器有: {', '.join(self.available_regions)}"
         )
 
+        # 处理账号指定参数
+        args = context.get_args()
+        uid_arg = None
+        if self.parse_uid_arg:
+            # 匹配 u数字
+            index_match = re.search(r'u(\d{1,2})', args)
+            if index_match:
+                uid_arg = f"u{index_match.group(1)}"
+                args = args.replace(index_match.group(0), '').strip()
+            # 匹配游戏id
+            uid_match = re.search(r'(\d{14,20})', args)
+            if uid_match:
+                uid_arg = uid_match.group(1)
+                args = args.replace(uid_match.group(0), '').strip()
+        
         # 构造新的上下文
         params = context.__dict__.copy()
+        params['arg_text'] = args
         params['region'] = cmd_region
         params['original_trigger_cmd'] = original_trigger_cmd
         params['md'] = RegionMasterDataCollection(cmd_region)
@@ -119,6 +138,7 @@ class SekaiCmdHandler(CmdHandler):
         params['static_imgs'] = StaticImageRes()
         params['create_from_region'] = False
         params['prefix_arg'] = prefix_arg
+        params['uid_arg'] = uid_arg
 
         return SekaiHandlerContext(**params)
 

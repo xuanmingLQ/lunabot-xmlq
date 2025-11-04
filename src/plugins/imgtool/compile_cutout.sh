@@ -1,1 +1,0 @@
-g++ src/plugins/imgtool/cutout.cpp -o data/imgtool/cutout --std=c++17 -O2

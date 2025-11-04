@@ -124,10 +124,11 @@ class GalleryManager:
         return await run_in_pool(calc)
     
     async def _check_duplicated(self, phash: str, gallery: Gallery) -> int | None:
-        for p in gallery.pics:
-            if await self._is_sim_hash(phash, p.phash, PHASH_DIFFERENCE_THRESHOLD_CFG.get()):
-                return p.pid
-        return None
+        with Timer("check_duplicated", logger):
+            for p in gallery.pics:
+                if await self._is_sim_hash(phash, p.phash, PHASH_DIFFERENCE_THRESHOLD_CFG.get()):
+                    return p.pid
+            return None
 
     
 
@@ -417,19 +418,21 @@ def process_image_for_gallery(path: str, sub_type: int):
     filesize_mb = os.path.getsize(path) / (1024 * 1024)
     if filesize_mb > size_limit:
         pixels = get_image_pixels(img)
-        img = limit_image_by_pixels(img, int(pixels * size_limit / filesize_mb))
+        with Timer("limit_image_by_pixels", logger):
+            img = limit_image_by_pixels(img, int(pixels * size_limit / filesize_mb))
         scaled = True
 
-    if need_to_gif:
-        # 转换为静态gif
-        save_transparent_static_gif(img, path)
-    elif scaled:
-        if is_animated(img):
-            save_transparent_gif(img, get_gif_duration(img), path)
-        else:
-            img.save(path)
-        new_size_mb = os.path.getsize(path) / (1024 * 1024)
-        logger.info(f"缩放过大的图片 {filesize_mb:.2f}M -> {new_size_mb:.2f}M")
+    with Timer("save_image", logger):
+        if need_to_gif:
+            # 转换为静态gif
+            save_transparent_static_gif(img, path)
+        elif scaled:
+            if is_animated(img):
+                save_transparent_gif(img, get_gif_duration(img), path)
+            else:
+                img.save(path)
+            new_size_mb = os.path.getsize(path) / (1024 * 1024)
+            logger.info(f"缩放过大的图片 {filesize_mb:.2f}M -> {new_size_mb:.2f}M")
 
 
 # ======================= 指令处理 ======================= # 

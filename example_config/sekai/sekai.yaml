@@ -10,7 +10,19 @@ draw:
   widget_bg_color: [255, 255, 255, 100]
   widget_bg_radius: 10
 
-daily_bind_limit: 3
+bind:
+  daily_limits:
+    jp: 5
+    cn: 5
+    tw: 5
+    kr: 5
+    en: 5
+  total_limits:
+    jp: 5
+    cn: 5
+    tw: 5
+    kr: 5
+    en: 5
 
 profile_bg_image_size: 
   horizontal: [1300, 650]
@@ -34,6 +46,15 @@ story_summary:
     target_len_short: 200
     output_progress: true
 
+stamp:
+  gif_scale: 2.0
+  cutout:
+    enable: false
+    daily_limit: 5
+    tolerance: 200
+    edge: 20
+    prompt: |
+      请你将第一张图片的文字去掉，保留其他部分内容和大小比例严格不变（其他图片用于被文字遮挡部分的角色外观的参考）
 
 deck:
   recommend_server_url: "http://localhost:45556/recommend"

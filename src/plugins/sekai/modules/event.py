@@ -13,7 +13,7 @@ from .profile import (
     get_player_avatar_info_by_detailed_profile,
     request_gameapi,
 )
-
+from ....api.game.event import send_boost as send_boost_api
 QUERY_SINGLE_EVENT_HELP = """
 【查单个活动格式】
 1. 活动ID：123
@@ -680,12 +680,16 @@ async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh
 
 # 5v5自动送火
 async def send_boost(ctx: SekaiHandlerContext, qid: int) -> str:
-    uid = get_player_bind_id(ctx, qid)
+    uid = get_player_bind_id(ctx)
     event = await get_current_event(ctx)
     assert_and_reply(event and event['eventType'] == 'cheerful_carnival', "当前没有进行中的5v5活动")
     url = get_gameapi_config(ctx).send_boost_api_url
     assert_and_reply(url, "该区服不支持自动送火")
-    result = await request_gameapi(url.format(uid=uid), method='POST')
+    # result = await request_gameapi(url.format(uid=uid), method='POST')
+    try:
+        result = await send_boost_api()
+    except Exception :
+        raise
     ok_times = result['ok_times']
     failed_reason = result.get('failed_reason', '未知错误')
     ret_msg = f"成功送火{ok_times}次"

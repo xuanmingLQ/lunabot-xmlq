@@ -1231,7 +1231,7 @@ async def compose_deck_recommend_image(
     if use_current_deck:
         assert_and_reply(options.live_type not in ['challenge'], "暂不支持获取挑战组卡的当前队伍")
         basic_profile = await get_basic_profile(
-            ctx, get_player_bind_id(ctx, qid, check_bind=True), 
+            ctx, get_player_bind_id(ctx), 
             use_cache=False, use_remote_cache=False,
         )
         options.fixed_cards = [basic_profile['userDeck'][f'member{i}'] for i in range(1, 6)]

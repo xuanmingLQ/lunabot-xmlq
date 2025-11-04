@@ -7,12 +7,12 @@ from PIL import Image, ImageDraw, ImageFont
 from fontTools.ttLib import TTFont
 from pilmoji import Pilmoji
 
-MAKER_BASE_DIR = f"{SEKAI_ASSET_DIR}/stamp_maker"
+STAMP_MAKER_BASE_DIR = f"{SEKAI_ASSET_DIR}/stamp_maker"
 
 # ----------------------------------------- configs ----------------------------------------- #
 
-font_path = f"{MAKER_BASE_DIR}/fonts/ShangShouFangTangTi.ttf"
-font_jp_path = f"{MAKER_BASE_DIR}/fonts/YurukaStd.woff2"
+font_path = f"{STAMP_MAKER_BASE_DIR}/fonts/ShangShouFangTangTi.ttf"
+font_jp_path = f"{STAMP_MAKER_BASE_DIR}/fonts/YurukaStd.woff2"
 font_size = 100
 font_jp_size = 80
 s_font_zoom_ratio = 0.8
@@ -314,16 +314,8 @@ def draw_text(
 
 # ----------------------------------------- functions ----------------------------------------- #
 
-
-def get_stamp_template_img_path(id: int):
-    return f"{MAKER_BASE_DIR}/images/{id:06d}.png"
-
-def check_stamp_can_make(id: int):
-    return os.path.exists(get_stamp_template_img_path(id))
-
-
 def make_stamp(
-    id: int,
+    base_image_path: str,
     character: str,
     text: str,
     degree: float = 0,
@@ -359,13 +351,7 @@ def make_stamp(
     :return: Sticker图像
     """
 
-    path = get_stamp_template_img_path(id)
-    if not os.path.exists(path):
-        return None
-
-    sticker = Image.open(path).convert(
-        "RGBA"
-    )
+    sticker = Image.open(base_image_path).convert("RGBA")
     if text == "":
         return sticker
 
