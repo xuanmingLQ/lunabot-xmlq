@@ -33,6 +33,9 @@ profile_bg_image_save_kwargs:
   optimize: true
   progressive: true
 
+suite_path: data/sekai/user_data/{region}/suite/*
+mysekai_path: data/sekai/user_data/{region}/mysekai/*
+
 story_summary:
   card:
     retry: 2

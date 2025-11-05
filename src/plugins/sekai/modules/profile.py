@@ -1779,8 +1779,6 @@ async def _(ctx: HandlerContext):
         group_mode = True
     if '详细' in args or 'detail' in args:
         detail_mode = True
-    SUITE_DIR = "/root/program/qqbot/mybot/data/sekai/user_data/{region}/suite/*"
-    MYSEKAI_DIR = "/root/program/qqbot/mybot/data/sekai/user_data/{region}/mysekai/*"
     bind_list: Dict[str, Dict[str, str]] = profile_db.get("bind_list", {})
     suite_total, mysekai_total, qid_set = 0, 0, set()
     suite_source_total: dict[str, int] = {}
@@ -1799,12 +1797,12 @@ async def _(ctx: HandlerContext):
                     uids.add(uid)
         qid_set.update(qids)
 
-        suites = glob.glob(SUITE_DIR.format(region=region))
+        suites = glob.glob(config.get("suite_path").format(region=region))
         if group_mode:
             suites = [s for s in suites if s.split('/')[-1].split('.')[0] in uids]
         suite_total += len(suites)
 
-        mysekais = glob.glob(MYSEKAI_DIR.format(region=region))
+        mysekais = glob.glob(config.get("mysekai_path").format(region=region))
         if group_mode:
             mysekais = [m for m in mysekais if m.split('/')[-1].split('.')[0] in uids]
         mysekai_total += len(mysekais)
