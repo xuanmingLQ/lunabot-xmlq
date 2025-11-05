@@ -495,7 +495,7 @@ async def _(ctx: HandlerContext):
         return await ctx.asend_reply_msg('MC服务器监听已关闭，无法发送消息')
 
     content = ctx.get_args().strip()
-    user_name = await get_group_member_name(ctx.bot, ctx.group_id, ctx.user_id)
+    user_name = ctx.get_sender_name()
     msg = f'[{user_name}] {content}'
 
     if server.listen_mode == 'dynamicmap':
@@ -511,9 +511,9 @@ add_admin.check_wblist(gwl).check_cdrate(cd).check_group().check_superuser()
 @add_admin.handle()
 async def _(ctx: HandlerContext):
     server = get_server(ctx.group_id)
-    msg = extract_cq_code(await ctx.aget_msg())
-    assert_and_reply('at' in msg, '请@一个人')
-    user_id = str(msg['at'][0]['qq'])
+    cqs = extract_cq_code(ctx.get_msg())
+    assert_and_reply('at' in cqs, '请@一个人')
+    user_id = str(cqs['at'][0]['qq'])
     assert_and_reply(user_id not in server.admin, '该用户已经是管理员')
     server.admin.append(user_id)
     server.save()
@@ -525,9 +525,9 @@ remove_admin.check_wblist(gwl).check_cdrate(cd).check_group().check_superuser()
 @remove_admin.handle()
 async def _(ctx: HandlerContext):
     server = get_server(ctx.group_id)
-    msg = extract_cq_code(await ctx.aget_msg())
-    assert_and_reply('at' in msg, '请@一个人')
-    user_id = str(msg['at'][0]['qq'])
+    cqs = extract_cq_code(ctx.get_msg())
+    assert_and_reply('at' in cqs, '请@一个人')
+    user_id = str(cqs['at'][0]['qq'])
     assert_and_reply(user_id in server.admin, '该用户不是管理员')
     server.admin.remove(user_id)
     server.save()

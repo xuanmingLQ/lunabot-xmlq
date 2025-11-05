@@ -244,6 +244,7 @@ sessions: Dict[str, ChatSession] = {}
 query_msg_ids = set()
 
 # 询问
+CHAT_CMDS = ["/chat", ]
 chat_request = CmdHandler(
     [""], logger, 
     block=False, priority=0, 
@@ -256,37 +257,43 @@ async def _(ctx: HandlerContext):
     session = None
     try:
         # 获取内容
-        query_msg_obj = await get_msg_obj(bot, event.message_id)
-        query_msg = query_msg_obj["message"]
+        query_msg = ctx.get_msg()
         query_text = extract_text(query_msg)
         query_imgs = extract_image_url(query_msg)
         query_cqs = extract_cq_code(query_msg)
-        reply_msg_obj = await get_reply_msg_obj(bot, query_msg)
+        reply_msg = ctx.get_reply_msg()
+        reply_id = ctx.get_reply_msg_id()
 
         # 自己回复指令的消息不回复
         if check_self_reply(event): return
 
         # 自动聊天的消息交由自动聊天回复
-        if reply_msg_obj and reply_msg_obj['message_id'] in autochat_msg_ids: return
+        if reply_id in autochat_msg_ids: return
 
         # 是否是/chat触发的消息
         triggered_by_chat_cmd = False
-        if query_text.strip().startswith("/chat"):
-            query_text = query_text.strip().removeprefix("/chat")
-            triggered_by_chat_cmd = True
+        for chat_cmd in CHAT_CMDS:
+            if query_text.strip().startswith(chat_cmd):
+                query_text = query_text.strip().removeprefix(chat_cmd)
+                triggered_by_chat_cmd = True
+                break
 
         # 如果当前群组正在自动聊天或者关闭@触发，只有通过/chat触发的消息才回复
         if is_group_msg(event) and (autochat_sub.is_subbed(event.group_id) or not at_trigger_chat_gbl.check(event)):
             if not triggered_by_chat_cmd:
                 return
-
-        # 空消息不回复
-        bot_name = await get_group_member_name(bot, event.group_id, bot.self_id) if is_group_msg(event) else "NoNeed@BotName"
-        if query_text.replace(f"@{bot_name}", "").strip() == "" or query_text is None:
-            return
-        
+            
         # /开头的消息不回复
         if query_text.strip().startswith("/"):
+            return
+
+        # 仅当群聊并且文本中有@时，才获取bot名称，减少API调用
+        bot_name = "No@BotName"
+        if is_group_msg(event) and '@' in query_text:
+            bot_name = await get_group_member_name(bot, event.group_id, bot.self_id)
+
+        # 空消息不回复
+        if query_text.replace(f"@{bot_name}", "").strip() == "" or query_text is None:
             return
 
         # 群组名单检测
@@ -376,11 +383,8 @@ async def _(ctx: HandlerContext):
             logger.info(f"使用生成图片模式")
             
         # 收集回复消息的内容
-        reply_msg_obj = await get_reply_msg_obj(bot, query_msg)
-        if reply_msg_obj is not None:
+        if reply_msg is not None:
             # 回复模式，检测是否在历史会话中
-            reply_id = reply_msg_obj["message_id"]
-            reply_msg = reply_msg_obj["message"]
             logger.info(f"回复模式：{reply_id}")
 
             if str(reply_id) in sessions:
@@ -394,7 +398,7 @@ async def _(ctx: HandlerContext):
                 reply_text = extract_text(reply_msg)
                 reply_cqs = extract_cq_code(reply_msg)
                 reply_imgs = extract_image_url(reply_msg)
-                reply_uid = reply_msg_obj["sender"]["user_id"]
+                reply_uid = ctx.get_reply_sender().user_id
                 logger.info(f"获取回复消息: {reply_id}, uid:{reply_uid}")
                 # 不支持的回复类型
                 if any([t in reply_cqs for t in ["json", "video"]]):
@@ -672,15 +676,14 @@ trans = CmdHandler(["/trans", "/translate", "/翻译"], logger)
 trans.check_cdrate(img_trans_cd).check_wblist(gwl)
 @trans.handle()
 async def _(ctx: HandlerContext):
-    reply_msg_obj = await ctx.aget_reply_msg_obj()
+    reply_msg = ctx.get_reply_msg()
 
     # 翻译当前消息内的文本
-    if not reply_msg_obj:
+    if not reply_msg:
         text = ctx.get_args().strip()
         assert_and_reply(text, "请输入要翻译的文本，或回复要翻译的文本/图片")
         return await ctx.asend_reply_msg(await translate_text(text, cache=False))
 
-    reply_msg = reply_msg_obj["message"]
     cqs = extract_cq_code(reply_msg)
     imgs = cqs.get("image", [])
 
@@ -817,11 +820,11 @@ async def _(ctx: HandlerContext):
 
 
 # 将消息段转换为纯文本
-async def autochat_msg_to_readable_text(cfg: Dict[str, Any], group_id: int, msg: dict):
+async def autochat_msg_to_readable_text(cfg: Dict[str, Any], group_id: int, msg_rec: dict):
     try:
         bot = get_bot()
-        text = f"{get_readable_datetime(msg['time'])} msg_id={msg['msg_id']} {msg['nickname']}({msg['user_id']}):\n"
-        for item in await get_msg(bot, msg['msg_id']):
+        text = f"{get_readable_datetime(msg_rec['time'])} msg_id={msg_rec['msg_id']} {msg_rec['nickname']}({msg_rec['user_id']}):\n"
+        for item in msg_rec['message']:
             mtype, mdata = item['type'], item['data']
             if mtype == "text":
                 text += f"{mdata['text']}"
@@ -852,7 +855,7 @@ async def autochat_msg_to_readable_text(cfg: Dict[str, Any], group_id: int, msg:
                 text += json_msg_to_readable_text(mdata)
         return text
     except Exception as e:
-        logger.warning(f"消息转换失败: {msg}, {e}")
+        logger.warning(f"消息转换失败: {msg_rec}, {e}")
         return None
 
 
@@ -881,10 +884,12 @@ async def _(ctx: HandlerContext):
     try:
         group_id = ctx.group_id
         self_id = int(bot.self_id)
-        msg = await get_msg(bot, event.message_id)
+        msg = ctx.get_msg()
         cqs = extract_cq_code(msg)
         msg_text = extract_text(msg).strip()
-        reply_msg_obj = await get_reply_msg_obj(bot, msg)
+
+        reply_id = ctx.get_reply_msg_id()
+        reply_uid = ctx.get_reply_sender().user_id if reply_id else None
         
         if not autochat_sub.is_subbed(group_id): return
         # if not gwl.check(event): return
@@ -902,7 +907,7 @@ async def _(ctx: HandlerContext):
         # 检测是否触发
         is_trigger = False
         has_at_self = 'at' in cqs and int(cqs['at'][0]['qq']) == self_id
-        has_reply_self = reply_msg_obj and reply_msg_obj["sender"]["user_id"] == self_id
+        has_reply_self = reply_uid == self_id
         chat_prob = cfg.get('group_chat_probs', {}).get(str(group_id), cfg['chat_prob'])
         # 回复和at必定触发
         if has_at_self or has_reply_self:

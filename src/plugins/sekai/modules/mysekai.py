@@ -1983,7 +1983,7 @@ pjsk_check_mysekai_data = SekaiCmdHandler([
 pjsk_check_mysekai_data.check_cdrate(cd).check_wblist(gbl)
 @pjsk_check_mysekai_data.handle()
 async def _(ctx: SekaiHandlerContext):
-    cqs = extract_cq_code(await ctx.aget_msg())
+    cqs = extract_cq_code(ctx.get_msg())
     qid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
     uid = get_player_bind_id(ctx)
 

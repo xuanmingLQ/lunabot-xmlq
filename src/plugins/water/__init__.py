@@ -225,10 +225,9 @@ water = CmdHandler(['/water', '/watered', '/水果'], logger)
 water.check_group().check_wblist(gbl).check_cdrate(cd)
 @water.handle()
 async def _(ctx: HandlerContext):
-    reply_msg_obj = await ctx.aget_reply_msg_obj()
-    assert_and_reply(reply_msg_obj, "请回复一条消息")
-    reply_msg_id = reply_msg_obj['message_id']
-    reply_msg = reply_msg_obj['message']
+    reply_msg_id = ctx.get_reply_msg_id()
+    reply_msg = ctx.get_reply_msg()
+    assert_and_reply(reply_msg_id, "请回复一条消息")
     group_id = ctx.group_id
 
     hashes = await get_hash_from_msg(group_id, reply_msg)
@@ -260,7 +259,7 @@ query_hash = CmdHandler(['/hash'], logger)
 query_hash.check_group().check_cdrate(cd).check_wblist(gbl)
 @query_hash.handle()
 async def _(ctx: HandlerContext):
-    reply_msg = await ctx.aget_reply_msg()
+    reply_msg = ctx.get_reply_msg()
     assert_and_reply(reply_msg, "请回复一条消息")
     hashes = await get_hash_from_msg(ctx.group_id, reply_msg)
     msg = ''
@@ -302,7 +301,7 @@ water_exclude = CmdHandler(['/water_exclude', '/watered_exclude', '/水果排除
 water_exclude.check_group().check_wblist(gbl)
 @water_exclude.handle()
 async def _(ctx: HandlerContext):
-    reply_msg = await ctx.aget_reply_msg()
+    reply_msg = ctx.get_reply_msg()
     group_id = ctx.group_id
     if reply_msg:
         hashes = await get_hash_from_msg(group_id, reply_msg)
@@ -342,19 +341,18 @@ MAX_TASK_NUM = 10
 
 # 添加HASH记录任务
 @before_record_hook
-async def record_new_message(bot, event):
+async def record_new_message(bot: Bot, event: MessageEvent):
     if not gbl.check(event): return
     if not is_group_msg(event): return
     group_id = event.group_id
-    msg_obj = await get_msg_obj(bot, event.message_id)
-    nickname = await get_group_member_name(bot, group_id, event.user_id)
+    nickname = get_user_name_by_event(event)
     task_queue.put_nowait({
         'msg_id': event.message_id,
         'time': event.time,
         'group_id': group_id,
         'user_id': event.user_id,
         'nickname': nickname,
-        'msg': msg_obj['message'],
+        'msg': get_msg(event),
     })
 
 # HASH记录任务任务处理
@@ -405,7 +403,7 @@ async def check_auto_water(bot: Bot, event: MessageEvent):
     check_types = {t for t, gwl in autowater_gwls.items() if gwl.check_id(group_id)}
     if not check_types: return
 
-    msg = await get_msg(bot, event.message_id)
+    msg = get_msg(event)
     hashes = await get_hash_from_msg(group_id, msg, check_types)
     all_water_info = await get_hashes_water_info(group_id, event.message_id, hashes)
 

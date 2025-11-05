@@ -277,7 +277,7 @@ cron_sub = CmdHandler(["/订阅提醒", "/cron_sub", "/cron sub"], logger)
 cron_sub.check_cdrate(cd).check_wblist(gbl).check_group()
 @cron_sub.handle()
 async def _(ctx: HandlerContext):
-    msg = await ctx.aget_msg()
+    msg = ctx.get_msg()
     cqs = extract_cq_code(msg)
     users = [str(ctx.user_id)]
     for_other_user = False
@@ -315,7 +315,7 @@ cron_unsub = CmdHandler(["/取消订阅提醒", "/cron_unsub", "/cron unsub"], l
 cron_unsub.check_cdrate(cd).check_wblist(gbl).check_group()
 @cron_unsub.handle()
 async def _(ctx: HandlerContext):
-    msg = await ctx.aget_msg()
+    msg = ctx.get_msg()
     cqs = extract_cq_code(msg)
     users = [str(ctx.user_id)]
     for_other_user = False

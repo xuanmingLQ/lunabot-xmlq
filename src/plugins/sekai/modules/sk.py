@@ -484,8 +484,7 @@ async def compose_sks_image(ctx: SekaiHandlerContext, unit: str, event: dict = N
     
 # 从文本获取sk查询参数 (类型，值) 类型: 'name' 'uid' 'rank' 'ranks'
 async def get_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str, Union[str, int, List[int]]]:
-    msg = await ctx.aget_msg()
-    ats = extract_at_qq(msg)
+    ats = ctx.get_at_qids()
     if ats:
         uid = get_player_bind_id(ctx, ats[0], check_bind=False)
         assert_and_reply(uid, "@的用户未绑定游戏ID")

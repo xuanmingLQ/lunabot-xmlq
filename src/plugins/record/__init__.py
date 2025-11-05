@@ -58,16 +58,15 @@ async def record_message(bot: Bot, event: GroupMessageEvent):
 
     if record_msg_gbl.check(event) or event.user_id == event.self_id:
         time = datetime.fromtimestamp(event.time)
-        msg_obj = await get_msg_obj(bot, event.message_id)
 
-        msg = msg_obj['message']
-        msg_id = msg_obj['message_id']
+        msg = get_msg(event)
+        msg_id = event.message_id
         user_id = event.user_id
         is_group = is_group_msg(event)
 
         if is_group:
             group_id = event.group_id
-            user_name = await get_group_member_name(bot, group_id, user_id)
+            user_name = get_user_name_by_event(event)
         else:
             group_id = 0
             user_name = (await get_stranger_info(bot, user_id)).get('nickname', '')
@@ -116,11 +115,10 @@ check = CmdHandler(["/check"], logger)
 check.check_superuser()
 @check.handle()
 async def _(ctx: HandlerContext):
-    msg = await ctx.aget_msg()
-    reply_msg_obj = await ctx.aget_reply_msg_obj()
-    if not reply_msg_obj:
+    reply = ctx.event.reply
+    if not reply:
         raise Exception("请回复一条消息")
-    await ctx.asend_reply_msg(str(reply_msg_obj))
+    await ctx.asend_reply_msg(str(reply))
 
 
 # 获取用户在群聊中用过的昵称
@@ -131,7 +129,7 @@ async def _(ctx: HandlerContext):
     user_id = None
 
     try:
-        cqs = extract_cq_code(await ctx.aget_msg())
+        cqs = extract_cq_code(ctx.get_msg())
         if 'at' in cqs:
             user_id = cqs['at'][0]['qq']
         else:
@@ -186,7 +184,7 @@ async def _(ctx: HandlerContext):
 async def private_forward_hook(bot: Bot, event: MessageEvent):
     user_id = event.sender.user_id
     nickname = event.sender.nickname
-    msg = await get_msg(bot, event.message_id)
+    msg = get_msg(event)
     if is_group_msg(event):
         return
 
@@ -303,7 +301,7 @@ async def _(ctx: HandlerContext):
         text += " " * indent + "============\n"
         return text
 
-    reply_msg = await ctx.aget_reply_msg()
+    reply_msg = ctx.get_reply_msg()
     assert_and_reply(reply_msg, "请回复一条聊天记录")
     forward_seg = None
     for seg in reply_msg:

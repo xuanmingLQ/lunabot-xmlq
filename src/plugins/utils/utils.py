@@ -413,7 +413,7 @@ def get_readable_timedelta(delta: timedelta, precision: str = 'm', use_en_unit=F
         case 'd': precision = 0
 
     s = int(delta.total_seconds())
-    if s < 0: return "0秒" if not use_en_unit else "0s"
+    if s <= 0: return "0秒" if not use_en_unit else "0s"
     d = s // (24 * 3600)
     s %= (24 * 3600)
     h = s // 3600

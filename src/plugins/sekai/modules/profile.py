@@ -1462,7 +1462,7 @@ async def _(ctx: SekaiHandlerContext):
 仅从Haruki工具箱获取
 """.strip()
     
-    ats = extract_at_qq(await ctx.aget_msg())
+    ats = ctx.get_at_qids()
     if ats and ats[0] != int(ctx.bot.self_id):
         # 如果有at则使用at的qid
         qid = ats[0]
@@ -1492,7 +1492,7 @@ pjsk_check_data = SekaiCmdHandler([
 pjsk_check_data.check_cdrate(cd).check_wblist(gbl)
 @pjsk_check_data.handle()
 async def _(ctx: SekaiHandlerContext):
-    cqs = extract_cq_code(await ctx.aget_msg())
+    cqs = extract_cq_code(ctx.get_msg())
     qid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
     uid = get_player_bind_id(ctx)
 
@@ -1853,7 +1853,7 @@ async def _(ctx: HandlerContext):
             break
 
     if not uid:
-        if ats := await ctx.aget_at_qids():
+        if ats := ctx.get_at_qids():
             qid = str(ats[0])
         else:
             qid = args

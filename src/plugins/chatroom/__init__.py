@@ -1,4 +1,3 @@
-from nonebot.adapters.onebot.v11.message import Message as OutMessage
 from ..record.sql import query_recent_msg
 from ..record import before_record_hook
 from ..utils import *
@@ -27,11 +26,10 @@ message_pool = {}
 
 # 记录新消息
 @before_record_hook
-async def record_new_message(bot, event):
+async def record_new_message(bot: Bot, event: MessageEvent):
     if not is_group_msg(event): return
-    msg_obj = await get_msg_obj(bot, event.message_id)
     group_id = event.group_id
-    user_name = await get_group_member_name(bot, group_id, event.user_id)
+    user_name = get_user_name_by_event(event)
 
     for cid, group_msgs in message_pool.items():
         # print(f"add msg {event.message_id} of group {group_id} to {cid}")
@@ -42,7 +40,7 @@ async def record_new_message(bot, event):
             'time': event.time,
             'user_id': event.user_id,
             'nickname': user_name,
-            'msg': msg_obj['message'],
+            'msg': get_msg(event),
         })
 
 # ------------------------------ RPC Handler ------------------------------ #
@@ -94,7 +92,7 @@ async def handle_get_group(cid, group_id):
 async def handle_send_group_msg(cid, group_id, message):
     bot = get_bot()
     if isinstance(message, str):
-        message=OutMessage(message)
+        message=Message(message)
     return await bot.send_group_msg(group_id=int(group_id), message=message)
 
 # 从数据库获取群聊天记录
@@ -135,7 +133,7 @@ async def handle_set_client_data(cid, name, data):
 @rpc_method(SERVICE, 'get_msg')
 async def handle_get_msg(cid, msg_id):
     bot = get_bot()
-    msg_obj = await get_msg_obj(bot, msg_id)
+    msg_obj = await get_msg_obj_by_bot(bot, msg_id)
     return {
         'msg_id': msg_obj['message_id'],
         'time': msg_obj['time'],
@@ -186,6 +184,6 @@ async def handle_send_group_msg_split(cid, group_id, md5, is_str):
     if not is_str:
         message = loads_json(message)
     else:
-        message = OutMessage(message)
+        message = Message(message)
     bot = get_bot()
     return await bot.send_group_msg(group_id=int(group_id), message=message)
