@@ -1791,9 +1791,12 @@ async def _(ctx: HandlerContext):
 
     for region in ALL_SERVER_REGIONS:
         qids = set(bind_list.get(region, {}).keys())
+        uids = set()
         if group_mode:
             qids = qids.intersection(group_qids)
-            uids = set([bind_list.get(region, {}).get(qid) for qid in qids])
+            for qid in qids:
+                for uid in to_list(bind_list.get(region, {}).get(qid, [])):
+                    uids.add(uid)
         qid_set.update(qids)
 
         suites = glob.glob(SUITE_DIR.format(region=region))
