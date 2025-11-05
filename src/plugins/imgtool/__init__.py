@@ -1401,9 +1401,10 @@ async def _(ctx: HandlerContext):
             text = await extract_special_text(reply_msg, ctx.group_id)
         else:
             reply_user_id = ctx.get_reply_sender().user_id
-            reply_user_name = get_user_name_by_event(ctx.get_reply_sender())
+            reply_user_name = get_user_name_by_event(ctx.event.reply)
             text = await extract_special_text(reply_msg, ctx.group_id)
     except:
+        logger.print_exc("生成语录获取回复消息失败")
         raise ReplyException("无法获取回复消息")
     
     if not text:

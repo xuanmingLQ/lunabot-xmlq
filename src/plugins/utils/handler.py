@@ -1457,7 +1457,7 @@ class HandlerContext:
         return get_user_name_by_event(self.event)
 
     def get_reply_msg(self) -> list[dict]:
-        return get_reply_msg(self.bot, self.event)
+        return get_reply_msg(self.event)
 
     def get_reply_msg_id(self) -> int | None:
         if self.event.reply:

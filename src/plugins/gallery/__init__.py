@@ -632,21 +632,27 @@ async def _(ctx: HandlerContext):
     ok_list, err_msg = [], ""
     repeats: list[tuple[Image.Image, int]] = []
     REPEAT_IMAGE_SHOW_SIZE = (128, 128)
+
+    async def download(url) -> str:
+        async with TempDownloadFilePath(url, 'gif', remove_after=timedelta(minutes=10)) as p:
+            return p
+    paths = await batch_gather(*[download(data['url']) for data in image_datas], batch_size=16)
+
     for i, data in enumerate(image_datas, 1):
-        async with TempDownloadFilePath(data['url'], 'gif') as path:
-            try:
-                await run_in_pool(process_image_for_gallery, path, data.get('sub_type', 1))
-                pid = await GalleryManager.get().async_add_pic(name, path, check_duplicated=check_duplicated)
-                ok_list.append(pid)
-                with open(ADD_LOG_FILE, 'a', encoding='utf-8') as f:
-                    f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | @{ctx.event.user_id} upload pid={pid} to \"{name}\"\n")
-            except GalleryPicRepeatedException as e:
-                img = open_image(path)
-                img.thumbnail(REPEAT_IMAGE_SHOW_SIZE)
-                repeats.append((img, e.pid))
-            except Exception as e:
-                logger.print_exc(f"上传第{i}张图片到画廊\"{name}\"失败")
-                err_msg += f"上传第{i}张图片失败: {get_exc_desc(e)}\n"
+        try:
+            path = paths[i-1]
+            await run_in_pool(process_image_for_gallery, path, data.get('sub_type', 1))
+            pid = await GalleryManager.get().async_add_pic(name, path, check_duplicated=check_duplicated)
+            ok_list.append(pid)
+            with open(ADD_LOG_FILE, 'a', encoding='utf-8') as f:
+                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | @{ctx.event.user_id} upload pid={pid} to \"{name}\"\n")
+        except GalleryPicRepeatedException as e:
+            img = open_image(path)
+            img.thumbnail(REPEAT_IMAGE_SHOW_SIZE)
+            repeats.append((img, e.pid))
+        except Exception as e:
+            logger.print_exc(f"上传第{i}张图片到画廊\"{name}\"失败")
+            err_msg += f"上传第{i}张图片失败: {get_exc_desc(e)}\n"
     cost_time = (datetime.now() - start_time).total_seconds()
     logger.info(f"上传{len(ok_list)}/{len(image_datas)}张图片到画廊\"{name}\"完成, 耗时{cost_time:.2f}秒")
 
