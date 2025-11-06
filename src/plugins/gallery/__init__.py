@@ -18,6 +18,9 @@ GALLERY_PICS_DIR = 'data/gallery/{name}/'
 PIC_EXTS = ['.jpg', '.jpeg', '.png', '.gif']
 ADD_LOG_FILE = 'data/gallery/add.log'
 
+add_history_db = get_file_db('data/gallery/add_history.json', logger)
+
+
 # ======================= 逻辑处理 ======================= # 
 
 class GalleryMode(Enum):
@@ -458,6 +461,64 @@ def process_image_for_gallery(path: str, sub_type: int):
             new_size_mb = os.path.getsize(path) / (1024 * 1024)
             logger.info(f"缩放过大的图片 {filesize_mb:.2f}M -> {new_size_mb:.2f}M")
 
+# 添加上传记录，返回记录id
+def add_user_add_history(user_id: int, pids: list[int]) -> int:
+    history = add_history_db.get('history', [])
+    record = {
+        'id': len(history) + 1,
+        'uid': user_id,
+        'pids': pids,
+        'ts': datetime.now().timestamp(),
+        'reverted': False,
+    }
+    history.append(record)
+    add_history_db.set('history', history)
+    return record['id']
+
+# 根据记录id撤销上传，返回(记录, 成功pids, 失败pids)
+def revert_user_add_history(hid: int) -> tuple[dict, list[int], list[int]]:
+    history = add_history_db.get('history', [])
+    h = find_by(history, 'id', hid)
+    assert_and_reply(h is not None, f'上传#{hid}不存在')
+    assert_and_reply(not h['reverted'], f'上传#{hid}已被撤销')
+
+    ok_list, err_list = [], []
+    for pid in h['pids']:
+        try:
+            GalleryManager.get().del_pic(pid)
+            ok_list.append(pid)
+        except Exception as e:
+            logger.warning(f'撤销上传记录#{hid}时删除图片pid={pid}失败: {get_exc_desc(e)}')
+            err_list.append(pid)
+
+    h['reverted'] = True
+    add_history_db.set('history', history)
+    return h, ok_list, err_list
+
+# 撤销某个用户的最近一次上传，返回(记录, 成功pids, 失败pids)
+def revert_user_last_add_history(user_id: int) -> tuple[dict, list[int], list[int]]:
+    history = add_history_db.get('history', [])
+    user_histories = [h for h in reversed(history) if h['uid'] == user_id and not h['reverted']]
+    assert_and_reply(user_histories, '你没有可撤销的上传记录')
+    h = user_histories[0]
+
+    expired_hours = config.get('user_recent_revert_expired_hours')
+    time = datetime.fromtimestamp(h['ts'])
+    assert_and_reply((datetime.now() - time) < timedelta(hours=expired_hours), f'最近一次上传记录已超过{expired_hours}小时，无法撤销')
+
+    ok_list, err_list = [], []
+    for pid in h['pids']:
+        try:
+            GalleryManager.get().del_pic(pid)
+            ok_list.append(pid)
+        except Exception as e:
+            logger.warning(f'撤销上传记录#{h["id"]}时删除图片pid={pid}失败: {get_exc_desc(e)}')
+            err_list.append(pid)
+
+    h['reverted'] = True
+    add_history_db.set('history', history)
+    return h, ok_list, err_list
+
 
 # ======================= 指令处理 ======================= # 
 
@@ -506,12 +567,51 @@ gall_del = CmdHandler([
 gall_del.check_cdrate(cd).check_wblist(gbl).check_superuser()
 @gall_del.handle()
 async def _(ctx: HandlerContext):
+    args = ctx.get_args().strip()
+
     try:
-        pids = [int(s) for s in ctx.get_args().strip().split()]
+        if '-' in args:
+            l, r = args.split('-', 1)
+            l, r = int(l), int(r)
+            pids = list(range(l, r+1))
+        else:
+            pids = [int(s) for s in args.split()]
+            l, r = None, None
+        assert pids
     except:
-        raise ReplyException('使用方式: /gall del ID1 ID2...')
-    pids = [GalleryManager.get().del_pic(p) for p in pids]
-    await ctx.asend_reply_msg(f'图片pid={",".join(str(p) for p in pids)}删除成功')
+        raise ReplyException("""
+使用方式: 
+/gall del 123 456 -1 -2 ...
+/gall del 123-456 (最多连续20张)
+""".strip())
+    
+    # 安全限制
+    if l is not None:
+        assert_and_reply(r - l < 20, '一次最多删除20张连续图片')
+        gall_names = set()
+    for pid in pids:
+        if pic := GalleryManager.get().find_pic(pid, raise_if_nofound=False):
+            gall_names.add(pic.gall_name)
+    if len(gall_names) > 1:
+        raise ReplyException('禁止跨画廊删除图片')
+    
+    ok_list, err_list = [], []
+    for pid in pids:
+        try:
+            pid = GalleryManager.get().del_pic(pid)
+            ok_list.append(pid)
+        except Exception as e:
+            logger.warning(f'删除画廊图片pid={pid}失败: {get_exc_desc(e)}')
+            err_list.append(pid)
+
+    msg = ""
+    if ok_list:
+        msg += f'{len(ok_list)}张图片删除成功:\n'
+        msg += ' '.join([str(pid) for pid in ok_list]) + '\n'
+    if err_list:
+        msg += f'{len(err_list)}张图片删除失败:\n'
+        msg += ' '.join([str(pid) for pid in err_list]) + '\n'
+    await ctx.asend_fold_msg_adaptive(msg.strip())
 
 
 gall_reload = CmdHandler([
@@ -656,6 +756,8 @@ async def _(ctx: HandlerContext):
     cost_time = (datetime.now() - start_time).total_seconds()
     logger.info(f"上传{len(ok_list)}/{len(image_datas)}张图片到画廊\"{name}\"完成, 耗时{cost_time:.2f}秒")
 
+    hid = add_user_add_history(ctx.user_id, ok_list)
+
     repeat_img = None
     if repeats:
         with Canvas(bg=FillBg((230, 240, 255, 255))).set_padding(8) as canvas:
@@ -681,11 +783,12 @@ async def _(ctx: HandlerContext):
                                 
         repeat_img = await canvas.get_img()
     
-    msg = f"成功上传{len(ok_list)}/{len(image_datas)}张图片到画廊\"{name}\"\n" + err_msg
+    msg = f"[#{hid}] 成功上传{len(ok_list)}/{len(image_datas)}张图片到\"{name}\"\n"
+    msg += err_msg
     if repeats:
         msg += f"{len(repeats)}张图片与已有图片重复:"
         msg += await get_image_cq(repeat_img, low_quality=True)
-    msg += "画廊主要收录表情/梗图，请勿上传可能有争议的图片"
+    msg += "主要收录表情/梗图，请勿上传可能有争议的图片（使用\"/取消上传\"回退）"
     return await ctx.asend_fold_msg_adaptive(msg.strip())
 
 
@@ -953,6 +1056,43 @@ gall_download_all.check_cdrate(cd).check_wblist(gbl)
 @gall_download_all.handle()
 async def _(ctx: HandlerContext):
     return await ctx.asend_msg(config.get('sync.share_link'))
+
+
+gall_cancel = CmdHandler([
+    '/gall cancel', '/gall revert', '/取消上传', '/撤销上传', '/回退上传',
+], logger)
+gall_cancel.check_cdrate(cd).check_wblist(gbl)
+@gall_cancel.handle()
+async def _(ctx: HandlerContext):
+    args = ctx.get_args().strip()
+
+    hid = None
+    if args:
+        try:
+            hid = int(args)
+        except:
+            raise ReplyException(f"""
+使用方式:
+撤销你的最近一次上传: 
+{ctx.trigger_cmd}  
+撤销指定上传记录(仅管理): 
+{ctx.trigger_cmd} 记录ID
+""".strip())
+    
+    if hid:
+        assert_and_reply(check_superuser(ctx.event), '仅管理员可撤销指定上传记录，非管理员可留空参数撤销自己的最近一次上传')
+        h, ok_list, err_list = revert_user_add_history(hid)
+    else:
+        h, ok_list, err_list = revert_user_last_add_history(ctx.user_id)
+
+    msg = f"撤销{h['uid']}的上传记录#{h['id']}\n"
+    if ok_list:
+        msg += f'{len(ok_list)}张图片删除成功:\n'
+        msg += ' '.join(str(pid) for pid in ok_list) + '\n'
+    if err_list:
+        msg += f'{len(err_list)}张图片删除失败:\n'
+        msg += ' '.join(str(pid) for pid in err_list) + '\n'
+    await ctx.asend_fold_msg_adaptive(msg.strip())
 
 
 # ======================= 定时任务 ======================= # 
