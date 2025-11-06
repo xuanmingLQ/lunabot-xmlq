@@ -32,6 +32,9 @@ BD_MYSEKAI_REGIONS = ['cn', 'tw', 'kr']
 bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", BD_MYSEKAI_REGIONS)
 msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", MYSEKAI_REGIONS, only_one_group=True)
 
+class MsrIdNotMatchException(ReplyException):
+    pass
+
 MYSEKAI_HARVEST_MAP_IMAGE_SCALE_CFG = config.item('mysekai.map_image_scale')
 MYSEKAI_HARVEST_MAP_SITE_BG_IMAGE_DOWNSAMPLE = 0.5
 
@@ -594,7 +597,8 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
 
         # 字节服额外验证
         if bd_limit_uid := get_bd_msr_limit_uid(ctx, qid):
-            assert_and_reply(bd_limit_uid == uid, f"""
+            if bd_limit_uid != uid:
+                raise MsrIdNotMatchException(f"""
 你当前绑定ID与该指令限制ID（{process_hide_uid(ctx, bd_limit_uid, keep=6)}）不符，无法查询数据。发送\"/msr换绑\"可更换限制ID为当前绑定ID（一周内仅可换绑一次）
 """.strip())
 
@@ -2188,6 +2192,8 @@ async def msr_auto_push():
                 ]
                 contents = [f"[CQ:at,qq={qid}]的{region_name}MSR推送"] + contents
                 await send_group_msg_by_bot(bot, gid, "".join(contents))
+            except MsrIdNotMatchException as e:
+                logger.warning(f'在 {gid} 中自动推送用户 {qid} 的{region_name}Mysekai资源查询失败: 限制id不匹配')
             except Exception as e:
                 logger.print_exc(f'在 {gid} 中自动推送用户 {qid} 的{region_name}Mysekai资源查询失败')
                 try: await send_group_msg_by_bot(bot, gid, f"自动推送用户 [CQ:at,qq={qid}] 的{region_name}Mysekai资源查询失败: {get_exc_desc(e)}")

@@ -824,7 +824,7 @@ async def autochat_msg_to_readable_text(cfg: Dict[str, Any], group_id: int, msg_
     try:
         bot = get_bot()
         text = f"{get_readable_datetime(msg_rec['time'])} msg_id={msg_rec['msg_id']} {msg_rec['nickname']}({msg_rec['user_id']}):\n"
-        for item in msg_rec['message']:
+        for item in msg_rec['msg']:
             mtype, mdata = item['type'], item['data']
             if mtype == "text":
                 text += f"{mdata['text']}"
