@@ -1474,7 +1474,7 @@ async def compose_deck_recommend_image(
                             info_text += "如果你想组某个团名颜色加成的模拟活动请使用“/组卡”\n"
 
                     if use_max_profile:
-                        info_text += "“顶配”指该服务器截止于当前的全卡满养成配置\n"
+                        info_text += "“顶配”为该服截止当前的全卡满养成配置(并非基于你的卡组计算)\n"
 
                     if info_text:  
                         TextBox(info_text.strip(), TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(200, 75, 75)), use_real_line_count=True)
