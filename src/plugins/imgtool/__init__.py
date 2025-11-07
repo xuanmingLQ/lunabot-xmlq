@@ -38,7 +38,7 @@ def execute_imgtool_cpp(image: Image.Image | List[Image.Image], command: str, *a
 
             cli_path = "data/imgtool/imgtool-cpp"
             logger.info(f"调用imgtool-cpp程序: {command} " + " ".join(map(str, args)) + f" 输入尺寸: {n}x{w}x{h}")
-            assert_and_reply(os.path.exists(cli_path), "imgtool-cpp程序不存在，请使用src/plugins/imgtool/compile_imgtool_cpp.sh编译")
+            assert_and_reply(os.path.exists(cli_path), "imgtool-cpp程序不存在，请使用src/scripts/compile_imgtool_cpp.sh编译")
             cmd = f"{cli_path} {input_path} {output_path} {command} " + " ".join(map(str, args))
             assert_and_reply(os.system(cmd) == 0, "调用imgtool-cpp程序失败")
 

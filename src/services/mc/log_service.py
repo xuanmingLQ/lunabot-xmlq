@@ -160,7 +160,7 @@ async def get_data(client_id: str):
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
+    parser = ArgumentParser("Minecraft日志监听脚本，用于监听Minecraft服务器日志并通过HTTP接口上传消息到bot，从stdin输入日志内容")
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
     parser.add_argument('--port', type=int, default=8123, help='Port to bind to')
     args = parser.parse_args()

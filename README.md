@@ -24,7 +24,7 @@ Note: This project is for reference and learning purposes only, and is **not** a
 ```bash
 pip install git+https://github.com/NeuraXmy/sekai-deck-recommend-cpp.git
 cd lunabot
-uvicorn src/plugins/sekai/deck_recommender/serve.py:app --port 45556
+uvicorn src/services/deck_recommender/serve.py:app --port 45556
 ```
 
 
