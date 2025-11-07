@@ -1178,19 +1178,32 @@ async def get_music_chart_length(ctx: SekaiHandlerContext, music_id: int, diffic
 # 合成简要歌曲列表图片
 async def compose_music_brief_list_image(
     ctx: SekaiHandlerContext, musics_or_mids: List[Union[int, Dict]],
-    title: str=None, title_style: TextStyle=None, title_shadow=False
+    title: str=None, title_style: TextStyle=None, title_shadow=False,
+    hide_too_far: bool=False,
 ):
     MAX_NUM = 50
-    hide_num = max(0, len(musics_or_mids) - MAX_NUM)
-    musics_or_mids = musics_or_mids[:MAX_NUM]
 
-    for i in range(len(musics_or_mids)):
-        if isinstance(musics_or_mids[i], int):
-            music = await ctx.md.musics.find_by_id(musics_or_mids[i])
-            assert_and_reply(music, f"曲目 {musics_or_mids[i]} 不存在")
-            musics_or_mids[i] = music
-    covers = await batch_gather(*[get_music_cover_thumb(ctx, m['id']) for m in musics_or_mids])
-    diff_infos = [await get_music_diff_info(ctx, m['id']) for m in musics_or_mids]
+    musics = []
+    too_far_num = 0
+    for m_or_mid in musics_or_mids:
+        if isinstance(m_or_mid, int):
+            music = await ctx.md.musics.find_by_id(m_or_mid)
+            assert_and_reply(music, f"曲目 {m_or_mid} 不存在")
+        else:
+            music = m_or_mid
+        # 过滤过远的未发布歌曲
+        if hide_too_far:
+            publish_time = datetime.fromtimestamp(music['publishedAt'] / 1000)
+            if publish_time - datetime.now() > timedelta(days=1000):
+                too_far_num += 1
+                continue
+        musics.append(music)
+
+    hide_num = max(0, len(musics) - MAX_NUM)
+    musics = musics[:MAX_NUM]
+            
+    covers = await batch_gather(*[get_music_cover_thumb(ctx, m['id']) for m in musics])
+    diff_infos = [await get_music_diff_info(ctx, m['id']) for m in musics]
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
@@ -1201,7 +1214,7 @@ async def compose_music_brief_list_image(
                 else:
                     TextBox(title, title_style).set_padding(8)
 
-            for m, cover, diff_info in zip(musics_or_mids, covers, diff_infos):
+            for m, cover, diff_info in zip(musics, covers, diff_infos):
                 mid, music_name = m['id'], m['title']
                 publish_time = datetime.fromtimestamp(m['publishedAt'] / 1000)
                 publish_dlt = get_readable_timedelta(publish_time - datetime.now(), precision='d')
@@ -1226,6 +1239,9 @@ async def compose_music_brief_list_image(
                                 if level is not None:
                                     TextBox(str(level), style3, overflow='clip').set_bg(roundrect_bg(fill=DIFF_COLORS[diff], radius=8)) \
                                         .set_content_align('c').set_size((28, 28))
+                                    
+            if too_far_num:
+                TextBox(f"{too_far_num}首歌曲距离发布>1000天", TextStyle(font=DEFAULT_FONT, size=20, color=(20, 20, 20))).set_padding(8)
                                     
             if hide_num:
                 TextBox(f"{hide_num}首歌曲未显示", TextStyle(font=DEFAULT_FONT, size=20, color=(20, 20, 20))).set_padding(8)
@@ -1596,7 +1612,7 @@ async def _(ctx: SekaiHandlerContext):
         assert_and_reply(leak_musics, f"当前{get_region_name(ctx.region)}没有leak曲目")
         leak_musics = sorted(leak_musics, key=lambda x: (x['publishedAt'], x['id']))
         return await ctx.asend_reply_msg(await get_image_cq(
-            await compose_music_brief_list_image(ctx, leak_musics),
+            await compose_music_brief_list_image(ctx, leak_musics, hide_too_far=True),
             low_quality=True,
         ))
     
