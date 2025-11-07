@@ -1,4 +1,12 @@
-from ..llm import ChatSession, download_image_to_b64, tts, ChatSessionResponse, api_provider_mgr, translate_text, get_model_preset
+from ..llm import (
+    ChatSession, 
+    download_image_to_b64, 
+    tts, 
+    ChatSessionResponse, 
+    api_provider_mgr, 
+    translate_text, 
+    get_model_preset,
+)
 from ..utils import *
 from ..llm.translator import Translator, TranslationResult
 from datetime import datetime, timedelta
@@ -7,6 +15,7 @@ import copy
 from tenacity import retry, stop_after_attempt, wait_fixed
 from ..record.sql import query_recent_msg
 from ..code.run import run as run_code
+from .autochat import *
 
 
 config = Config('chat.chat')
@@ -253,7 +262,7 @@ chat_request = CmdHandler(
 @chat_request.handle()
 async def _(ctx: HandlerContext):
     bot, event = ctx.bot, ctx.event
-    global sessions, query_msg_ids, autochat_msg_ids
+    global sessions, query_msg_ids
     session = None
     try:
         # 获取内容
@@ -267,9 +276,6 @@ async def _(ctx: HandlerContext):
         # 自己回复指令的消息不回复
         if check_self_reply(event): return
 
-        # 自动聊天的消息交由自动聊天回复
-        if reply_id in autochat_msg_ids: return
-
         # 是否是/chat触发的消息
         triggered_by_chat_cmd = False
         for chat_cmd in CHAT_CMDS:
@@ -279,7 +285,7 @@ async def _(ctx: HandlerContext):
                 break
 
         # 如果当前群组正在自动聊天或者关闭@触发，只有通过/chat触发的消息才回复
-        if is_group_msg(event) and (autochat_sub.is_subbed(event.group_id) or not at_trigger_chat_gbl.check(event)):
+        if is_group_msg(event) and (autochat_gwl.check_id(event.group_id) or not at_trigger_chat_gbl.check(event)):
             if not triggered_by_chat_cmd:
                 return
             
@@ -737,9 +743,7 @@ async def _(ctx: HandlerContext):
 
 
 
-# ------------------------------------------ 自动聊天 ------------------------------------------ #
-
-# 浪费时间，不想再写了
+"""
 
 autochat_config = Config('chat.autochat')
 autochat_sub = SubHelper("自动聊天", file_db, logger)
@@ -1015,3 +1019,5 @@ async def _(ctx: HandlerContext):
     finally:
         if need_remove_group_id:
             replying_group_ids.discard(group_id)
+
+"""

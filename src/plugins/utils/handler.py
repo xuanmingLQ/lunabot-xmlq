@@ -1207,11 +1207,16 @@ class GroupWhiteList:
             else:
                 return await ctx.asend_reply_msg(f'本群聊的{name}关闭中')
             
-
-    def get(self):
+    def get(self) -> List[int]:
+        """
+        获取白名单群id列表
+        """
         return self.db.get(self.white_list_name, [])
     
-    def add(self, group_id):
+    def add(self, group_id: int) -> bool:
+        """
+        添加群到白名单，返回是否成功添加
+        """
         white_list = self.db.get(self.white_list_name, [])
         if group_id in white_list:
             return False
@@ -1221,7 +1226,10 @@ class GroupWhiteList:
         if self.on_func is not None: self.on_func(group_id)
         return True
     
-    def remove(self, group_id):
+    def remove(self, group_id: int) -> bool:
+        """
+        从白名单移除群，返回是否成功移除
+        """
         white_list = self.db.get(self.white_list_name, [])
         if group_id not in white_list:
             return False
@@ -1231,12 +1239,18 @@ class GroupWhiteList:
         if self.off_func is not None: self.off_func(group_id)
         return True
             
-    def check_id(self, group_id):
+    def check_id(self, group_id: int) -> bool:
+        """
+        检查群id是否在白名单中
+        """
         white_list = self.db.get(self.white_list_name, [])
         # self.logger.debug(f'白名单{self.white_list_name}检查{group_id}: {"允许通过" if group_id in white_list else "不允许通过"}')
         return group_id in white_list
 
-    def check(self, event, allow_private=False, allow_super=True):
+    def check(self, event: MessageEvent, allow_private=False, allow_super=True) -> bool:
+        """
+        检查消息事件是否通过白名单
+        """
         if is_group_msg(event):
             if allow_super and check_superuser(event, self.superuser): 
                 # self.logger.debug(f'白名单{self.white_list_name}检查: 允许超级用户{event.user_id}')
@@ -1307,10 +1321,16 @@ class GroupBlackList:
             else:
                 return await ctx.asend_reply_msg(f'本群聊的{name}开启中')
         
-    def get(self):
+    def get(self) -> List[int]:
+        """
+        获取黑名单群id列表
+        """
         return self.db.get(self.black_list_name, [])
     
-    def add(self, group_id):
+    def add(self, group_id: int) -> bool:
+        """
+        添加群到黑名单，返回是否成功添加
+        """
         black_list = self.db.get(self.black_list_name, [])
         if group_id in black_list:
             return False
@@ -1320,7 +1340,10 @@ class GroupBlackList:
         if self.off_func is not None: self.off_func(group_id)
         return True
     
-    def remove(self, group_id):
+    def remove(self, group_id: int) -> bool:
+        """
+        从黑名单移除群，返回是否成功移除
+        """
         black_list = self.db.get(self.black_list_name, [])
         if group_id not in black_list:
             return False
@@ -1330,12 +1353,18 @@ class GroupBlackList:
         if self.on_func is not None: self.on_func(group_id)
         return True
     
-    def check_id(self, group_id):
+    def check_id(self, group_id) -> bool:
+        """
+        检查群id是否不在黑名单中
+        """
         black_list = self.db.get(self.black_list_name, [])
         # self.logger.debug(f'黑名单{self.black_list_name}检查{group_id}: {"允许通过" if group_id not in black_list else "不允许通过"}')
         return group_id not in black_list
     
-    def check(self, event, allow_private=False, allow_super=True):
+    def check(self, event, allow_private=False, allow_super=True) -> bool:
+        """
+        检查消息事件是否通过黑名单
+        """
         if is_group_msg(event):
             if allow_super and check_superuser(event, self.superuser): 
                 self.logger.debug(f'黑名单{self.black_list_name}检查: 允许超级用户{event.user_id}')
