@@ -3,6 +3,7 @@ log_level: INFO
 rpc:
   host: "127.0.0.1"
   port: 12345
+  token: xxx
   reconnect_interval: 5
   default_timeout: 5
 

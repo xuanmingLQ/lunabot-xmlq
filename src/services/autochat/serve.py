@@ -4,6 +4,7 @@ from .utils import *
 rpc_session = RpcSession(
     config.item('rpc.host'), 
     config.item('rpc.port'),
+    config.item('rpc.token'),
     config.item('rpc.reconnect_interval'),
 )
 

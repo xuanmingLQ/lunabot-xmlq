@@ -394,10 +394,12 @@ class RpcSession:
         self, 
         host: str | ConfigItem, 
         port: int | ConfigItem, 
+        token: str | ConfigItem,
         reconnect_interval: int | ConfigItem,
     ):
         self.host = host
         self.port = port
+        self.token = token
         self.reconnect_interval = reconnect_interval
         self.session: aiorpcx.RPCSession = None
         self.ws_client = None
@@ -428,6 +430,7 @@ class RpcSession:
     ):
         if not self.is_connected():
             raise RpcNotConnectedError()
+        args = [get_cfg_or_value(self.token)] + list(args)
         try:
             debug(f"发送RPC请求: {method} {args}")
             return await asyncio.wait_for(self.session.send_request(method, args), get_cfg_or_value(timeout))

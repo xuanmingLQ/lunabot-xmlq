@@ -57,6 +57,7 @@ def on_disconnect(session: RpcSession):
 start_rpc_service(
     host=config.get('host'),
     port=config.get('port'),
+    token=config.get('token'),
     name=RPC_SERVICE,
     logger=logger,
     on_connect=on_connect,

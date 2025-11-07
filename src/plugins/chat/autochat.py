@@ -52,6 +52,7 @@ def on_disconnect(session: RpcSession):
 start_rpc_service(
     host=config.get('rpc.host'),
     port=config.get('rpc.port'),
+    token=config.get('rpc.token'),
     name=RPC_SERVICE,
     logger=logger,
     on_connect=on_connect,
@@ -75,6 +76,7 @@ async def handle_send_group_msg(cid: str, group_id: int, message: list[dict] | s
     bot = get_bot()
     if isinstance(message, str):
         message=Message(message)
+    logger.info(f"自动聊天RPC客户端 {cid} 发送消息到群 {group_id}: {message}")
     return await bot.send_group_msg(group_id=int(group_id), message=message)
 
 # 从数据库获取指定群历史聊天记录
@@ -133,7 +135,7 @@ async def handle_query_llm(cid: str, model: str | list[str], text: str, images: 
                     raise Exception(f"字段 {restraint['key']} 长度过长，最大长度: {max_length}")
         return data
 
-    logger.info(f"自动聊天RPC客户端{cid}请求LLM模型")
+    logger.info(f"自动聊天RPC客户端 {cid} 请求LLM模型")
     return await session.get_response(
         model_name=model,
         enable_reasoning=reasoning,

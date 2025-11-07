@@ -41,6 +41,7 @@ CLIENT_NAME = 'chatclient'
 FILE_DB_PATH = config['file_db_path']
 SERVER_HOST = config['server']['host']
 SERVER_PORT = config['server']['port']
+SERVER_TOKEN = config['server']['token']
 SERVER_LOG_URL = config['server']['log_url']
 RECONNECT_INTERVAL = 5
 UPDATE_INTERVAL = 1 / 15
@@ -562,9 +563,10 @@ def set_footer_split_text(text, continue_seconds=None):
 # ------------------------------------ RPC ------------------------------------ #
 
 class Session:
-    def __init__(self, host, port):
+    def __init__(self, host, port, token):
         self.host = host
         self.port = port
+        self.token = token
         self.session = None
         self.ws_client = None
     
@@ -584,6 +586,9 @@ class Session:
     
     async def send_request(self, method, params=None, default=None, timeout=RPC_TIMEOUT):
         try:
+            if params is None:
+                params = []
+            params = [self.token] + params
             return await asyncio.wait_for(self.session.send_request(method, params), timeout)
         except Exception as exc:
             self.session = None
@@ -591,7 +596,7 @@ class Session:
             log_box.add_line(f"{traceback.format_exc()}")
             return default
         
-session = Session(SERVER_HOST, SERVER_PORT)
+session = Session(SERVER_HOST, SERVER_PORT, SERVER_TOKEN)
 
 def require_connected(func):
     if not asyncio.iscoroutinefunction(func):
