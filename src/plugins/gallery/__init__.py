@@ -756,7 +756,7 @@ async def _(ctx: HandlerContext):
     cost_time = (datetime.now() - start_time).total_seconds()
     logger.info(f"上传{len(ok_list)}/{len(image_datas)}张图片到画廊\"{name}\"完成, 耗时{cost_time:.2f}秒")
 
-    hid = add_user_add_history(ctx.user_id, ok_list)
+    hid = add_user_add_history(ctx.user_id, ok_list) if ok_list else None
 
     repeat_img = None
     if repeats:
@@ -783,7 +783,8 @@ async def _(ctx: HandlerContext):
                                 
         repeat_img = await canvas.get_img()
     
-    msg = f"[#{hid}] 成功上传{len(ok_list)}/{len(image_datas)}张图片到\"{name}\"\n"
+    msg = f"[#{hid}] " if hid else ""
+    msg += f"成功上传{len(ok_list)}/{len(image_datas)}张图片到\"{name}\"\n"
     msg += err_msg
     if repeats:
         msg += f"{len(repeats)}张图片与已有图片重复:"
