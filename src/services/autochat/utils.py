@@ -1,7 +1,7 @@
 import os
 import os.path as osp
 from os.path import join as pjoin
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, Optional, Union
 from datetime import datetime, timedelta
 import yaml

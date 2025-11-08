@@ -25,3 +25,4 @@ uvloop
 pjsekai.scores
 setproctitle
 bypy
+chromadb
