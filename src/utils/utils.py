@@ -22,7 +22,6 @@ import io
 import time
 import zstandard
 from .config import *
-from .data import get_data_path
 
 # ============================ 基础 ============================ #
 
@@ -74,6 +73,9 @@ class Timer:
     def __exit__(self, exc_type, exc_val, exc_tb): 
         self.end()
 
+# 获取数据文件地址
+def get_data_path(path:str)->str:
+    return pjoin(global_config.get("data_dir", "data/"), path)
 
 # ============================ 集合操作 ============================ #
 

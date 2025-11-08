@@ -1,7 +1,7 @@
 import aiohttp
 from urllib.parse import urlencode
 from .utils import loads_json,get_logger,HttpError
-from .env import API_BASE_PATH,ASSETS_BASE_PATH
+from .env import API_BASE_PATH, ASSETS_BASE_PATH
 
 api_logger = get_logger("Api")
 download_logger = get_logger("Assets")
