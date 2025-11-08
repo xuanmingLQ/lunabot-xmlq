@@ -595,7 +595,7 @@ async def _(ctx: HandlerContext):
     # 安全限制
     if l is not None:
         assert_and_reply(r - l < 20, '一次最多删除20张连续图片')
-        gall_names = set()
+    gall_names = set()
     for pid in pids:
         if pic := GalleryManager.get().find_pic(pid, raise_if_nofound=False):
             gall_names.add(pic.gall_name)
