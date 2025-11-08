@@ -11,6 +11,10 @@ import asyncio
 import traceback
 import orjson
 import random
+import websockets
+
+import uvloop
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 import setproctitle
 setproctitle.setproctitle('lunabot-autochat')
@@ -98,10 +102,12 @@ def get_readable_file_size(size: int) -> str:
     size /= 1024
     return f"{size:.2f}GB"
 
-def get_readable_datetime(t: datetime, show_original_time=True, use_en_unit=False):
+def get_readable_datetime(t: datetime | float | int, show_original_time=True, use_en_unit=False):
     """
     将时间点转换为可读字符串
     """
+    if isinstance(t, float) or isinstance(t, int):
+        t = datetime.fromtimestamp(t)
     day_unit, hour_unit, minute_unit, second_unit = ("天", "小时", "分钟", "秒") if not use_en_unit else ("d", "h", "m", "s")
     now = datetime.now()
     diff = t - now
@@ -314,12 +320,12 @@ config = Config('chat.autochat')
 
 LOG_LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR']
 
-def log(log_level: str, *args, **kwargs):
+def log(level: str, *args, **kwargs):
     log_level = config.get('log_level').upper()
-    if LOG_LEVELS.index(log_level) > LOG_LEVELS.index(log_level):
+    if LOG_LEVELS.index(log_level) > LOG_LEVELS.index(level):
         return
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f'[{timestamp}][INFO]', *args, **kwargs, flush=True)
+    print(f'[{timestamp}][{level}]', *args, **kwargs, flush=True)
 
 def debug(*args, **kwargs):
     log('DEBUG', *args, **kwargs)
@@ -401,7 +407,7 @@ class RpcSession:
         self.port = port
         self.token = token
         self.reconnect_interval = reconnect_interval
-        self.session: aiorpcx.RPCSession = None
+        self.session = None
         self.ws_client = None
     
     def is_connected(self):
@@ -411,7 +417,8 @@ class RpcSession:
         host = get_cfg_or_value(self.host)
         port = get_cfg_or_value(self.port)
         ws = aiorpcx.connect_ws(f'ws://{host}:{port}')
-        self.session = await ws.__aenter__()
+        self.session: aiorpcx.RPCSession = await ws.__aenter__()
+        self.session.sent_request_timeout = 10000
         self.ws_client = ws
         info(f"成功连接到RPC服务器 {host}:{port}")
     
@@ -430,13 +437,16 @@ class RpcSession:
     ):
         if not self.is_connected():
             raise RpcNotConnectedError()
-        args = [get_cfg_or_value(self.token)] + list(args)
+        args_with_token = [get_cfg_or_value(self.token)] + list(args)
         try:
             debug(f"发送RPC请求: {method} {args}")
-            return await asyncio.wait_for(self.session.send_request(method, args), get_cfg_or_value(timeout))
+            return await asyncio.wait_for(self.session.send_request(method, args_with_token), get_cfg_or_value(timeout))
+        except websockets.exceptions.ConnectionClosed as e:
+            debug(f"RPC连接已关闭: {method} {args} -> {get_exc_desc(e)}")
+            self.session = None
+            raise Exception("RPC连接已关闭")
         except aiorpcx.RPCError as e:
             debug(f"RPC请求错误: {method} {args} -> {get_exc_desc(e)}")
-            self.session = None
             raise e
 
     async def run(self, reconnect: bool):
@@ -448,7 +458,7 @@ class RpcSession:
                     if not reconnect:
                         break
             except Exception as e:
-                error(f"连接RPC服务器失败: {get_exc_desc(e)}，{reconn_interval}秒后重试")
+                warning(f"连接RPC服务器失败: {get_exc_desc(e)}，{reconn_interval}秒后重试")
             finally:
                 await asyncio.sleep(reconn_interval)
 

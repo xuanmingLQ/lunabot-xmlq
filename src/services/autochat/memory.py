@@ -5,6 +5,7 @@ import time
 import os
 from typing import List, Dict, Any
 
+TEXT_EMB_DIM = config.get('text_embed_dim')
 
 @dataclass
 class EventMemory:
@@ -46,6 +47,7 @@ class MemorySystem:
         返回:
             str: 该条记忆的唯一ID。
         """
+        assert len(embedding) == TEXT_EMB_DIM, f"Embedding维度应为 {TEXT_EMB_DIM}，但收到 {len(embedding)}"
         memory_id = str(uuid.uuid4())
         self.em_collection.add(
             ids=[memory_id],
@@ -96,7 +98,7 @@ class MemorySystem:
         query_embedding: List[float], 
         n_results: int, 
         memory_type: str,
-        time_decay_rate: float,
+        time_decay_rate: float = 0.0,
     ) -> List[EventMemory]:
         """
         查询最相关的记忆。
@@ -110,6 +112,11 @@ class MemorySystem:
         返回:
             List[EMQueryResult]: 相关记忆的查询结果列表
         """
+        if n_results <= 0:
+            return []
+        
+        assert len(query_embedding) == TEXT_EMB_DIM, f"Embedding维度应为 {TEXT_EMB_DIM}，但收到 {len(query_embedding)}"
+
         where_clause = {}
         if memory_type in ["short_term", "long_term"]:
             where_clause = {"type": memory_type}
@@ -164,26 +171,28 @@ class MemorySystem:
             forget_time (float): 遗忘时间点（时间戳），早于此时间的短期记忆将被考虑遗忘。
             forget_prob (float): 遗忘概率（0到1之间）。
         """
-        all_short_term = self.em_collection.query(
-            query_embeddings=None,
-            n_results=10000,
-            where={"type": "short_term"},
-            include=["ids", "metadatas"]
+        candidate_memories = self.em_collection.get(
+            where={
+                "$and": [
+                    {"type": "short_term"},
+                    {"created_at": {"$lt": forget_time}}
+                ]
+            }
         )
-
+        if not candidate_memories['ids']:
+            return
+        # 遍历候选记忆，根据概率决定哪些需要被遗忘
         ids_to_forget = []
-        for i in range(len(all_short_term['ids'][0])):
-            meta = all_short_term['metadatas'][0][i]
-            created_at = meta.get('created_at', 0)
-            if created_at < forget_time:
-                if random.random() < forget_prob:
-                    ids_to_forget.append(all_short_term['ids'][0][i])
-
+        for memory_id in candidate_memories['ids']:
+            if random.random() < forget_prob:
+                ids_to_forget.append(memory_id)
+        # 如果有需要遗忘的记忆，则执行删除操作
         if ids_to_forget:
+            info(f"将遗忘 {len(ids_to_forget)} 条短期记忆")
             self.em_collection.delete(ids=ids_to_forget)
-            info(f"遗忘了 {len(ids_to_forget)} 条短期记忆")
+            info(f"成功遗忘短期记忆: {ids_to_forget}")
         else:
-            info("没有符合遗忘条件的短期记忆")
+            info("没有短期记忆被遗忘")
 
     def um_update(self, user_id: int, um: UserMemory):
         """
@@ -212,7 +221,7 @@ class MemorySystem:
             return UserMemory(**ums[str(user_id)])
         return None
 
-    def sm_update(self, new_sms: list[SelfMemory], keep_count: int):
+    def sm_add(self, msg_id: int, text: str, keep_count: int):
         """
         更新自身对话记忆。
 
@@ -221,9 +230,13 @@ class MemorySystem:
             keep_count (int): 保留的消息数量。
         """
         sms = self.file_db.get('sms', [])
-        sms.extend([asdict(sm) for sm in new_sms])
+        sms.append({
+            'id': str(msg_id),
+            'text': text,
+            'time': datetime.now().timestamp(),
+        })
         sms = sms[-keep_count:]
-        self.file_db['sms'] = sms
+        self.file_db.set('sms', sms)
         info(f"更新自身对话记忆，保留最近 {keep_count} 条消息")
 
     def sm_get(self) -> list[SelfMemory]:
