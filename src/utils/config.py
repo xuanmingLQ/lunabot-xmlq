@@ -6,10 +6,7 @@ from typing import Any, Dict, Optional, Union
 from datetime import datetime
 import yaml
 from copy import deepcopy
-
-
-CONFIG_DIR = "config/"
-
+from .env import CONFIG_DIR
 
 @dataclass
 class ConfigData:

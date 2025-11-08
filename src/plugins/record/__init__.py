@@ -2,12 +2,12 @@ from nonebot import on_message
 from nonebot import get_bot, on_notice
 from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, Bot, Event, NoticeEvent
 from datetime import datetime
-from ..utils import *
+from ...utils import *
 from .sql import *
 
 config = Config('record')
 logger = get_logger("Record")
-file_db = get_file_db("data/record/db.json", logger)
+file_db = get_file_db(get_data_path("record/db.json"), logger)
 gbl = get_group_black_list(file_db, logger, "record")
 cd = ColdDown(file_db, logger)
 

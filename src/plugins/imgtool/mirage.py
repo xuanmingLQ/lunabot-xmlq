@@ -1,4 +1,4 @@
-from ..utils import *
+from ...utils import *
 
 
 def generate_mirage(up_img: Image.Image, hide_img: Image.Image) -> Image.Image:

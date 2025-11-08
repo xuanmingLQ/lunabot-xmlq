@@ -1,5 +1,5 @@
 from ..llm import ChatSession, download_image_to_b64, tts, ChatSessionResponse, api_provider_mgr, translate_text, get_model_preset
-from ..utils import *
+from ...utils import *
 from ..llm.translator import Translator, TranslationResult
 from datetime import datetime, timedelta
 import openai
@@ -11,7 +11,7 @@ from ..code.run import run as run_code
 
 config = Config('chat.chat')
 logger = get_logger("Chat")
-file_db = get_file_db("data/chat/db.json", logger)
+file_db = get_file_db(get_data_path("chat/db.json"), logger)
 gwl = get_group_white_list(file_db, logger, 'chat')
 
 at_trigger_chat_gbl = get_group_black_list(file_db, logger, 'atchat', is_service=False)
@@ -54,7 +54,7 @@ async def use_tool(ctx: HandlerContext, session: ChatSession, type: str, data: A
 
 # ------------------------------------------ 聊天记录总结逻辑 ------------------------------------------ #
 
-image_caption_db = get_file_db("data/chat/image_caption_db.json", logger)
+image_caption_db = get_file_db(get_data_path("chat/image_caption_db.json"), logger)
 IMAGE_CAPTION_LIMIT_CFG = config.item('image_caption.limit')
 IMAGE_CAPTION_TIMEOUT_SEC_CFG = config.item('image_caption.timeout_sec')
 IMAGE_CAPTION_TEMPLATE_PATH = "config/chat/image_caption_prompt.txt"
@@ -758,13 +758,13 @@ class AutoChatGroupMemory:
     @staticmethod
     def load(group_id):
         assert group_id != 'global'
-        memory_db = get_file_db(f"data/chat/autochat_memory_db/{group_id}.json", logger)
+        memory_db = get_file_db(get_data_path(f"chat/autochat_memory_db/{group_id}.json"), logger)
         memory = memory_db.get("memory", {})
         memory['group_id'] = group_id
         return AutoChatGroupMemory(**memory)
     
     def save(self):
-        memory_db = get_file_db(f"data/chat/autochat_memory_db/{self.group_id}.json", logger)
+        memory_db = get_file_db(get_data_path(f"chat/autochat_memory_db/{self.group_id}.json"), logger)
         memory = memory_db.get("memory", {})
         for k, v in self.__dict__.items():
             memory[k] = v
@@ -776,12 +776,12 @@ class AutoChatGlobalMemory:
 
     @staticmethod
     def load():
-        memory_db = get_file_db(f"data/chat/autochat_memory_db/global.json", logger)
+        memory_db = get_file_db(get_data_path(f"chat/autochat_memory_db/global.json"), logger)
         memory = memory_db.get("memory", {})
         return AutoChatGlobalMemory(**memory)
     
     def save(self):
-        memory_db = get_file_db(f"data/chat/autochat_memory_db/global.json", logger)
+        memory_db = get_file_db(get_data_path(f"chat/autochat_memory_db/global.json"), logger)
         memory = memory_db.get("memory", {})
         for k, v in self.__dict__.items():
             memory[k] = v

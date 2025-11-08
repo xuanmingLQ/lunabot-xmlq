@@ -1,4 +1,4 @@
-from ..utils import *
+from ...utils import *
 from datetime import datetime
 from nonebot_plugin_picstatus.collectors import collect_all
 from nonebot_plugin_picstatus.bg_provider import bg_preloader
@@ -10,7 +10,7 @@ import glob
 
 config = Config('alive')
 logger = get_logger("Alive")
-file_db = get_file_db("data/alive/db.json", logger)
+file_db = get_file_db(get_data_path("alive/db.json"), logger)
 cd = ColdDown(file_db, logger)
 
 CHECK_INTERVAL_CFG = config.item('check_interval')
@@ -157,7 +157,7 @@ async def _(bot: Bot, event: NoticeEvent):
             return
         group_last_poke_reply_time[event.group_id] = t
 
-        imgs = glob.glob("data/alive/poke_reply/*")
+        imgs = glob.glob(get_data_path("alive/poke_reply/*"))
         if not imgs:
             return
         img = random.choice(imgs)

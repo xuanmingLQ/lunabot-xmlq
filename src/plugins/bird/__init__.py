@@ -1,17 +1,17 @@
-from ..utils import *
+from ...utils import *
 import pandas as pd
 from pdf2image import convert_from_path
 
 config = Config('bird')
 logger = get_logger("Bird")
-file_db = get_file_db("data/bird/db.json", logger)
+file_db = get_file_db(get_data_path("bird/db.json"), logger)
 cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'bird')
 
 
 # ================================ 逻辑处理 ================================ #
 
-WIKI_IMAGE_CACHE_PATH = "data/bird/wiki_image_cache/{name}/"
+WIKI_IMAGE_CACHE_PATH = get_data_path("bird/wiki_image_cache/{name}/")
 QUERY_TOPK_CFG = config.item('query_topk')
 MAX_EDIT_DISTANCE_CFG = config.item('max_edit_distance')
 FOLK_NAME_MAX_CFG = config.item('folk_name_max')
@@ -22,7 +22,7 @@ _bird_data = None
 async def get_birds():
     global _bird_data
     if _bird_data is None:
-        _bird_data = pd.read_csv("data/bird/birds.csv", encoding='utf-8')
+        _bird_data = pd.read_csv(get_data_path("bird/birds.csv"), encoding='utf-8')
     return _bird_data
 
 

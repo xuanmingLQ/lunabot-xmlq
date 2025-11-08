@@ -23,7 +23,7 @@ import io
 from .config import *
 from .img_utils import mix_image_by_color, adjust_image_alpha_inplace
 from .process_pool import *
-
+from .data import get_data_path
 
 def debug_print(*args, **kwargs):
     if global_config.get('painter.debug', False):
@@ -149,7 +149,7 @@ def deterministic_hash(obj: Any) -> str:
 
 # =========================== 基础定义 =========================== #
 
-PAINTER_CACHE_DIR = "data/utils/painter_cache/"
+PAINTER_CACHE_DIR = get_data_path("utils/painter_cache/")
 
 PAINTER_PROCESS_NUM = global_config.get('painter.process_num')
 
@@ -167,7 +167,7 @@ SHADOW = (0, 0, 0, 150)
 
 ROUNDRECT_ANTIALIASING_TARGET_RADIUS = 16
 
-FONT_DIR = "data/utils/fonts/"
+FONT_DIR = get_data_path("utils/fonts/")
 DEFAULT_FONT = "SourceHanSansCN-Regular"
 DEFAULT_BOLD_FONT = "SourceHanSansCN-Bold"
 DEFAULT_HEAVY_FONT = "SourceHanSansCN-Heavy"

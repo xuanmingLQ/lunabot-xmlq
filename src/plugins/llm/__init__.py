@@ -1,5 +1,5 @@
 import openai
-from ..utils import *
+from ...utils import *
 import shutil
 import random
 import numpy as np
@@ -8,7 +8,7 @@ from .api_provider_manager import api_provider_mgr
 
 config = Config('llm.llm')
 logger = get_logger("Llm")
-file_db = get_file_db("data/llm/db.json", logger)
+file_db = get_file_db(get_data_path("llm/db.json"), logger)
 
 # -------------------------------- 获取模型预设 -------------------------------- #
 
@@ -339,7 +339,7 @@ async def get_text_embedding(texts: List[str]) -> List[List[float]]:
 class TextRetriever:
     def __init__(self, name):
         self.name = name
-        self.embedding_path = os.path.join(f"data/llm/embeddings/{name}.npz")
+        self.embedding_path = os.path.join(get_data_path(f"llm/embeddings/{name}.npz"))
         self.keys = []
         self.key_set = set()
         self.embeddings = None
@@ -526,7 +526,7 @@ async def tts(text, save_path: str):
 async def translate_text(text, additional_info=None, dst_lang="中文", timeout=20, default=None, model=None, cache=True):
     if model is None:
         model = get_model_preset("translation")
-    text_translation_db = get_file_db("data/llm/text_translations.json", logger)
+    text_translation_db = get_file_db(get_data_path("llm/text_translations.json"), logger)
     translations = text_translation_db.get("translations", {}) if cache else {}
     key = get_md5(text)
     if not cache or key not in translations:

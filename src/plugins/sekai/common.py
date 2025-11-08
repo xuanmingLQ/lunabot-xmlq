@@ -1,10 +1,10 @@
-from ..utils import *
-
+from ...utils import *
+from os.path import join as pjoin
 
 # ======================= 基础路径 ======================= #
 
-SEKAI_DATA_DIR = "data/sekai"
-SEKAI_CONFIG_DIR = "config/sekai"
+SEKAI_DATA_DIR = get_data_path("sekai")
+SEKAI_CONFIG_DIR = pjoin(CONFIG_DIR, "sekai")
 SEKAI_ASSET_DIR = f"{SEKAI_DATA_DIR}/assets"
 
 
@@ -16,7 +16,6 @@ file_db = get_file_db(f"{SEKAI_DATA_DIR}/db.json", logger)
 
 cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'sekai')
-
 
 # ======================= 通用常量 ======================= #
 

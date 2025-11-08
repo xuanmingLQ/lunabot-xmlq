@@ -3,12 +3,12 @@ from openai import AsyncOpenAI
 import asyncio
 import json
 import os
-
+from ....utils.data import get_data_path
 
 class AiyydsApiProvider(ApiProvider):
     def __init__(self):
         super().__init__(name="ai-yyds", code="ay")
-        self.cookies_save_path = "data/llm/aiyyds_quota_check_cookies.json"
+        self.cookies_save_path = get_data_path("llm/aiyyds_quota_check_cookies.json")
 
     def get_client(self) -> AsyncOpenAI:
         return AsyncOpenAI(

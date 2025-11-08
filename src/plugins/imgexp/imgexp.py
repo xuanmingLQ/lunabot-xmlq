@@ -1,4 +1,4 @@
-from ..utils import *
+from ...utils import *
 from urllib.parse import quote
 from PicImageSearch import SauceNAO, Network
 

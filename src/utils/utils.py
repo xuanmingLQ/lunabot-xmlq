@@ -22,7 +22,7 @@ import io
 import time
 import zstandard
 from .config import *
-
+from .data import get_data_path
 
 # ============================ 基础 ============================ #
 
@@ -534,7 +534,7 @@ def rand_filename(ext: str) -> str:
         ext = ext[1:]
     return f'{uuid4()}.{ext}'
 
-TEMP_FILE_DIR = 'data/utils/tmp'
+TEMP_FILE_DIR = get_data_path('utils/tmp')
 _tmp_files_to_remove: list[Tuple[str, datetime]] = []
 
 class TempFilePath:
@@ -817,7 +817,7 @@ def get_file_db(path: str, logger: Logger) -> FileDB:
         _file_dbs[path] = FileDB(path, logger)
     return _file_dbs[path]
 
-utils_file_db = get_file_db('data/utils/db.json', utils_logger)
+utils_file_db = get_file_db(get_data_path('utils/db.json'), utils_logger)
 
 
 # ============================ WebDriver ============================ #
@@ -949,7 +949,7 @@ async def markdown_to_image(markdown_text: str, width: int = 600) -> Image.Image
     """
     async with WebDriver() as driver:
         def draw():
-            css_content = Path("data/utils/m2i/m2i.css").read_text()
+            css_content = Path(get_data_path("utils/m2i/m2i.css")).read_text()
             try:
                 import mistune
                 md_renderer = mistune.create_markdown()

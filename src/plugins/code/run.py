@@ -13,7 +13,7 @@ import re
 import httpx
 
 
-from ..utils import *
+from ...utils import *
 config = Config('code')
 
 

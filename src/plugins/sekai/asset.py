@@ -1,4 +1,4 @@
-from ..utils import *
+from ...utils import *
 from .common import *
 from ...api.assets.masterdata import get_masterdata_version, download_masterdata
 from ...api.assets.rip import download_rip_assets

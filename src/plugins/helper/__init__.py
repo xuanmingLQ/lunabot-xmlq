@@ -1,9 +1,9 @@
-from ..utils import *
+from ...utils import *
 import glob
 
 config = Config('helper')
 logger = get_logger('Helper')
-file_db = get_file_db('data/helper/db.json', logger)
+file_db = get_file_db(get_data_path('helper/db.json'), logger)
 gbl = get_group_black_list(file_db, logger, 'helper')
 cd = ColdDown(file_db, logger)
 
@@ -50,7 +50,7 @@ async def _(ctx: HandlerContext):
             doc_path = HELP_DOCS_PATH.format(name=args)
             doc_mtime = os.path.getmtime(doc_path)
             cache_mtime = file_db.get('help_img_cache_mtime', {})
-            cache_path = create_parent_folder(f"data/helper/cache/{args}.png")
+            cache_path = create_parent_folder(get_data_path(f"helper/cache/{args}.png"))
             if Path(cache_path).exists() and doc_mtime <= cache_mtime.get(args, 0):
                 return await ctx.asend_reply_msg(await get_image_cq(cache_path, low_quality=True))
             else:

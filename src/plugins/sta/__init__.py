@@ -1,11 +1,11 @@
-from ..utils import *
+from ...utils import *
 from .draw import draw_sta, reset_jieba, draw_date_count_plot, draw_word_count_plot, draw_sta_sum
 from ..record.sql import query_msg_by_range, query_msg_count
 
 
 config = Config("sta")
 logger = get_logger("Sta")
-file_db = get_file_db("data/sta/db.json", logger)
+file_db = get_file_db(get_data_path("sta/db.json"), logger)
 gbl = get_group_black_list(file_db, logger, "sta")
 cd = ColdDown(file_db, logger)
 

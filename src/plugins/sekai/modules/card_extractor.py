@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Tuple, Union
 from PIL import Image, ImageDraw, ImageFont
 import math
-
+from ....utils.data import get_data_path
 def _load_image(path: str) -> np.ndarray:
     img = Image.open(path).convert('RGB')
     img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
@@ -156,10 +156,10 @@ class CardExtractor:
     CARD_TEMPLATE_SCALE = 0.5
 
     LEVEL_FONTS = [
-        _LevelFont("data/utils/fonts/FOT-RodinNTLG Pro EB.otf", 20, 0, 0),
-        _LevelFont("data/utils/fonts/SourceHanSansCN-Bold.otf", 20, 0, -7),
+        _LevelFont(get_data_path("utils/fonts/FOT-RodinNTLG Pro EB.otf"), 20, 0, 0),
+        _LevelFont(get_data_path("utils/fonts/SourceHanSansCN-Bold.otf"), 20, 0, -7),
     ]
-    MASTER_RANK_IMAGE_PATH = "data/sekai/assets/static_images/card/train_rank_{i}.png"
+    MASTER_RANK_IMAGE_PATH = get_data_path("sekai/assets/static_images/card/train_rank_{i}.png")
 
     # ================== 初始化 ================== #
 

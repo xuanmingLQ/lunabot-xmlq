@@ -1,9 +1,9 @@
 from .run import run
-from ..utils import *
+from ...utils import *
 
 config = Config("code")
 logger = get_logger("Code")
-file_db = get_file_db("data/code/db.json", logger)
+file_db = get_file_db(get_data_path("code/db.json"), logger)
 cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, "code")
 

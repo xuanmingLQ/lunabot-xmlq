@@ -1,14 +1,15 @@
-from ...utils import *
+from ....utils import *
 from ..common import *
 from ..handler import *
 from ..asset import *
 from ..draw import *
 from .honor import compose_full_honor_image
 from .resbox import get_res_box_info, get_res_icon
-from ...utils.safety import *
+from ....utils.safety import *
 from ....api.game.user import get_suite, get_profile, create_account
 from ....api.game.misc import get_service_status
 from ....utils.request import ApiError
+from ....utils.data import get_sekai_user_data_path
 
 SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
 profile_db = get_file_db(f"{SEKAI_PROFILE_DIR}/db.json", logger)
@@ -1748,8 +1749,8 @@ async def _(ctx: HandlerContext):
         group_mode = True
     if '详细' in args or 'detail' in args:
         detail_mode = True
-    SUITE_DIR = "/root/program/qqbot/mybot/data/sekai/user_data/{region}/suite/*"
-    MYSEKAI_DIR = "/root/program/qqbot/mybot/data/sekai/user_data/{region}/mysekai/*"
+    SUITE_DIR = get_sekai_user_data_path("{region}/suite/*")
+    MYSEKAI_DIR = get_sekai_user_data_path("{region}/mysekai/*")
     bind_list: Dict[str, Dict[str, str]] = profile_db.get("bind_list", {})
     suite_total, mysekai_total, qid_set = 0, 0, set()
     suite_source_total: dict[str, int] = {}

@@ -1,10 +1,10 @@
-from ..utils import *
+from ...utils import *
 from ..llm import ChatSession, get_model_preset, ChatSessionResponse
 
 
 config = Config('cron.cron')
 logger = get_logger('Cron')
-file_db = get_file_db('data/cron/cron.json', logger)
+file_db = get_file_db(get_data_path('cron/cron.json'), logger)
 cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'cron')
 

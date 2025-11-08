@@ -1,5 +1,5 @@
 from . import *
-from ..utils import *
+from ...utils import *
 import easyocr
 from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_fixed
@@ -7,7 +7,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 config = Config('llm.translator.translator')
 logger = get_logger("Llm")
-file_db = get_file_db("data/llm/db.json", logger)
+file_db = get_file_db(get_data_path("llm/db.json"), logger)
 
 
 from concurrent.futures import ThreadPoolExecutor
@@ -40,10 +40,10 @@ class Translator:
     def __init__(self):
         self.readers = {}
         self.model_loaded = False
-        self.font_path = 'data/utils/fonts/SourceHanSansCN-Regular.otf'
-        self.merge_prompt_path = "config/llm/translator/prompt_merge.txt"
-        self.trans_prompt_path = "config/llm/translator/prompt_trans.txt"
-        self.correct_prompt_path = "config/llm/translator/prompt_correct.txt"
+        self.font_path = get_data_path('utils/fonts/SourceHanSansCN-Regular.otf')
+        self.merge_prompt_path = f"{CONFIG_DIR}llm/translator/prompt_merge.txt"
+        self.trans_prompt_path = f"{CONFIG_DIR}llm/translator/prompt_trans.txt"
+        self.correct_prompt_path = f"{CONFIG_DIR}llm/translator/prompt_correct.txt"
         self.task_id_top = 0
         self.langs = ['ja', 'ko']
         self.merge_method = 'alg'   # alg or llm

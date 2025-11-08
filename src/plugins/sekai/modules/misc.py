@@ -1,4 +1,4 @@
-from ...utils import *
+from ....utils import *
 from ...record import after_record_hook
 from ..common import *
 from ..handler import *
@@ -99,7 +99,7 @@ async def _(ctx: SekaiHandlerContext):
             rarity = card['cardRarityType']
             attr = card['attr']
             assetbundle_name = card['assetbundleName']
-            img_dir = 'data/sekai/assets/rip/jp/thumbnail/chara_rip'
+            img_dir = get_data_path('sekai/assets/rip/jp/thumbnail/chara_rip')
             if not only_has_after_training(card):
                 normal_path = await ctx.rip.get_asset_cache_path(f'thumbnail/chara_rip/{assetbundle_name}_normal.png')
                 if normal_path:

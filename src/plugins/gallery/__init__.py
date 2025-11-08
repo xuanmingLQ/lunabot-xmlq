@@ -1,4 +1,4 @@
-from ..utils import *
+from ...utils import *
 from enum import Enum
 import zipfile
 import subprocess
@@ -6,16 +6,16 @@ import subprocess
 
 config = Config('gallery')
 logger = get_logger('Gallery')
-file_db = get_file_db('data/gallery/gallery.json', logger)
+file_db = get_file_db(get_data_path('gallery/gallery.json'), logger)
 cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'gallery')
 
 THUMBNAIL_SIZE = (64, 64)
 SIZE_LIMIT_MB_CFG = config.item('size_limit_mb')
 PHASH_DIFFERENCE_THRESHOLD_CFG = config.item('phash_difference_threshold')
-GALLERY_PICS_DIR = 'data/gallery/{name}/'
+GALLERY_PICS_DIR = get_data_path('gallery/{name}/')
 PIC_EXTS = ['.jpg', '.jpeg', '.png', '.gif']
-ADD_LOG_FILE = 'data/gallery/add.log'
+ADD_LOG_FILE = get_data_path('gallery/add.log')
 
 # ======================= 逻辑处理 ======================= # 
 
@@ -931,7 +931,7 @@ for sync_time in config.get('sync.sync_times'):
         if not config.get('sync.enable'):
             return
         remote_dir = config.get('sync.remote_dir')
-        local_dir = f"data/gallery/tmp/"
+        local_dir = get_data_path(f"gallery/tmp/")
         verbose = config.get('sync.verbose')
 
         def sync(g: Gallery):

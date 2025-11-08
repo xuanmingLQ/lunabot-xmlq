@@ -1,9 +1,9 @@
-from ..utils import *
+from ...utils import *
 
 
 config = Config('broadcast')
 logger = get_logger("Broadcast")
-file_db = get_file_db("data/broadcast/db.json", logger)
+file_db = get_file_db(get_data_path("broadcast/db.json"), logger)
 cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'broadcast')
 

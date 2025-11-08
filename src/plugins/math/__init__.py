@@ -1,10 +1,10 @@
-from ..utils import *
+from ...utils import *
 from asteval import Interpreter
 from .oeis import oeis_query
 
 config = Config('math')
 logger = get_logger("Math")
-file_db = get_file_db("data/math/db.json", logger)
+file_db = get_file_db(get_data_path("math/db.json"), logger)
 cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'math')
 

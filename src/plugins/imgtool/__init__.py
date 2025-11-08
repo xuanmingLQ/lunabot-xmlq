@@ -1,4 +1,4 @@
-from ..utils import *
+from ...utils import *
 from .mirage import generate_mirage
 from PIL import Image, ImageOps, ImageEnhance
 from enum import Enum
@@ -8,7 +8,7 @@ import numpy as np
 
 config = Config('imgtool')
 logger = get_logger("ImgTool")
-file_db = get_file_db("data/imgtool/db.json", logger)
+file_db = get_file_db(get_data_path("imgtool/db.json"), logger)
 cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'imgtool')
 
@@ -36,7 +36,7 @@ def execute_imgtool_cpp(image: Image.Image | List[Image.Image], command: str, *a
                     frame = image[i].convert('RGBA')
                     f.write(frame.tobytes('raw', 'RGBA'))
 
-            cli_path = "data/imgtool/imgtool-cpp"
+            cli_path = get_data_path("imgtool/imgtool-cpp")
             logger.info(f"调用imgtool-cpp程序: {command} " + " ".join(map(str, args)) + f" 输入尺寸: {n}x{w}x{h}")
             assert_and_reply(os.path.exists(cli_path), "imgtool-cpp程序不存在，请使用src/plugins/imgtool/compile_imgtool_cpp.sh编译")
             cmd = f"{cli_path} {input_path} {output_path} {command} " + " ".join(map(str, args))
@@ -800,7 +800,7 @@ fan r 0.5x: 逆时针旋转，旋转速度为0.5倍
             new_img.paste(rotated_img, (0, 0), rotated_img)
             frames.append(new_img)
         try:
-            tmp_path = create_parent_folder(f"data/imgtool/tmp/{rand_filename('gif')}")
+            tmp_path = create_parent_folder(get_data_path(f"imgtool/tmp/{rand_filename('gif')}"))
             save_transparent_gif(frames, 20, tmp_path)
             return Image.open(tmp_path)
         finally:
@@ -856,7 +856,7 @@ flow 2x: 流动速度为2倍
                 new_img.paste(img, (0, int(height - i / frame_count * height) - height))
             frames.append(new_img)
         try:
-            tmp_path = create_parent_folder(f"data/imgtool/tmp/{rand_filename('gif')}")
+            tmp_path = create_parent_folder(get_data_path(f"imgtool/tmp/{rand_filename('gif')}"))
             save_transparent_gif(frames, 20, tmp_path)
             return Image.open(tmp_path)
         finally:
@@ -910,7 +910,7 @@ stack 10: 以fps为10堆叠
             img = imgs[i].resize((w, h))
             frames.append(img)
         try:
-            tmp_path = create_parent_folder(f"data/imgtool/tmp/{rand_filename('gif')}")
+            tmp_path = create_parent_folder(get_data_path(f"imgtool/tmp/{rand_filename('gif')}"))
             save_transparent_gif(frames, int(1000 / fps), tmp_path)
             return Image.open(tmp_path)
         finally:
@@ -1375,7 +1375,7 @@ async def _(ctx: HandlerContext):
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
     try:
-        tmp_path = create_parent_folder(f"data/imgtool/tmp/{rand_filename('png')}")
+        tmp_path = create_parent_folder(get_data_path(f"imgtool/tmp/{rand_filename('png')}"))
         img.save(tmp_path)
         img = Image.open(tmp_path)
         return await ctx.asend_reply_msg(await get_image_cq(img))

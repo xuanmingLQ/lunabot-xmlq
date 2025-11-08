@@ -388,7 +388,7 @@ class TempBotOrInternetFilePath:
                 'record': 'wav',
                 'video': 'mp4',
             }.get(self.ftype, self.ext)
-            path = pjoin('data/utils/tmp', rand_filename(self.ext))
+            path = pjoin(get_data_path('utils/tmp'), rand_filename(self.ext))
             await download_file(self.file, path)
         else:
             path = await download_napcat_file(self.ftype, self.file)
@@ -1574,7 +1574,7 @@ class CmdHandler:
     """
     命令处理器，封装了指令的注册和处理逻辑
     """
-    HELP_PART_IMG_CACHE_DIR = "data/utils/help_part_img_cache/"
+    HELP_PART_IMG_CACHE_DIR = get_data_path("utils/help_part_img_cache/")
     help_docs: Dict[str, HelpDoc] = {}
 
     def __init__(

@@ -1,4 +1,4 @@
-from ..utils import *
+from ...utils import *
 import aiosqlite
 from datetime import datetime
 
@@ -6,7 +6,7 @@ from datetime import datetime
 config = Config('water')
 logger = get_logger("Water")
 
-DB_PATH = "data/water/hash.sqlite"
+DB_PATH = get_data_path("water/hash.sqlite")
 HASH_TABLE_NAME = "hash_{}"
 
 _conn: aiosqlite.Connection = None         # 连接

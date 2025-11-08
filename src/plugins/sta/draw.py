@@ -8,11 +8,11 @@ import wordcloud
 import random
 import colorsys
 import io
-from ..utils import *
+from ...utils import *
 
 config = Config("sta")
 logger = get_logger("Sta")
-file_db = get_file_db("data/sta/db.json", logger)
+file_db = get_file_db(get_data_path("sta/db.json"), logger)
 
 FONT_NAME = global_config.get("font.name")
 FONT_PATH = global_config.get("font.path")

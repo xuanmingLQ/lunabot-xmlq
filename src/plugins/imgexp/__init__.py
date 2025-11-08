@@ -1,11 +1,11 @@
-from ..utils import *
+from ...utils import *
 from .imgexp import search_image
 import yt_dlp
 from tenacity import retry, wait_fixed, stop_after_attempt
 
 config = Config('imgexp')
 logger = get_logger('ImgExp')
-file_db = get_file_db('data/imgexp/imgexp.json', logger)
+file_db = get_file_db(get_data_path('imgexp/imgexp.json'), logger)
 cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'imgexp')
 

@@ -1,4 +1,4 @@
-from ..utils import *
+from ...utils import *
 from nonebot import get_bot, on_notice
 from nonebot.adapters.onebot.v11 import NoticeEvent
 from nonebot.adapters.onebot.v11.message import Message as OutMessage
@@ -7,7 +7,7 @@ import asyncio
 
 config = Config('welcome')
 logger = get_logger("Welcome")
-file_db = get_file_db("data/welcome/db.json", logger)
+file_db = get_file_db(get_data_path("welcome/db.json"), logger)
 gwl = get_group_white_list(file_db, logger, 'welcome')
 cd = ColdDown(file_db, logger)
 

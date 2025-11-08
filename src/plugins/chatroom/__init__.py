@@ -1,13 +1,13 @@
 from nonebot.adapters.onebot.v11.message import Message as OutMessage
 from ..record.sql import query_recent_msg
 from ..record import before_record_hook
-from ..utils import *
-from ..utils.rpc import *
+from ...utils import *
+from ...utils.rpc import *
 
 
 config = Config('chatroom')
 logger = get_logger("Chatroom")
-file_db = get_file_db("data/chatroom/db.json", logger)
+file_db = get_file_db(get_data_path("chatroom/db.json"), logger)
 
 def process_msg(msg):
     if isinstance(msg['time'], datetime):
@@ -121,14 +121,14 @@ async def handle_get_group_new_msg(cid, group_id):
 @rpc_method(SERVICE, 'get_client_data')
 async def handle_get_client_data(cid, name):
     try:
-        return load_json(f'data/chatroom/client_data/{name}.json')
+        return load_json(get_data_path(f'chatroom/client_data/{name}.json'))
     except:
         return None
     
 # 设置客户端数据
 @rpc_method(SERVICE, 'set_client_data')
 async def handle_set_client_data(cid, name, data):
-    dump_json(data, f'data/chatroom/client_data/{name}.json')
+    dump_json(data, get_data_path(f'chatroom/client_data/{name}.json'))
     return True
 
 # 获取消息

@@ -1,11 +1,11 @@
-from ..utils import *
+from ...utils import *
 import aiosqlite
 
 config = Config('record')
 logger = get_logger("Record")
 
 
-DB_PATH = "data/record/record.sqlite"
+DB_PATH = get_data_path("record/record.sqlite")
 MSG_TABLE_NAME  = "msg_{}"
 
 _conn: aiosqlite.Connection = None         # 连接

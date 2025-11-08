@@ -1,9 +1,9 @@
 from .rcon import AsyncMCRcon
-from ..utils import *
+from ...utils import *
 
 config = Config('mc')
 logger = get_logger('MC')
-file_db = get_file_db('data/mc/db.json', logger)
+file_db = get_file_db(get_data_path('mc/db.json'), logger)
 cd = ColdDown(file_db, logger)
 
 

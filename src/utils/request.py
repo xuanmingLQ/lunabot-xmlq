@@ -1,10 +1,7 @@
-import aiohttp,os
-from dotenv import load_dotenv
+import aiohttp
 from urllib.parse import urlencode
-from ..plugins.utils import loads_json,get_logger,HttpError
-load_dotenv()
-api_base_url=os.getenv('API_BASE_PATH')
-download_base_url=os.getenv('ASSETS_BASE_PATH')
+from .utils import loads_json,get_logger,HttpError
+from .env import API_BASE_PATH,ASSETS_BASE_PATH
 
 api_logger = get_logger("Api")
 download_logger = get_logger("Assets")
@@ -14,10 +11,9 @@ class ApiError(Exception):
         self.msg = msg
         super().__init__(*args)
     pass
-# 一般Api请求
+# Api请求
 async def server(path:str, method:str, json:dict|None=None, query:dict|None=None)->dict:
-    global api_base_url
-    url = f"{api_base_url}{path}"
+    url = f"{API_BASE_PATH}{path}"
     if query:
         url = f"{url}?{parse_query(query)}"
     api_logger.info(url)
@@ -42,8 +38,7 @@ async def server(path:str, method:str, json:dict|None=None, query:dict|None=None
     pass
 # 下载资源
 async def download_data(path:str, params:list|None=None, query:dict|None=None):
-    global download_base_url
-    url = f"{download_base_url}{path}"
+    url = f"{ASSETS_BASE_PATH}{path}"
     if params: url = "/".join([url]+params)
     if query:
         url=f"{url}?{parse_query(query)}"

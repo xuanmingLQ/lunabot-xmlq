@@ -1,9 +1,9 @@
-from ..utils import *
+from ...utils import *
 from openai import AsyncOpenAI
 
 
 logger = get_logger("Llm")
-file_db = get_file_db("data/llm/db.json", logger)
+file_db = get_file_db(get_data_path("llm/db.json"), logger)
 
 
 @dataclass
