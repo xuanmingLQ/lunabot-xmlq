@@ -135,7 +135,7 @@ async def get_image_caption(data: dict, use_llm: bool) -> str:
         return f"[{sub_type}:{caption}]"
     
     except Exception as e:
-        error(f"总结图片 url={url} 失败")
+        warning(f"总结图片 url={url} 失败: {get_exc_desc(e)}")
         return fallback_caption
         
 def json_msg_to_readable_text(data: dict):
@@ -187,13 +187,13 @@ async def format_msgs(
                     text += json_msg_to_readable_text(sdata)
                 case "image":
                     if sdata.get("sub_type", 0) == 0:
-                        text += get_image_caption(
+                        text += await get_image_caption(
                             sdata,
                             captioned_images < image_caption_limit and random.random() < image_caption_prob,
                         )
                         captioned_images += 1
                     else:
-                        text += get_image_caption(
+                        text += await get_image_caption(
                             sdata,
                             captioned_emotions < emotion_caption_limit and random.random() < emotion_caption_prob,
                         )
@@ -501,15 +501,18 @@ async def chat(msg: Message):
         if update_um_id and update_um_text:
             mem.um_update(
                 user_id=update_um_id,
-                text=update_um_text,
+                um=UserMemory(
+                    text=update_um_text,
+                ),
             )
             
         # 添加自身记忆
-        mem.sm_add(
-            msg_id=send_msg_id,
-            text=reply_text,
-            keep_count=config.get('chat.mem.sm_keep_count'),
-        )
+        if reply_text.strip():
+            mem.sm_add(
+                msg_id=send_msg_id,
+                text=reply_text,
+                keep_count=config.get('chat.mem.sm_keep_count'),
+            )
 
     except:
         error(f"更新记忆失败")
