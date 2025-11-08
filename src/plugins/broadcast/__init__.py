@@ -1,4 +1,4 @@
-from ...utils import *
+from src.utils import *
 
 
 config = Config('broadcast')
@@ -148,7 +148,7 @@ bc_send.check_cdrate(cd).check_wblist(gbl).check_superuser()
 @bc_send.handle()
 async def _(ctx: HandlerContext):
     bc = file_db.get('bc', {})
-    reply_msg = await ctx.aget_reply_msg()
+    reply_msg = ctx.get_reply_msg()
     if reply_msg:
         smsg = reply_msg
         name = ctx.get_args().strip()

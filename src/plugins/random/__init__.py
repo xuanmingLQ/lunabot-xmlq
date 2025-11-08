@@ -1,4 +1,4 @@
-from ...utils import *
+from src.utils import *
 
 config = Config('random')
 logger = get_logger("Random")

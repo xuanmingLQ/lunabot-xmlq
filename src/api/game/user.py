@@ -1,4 +1,4 @@
-from ...utils import server, ApiError
+from src.utils import server, ApiError
 def get_suite(region:str, user_id:str,filter:list[str]|str|None=None):
     return server(
         path="/user/suite",

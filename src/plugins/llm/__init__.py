@@ -1,5 +1,5 @@
 import openai
-from ...utils import *
+from src.utils import *
 import shutil
 import random
 import numpy as np

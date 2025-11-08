@@ -1,4 +1,4 @@
-from ...utils import *
+from src.utils import *
 from datetime import datetime
 from nonebot_plugin_picstatus.collectors import collect_all
 from nonebot_plugin_picstatus.bg_provider import bg_preloader

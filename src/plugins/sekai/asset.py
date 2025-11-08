@@ -1,8 +1,8 @@
-from ...utils import *
+from src.utils import *
 from .common import *
 from ...api.assets.masterdata import get_masterdata_version, download_masterdata
 from ...api.assets.rip import download_rip_assets
-from ...utils.request import ApiError
+from src.utils.request import ApiError
 import threading
 
 asset_config = Config('sekai.asset')

@@ -1,316 +1,129 @@
 from .utils import *
-from nonebot import on_command, get_bot
+from nonebot import on_command, get_bot, get_bots
 from nonebot.rule import to_me as rule_to_me
-from nonebot.adapters.onebot.v11 import GroupMessageEvent, PrivateMessageEvent, Bot, MessageEvent, ActionFailed
-from nonebot.adapters.onebot.v11.message import Message as OutMessage
+from nonebot.adapters.onebot.v11 import (
+    Bot, 
+    MessageEvent, 
+    GroupMessageEvent, 
+    PrivateMessageEvent, 
+    ActionFailed,
+)
+from nonebot.adapters.onebot.v11.event import Sender, Reply
+from nonebot.adapters.onebot.v11.message import MessageSegment, Message
 from argparse import ArgumentParser
 import requests
 
 
 SUPERUSER_CFG = global_config.item('superuser')
-BOT_NAME_CFG  = global_config.item('bot_name')
+GROUP_MEMBER_NAME_CACHE_EXPIRE_SECONDS_CFG = global_config.item('group_member_name_cache_expire_seconds')
 
 
-# ============================ 消息处理 ============================ #
+# ============================ API调用 ============================ #
 
-async def get_group_id_list(bot) -> List[int]:
+@dataclass
+class GroupMemberNameCache:
+    name: str
+    expire_time: datetime
+_group_member_name_cache: dict[tuple[int, int], GroupMemberNameCache] = {}
+
+def get_user_name_by_event(event_or_reply: MessageEvent | Reply) -> str:
+    """
+    通过event或reply获取发送者用户名，如果有群名片则返回群名片 否则返回昵称
+    """
+    card = event_or_reply.sender.card
+    nickname = event_or_reply.sender.nickname
+    if card:
+        return card
+    return nickname or str(event_or_reply.user_id)
+    
+async def get_group_member_name(bot: Bot, group_id: int, user_id: int) -> str:
+    """
+    调用API获取群聊中的用户名（带缓存） 如果有群名片则返回群名片 否则返回昵称
+    """
+    global _group_member_name_cache
+    # 清空过期缓存
+    for key in list(_group_member_name_cache.keys()):
+        if _group_member_name_cache[key].expire_time <= datetime.now():
+            del _group_member_name_cache[key]
+
+    group_id, user_id = int(group_id), int(user_id)
+    cache = _group_member_name_cache.get((group_id, user_id))
+    if cache and cache.expire_time > datetime.now():
+        return cache.name
+    
+    info = await bot.call_api('get_group_member_info', **{'group_id': group_id, 'user_id': user_id})
+    name = info.get('card') or info.get('nickname', str(user_id))
+    _group_member_name_cache[(group_id, user_id)] = GroupMemberNameCache(
+        name=name,
+        expire_time=datetime.now() + timedelta(seconds=GROUP_MEMBER_NAME_CACHE_EXPIRE_SECONDS_CFG.get())
+    )
+    return name
+
+async def get_group_id_list(bot: Bot) -> List[int]:
     """
     获取加入的所有群id
     """
     group_list = await bot.call_api('get_group_list')
     return [int(group['group_id']) for group in group_list]
 
-async def get_group_list(bot) -> List[dict]:
+async def get_group_list(bot: Bot) -> List[dict]:
     """
     获取加入的所有群
     """
     return await bot.call_api('get_group_list')
 
-def process_msg_for_compatibility(msg: List[dict]):
-    """
-    对消息进行一些处理以保证各个bot后端的兼容性
-    """
-    for seg in msg:
-        if seg['type'] == 'image':
-            # 为图片消息添加file_unique字段
-            if not 'file_unique' in seg['data']:
-                url: str = seg['data'].get('url', '')
-                start_idx = url.find('fileid=') + len('fileid=')
-                if start_idx == -1: continue
-                end_idx = url.find('&', start_idx)
-                if end_idx == -1: end_idx = len(url)
-                file_unique = url[start_idx:end_idx]
-                seg['data']['file_unique'] = file_unique 
-        elif seg['type'] == 'mface':
-            # mface转换为图片
-            if 'url' in seg['data']:
-                seg['type'] = 'image'
-                seg['data'] = {
-                    'file': os.path.basename(seg['data']['url']),
-                    'url': seg['data']['url'],
-                    'file_unique': os.path.basename(seg['data']['url']).split('.')[0],
-                    'subType': 1,
-                    'summary': seg['data'].get('summary', '[表情]'),
-                }
-        # 添加file_size
-        if seg['type'] in ('image', 'record', 'video'):
-            if 'file_size' not in seg['data']:
-                seg['data']['file_size'] = 0
-
-
-async def get_msg_obj(bot, message_id: int) -> dict:
-    """
-    获取完整的消息对象
-    """
-    msg_obj = await bot.call_api('get_msg', **{'message_id': int(message_id)})
-    process_msg_for_compatibility(msg_obj['message'])
-    msg_obj['user_id'] = msg_obj['sender']['user_id']
-    return msg_obj
-
-async def get_msg(bot, message_id: int) -> List[dict]:
-    """
-    获取消息段内容
-    """
-    return (await get_msg_obj(bot, message_id))['message']
-
-async def get_stranger_info(bot, user_id: int) -> dict:
+async def get_stranger_info(bot: Bot, user_id: int) -> dict:
     """
     获取陌生人信息
     """
     return await bot.call_api('get_stranger_info', **{'user_id': int(user_id)})
 
-async def get_group_member_name(bot, group_id: int, user_id: int) -> str:
-    """
-    获取群聊中的用户名 如果有群名片则返回群名片 否则返回昵称
-    """
-    info = await bot.call_api('get_group_member_info', **{'group_id': int(group_id), 'user_id': int(user_id)})
-    if 'card' in info and info['card']:
-        return info['card']
-    else:
-        return info['nickname']
-
-async def get_group_users(bot, group_id: int) -> List[dict]:
+async def get_group_users(bot: Bot, group_id: int) -> List[dict]:
     """
     获取群聊中所有用户
     """
     return await bot.call_api('get_group_member_list', **{'group_id': int(group_id)})
 
-async def get_group_name(bot, group_id: int) -> str:
+async def get_group_name(bot: Bot, group_id: int) -> str:
     """
     获取群聊名
     """
     group_info = await bot.call_api('get_group_info', **{'group_id': int(group_id)})
     return group_info['group_name']
 
-async def get_group(bot, group_id: int) -> dict:
+async def get_group(bot: Bot, group_id: int) -> dict:
     """
     获取群聊信息
     """
     return await bot.call_api('get_group_info', **{'group_id': int(group_id)})
 
-def extract_cq_code(msg) -> Dict[str, List[dict]]:
+def get_avatar_url(user_id: int) -> str:
     """
-    解析消息段中的所有CQ码 返回格式为 ret["类型"]=[{CQ码1的data}{CQ码2的data}...]
+    获取QQ头像的url
     """
-    ret = {}
-    for seg in msg:
-        if seg['type'] not in ret: ret[seg['type']] = []
-        ret[seg['type']].append(seg['data'])
-    return ret
+    return f"http://q1.qlogo.cn/g?b=qq&nk={user_id}&s=100"
 
-def has_image(msg) -> bool:
+def get_avatar_url_large(user_id: int) -> str:
     """
-    检查消息段中是否包含图片
+    获取QQ头像的高清url
     """
-    cqs = extract_cq_code(msg)
-    return "image" in cqs and len(cqs["image"]) > 0
+    return f"http://q1.qlogo.cn/g?b=qq&nk={user_id}&s=640"
 
-def extract_image_data(msg) -> List[dict]:
-    cqs = extract_cq_code(msg)
-    if "image" not in cqs or len(cqs["image"]) == 0: return []
-    return [cq for cq in cqs["image"]]
-
-def extract_image_url(msg) -> List[str]:
+def download_avatar(user_id: int, circle=False) -> Image.Image:
     """
-    从消息段中提取所有图片链接
+    下载QQ头像并返回PIL Image对象
     """
-    cqs = extract_cq_code(msg)
-    if "image" not in cqs or len(cqs["image"]) == 0: return []
-    return [cq["url"] for cq in cqs["image"] if "url" in cq]
-
-def extract_image_id(msg) -> List[str]:
-    """
-    从消息段中提取所有图片id
-    """
-    cqs = extract_cq_code(msg)
-    if "image" not in cqs or len(cqs["image"]) == 0: return []
-    return [cq["file"] for cq in cqs["image"] if "file" in cq]
-
-def extract_at_qq(msg) -> List[int]:
-    """
-    从消息段提取所有at的qq号
-    """
-    cqs = extract_cq_code(msg)
-    if "at" not in cqs or len(cqs["at"]) == 0: return []
-    return [int(cq["qq"]) for cq in cqs["at"] if "qq" in cq]
-
-def extract_text(msg) -> str:
-    """
-    从消息段中提取文本
-    """
-    cqs = extract_cq_code(msg)
-    if "text" not in cqs or len(cqs["text"]) == 0: return ""
-    return ' '.join([cq['text'] for cq in cqs["text"]])
-
-async def extract_special_text(msg, group_id=None) -> str:
-    """
-    从消息段提取带有特殊消息的文本
-    """
-    bot = get_bot()
-    text = ""
-    for seg in msg:
-        if seg['type'] == 'text':
-            text += seg['data']['text']
-        elif seg['type'] == 'at':
-            if group_id:
-                name = await get_group_member_name(bot, group_id, seg['data']['qq'])
-            else:
-                name = await get_stranger_info(bot, seg['data']['qq'])['nickname']
-            if text: text += " "
-            text += f"@{name} "
-        elif seg['type'] == 'image':
-            text += f"[图片]"
-        elif seg['type'] == 'face':
-            text += f"[表情]"
-        elif seg['type'] == 'video':
-            text += f"[视频]"
-        elif seg['type'] == 'file':
-            text += f"[文件]"
-        elif seg['type'] =='record':
-            text += f"[语音]"
-        elif seg['type'] =='mface':
-            text += f"[表情]"
-    return text
-    
-async def get_forward_msg(bot, forward_id: str) -> dict:
-    """
-    获取折叠消息
-    """
-    result = await bot.call_api('get_forward_msg', **{'id': str(forward_id)})
-    if 'messages' in result:
-        # napcat
-        pass
-    else:
-        # lagrange
-        ret = { 'messages': [] }
-        for node in result['message']:
-            msg = node['data']
-            msg['time'] = 0
-            msg['message'] = msg['content']
-            ret['messages'].append(msg)
-        result = ret
-    for msg in result['messages']:
-        process_msg_for_compatibility(msg['message'])
-    return result
-
-async def get_reply_msg(bot, msg) -> Optional[List[dict]]:
-    """
-    从消息段获取回复的消息段，如果没有回复则返回None
-    """
-    cqs = extract_cq_code(msg)
-    if "reply" not in cqs or len(cqs["reply"]) == 0: return None
-    reply_id = cqs["reply"][0]["id"]
-    return await get_msg(bot, reply_id)
-
-async def get_reply_msg_obj(bot, msg) -> Optional[dict]:
-    """
-    从消息段获取完整的回复消息对象，如果没有回复则返回None
-    """
-    cqs = extract_cq_code(msg)
-    if "reply" not in cqs or len(cqs["reply"]) == 0: return None
-    reply_id = cqs["reply"][0]["id"]
-    return await get_msg_obj(bot, reply_id)
-
-async def get_image_datas_from_msg(
-    bot: Bot,
-    message_id: int,
-    parse_reply: bool = True,
-    parse_forward: bool = True,
-    return_first: bool = False,
-    min_count: int = 1,
-    max_count: int = None,
-) -> Union[List[dict], dict]:
-    """
-    从消息中获取所有图片数据
-    """
-    msg_obj = await get_msg_obj(bot, message_id)
-    msg = msg_obj['message']
-
-    if int(bot.self_id) == int(msg_obj['user_id']):
-        cqs = extract_cq_code(msg)
-        if cqs.get('json'):
-            raise ReplyException(f'暂时无法读取Bot发送的折叠消息中的图片，可以先手动转发该消息')
-
-    ret = extract_image_data(msg)
-    if parse_forward:
-        cqs = extract_cq_code(msg)
-        if 'forward' in cqs:
-            forward_msg = await get_forward_msg(bot, cqs['forward'][0]['id'])
-            for msg_obj in forward_msg['messages']:
-                msg = msg_obj['message']
-                ret.extend(extract_image_data(msg))
-    if parse_reply:
-        reply_msg_obj = await get_reply_msg_obj(bot, msg)
-        if reply_msg_obj:
-            ret.extend(await get_image_datas_from_msg(
-                bot, 
-                reply_msg_obj['message_id'], 
-                parse_reply=False, 
-                parse_forward=parse_forward,
-                return_first=False,
-                min_count=None,
-                max_count=None,
-            ))
-
-    sources = "消息本身"
-    if parse_forward:   sources += "/折叠消息"
-    if parse_reply:     sources += "/回复消息"
-
-    if return_first:
-        assert_and_reply(ret, f'该指令需要输入一张图片，在{sources}中没有找到图片')
-        return ret[0]
-    
-    if min_count:
-        assert_and_reply(len(ret) >= min_count, f'该指令至少输入{min_count}张图片，在{sources}中仅找到{len(ret)}张图片')
-    if max_count:
-        assert_and_reply(len(ret) <= max_count, f'该指令最多输入{max_count}张图片，在{sources}中找到{len(ret)}张图片')
-    return ret
-
-async def get_image_urls_from_msg(
-    bot: Bot,
-    message_id: int,
-    parse_reply: bool = True,
-    parse_forward: bool = True,
-    return_first: bool = False,
-    min_count: int = 1,
-    max_count: int = None,
-) -> Union[List[str], str]:
-    ret = await get_image_datas_from_msg(
-        bot, 
-        message_id, 
-        parse_reply=parse_reply, 
-        parse_forward=parse_forward,
-        return_first=return_first,
-        min_count=min_count,
-        max_count=max_count,
-    )
-    if return_first:
-        return ret['url']
-    return [item['url'] for item in ret]  
-
-def get_event_sender_name(event: MessageEvent) -> str:
-    return event.sender.card or event.sender.nickname
-        
+    url = get_avatar_url(user_id)
+    response = requests.get(url)
+    img = Image.open(io.BytesIO(response.content))
+    if circle:
+        r = img.width // 2
+        circle_img = Image.new('L', (img.width, img.height), 0)
+        draw = ImageDraw.Draw(circle_img)
+        draw.ellipse((0, 0, r * 2, r * 2), fill=255)
+        img.putalpha(circle_img)
+    return img
+      
 async def get_image_cq(
     image: Union[str, Image.Image, bytes],
     allow_error: bool = False, 
@@ -388,7 +201,7 @@ class TempBotOrInternetFilePath:
                 'record': 'wav',
                 'video': 'mp4',
             }.get(self.ftype, self.ext)
-            path = pjoin(get_data_path('utils/tmp'), rand_filename(self.ext))
+            path = pjoin('data/utils/tmp', rand_filename(self.ext))
             await download_file(self.file, path)
         else:
             path = await download_napcat_file(self.ftype, self.file)
@@ -409,43 +222,276 @@ async def upload_group_file(bot: Bot, group_id: int, file_path: str, name: str, 
         'folder': folder,
     })
 
-def get_avatar_url(user_id: int) -> str:
-    """
-    获取QQ头像的url
-    """
-    return f"http://q1.qlogo.cn/g?b=qq&nk={user_id}&s=100"
 
-def get_avatar_url_large(user_id: int) -> str:
-    """
-    获取QQ头像的高清url
-    """
-    return f"http://q1.qlogo.cn/g?b=qq&nk={user_id}&s=640"
+# ============================ 消息获取 ============================ #
 
-def download_avatar(user_id: int, circle=False) -> Image.Image:
+def process_msg_segs(msg: list[dict] | Message) -> list[dict]:
     """
-    下载QQ头像并返回PIL Image对象
+    对消息段列表进行一些处理以保证各个bot后端的兼容性
     """
-    url = get_avatar_url(user_id)
-    response = requests.get(url)
-    img = Image.open(io.BytesIO(response.content))
-    if circle:
-        r = img.width // 2
-        circle_img = Image.new('L', (img.width, img.height), 0)
-        draw = ImageDraw.Draw(circle_img)
-        draw.ellipse((0, 0, r * 2, r * 2), fill=255)
-        img.putalpha(circle_img)
-    return img
+    ret = []
+    for seg in msg:
+        stype = seg['type'] if isinstance(seg, dict) else str(seg.type)
+        sdata = seg['data'] if isinstance(seg, dict) else dict(seg.data)
+        if stype == 'image':
+            # 为图片消息添加file_unique字段
+            if not 'file_unique' in sdata:
+                url: str = sdata.get('url', '')
+                start_idx = url.find('fileid=') + len('fileid=')
+                if start_idx == -1: continue
+                end_idx = url.find('&', start_idx)
+                if end_idx == -1: end_idx = len(url)
+                file_unique = url[start_idx:end_idx]
+                sdata['file_unique'] = file_unique 
+        elif stype == 'mface':
+            # mface转换为图片
+            if 'url' in sdata:
+                stype = 'image'
+                sdata = {
+                    'file': os.path.basename(sdata['url']),
+                    'url': sdata['url'],
+                    'file_unique': os.path.basename(sdata['url']).split('.')[0],
+                    'subType': 1,
+                    'summary': sdata.get('summary', '[表情]'),
+                }
+        # 添加file_size
+        if stype in ('image', 'record', 'video'):
+            if 'file_size' not in sdata:
+                sdata['file_size'] = 0
+        ret.append({
+            'type': stype,
+            'data': sdata,
+        })
+    return ret
+
+def get_msg(event: MessageEvent) -> List[dict]:
+    """
+    从event中获取消息段内容
+    """
+    return process_msg_segs(event.message)
+
+async def get_msg_obj_by_bot(bot: Bot, msg_id: int) -> dict:
+    """
+    调用API由msg_id获取完整消息对象
+    """
+    msg_obj = await bot.call_api('get_msg', **{'message_id': int(msg_id)})
+    msg_obj['message'] = process_msg_segs(msg_obj['message'])
+    msg_obj['user_id'] = msg_obj['sender']['user_id']
+    return msg_obj
+
+def get_reply_msg(event: MessageEvent) -> Optional[List[dict]]:
+    """
+    从event获取回复的消息段，如果没有回复则返回None
+    """
+    if event.reply:
+        return process_msg_segs(event.reply.message)
+    return None
+
+async def get_forward_msg(bot: Bot, forward_id: str) -> dict:
+    """
+    获取折叠消息
+    """
+    result = await bot.call_api('get_forward_msg', **{'id': str(forward_id)})
+    if 'messages' in result:
+        # napcat
+        pass
+    else:
+        # lagrange
+        ret = { 'messages': [] }
+        for node in result['message']:
+            msg = node['data']
+            msg['time'] = 0
+            msg['message'] = msg['content']
+            ret['messages'].append(msg)
+        result = ret
+    for msg in result['messages']:
+        msg['message'] = process_msg_segs(msg['message'])
+    return result
+
+def get_msg_sender_name(event: MessageEvent) -> str:
+    return event.sender.card or event.sender.nickname
+
+
+def extract_cq_code(msg: list[dict]) -> Dict[str, List[dict]]:
+    """
+    解析消息段中的所有CQ码 返回格式为 ret["类型"]=[{CQ码1的data}{CQ码2的data}...]
+    """
+    ret = {}
+    for seg in msg:
+        if seg['type'] not in ret: ret[seg['type']] = []
+        ret[seg['type']].append(seg['data'])
+    return ret
+
+def has_image(msg: list[dict]) -> bool:
+    """
+    检查消息段中是否包含图片
+    """
+    cqs = extract_cq_code(msg)
+    return "image" in cqs and len(cqs["image"]) > 0
+
+def extract_image_data(msg: list[dict]) -> List[dict]:
+    cqs = extract_cq_code(msg)
+    if "image" not in cqs or len(cqs["image"]) == 0: return []
+    return [cq for cq in cqs["image"]]
+
+def extract_image_url(msg: list[dict]) -> List[str]:
+    """
+    从消息段中提取所有图片链接
+    """
+    cqs = extract_cq_code(msg)
+    if "image" not in cqs or len(cqs["image"]) == 0: return []
+    return [cq["url"] for cq in cqs["image"] if "url" in cq]
+
+def extract_image_id(msg: list[dict]) -> List[str]:
+    """
+    从消息段中提取所有图片id
+    """
+    cqs = extract_cq_code(msg)
+    if "image" not in cqs or len(cqs["image"]) == 0: return []
+    return [cq["file"] for cq in cqs["image"] if "file" in cq]
+
+def extract_at_qq(msg: list[dict]) -> List[int]:
+    """
+    从消息段提取所有at的qq号
+    """
+    cqs = extract_cq_code(msg)
+    if "at" not in cqs or len(cqs["at"]) == 0: return []
+    return [int(cq["qq"]) for cq in cqs["at"] if "qq" in cq]
+
+def extract_text(msg: list[dict]) -> str:
+    """
+    从消息段中提取文本
+    """
+    cqs = extract_cq_code(msg)
+    if "text" not in cqs or len(cqs["text"]) == 0: return ""
+    return ' '.join([cq['text'] for cq in cqs["text"]])
+
+async def extract_special_text(msg: list[dict], group_id=None) -> str:
+    """
+    从消息段提取带有特殊消息的文本
+    """
+    bot = get_bot()
+    text = ""
+    for seg in msg:
+        if seg['type'] == 'text':
+            text += seg['data']['text']
+        elif seg['type'] == 'at':
+            if group_id:
+                name = await get_group_member_name(bot, group_id, seg['data']['qq'])
+            else:
+                name = await get_stranger_info(bot, seg['data']['qq'])['nickname']
+            if text: text += " "
+            text += f"@{name} "
+        elif seg['type'] == 'image':
+            text += f"[图片]"
+        elif seg['type'] == 'face':
+            text += f"[表情]"
+        elif seg['type'] == 'video':
+            text += f"[视频]"
+        elif seg['type'] == 'file':
+            text += f"[文件]"
+        elif seg['type'] =='record':
+            text += f"[语音]"
+        elif seg['type'] =='mface':
+            text += f"[表情]"
+    return text
+    
+async def get_image_datas_from_msg(
+    bot: Bot,
+    msg_or_event: list[dict] | MessageEvent,
+    parse_reply: bool = True,
+    parse_forward: bool = True,
+    return_first: bool = False,
+    min_count: int = 1,
+    max_count: int = None,
+    sender_id: int = None,
+) -> Union[List[dict], dict]:
+    """
+    从event中获取所有图片数据
+    """
+    if isinstance(msg_or_event, MessageEvent):
+        msg = get_msg(msg_or_event)
+        event = msg_or_event
+        sender_id = event.user_id
+    else:
+        msg = msg_or_event
+        event = None
+
+    if event and int(bot.self_id) == sender_id:
+        cqs = extract_cq_code(msg)
+        if cqs.get('json'):
+            raise ReplyException(f'暂时无法读取Bot发送的折叠消息中的图片，可以先手动转发该消息')
+
+    ret = extract_image_data(msg)
+    if parse_forward:
+        cqs = extract_cq_code(msg)
+        if 'forward' in cqs:
+            forward_msg = await get_forward_msg(bot, cqs['forward'][0]['id'])
+            for msg_obj in forward_msg['messages']:
+                msg = msg_obj['message']
+                ret.extend(extract_image_data(msg))
+    if parse_reply and event:
+        if reply_msg := get_reply_msg(event):
+            ret.extend(await get_image_datas_from_msg(
+                bot, 
+                reply_msg,
+                parse_reply=False, 
+                parse_forward=parse_forward,
+                return_first=False,
+                min_count=None,
+                max_count=None,
+                sender_id=event.reply.sender.user_id,
+            ))
+
+    sources = "消息本身"
+    if parse_forward:   sources += "/折叠消息"
+    if parse_reply:     sources += "/回复消息"
+
+    if return_first:
+        assert_and_reply(ret, f'该指令需要输入一张图片，在{sources}中没有找到图片')
+        return ret[0]
+    
+    if min_count:
+        assert_and_reply(len(ret) >= min_count, f'该指令至少输入{min_count}张图片，在{sources}中仅找到{len(ret)}张图片')
+    if max_count:
+        assert_and_reply(len(ret) <= max_count, f'该指令最多输入{max_count}张图片，在{sources}中找到{len(ret)}张图片')
+    return ret
+
+async def get_image_urls_from_msg(
+    bot: Bot,
+    msg_or_event: list[dict] | MessageEvent,
+    parse_reply: bool = True,
+    parse_forward: bool = True,
+    return_first: bool = False,
+    min_count: int = 1,
+    max_count: int = None,
+) -> Union[List[str], str]:
+    """
+    从event中获取所有图片链接
+    """
+    ret = await get_image_datas_from_msg(
+        bot, 
+        msg_or_event,
+        parse_reply=parse_reply, 
+        parse_forward=parse_forward,
+        return_first=return_first,
+        min_count=min_count,
+        max_count=max_count,
+    )
+    if return_first:
+        return ret['url']
+    return [item['url'] for item in ret]  
 
 
 # ============================ 聊天检查 ============================ #
         
-def is_group_msg(event):
+def is_group_msg(event: MessageEvent):
     """
     检查事件是否是群聊消息
     """
     return hasattr(event, 'group_id') and event.group_id is not None
 
-async def check_in_group(bot, group_id: int):
+async def check_in_group(bot: Bot, group_id: int):
     """
     检查bot是否加入了某个群
     """
@@ -465,7 +511,7 @@ def check_group_disabled(group_id: int):
     enabled_groups = utils_file_db.get('enabled_groups', [])
     return int(group_id) not in enabled_groups
 
-def check_group_disabled_by_event(event):
+def check_group_disabled_by_event(event: MessageEvent):
     """
     通过event检查群聊是否被全局禁用
     """
@@ -488,13 +534,13 @@ def set_group_enable(group_id: int, enable: bool):
     utils_file_db.set('enabled_groups', enabled_groups)
     utils_logger.info(f'设置群聊 {group_id} 全局启用状态为 {enable}')
 
-def check_self(event):
+def check_self(event: MessageEvent):
     """
     检查事件是否是自身发送的消息
     """
     return event.user_id == event.self_id
 
-def check_superuser(event, superuser: Union[List[int], ConfigItem]=SUPERUSER_CFG):
+def check_superuser(event: MessageEvent, superuser: Union[List[int], ConfigItem]=SUPERUSER_CFG):
     """ 
     检查事件是否是超级用户发送
     """
@@ -502,12 +548,11 @@ def check_superuser(event, superuser: Union[List[int], ConfigItem]=SUPERUSER_CFG
         return False
     return event.user_id in get_cfg_or_value(superuser)
 
-def check_self_reply(event):
+def check_self_reply(event: MessageEvent):
     """
     检查事件是否是自身对指令的回复消息
     """
     return int(event.message_id) in _bot_reply_msg_ids
-
 
 
 # ============================ 消息发送 ============================ #
@@ -606,28 +651,28 @@ def send_msg_func(func):
 # -------- event内发送 -------- #
 
 @send_msg_func
-async def send_msg(handler, event, message):
+async def send_msg(handler, event: MessageEvent, message: str):
     """
     发送普通消息
     """
     if check_group_disabled_by_event(event): return None
-    return await handler.send(OutMessage(message))
+    return await handler.send(Message(message))
 
 @send_msg_func
-async def send_reply_msg(handler, event, message):
+async def send_reply_msg(handler, event: MessageEvent, message: str):
     """
     发送回复消息
     """
     if check_group_disabled_by_event(event): return None
-    return await handler.send(OutMessage(f'[CQ:reply,id={event.message_id}]{message}'))
+    return await handler.send(Message(f'[CQ:reply,id={event.message_id}]{message}'))
 
 @send_msg_func
-async def send_at_msg(handler, event, message):
+async def send_at_msg(handler, event: MessageEvent, message: str):
     """
     发送at消息
     """
     if check_group_disabled_by_event(event): return None
-    return await handler.send(OutMessage(f'[CQ:at,qq={event.user_id}]{message}'))
+    return await handler.send(Message(f'[CQ:at,qq={event.user_id}]{message}'))
 
 # -------- event外发送 -------- #
 
@@ -774,7 +819,14 @@ def apply_limit_to_parts(fold_parts: List[List[FoldMsgPart]], limit: int, seq: i
     return [cur_fold] if cur_fold else []
 
 @send_msg_func
-async def send_fold_msg(bot, group_id: Optional[int], user_id: Optional[int], contents: Union[str, List[str]], fallback_method=None):
+async def send_fold_msg(
+    bot: Bot,
+    group_id: Optional[int], 
+    user_id: Optional[int], 
+    contents: Union[str, List[str]], 
+    fallback_method=None, 
+    first_is_user=False,
+):
     """
     发送私聊或群聊折叠消息
     fallback_method in ['seperate', 'join_newline', 'join', 'none']
@@ -789,14 +841,23 @@ async def send_fold_msg(bot, group_id: Optional[int], user_id: Optional[int], co
         if group_id and check_group_disabled(group_id):
             utils_logger.warning(f'取消发送消息到被全局禁用的群 {group_id}')
             return
-        msg_list = [{
-            "type": "node",
-            "data": {
-                "user_id": bot.self_id,
-                "nickname": BOT_NAME_CFG.get(),
-                "content": content
-            }
-        } for content in contents]
+        selfname = await get_group_member_name(bot, group_id, bot.self_id)
+        msg_list = []
+        for i in range(len(contents)):
+            if i == 0 and first_is_user:
+                uid = user_id
+                nickname = await get_group_member_name(bot, group_id, user_id)
+            else:
+                uid = int(bot.self_id)
+                nickname = selfname
+            msg_list.append({
+                "type": "node",
+                "data": {
+                    "user_id": uid,
+                    "nickname": nickname,
+                    "content": contents[i],
+                }
+            })
         try:
             if group_id:
                 ret = await bot.send_group_forward_msg(group_id=group_id, messages=msg_list)
@@ -806,7 +867,14 @@ async def send_fold_msg(bot, group_id: Optional[int], user_id: Optional[int], co
             ret = await fold_msg_fallback(bot, group_id, user_id, contents, e, fallback_method)
     return ret
 
-async def fold_msg_fallback(bot, group_id: Optional[int], user_id: Optional[int], contents: List[str], e: Exception, method: Optional[str]):
+async def fold_msg_fallback(
+    bot: Bot,
+    group_id: Optional[int], 
+    user_id: Optional[int], 
+    contents: List[str], 
+    e: Exception, 
+    method: Optional[str],
+):
     """
     发送折叠消息失败的fallback
     method: 为None使用默认fallback方法
@@ -837,7 +905,7 @@ async def fold_msg_fallback(bot, group_id: Optional[int], user_id: Optional[int]
     return ret
 
 async def send_fold_msg_adaptive(
-    bot, 
+    bot: Bot, 
     group_id: Optional[int], 
     user_id: Optional[int], 
     contents: Union[str, List[str]], 
@@ -846,6 +914,7 @@ async def send_fold_msg_adaptive(
     need_reply: bool=True, 
     reply_message_id: int=None,
     fallback_method: str=None,
+    first_is_user=False,
 ):
     """
     根据消息长度以及是否是群聊消息动态判断是否需要发送折叠消息
@@ -881,10 +950,10 @@ async def send_fold_msg_adaptive(
         return ret
     else:
         # 折叠消息
-        return await send_fold_msg(bot, group_id, user_id, contents, fallback_method=fallback_method)
+        return await send_fold_msg(bot, group_id, user_id, contents, fallback_method=fallback_method, first_is_user=first_is_user)
   
 async def send_private_fold_msg_adaptive_by_bot(
-    bot,
+    bot: Bot,
     user_id: int,
     contents: Union[str, List[str]], 
     threshold: Union[int, ConfigItem]=DEFAULT_FOLD_THRESHOLD_CFG,
@@ -906,7 +975,7 @@ async def send_private_fold_msg_adaptive_by_bot(
     )
 
 async def send_group_fold_msg_adaptive_by_bot(
-    bot,
+    bot: Bot,
     group_id: int,
     contents: Union[str, List[str]], 
     threshold: Union[int, ConfigItem]=DEFAULT_FOLD_THRESHOLD_CFG,
@@ -1138,11 +1207,16 @@ class GroupWhiteList:
             else:
                 return await ctx.asend_reply_msg(f'本群聊的{name}关闭中')
             
-
-    def get(self):
+    def get(self) -> List[int]:
+        """
+        获取白名单群id列表
+        """
         return self.db.get(self.white_list_name, [])
     
-    def add(self, group_id):
+    def add(self, group_id: int) -> bool:
+        """
+        添加群到白名单，返回是否成功添加
+        """
         white_list = self.db.get(self.white_list_name, [])
         if group_id in white_list:
             return False
@@ -1152,7 +1226,10 @@ class GroupWhiteList:
         if self.on_func is not None: self.on_func(group_id)
         return True
     
-    def remove(self, group_id):
+    def remove(self, group_id: int) -> bool:
+        """
+        从白名单移除群，返回是否成功移除
+        """
         white_list = self.db.get(self.white_list_name, [])
         if group_id not in white_list:
             return False
@@ -1162,12 +1239,18 @@ class GroupWhiteList:
         if self.off_func is not None: self.off_func(group_id)
         return True
             
-    def check_id(self, group_id):
+    def check_id(self, group_id: int) -> bool:
+        """
+        检查群id是否在白名单中
+        """
         white_list = self.db.get(self.white_list_name, [])
         # self.logger.debug(f'白名单{self.white_list_name}检查{group_id}: {"允许通过" if group_id in white_list else "不允许通过"}')
         return group_id in white_list
 
-    def check(self, event, allow_private=False, allow_super=True):
+    def check(self, event: MessageEvent, allow_private=False, allow_super=True) -> bool:
+        """
+        检查消息事件是否通过白名单
+        """
         if is_group_msg(event):
             if allow_super and check_superuser(event, self.superuser): 
                 # self.logger.debug(f'白名单{self.white_list_name}检查: 允许超级用户{event.user_id}')
@@ -1238,10 +1321,16 @@ class GroupBlackList:
             else:
                 return await ctx.asend_reply_msg(f'本群聊的{name}开启中')
         
-    def get(self):
+    def get(self) -> List[int]:
+        """
+        获取黑名单群id列表
+        """
         return self.db.get(self.black_list_name, [])
     
-    def add(self, group_id):
+    def add(self, group_id: int) -> bool:
+        """
+        添加群到黑名单，返回是否成功添加
+        """
         black_list = self.db.get(self.black_list_name, [])
         if group_id in black_list:
             return False
@@ -1251,7 +1340,10 @@ class GroupBlackList:
         if self.off_func is not None: self.off_func(group_id)
         return True
     
-    def remove(self, group_id):
+    def remove(self, group_id: int) -> bool:
+        """
+        从黑名单移除群，返回是否成功移除
+        """
         black_list = self.db.get(self.black_list_name, [])
         if group_id not in black_list:
             return False
@@ -1261,12 +1353,18 @@ class GroupBlackList:
         if self.on_func is not None: self.on_func(group_id)
         return True
     
-    def check_id(self, group_id):
+    def check_id(self, group_id) -> bool:
+        """
+        检查群id是否不在黑名单中
+        """
         black_list = self.db.get(self.black_list_name, [])
         # self.logger.debug(f'黑名单{self.black_list_name}检查{group_id}: {"允许通过" if group_id not in black_list else "不允许通过"}')
         return group_id not in black_list
     
-    def check(self, event, allow_private=False, allow_super=True):
+    def check(self, event, allow_private=False, allow_super=True) -> bool:
+        """
+        检查消息事件是否通过黑名单
+        """
         if is_group_msg(event):
             if allow_super and check_superuser(event, self.superuser): 
                 self.logger.debug(f'黑名单{self.black_list_name}检查: 允许超级用户{event.user_id}')
@@ -1381,20 +1479,27 @@ class HandlerContext:
     def get_argparser(self) -> MessageArgumentParser:
         return MessageArgumentParser(self)
 
-    def aget_msg(self):
-        return get_msg(self.bot, self.message_id)
-
-    def aget_msg_obj(self):
-        return get_msg_obj(self.bot, self.message_id)
+    def get_msg(self) -> list[dict]:
+        return get_msg(self.event)
     
-    async def aget_reply_msg(self):
-        return await get_reply_msg(self.bot, await self.aget_msg())
-    
-    async def aget_reply_msg_obj(self):
-        return await get_reply_msg_obj(self.bot, await self.aget_msg())
+    def get_sender_name(self) -> str:
+        return get_user_name_by_event(self.event)
 
-    async def aget_at_qids(self):
-        return extract_at_qq(await get_msg(self.bot, self.message_id))
+    def get_reply_msg(self) -> list[dict]:
+        return get_reply_msg(self.event)
+
+    def get_reply_msg_id(self) -> int | None:
+        if self.event.reply:
+            return int(self.event.reply.message_id)
+        return None
+    
+    def get_reply_sender(self) -> Sender | None:
+        if self.event.reply:
+            return self.event.reply.sender
+        return None
+
+    def get_at_qids(self) -> list[int]:
+        return extract_at_qq(self.get_msg())
     
     def aget_image_datas(
         self,
@@ -1406,7 +1511,7 @@ class HandlerContext:
     ):
         return get_image_datas_from_msg(
             self.bot, 
-            self.message_id,
+            self.event,
             parse_reply=parse_reply, 
             parse_forward=parse_forward, 
             return_first=return_first, 
@@ -1424,7 +1529,7 @@ class HandlerContext:
     ):
         return get_image_urls_from_msg(
             self.bot, 
-            self.message_id,
+            self.event,
             parse_reply=parse_reply, 
             parse_forward=parse_forward, 
             return_first=return_first, 
@@ -1450,16 +1555,19 @@ class HandlerContext:
         show_command: bool=True,
         fallback_method: Optional[str]=None,
     ):
+        first_is_user = False
         if isinstance(contents, str):
             contents = [contents]
         if show_command:
-            contents = [f"{get_event_sender_name(self.event)}: {self.event.get_plaintext()}"] + contents
+            contents = [self.event.get_plaintext()] + contents
+            first_is_user = True
         return send_fold_msg(
             bot=self.bot,
             group_id=self.group_id,
             user_id=self.user_id,
             contents=contents,
-            fallback_method=fallback_method
+            fallback_method=fallback_method,
+            first_is_user=first_is_user,
         )
 
     def asend_fold_msg_adaptive(
@@ -1469,11 +1577,13 @@ class HandlerContext:
         need_reply: bool=True,
         fallback_method: Optional[str]=None,
     ):
+        first_is_user = False
         if isinstance(contents, str):
             contents = [contents]
         fold_contents = contents
         if need_reply:
-            fold_contents = [f"{get_event_sender_name(self.event)}: {self.event.get_plaintext()}"] + contents
+            fold_contents = [self.event.get_plaintext()] + contents
+            first_is_user = True
         return send_fold_msg_adaptive(
             bot=self.bot,
             group_id=self.group_id,
@@ -1483,7 +1593,8 @@ class HandlerContext:
             threshold=threshold,
             need_reply=need_reply,
             reply_message_id=self.message_id,
-            fallback_method=fallback_method
+            fallback_method=fallback_method,
+            first_is_user=first_is_user,
         )
 
     async def asend_video(self, path: str):

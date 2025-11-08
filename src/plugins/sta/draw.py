@@ -8,7 +8,7 @@ import wordcloud
 import random
 import colorsys
 import io
-from ...utils import *
+from src.utils import *
 
 config = Config("sta")
 logger = get_logger("Sta")

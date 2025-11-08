@@ -1,8 +1,7 @@
-from nonebot.adapters.onebot.v11.message import Message as OutMessage
 from ..record.sql import query_recent_msg
 from ..record import before_record_hook
-from ...utils import *
-from ...utils.rpc import *
+from src.utils import *
+from src.utils.rpc import *
 
 
 config = Config('chatroom')
@@ -27,11 +26,10 @@ message_pool = {}
 
 # 记录新消息
 @before_record_hook
-async def record_new_message(bot, event):
+async def record_new_message(bot: Bot, event: MessageEvent):
     if not is_group_msg(event): return
-    msg_obj = await get_msg_obj(bot, event.message_id)
     group_id = event.group_id
-    user_name = await get_group_member_name(bot, group_id, event.user_id)
+    user_name = get_user_name_by_event(event)
 
     for cid, group_msgs in message_pool.items():
         # print(f"add msg {event.message_id} of group {group_id} to {cid}")
@@ -42,12 +40,12 @@ async def record_new_message(bot, event):
             'time': event.time,
             'user_id': event.user_id,
             'nickname': user_name,
-            'msg': msg_obj['message'],
+            'msg': get_msg(event),
         })
 
 # ------------------------------ RPC Handler ------------------------------ #
         
-SERVICE = 'chatroom'
+RPC_SERVICE = 'chatroom'
 
 def on_connect(session: RpcSession):
     message_pool[session.id] = {}
@@ -59,7 +57,8 @@ def on_disconnect(session: RpcSession):
 start_rpc_service(
     host=config.get('host'),
     port=config.get('port'),
-    name=SERVICE,
+    token=config.get('token'),
+    name=RPC_SERVICE,
     logger=logger,
     on_connect=on_connect,
     on_disconnect=on_disconnect
@@ -67,38 +66,38 @@ start_rpc_service(
         
 
 # echo测试
-@rpc_method(SERVICE, 'echo')
+@rpc_method(RPC_SERVICE, 'echo')
 async def handle_echo(cid, message):
     return f'{cid} {message}'
 
 # 延迟echo测试
-@rpc_method(SERVICE, 'echo_delay')
+@rpc_method(RPC_SERVICE, 'echo_delay')
 async def handle_echo_delay(cid, message, delay):
     await asyncio.sleep(delay)
     return f'{cid} {message}'
 
 # 获取群组列表
-@rpc_method(SERVICE, 'get_group_list')
+@rpc_method(RPC_SERVICE, 'get_group_list')
 async def handle_get_group_list(cid):
     bot = get_bot()
     return await get_group_list(bot)
 
 # 获取群组信息
-@rpc_method(SERVICE, 'get_group')
+@rpc_method(RPC_SERVICE, 'get_group')
 async def handle_get_group(cid, group_id):
     bot = get_bot()
     return await get_group(bot, group_id)
 
 # 发送群消息
-@rpc_method(SERVICE, 'send_group_msg')
+@rpc_method(RPC_SERVICE, 'send_group_msg')
 async def handle_send_group_msg(cid, group_id, message):
     bot = get_bot()
     if isinstance(message, str):
-        message=OutMessage(message)
+        message=Message(message)
     return await bot.send_group_msg(group_id=int(group_id), message=message)
 
 # 从数据库获取群聊天记录
-@rpc_method(SERVICE, 'get_group_history_msg')
+@rpc_method(RPC_SERVICE, 'get_group_history_msg')
 async def handle_get_group_msg(cid, group_id, limit):
     msgs = await query_recent_msg(group_id, limit)
     for msg in msgs:
@@ -106,7 +105,7 @@ async def handle_get_group_msg(cid, group_id, limit):
     return msgs
 
 # 获取群新消息，获取后清空
-@rpc_method(SERVICE, 'get_group_new_msg')
+@rpc_method(RPC_SERVICE, 'get_group_new_msg')
 async def handle_get_group_new_msg(cid, group_id):
     group_id = int(group_id)
     if group_id not in message_pool[cid]:
@@ -118,7 +117,7 @@ async def handle_get_group_new_msg(cid, group_id):
     return new_msg
 
 # 获取客户端数据
-@rpc_method(SERVICE, 'get_client_data')
+@rpc_method(RPC_SERVICE, 'get_client_data')
 async def handle_get_client_data(cid, name):
     try:
         return load_json(get_data_path(f'chatroom/client_data/{name}.json'))
@@ -126,16 +125,16 @@ async def handle_get_client_data(cid, name):
         return None
     
 # 设置客户端数据
-@rpc_method(SERVICE, 'set_client_data')
+@rpc_method(RPC_SERVICE, 'set_client_data')
 async def handle_set_client_data(cid, name, data):
     dump_json(data, get_data_path(f'chatroom/client_data/{name}.json'))
     return True
 
 # 获取消息
-@rpc_method(SERVICE, 'get_msg')
+@rpc_method(RPC_SERVICE, 'get_msg')
 async def handle_get_msg(cid, msg_id):
     bot = get_bot()
-    msg_obj = await get_msg_obj(bot, msg_id)
+    msg_obj = await get_msg_obj_by_bot(bot, msg_id)
     return {
         'msg_id': msg_obj['message_id'],
         'time': msg_obj['time'],
@@ -145,7 +144,7 @@ async def handle_get_msg(cid, msg_id):
     }
 
 # 获取转发消息
-@rpc_method(SERVICE, 'get_forward_msg')
+@rpc_method(RPC_SERVICE, 'get_forward_msg')
 async def handle_get_forward_msg(cid, forward_id):
     bot = get_bot()
     msgs = (await get_forward_msg(bot, forward_id))['messages']
@@ -160,14 +159,14 @@ async def handle_get_forward_msg(cid, forward_id):
 group_msg_segments = {}
 
 # 清空分段消息
-@rpc_method(SERVICE, 'clear_group_msg_split')
+@rpc_method(RPC_SERVICE, 'clear_group_msg_split')
 async def handle_clear_group_msg_split(cid):
     if cid in group_msg_segments:
         del group_msg_segments[cid]
     return True
 
 # 上传分段发送群消息的片段
-@rpc_method(SERVICE, 'upload_group_msg_split')
+@rpc_method(RPC_SERVICE, 'upload_group_msg_split')
 async def handle_upload_group_msg_split(cid, message, index):
     if cid not in group_msg_segments:
         group_msg_segments[cid] = {}
@@ -176,7 +175,7 @@ async def handle_upload_group_msg_split(cid, message, index):
     return len(segments)
     
 # 连接片段并发送
-@rpc_method(SERVICE, 'send_group_msg_split')
+@rpc_method(RPC_SERVICE, 'send_group_msg_split')
 async def handle_send_group_msg_split(cid, group_id, md5, is_str):
     segments = group_msg_segments[cid]
     message = ''.join([segments[i] for i in range(len(segments))])
@@ -186,6 +185,6 @@ async def handle_send_group_msg_split(cid, group_id, md5, is_str):
     if not is_str:
         message = loads_json(message)
     else:
-        message = OutMessage(message)
+        message = Message(message)
     bot = get_bot()
     return await bot.send_group_msg(group_id=int(group_id), message=message)

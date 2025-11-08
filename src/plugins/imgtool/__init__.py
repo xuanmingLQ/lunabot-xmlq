@@ -1,4 +1,4 @@
-from ...utils import *
+from src.utils import *
 from .mirage import generate_mirage
 from PIL import Image, ImageOps, ImageEnhance
 from enum import Enum
@@ -38,7 +38,7 @@ def execute_imgtool_cpp(image: Image.Image | List[Image.Image], command: str, *a
 
             cli_path = get_data_path("imgtool/imgtool-cpp")
             logger.info(f"调用imgtool-cpp程序: {command} " + " ".join(map(str, args)) + f" 输入尺寸: {n}x{w}x{h}")
-            assert_and_reply(os.path.exists(cli_path), "imgtool-cpp程序不存在，请使用src/plugins/imgtool/compile_imgtool_cpp.sh编译")
+            assert_and_reply(os.path.exists(cli_path), "imgtool-cpp程序不存在，请使用src/scripts/compile_imgtool_cpp.sh编译")
             cmd = f"{cli_path} {input_path} {output_path} {command} " + " ".join(map(str, args))
             assert_and_reply(os.system(cmd) == 0, "调用imgtool-cpp程序失败")
 
@@ -1390,21 +1390,21 @@ gen_saying.check_cdrate(cd).check_wblist(gbl).check_group()
 async def _(ctx: HandlerContext):
     text = None
     try:
-        reply_msg = await ctx.aget_reply_msg()
-        reply_msg_obj = await ctx.aget_reply_msg_obj()
+        reply_msg = ctx.get_reply_msg()
         reply_cqs = extract_cq_code(reply_msg)
         
         if 'forward' in reply_cqs:
             reply_msg_obj = reply_cqs['forward'][0]['content'][0]
             reply_msg = reply_msg_obj['message']
-            reply_user_id = reply_msg_obj['sender']['user_id']
-            reply_user_name = reply_msg_obj['sender']['nickname']
+            reply_user_id = ctx.get_reply_sender().user_id
+            reply_user_name = ctx.get_reply_sender().nickname
             text = await extract_special_text(reply_msg, ctx.group_id)
         else:
-            reply_user_id = reply_msg_obj['sender']['user_id']
-            reply_user_name = await get_group_member_name(ctx.bot, ctx.group_id, reply_user_id)
+            reply_user_id = ctx.get_reply_sender().user_id
+            reply_user_name = get_user_name_by_event(ctx.event.reply)
             text = await extract_special_text(reply_msg, ctx.group_id)
     except:
+        logger.print_exc("生成语录获取回复消息失败")
         raise ReplyException("无法获取回复消息")
     
     if not text:
@@ -1435,7 +1435,7 @@ md = CmdHandler(['/md', '/markdown'], logger)
 md.check_cdrate(cd).check_wblist(gbl)
 @md.handle()
 async def _(ctx: HandlerContext):
-    reply_msg = await ctx.aget_reply_msg()
+    reply_msg = ctx.get_reply_msg()
     assert_and_reply(reply_msg, "请回复一条带有markdown内容的消息")
     text = extract_text(reply_msg)
     img = await markdown_to_image(text)
@@ -1576,7 +1576,7 @@ async def _(ctx: HandlerContext):
     (回复一个视频) /gif -s 512 -f 5 -n 100
     """.strip())
 
-    reply_msg = await ctx.aget_reply_msg()
+    reply_msg = ctx.get_reply_msg()
     assert_and_reply(reply_msg, "请回复一条带有视频的消息")
     cqs = extract_cq_code(reply_msg)
     assert_and_reply('video' in cqs, "回复的消息中没有视频")

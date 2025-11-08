@@ -413,7 +413,7 @@ def get_readable_timedelta(delta: timedelta, precision: str = 'm', use_en_unit=F
         case 'd': precision = 0
 
     s = int(delta.total_seconds())
-    if s < 0: return "0秒" if not use_en_unit else "0s"
+    if s <= 0: return "0秒" if not use_en_unit else "0s"
     d = s // (24 * 3600)
     s %= (24 * 3600)
     h = s // 3600
@@ -570,20 +570,19 @@ async def download_file(url, file_path):
             with open(file_path, 'wb') as f:
                 f.write(await resp.read())
 
-class TempDownloadFilePath:
-    def __init__(self, url, ext: str = None):
+class TempDownloadFilePath(TempFilePath):
+    def __init__(self, url, ext: str = None, remove_after: timedelta = None):
         self.url = url
         if ext is None:
             ext = url.split('.')[-1]
-        self.path = os.path.abspath(pjoin(TEMP_FILE_DIR, rand_filename(ext)))
-        create_parent_folder(self.path)
+        super().__init__(ext, remove_after)
 
     async def __aenter__(self) -> str:
         await download_file(self.url, self.path)
-        return self.path
+        return super().__enter__()
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        remove_file(self.path)
+        return super().__exit__(exc_type, exc_val, exc_tb)
 
 def read_file_as_base64(file_path) -> str:
     """

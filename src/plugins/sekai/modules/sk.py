@@ -1,4 +1,4 @@
-from ....utils import *
+from src.utils import *
 from ...llm import translate_text
 from ..common import *
 from ..handler import *
@@ -30,7 +30,7 @@ import matplotlib
 import matplotlib.cm as cm
 import numpy as np
 from ....api.game.event import get_ranking
-from ....utils.request import ApiError
+from src.utils.request import ApiError
 
 FONT_NAME = "Source Han Sans CN"
 plt.switch_backend('agg')
@@ -479,8 +479,7 @@ async def compose_sks_image(ctx: SekaiHandlerContext, unit: str, event: dict = N
     
 # 从文本获取sk查询参数 (类型，值) 类型: 'name' 'uid' 'rank' 'ranks'
 async def get_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str, Union[str, int, List[int]]]:
-    msg = await ctx.aget_msg()
-    ats = extract_at_qq(msg)
+    ats = ctx.get_at_qids()
     if ats:
         uid = get_player_bind_id(ctx, ats[0], check_bind=False)
         assert_and_reply(uid, "@的用户未绑定游戏ID")

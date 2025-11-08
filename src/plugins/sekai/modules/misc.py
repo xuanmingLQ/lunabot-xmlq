@@ -1,4 +1,4 @@
-from ....utils import *
+from src.utils import *
 from ...record import after_record_hook
 from ..common import *
 from ..handler import *
@@ -86,7 +86,7 @@ async def _(ctx: SekaiHandlerContext):
     await ctx.block()
     global card_extractor
     bot, event = ctx.bot, ctx.event
-    reply_msg = await get_reply_msg(bot, await get_msg(bot, event.message_id))
+    reply_msg = ctx.get_reply_msg()
     assert_and_reply(reply_msg, f"请回复一张图片")
     cqs = extract_cq_code(reply_msg)
     assert_and_reply('image' in cqs, f"请回复一张图片")

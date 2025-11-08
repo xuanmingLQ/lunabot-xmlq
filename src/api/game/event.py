@@ -1,4 +1,4 @@
-from ...utils import server,ApiError
+from src.utils import server,ApiError
 def get_ranking(region:str,event_id:str):
     return server(
         path="/event/ranking",

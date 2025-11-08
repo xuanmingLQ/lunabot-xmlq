@@ -1,4 +1,4 @@
-from ...utils import *
+from src.utils import *
 from asteval import Interpreter
 from .oeis import oeis_query
 

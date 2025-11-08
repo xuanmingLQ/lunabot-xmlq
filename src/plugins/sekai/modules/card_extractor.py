@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Tuple, Union
 from PIL import Image, ImageDraw, ImageFont
 import math
-from ....utils.data import get_data_path
+from src.utils.data import get_data_path
 def _load_image(path: str) -> np.ndarray:
     img = Image.open(path).convert('RGB')
     img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)

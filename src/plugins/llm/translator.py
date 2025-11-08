@@ -1,5 +1,5 @@
 from . import *
-from ...utils import *
+from src.utils import *
 import easyocr
 from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_fixed

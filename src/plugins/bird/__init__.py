@@ -1,4 +1,4 @@
-from ...utils import *
+from src.utils import *
 import pandas as pd
 from pdf2image import convert_from_path
 

@@ -1,15 +1,14 @@
-from ....utils import *
+from src.utils import *
 from ..common import *
 from ..handler import *
 from ..asset import *
 from ..draw import *
 from .honor import compose_full_honor_image
 from .resbox import get_res_box_info, get_res_icon
-from ....utils.safety import *
+from src.utils.safety import *
 from ....api.game.user import get_suite, get_profile, create_account
 from ....api.game.misc import get_service_status
-from ....utils.request import ApiError
-from ....utils.data import get_sekai_user_data_path
+from src.utils.request import ApiError
 
 SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
 profile_db = get_file_db(f"{SEKAI_PROFILE_DIR}/db.json", logger)
@@ -559,7 +558,7 @@ async def get_basic_profile_card(ctx: SekaiHandlerContext, profile: dict) -> Fra
 
             with VSplit().set_content_align('c').set_item_align('l').set_sep(5):
                 game_data = profile['user']
-                user_id = process_hide_uid(ctx, game_data['userId'])
+                user_id = process_hide_uid(ctx, game_data['userId'], keep=6)
                 colored_text_box(
                     truncate(game_data['name'], 64),
                     TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2, shadow_color=ADAPTIVE_SHADOW),
@@ -696,7 +695,7 @@ async def get_detailed_profile_card(ctx: SekaiHandlerContext, profile: dict, err
                     mode = mode or get_user_data_mode(ctx, ctx.user_id)
                     update_time = datetime.fromtimestamp(profile['upload_time'])
                     update_time_text = update_time.strftime('%m-%d %H:%M:%S') + f" ({get_readable_datetime(update_time, show_original_time=False)})"
-                    user_id = process_hide_uid(ctx, game_data['userId'])
+                    user_id = process_hide_uid(ctx, game_data['userId'], keep=6)
                     colored_text_box(
                         truncate(game_data['name'], 64),
                         TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2),
@@ -1450,7 +1449,7 @@ async def _(ctx: SekaiHandlerContext):
 仅从Haruki工具箱获取
 """.strip()
     
-    ats = extract_at_qq(await ctx.aget_msg())
+    ats = ctx.get_at_qids()
     if ats and ats[0] != int(ctx.bot.self_id):
         # 如果有at则使用at的qid
         qid = ats[0]
@@ -1480,7 +1479,7 @@ pjsk_check_data = SekaiCmdHandler([
 pjsk_check_data.check_cdrate(cd).check_wblist(gbl)
 @pjsk_check_data.handle()
 async def _(ctx: SekaiHandlerContext):
-    cqs = extract_cq_code(await ctx.aget_msg())
+    cqs = extract_cq_code(ctx.get_msg())
     qid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
     uid = get_player_bind_id(ctx)
     msg = f"{process_hide_uid(ctx, uid, keep=6)}({ctx.region.upper()}) Suite数据\n"
@@ -1749,8 +1748,6 @@ async def _(ctx: HandlerContext):
         group_mode = True
     if '详细' in args or 'detail' in args:
         detail_mode = True
-    SUITE_DIR = get_sekai_user_data_path("{region}/suite/*")
-    MYSEKAI_DIR = get_sekai_user_data_path("{region}/mysekai/*")
     bind_list: Dict[str, Dict[str, str]] = profile_db.get("bind_list", {})
     suite_total, mysekai_total, qid_set = 0, 0, set()
     suite_source_total: dict[str, int] = {}
@@ -1761,17 +1758,20 @@ async def _(ctx: HandlerContext):
 
     for region in ALL_SERVER_REGIONS:
         qids = set(bind_list.get(region, {}).keys())
+        uids = set()
         if group_mode:
             qids = qids.intersection(group_qids)
-            uids = set([bind_list.get(region, {}).get(qid) for qid in qids])
+            for qid in qids:
+                for uid in to_list(bind_list.get(region, {}).get(qid, [])):
+                    uids.add(uid)
         qid_set.update(qids)
 
-        suites = glob.glob(SUITE_DIR.format(region=region))
+        suites = glob.glob(config.get("suite_path").format(region=region))
         if group_mode:
             suites = [s for s in suites if s.split('/')[-1].split('.')[0] in uids]
         suite_total += len(suites)
 
-        mysekais = glob.glob(MYSEKAI_DIR.format(region=region))
+        mysekais = glob.glob(config.get("mysekai_path").format(region=region))
         if group_mode:
             mysekais = [m for m in mysekais if m.split('/')[-1].split('.')[0] in uids]
         mysekai_total += len(mysekais)
@@ -1820,7 +1820,7 @@ async def _(ctx: HandlerContext):
             break
 
     if not uid:
-        if ats := await ctx.aget_at_qids():
+        if ats := ctx.get_at_qids():
             qid = str(ats[0])
         else:
             qid = args

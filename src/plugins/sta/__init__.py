@@ -1,4 +1,4 @@
-from ...utils import *
+from src.utils import *
 from .draw import draw_sta, reset_jieba, draw_date_count_plot, draw_word_count_plot, draw_sta_sum
 from ..record.sql import query_msg_by_range, query_msg_count
 
@@ -204,8 +204,7 @@ sta_time = CmdHandler(["/sta_time"], logger, priority=101)
 sta_time.check_cdrate(cd).check_wblist(gbl).check_group()
 @sta_time.handle()
 async def _(ctx: HandlerContext):
-    msg = await ctx.aget_msg()
-    cqs = extract_cq_code(msg)
+    cqs = extract_cq_code(ctx.get_msg())
     user_id = None
     if 'at' in cqs and len(cqs['at']) > 0:
         user_id = cqs['at'][0]['qq']

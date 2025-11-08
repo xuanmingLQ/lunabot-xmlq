@@ -1,4 +1,4 @@
-from ...utils import server
+from src.utils import server
 
 def get_music_alias(music_id:str|int):
     return server(

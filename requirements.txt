@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 matplotlib
 jieba
 requests
@@ -25,3 +26,33 @@ uvloop
 pjsekai.scores
 setproctitle
 bypy
+=======
+matplotlib
+jieba
+requests
+openai
+pandas
+httpx
+aiohttp
+wordcloud
+aiosmtplib
+mail
+mcrcon
+ascii_magic
+PicImageSearch
+aiorpcx
+asteval
+yt-dlp
+imageio[ffmpeg]
+pilmoji[requests]
+zhon
+orjson
+tencentcloud
+ffmpeg-python
+pdf2image   # also need to install poppler-utils
+uvloop
+pjsekai.scores
+setproctitle
+bypy
+chromadb
+>>>>>>> origin/master

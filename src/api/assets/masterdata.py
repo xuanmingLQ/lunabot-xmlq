@@ -1,4 +1,4 @@
-from ...utils import server
+from src.utils import server
 def get_masterdata_version(region:list|str="all"):
     return server(
         path="/masterdata/version",
