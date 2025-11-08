@@ -257,11 +257,10 @@ async def chat(msg: Message):
             delta -= min(config.get('chat.willing.decrease_per_minute') * time_passed / 60.0, status.willingness)
         # 每条消息增加
         delta += config.get('chat.willing.increase_per_msg')
-        # 群组调整
         # 基于消息内容调整
         for seg in msg.msg:
             stype, sdata = seg['type'], seg['data']
-            if stype == 'at' and int(sdata['qq']) == msg.self_id:
+            if stype == 'at' and int(sdata['qq']) == self_id:
                 delta += config.get('chat.willing.increase_per_at')
             if stype == 'reply' and int(sdata['id']) in status.self_msg_ids:
                 delta += config.get('chat.willing.increase_per_reply')
@@ -279,7 +278,7 @@ async def chat(msg: Message):
 
         reply_rate = min(max(status.willingness, 0.0), 1.0)
         if random.random() > reply_rate:
-            info(f"意愿值: {last_willingness:.4f} -> {status.willingness:.4f}, 决定不回复该消息")
+            info(f"意愿值: {last_willingness:.4f} -> {status.willingness:.4f}")
             return
         info(f"意愿值: {last_willingness:.4f} -> {status.willingness:.4f}, 决定回复该消息")
 
@@ -308,6 +307,9 @@ async def chat(msg: Message):
             emotion_caption_prob=config.get('image_caption.emotion_prob'),
         )
         recent_summary = await generate_summary(recent_text)
+        if recent_summary == "":
+            warning("生成聊天记录摘要失败，放弃聊天处理")
+            return
         recent_emb = (await rpc_query_embeddings([recent_summary]))[0]
             
     except:
