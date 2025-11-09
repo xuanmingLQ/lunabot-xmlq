@@ -103,18 +103,20 @@ async def handle_get_group_msg(cid: str, group_id: int, limit: int):
 # 请求LLM
 @rpc_method(RPC_SERVICE, 'query_llm')
 async def handle_query_llm(cid: str, model: str | list[str], text: str, images: list[str], options: dict):
-    session = ChatSession()
-    session.append_user_content(text, images, verbose=False)
-
     timeout: int = options.get('timeout', 300)
     max_tokens: int = options.get('max_tokens', 2048)
     reasoning: bool = options.get('reasoning', False)
     json_reply: bool = options.get('json_reply', False)
     json_key_restraints: list[dict] = options.get('json_key_restraints', [])
 
-    for i in range(len(images)):
-        if images[i].startswith('http'):
-            images[i] = await download_image_to_b64(images[i])
+    imgs = []
+    for img in images:
+        if img.startswith('http'):
+            img = await download_image_to_b64(img)
+        imgs.append(img)
+
+    session = ChatSession()
+    session.append_user_content(text, imgs, verbose=False)
 
     def process(resp: ChatSessionResponse) -> str | dict:
         text = resp.result
