@@ -159,44 +159,81 @@ def extract_live_type(args: str, options: DeckRecommendOptions) -> str:
 async def extract_target_event(
     ctx: SekaiHandlerContext, 
     args: str,
-    need_event_prefix: bool,
-) -> Tuple[dict, Optional[int], str]:
+    match_type: str,
+    default_return_current: bool,
+    raise_if_not_found: bool,
+) -> Tuple[Optional[dict], Optional[int], str]:
+    def assert_and_reply_or_return(condition: bool, msg: str):
+        if raise_if_not_found:
+            assert_and_reply(condition, msg)
+        else:
+            if not condition:
+                return (None, None, args)
+
+    # match_type为 simple/full/all 分别对应匹配 123/event123或者活动123/两者皆可
+    match_simple = match_type in ('simple', 'all')
+    match_full = match_type in ('full', 'all')
+    
+    # 总是替换终章
     for keyword in ('终章', ):
         if keyword in args:
-            args = args.replace(keyword, "event180")
+            args = args.replace(keyword, " event180 " if match_full else " 180 ").strip()
 
-    # 是否指定了活动id/章节id/角色昵称
-    event_id, chapter_id, chapter_nickname = None, None, None
+    # 解析成功后需要移除的文本
+    matched_texts: list[str] = []
+
+    # 解析WL 章节序号或角色名
+    chapter_id, chapter_nickname = None, None
     for i in range(1, 10):
         if f"wl{i}" in args:
             chapter_id = i
-            args = args.replace(f"wl{i}", "").strip()
+            matched_texts.append(f"wl{i}")
             break
-    event_match = re.search(r"event(\d+)" if need_event_prefix else r"(?:event)?(\d+)", args)
-    if event_match:
-        event_id = int(event_match.group(1))
-        args = args.replace(event_match.group(0), "").strip()
     for item in get_character_nickname_data():
         for nickname in item.nicknames:
             if nickname in args:
                 chapter_nickname = nickname
-                args = args.replace(nickname, "").strip()
+                matched_texts.append(nickname)
                 break
+    
+    # 解析活动id
+    event_id = None
+    if match_simple:
+        simple_match = re.search(r"\b(\d{1,3})\b", args)
+        if simple_match:
+            event_id = int(simple_match.group(1))
+            matched_texts.append(simple_match.group(0))
+    if match_full:
+        full_match = re.search(r"活动(\d+)|event(\d+)", args)
+        if full_match:
+            event_id = int(full_match.group(1) or full_match.group(2))
+            matched_texts.append(full_match.group(0))
 
+    # 获取活动
     if not event_id:
-        # 获取默认活动：寻找当前活动，如果没有就下一个活动
+        # 没有指定活动的情况：寻找当前活动，如果没有就下一个活动
+        if not default_return_current:
+            assert_and_reply_or_return(False, "请指定一个要查询的活动，例如\"event140\"或\"活动140\"")
+
         event = await get_current_event(ctx, "next_first")
-        assert_and_reply(event, """
+        assert_and_reply_or_return(event, """
 找不到正在进行的/即将开始的活动
-使用\"/组卡\"指定团队&属性组卡，或使用\"/活动组卡help\"查看如何组往期活动
+指定团队+颜色进行模拟活动组卡，或使用\"/活动组卡help\"查看如何组往期活动
 """.strip())
     else:
         event = await ctx.md.events.find_by_id(event_id)
-        assert_and_reply(event, f"""
-活动{ctx.region}-{event_id}不存在，使用\"/组卡\"指定团队&属性组卡
-""".strip())
 
-    wl_events = await get_wl_events(ctx, event['id'])
+        # 填充模拟终章
+        if event_id == 180 and not event:
+            event = { 'id': 180 }
+        else:
+            assert_and_reply_or_return(event, f"""
+    活动{ctx.region}-{event_id}不存在，可以指定团队+颜色进行模拟活动组卡
+    """.strip())
+
+    # 获取WL章节
+    wl_cid = None
+    wl_events = await get_wl_events(ctx, event['id']) if event_id != 180 else []
     if wl_events:
         if not chapter_id and not chapter_nickname:
             # 获取默认章节
@@ -219,24 +256,76 @@ async def extract_target_event(
                     end_time = datetime.fromtimestamp(chapter['aggregateAt'] / 1000 + 1)
                     if start_time <= datetime.now() <= end_time:
                         ok_chapters.append(chapter)
-                assert_and_reply(ok_chapters, f"请指定一个要查询的WL章节，例如\"event140 wl1\"或\"event140 miku\"")
+                assert_and_reply_or_return(ok_chapters, f"请指定一个要查询的WL章节，例如\"event140 wl1\"或\"event140 miku\"")
                 ok_chapters.sort(key=lambda x: x['startAt'], reverse=True)
                 chapter = ok_chapters[0]
         elif chapter_id:
             chapter = find_by(wl_events, "id", 1000 * chapter_id + event['id'])
-            assert_and_reply(chapter, f"活动 {ctx.region}-{event['id']} 没有章节 {chapter_id}")
+            assert_and_reply_or_return(chapter, f"活动 {ctx.region}-{event['id']} 没有章节 {chapter_id}")
         else: 
             cid = get_cid_by_nickname(chapter_nickname)
             chapter = find_by(wl_events, "wl_cid", cid)
-            assert_and_reply(chapter, f"活动 {ctx.region}-{event['id']} 没有 {chapter_nickname} 的章节 ")
+            assert_and_reply_or_return(chapter, f"活动 {ctx.region}-{event['id']} 没有 {chapter_nickname} 的章节 ")
 
         wl_cid = chapter['wl_cid']
 
     else:
-        assert_and_reply(not chapter_id, f"活动 {ctx.region}-{event['id']} 不是WL活动，无法指定章节")
-        wl_cid = None
+        assert_and_reply_or_return(not chapter_id, f"活动 {ctx.region}-{event['id']} 不是WL活动，无法指定章节")
 
+    # 确认匹配到活动
+    for text in matched_texts:
+        args = args.replace(text, "").strip()
     return event, wl_cid, args
+
+# 从args同时获取组卡目标活动或者指定属性&团模拟活动 返回 (活动, cid, unit, attr, 剩余参数)
+async def extract_target_event_or_simulate_event(
+    ctx: SekaiHandlerContext, 
+    args: str,
+) -> Tuple[Optional[dict], Optional[int], Optional[str], Optional[str], str]:
+    # 25需要优先匹配团队，对于活动id内包含25的情况，必须让团队的25两边不能有数字或者"event"、"活动"
+    # 这样只有想以单独数字25指定25期活动时可能产生歧义，为该情况额外添加用户提示
+
+    # 匹配团名和属性名，并检查25的情况
+    attr, args = extract_card_attr(args, default=None)
+    unit, new_args = extract_unit(args, default=None)
+    index_25 = args.find('25')
+    if unit == "piapro":
+        # 不支持vs加成活动
+        unit = None
+    elif unit == "school_refusal" and index_25 != -1:
+        left = args[index_25 - 1] if index_25 - 1 >= 0 else ' '
+        right = args[index_25 + 2] if index_25 + 2 < len(args) else ' '
+        if left.isdigit() or right.isdigit() or left in ('t', '活'):
+            # 取消匹配，把参数让给活动匹配
+            unit = None
+        else:
+            args = new_args
+    else:
+        args = new_args
+
+    if unit and attr:
+        return None, None, unit, attr, args
+    if unit or attr:
+        hint = f"你在参数中指定了{'团名' if unit else '颜色'}，"
+        hint += f"这意味着你需要加成是指定团+颜色的模拟活动组卡，"
+        hint += f"请再指定{'颜色' if unit else '团名'}\n"
+        hint += f"如果想限制仅某团/某颜色卡牌上场，请使用"
+        if unit: hint += f" \"仅{UNIT_ABBRS[unit]}\""
+        if attr: hint += f" \"仅{CARD_ATTR_ABBR[attr]}\""
+        hint += "\n"
+        if index_25 != -1:
+            hint += "如果你想指定是25期活动而不是25时，请使用 \"event25\""
+        raise ReplyException(hint.strip())
+
+    # 匹配活动
+    event, wl_cid, args = await extract_target_event(
+        ctx, 
+        args, 
+        match_type="all", 
+        default_return_current=True, 
+        raise_if_not_found=True,
+    )
+    return event, wl_cid, None, None, args
 
 # 从args中提取组卡目标
 def extract_target(args: str, options: DeckRecommendOptions) -> str:
@@ -543,9 +632,10 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
         options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT_CFG.get() * 1000)
 
     # 活动id
-    event, wl_cid, args = await extract_target_event(ctx, args, need_event_prefix=False)
-    options.event_id = event['id']
-    options.world_bloom_character_id = wl_cid
+    event, wl_cid, options.event_unit, options.event_attr, args = await extract_target_event_or_simulate_event(ctx, args)
+    if event:
+        options.event_id = event['id']
+        options.world_bloom_character_id = wl_cid
         
     # 歌曲id和难度
     args = await extract_music_and_diff(ctx, args, options, "event", options.live_type)
@@ -660,66 +750,6 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
         'additional': additional,
     }
 
-# 从args中提取组卡参数
-async def extract_unit_attr_spec_options(ctx: SekaiHandlerContext, args: str) -> Dict:
-    args = ctx.get_args().strip().lower()
-    options = DeckRecommendOptions()
-
-    additional, args = extract_addtional_options(args)
-
-    args = extract_live_type(args, options)
-    args = extract_multilive_options(args, options)
-    args = extract_fixed_cards_and_characters(args, options)
-    args = extract_card_config(args, options)
-    args = extract_target(args, options)
-
-    # 算法
-    options.algorithm = "all"
-    options.timeout_ms = int(RECOMMEND_TIMEOUT_CFG.get() * 1000)
-    if "dfs" in args:
-        options.algorithm = "dfs"
-        args = args.replace("dfs", "").strip()
-        options.timeout_ms = int(SINGLE_ALG_RECOMMEND_TIMEOUT_CFG.get() * 1000)
-
-    # 5v5
-    if "5v5" in args or "5V5" in args:
-        options.live_type = "multi"
-        args = args.replace("5v5", "").replace("5V5", "").strip()
-        options.event_type = "cheerful_carnival"
-
-    # 活动id
-    options.event_id = None
-    options.event_unit, args = extract_unit(args, default=None)
-    options.event_attr, args = extract_card_attr(args, default=None)
-
-    unit_hint = "请指定组卡的团（ln/mmj/vbs/ws/25/vs）\n"
-    attr_hint = "请指定组卡的属性（例如: 紫/紫月/月亮）\n"
-    hint = ""
-    if not options.event_unit:  hint += unit_hint
-    if not options.event_attr:  hint += attr_hint
-    if hint:
-        hint += "该指令用于组指定团&属性加成的模拟活动（暂不支持模拟wl），组实际存在的活动使用\"/活动组卡\"，与活动无关的组卡使用\"/最强组卡\""
-        raise ReplyException(hint.strip())
-        
-    # 歌曲id和难度
-    args = await extract_music_and_diff(ctx, args, options, "event", options.live_type)
-
-    # 组卡限制
-    options.limit = DEFAULT_LIMIT
-
-    # bfes技能计算策略
-    options.skill_reference_choose_strategy = "average"
-
-    # 模拟退火设置
-    options.sa_options = DeckRecommendSaOptions()
-    options.sa_options.max_no_improve_iter = 10000
-
-    return {
-        'options': options,
-        'last_args': args.strip(),
-        'additional': additional,
-    }
-
 # 从args中提取加成组卡参数
 async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = ctx.get_args().strip().lower()
@@ -740,7 +770,12 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.rarity_birthday_config = NOCHANGE_CARD_CONFIG
 
     # 活动id
-    event, wl_cid, args = await extract_target_event(ctx, args, need_event_prefix=True)
+    event, wl_cid, args = await extract_target_event(
+        ctx, args, 
+        match_type="full",
+        default_return_current=True,
+        raise_if_not_found=True,
+    )
     options.event_id = event['id']
     options.world_bloom_character_id = wl_cid
         
@@ -777,23 +812,10 @@ async def extract_mysekai_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = extract_fixed_cards_and_characters(args, options)
     args = extract_card_config(args, options, default_nochange=True)
 
-    # 指定活动团和颜色
-    options.event_unit, args = extract_unit(args, default=None)
-    options.event_attr, args = extract_card_attr(args, default=None)
-
-    # 活动id
-    if not options.event_unit and not options.event_attr:
-        event, wl_cid, args = await extract_target_event(ctx, args, need_event_prefix=False)
+    event, wl_cid, options.event_unit, options.event_attr, args = await extract_target_event_or_simulate_event(ctx, args)
+    if event:
         options.event_id = event['id']
         options.world_bloom_character_id = wl_cid
-    elif options.event_unit or options.event_attr:
-        unit_hint = "请指定组卡的团（ln/mmj/vbs/ws/25/vs）\n"
-        attr_hint = "请指定组卡的属性（例如: 紫/紫月/月亮）\n"
-        hint = ""
-        if not options.event_unit:  hint += unit_hint
-        if not options.event_attr:  hint += attr_hint
-        if hint:
-            raise ReplyException(hint.strip())
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -1283,10 +1305,14 @@ async def compose_deck_recommend_image(
     live_name = "协力"
     if recommend_type in ["event", "wl", "bonus", "wl_bonus", "mysekai"] and options.event_id:
         event = await ctx.md.events.find_by_id(options.event_id)
-        event_banner = await get_event_banner_img(ctx, event)
-        event_title = event['name']
-        if event['eventType'] == 'cheerful_carnival':
-            live_name = "5v5" 
+        if event:
+            event_banner = await get_event_banner_img(ctx, event)
+            event_title = event['name']
+            if event['eventType'] == 'cheerful_carnival':
+                live_name = "5v5" 
+        else:
+            # 预填充终章的情况
+            event_banner, event_title = None, ""
 
     # 团队属性组卡指定5v5
     if recommend_type == "unit_attr" and options.event_type == "cheerful_carnival":
@@ -1646,6 +1672,8 @@ async def compose_deck_recommend_image(
 pjsk_event_deck = SekaiCmdHandler([
     "/pjsk event card", "/pjsk_event_card", "/pjsk_event_deck", "/pjsk event deck",
     "/活动组卡", "/活动组队", "/活动卡组",
+    "/pjsk deck", 
+    "/组卡", "/组队", "/指定属性组卡", "/指定属性组队",
 ])
 pjsk_event_deck.check_cdrate(cd).check_wblist(gbl)
 @pjsk_event_deck.handle()
@@ -1689,23 +1717,6 @@ async def _(ctx: SekaiHandlerContext):
         await compose_deck_recommend_image(
             ctx, ctx.user_id,
             **(await extract_no_event_options(ctx, ctx.get_args()))
-        ),
-        low_quality=True,
-    ))
-
-
-# 指定属性和团名组卡
-pjsk_deck = SekaiCmdHandler([
-    "/pjsk deck", 
-    "/组卡", "/组队", "/指定属性组卡", "/指定属性组队",
-])
-pjsk_deck.check_cdrate(cd).check_wblist(gbl)
-@pjsk_deck.handle()
-async def _(ctx: SekaiHandlerContext):
-    return await ctx.asend_reply_msg(await get_image_cq(
-        await compose_deck_recommend_image(
-            ctx, ctx.user_id,
-            **(await extract_unit_attr_spec_options(ctx, ctx.get_args()))
         ),
         low_quality=True,
     ))

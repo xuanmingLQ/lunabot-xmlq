@@ -698,7 +698,9 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
     title = card['prefix']
     chara_name = await get_character_name_by_id(ctx, card['characterId'])
     release_time = datetime.fromtimestamp(card['releaseAt'] / 1000)
-    supply_type = CARD_SUPPLIES_SHOW_NAMES.get(await get_card_supply_type(ctx, card_id), "非限定")
+    supply_type_name = CARD_SUPPLIES_SHOW_NAMES.get(await get_card_supply_type(ctx, card_id), "常驻")
+    if card['cardRarityType'] == 'rarity_birthday':
+        supply_type_name = "生日"
 
     # 缩略图
     thumbs = []
@@ -866,7 +868,7 @@ async def compose_card_detail_image(ctx: SekaiHandlerContext, card_id: int):
                         TextBox(f"{card_id} ({ctx.region.upper()})", text_style)
                         Spacer(w=32)
                         TextBox("限定类型", label_style)
-                        TextBox(supply_type, text_style)
+                        TextBox(supply_type_name, text_style)
 
                     # 综合力
                     with HSplit().set_padding(16).set_sep(8).set_content_align('lb').set_item_align('lb'):
