@@ -2,7 +2,7 @@ from ..record.sql import query_recent_msg
 from ..record import before_record_hook
 from ..utils import *
 from ..utils.rpc import *
-from ..llm import ChatSession, ChatSessionResponse, get_text_embedding
+from ..llm import ChatSession, ChatSessionResponse, get_text_embedding, download_image_to_b64
 
 config = Config('chat.autochat')
 logger = get_logger("Chat")
@@ -111,6 +111,10 @@ async def handle_query_llm(cid: str, model: str | list[str], text: str, images: 
     reasoning: bool = options.get('reasoning', False)
     json_reply: bool = options.get('json_reply', False)
     json_key_restraints: list[dict] = options.get('json_key_restraints', [])
+
+    for i in range(len(images)):
+        if images[i].startswith('http'):
+            images[i] = await download_image_to_b64(images[i])
 
     def process(resp: ChatSessionResponse) -> str | dict:
         text = resp.result

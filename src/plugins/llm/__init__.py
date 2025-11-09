@@ -306,11 +306,11 @@ class ChatSession:
                 await asyncio.sleep(get_cfg_or_value(model_switch_interval))
 
         if len(errs) == 1:
-            logger.error(f"会话{self.id}调用模型{errs[0][0]}失败:\n{errs[0][1]}")
+            # logger.error(f"会话{self.id}调用模型{errs[0][0]}失败:\n{errs[0][1]}")
             raise ReplyException(f"调用模型{errs[0][0]}失败:\n{truncate(errs[0][1], 64)}")
         else:
             err_str = "\n".join([f"[{err[0]}] {err[1]}" for err in errs])
-            logger.error(f"会话{self.id}调用模型{errs[0][0]}失败:\n{err_str}")
+            # logger.error(f"会话{self.id}调用模型{errs[0][0]}失败:\n{err_str}")
             raise ReplyException(f"调用多个模型失败:\n{truncate(err_str, 64)}")
 
 
