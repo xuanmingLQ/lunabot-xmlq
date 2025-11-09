@@ -63,7 +63,7 @@ async def rpc_query_embeddings(texts: list[str]) -> list[list[float]]:
 
 # ================ 处理逻辑 ================= #
 
-file_db = get_file_db("data/autochat/db.json")
+file_db = get_file_db("data/chat/autochat/db.json")
 
 @dataclass
 class GroupStatus:
@@ -98,7 +98,7 @@ def get_group_memory_system(group_id: int) -> MemorySystem:
     return group_mems[group_id]
 
 
-image_caption_db = get_file_db("data/autochat/image_captions.json")
+image_caption_db = get_file_db("data/chat/autochat/image_captions.json")
 
 async def get_image_caption(data: dict, use_llm: bool) -> str:
     summary = data.get("summary", '')
@@ -448,7 +448,7 @@ async def chat(msg: Message):
             info(f"自动聊天生成回复: {reply_text} at_id={at_id} reply_id={reply_id}")
             
             send_ret = await rpc_send_group_msg(msg.group_id, reply_text)
-            send_msg_id = send_ret['message_id']
+            send_msg_id = int(send_ret['message_id'])
             info(f"发送回复成功: send_msg_id={send_msg_id}")
 
             status.load(msg.group_id)

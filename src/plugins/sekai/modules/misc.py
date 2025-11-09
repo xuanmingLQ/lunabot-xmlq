@@ -260,14 +260,14 @@ async def _(ctx: SekaiHandlerContext):
                     TextBox(colorcode, TextStyle(DEFAULT_FONT, 20, ADAPTIVE_WB)) \
                         .set_bg(RoundRectBg(color_code_to_rgb(colorcode), radius=4)).set_padding(8)
 
-                draw_time_range("卡池开放时间", gacha_start, gacha_end)
-                draw_time_range("虚拟LIVE时间", live_start, live_end)
+                draw_time_range("🎰卡池开放时间", gacha_start, gacha_end)
+                draw_time_range("🎤虚拟LIVE时间", live_start, live_end)
 
             if is_fifth_anniv:
                 with VSplit().set_sep(4).set_padding(16).set_content_align('l').set_item_align('l'):
-                    draw_time_range("露滴掉落时间", drop_start, drop_end)
-                    draw_time_range("浇水开放时间", flower_start, flower_end)
-                    draw_time_range("派对开放时间", party_start, party_end)
+                    draw_time_range("💧露滴掉落时间", drop_start, drop_end)
+                    draw_time_range("🌱浇水开放时间", flower_start, flower_end)
+                    draw_time_range("🎂派对开放时间", party_start, party_end)
 
             with HSplit().set_sep(4).set_padding(16).set_content_align('l').set_item_align('l'):
                 TextBox(f"卡牌", style1)

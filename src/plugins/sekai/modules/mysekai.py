@@ -770,7 +770,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     with Canvas(bg=bg).set_padding(BG_PADDING).set_content_align('c') as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
 
-            with HSplit().set_sep(32).set_content_align('lb'):
+            with HSplit().set_sep(28).set_content_align('lb'):
                 await get_mysekai_info_card(ctx, mysekai_info, basic_profile, pmsg)
 
                 # 天气预报
@@ -937,7 +937,7 @@ async def compose_mysekai_fixture_list_image(
         # 处理错误归类
         if fid == 4: 
             sub_genre_id = 14
-        if main_genre_id in (5, 7, 8, 9, 10, 11, 12, 13):
+        if main_genre_id in (4, 5, 7, 8, 9, 10, 11, 12, 13):
             sub_genre_id = -1
 
         if main_genre_id not in fixtures:
