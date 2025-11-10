@@ -1303,8 +1303,9 @@ async def compose_deck_recommend_image(
 
     # 获取活动banner和标题
     live_name = "协力"
-    if recommend_type in ["event", "wl", "bonus", "wl_bonus", "mysekai"] and options.event_id:
-        event = await ctx.md.events.find_by_id(options.event_id)
+    event_id = options.event_id
+    if recommend_type in ["event", "wl", "bonus", "wl_bonus", "mysekai"] and event_id:
+        event = await ctx.md.events.find_by_id(event_id)
         if event:
             event_banner = await get_event_banner_img(ctx, event)
             event_title = event['name']
@@ -1398,24 +1399,27 @@ async def compose_deck_recommend_image(
                     title = ""
 
                     if recommend_type == "mysekai":
-                        title += "烤森活动组卡"
+                        if event_id:
+                            title += f"烤森活动#{event_id}组卡"
+                        else:
+                            title += f"烤森模拟活动组卡"
                     elif recommend_type in ['challenge', 'challenge_all']: 
                         title += "每日挑战组卡"
                     elif recommend_type in ['bonus', 'wl_bonus']:
                         if recommend_type == "bonus":
-                            title += f"活动加成组卡"
+                            title += f"活动#{event_id}加成组卡"
                         elif recommend_type == "wl_bonus":
-                            title += f"WL活动加成组卡"
+                            title += f"WL活动#{event_id}加成组卡"
                     else:
                         if recommend_type == "event":
-                            title += "活动组卡"
+                            title += f"活动#{event_id}组卡"
                         elif recommend_type == "wl":
                             if wl_chara_name:
-                                title += f"WL活动组卡"
+                                title += f"WL活动#{event_id}组卡"
                             else:
                                 title += f"WL终章活动组卡"
                         elif recommend_type == "unit_attr":
-                            title += f"指定团队&属性组卡"
+                            title += f"团队+颜色模拟活动组卡"
                         elif recommend_type == "no_event":
                             title += f"无活动组卡"
                     

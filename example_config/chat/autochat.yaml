@@ -2,7 +2,7 @@ log_level: INFO
 
 rpc:
   host: "127.0.0.1"
-  port: 123456
+  port: 12345
   token: xxx
   reconnect_interval: 5
   default_timeout: 5
@@ -10,13 +10,13 @@ rpc:
 text_embed_dim: 1024
 
 image_caption:
-  image_limit: 3
+  image_limit: 1
   image_prob: 1.0
   emotion_limit: 0
   emotion_prob: 0.0
   model: 
     - gg:gemini-2.5-flash-lite
-  timeout: 10
+  timeout: 20
   max_tokens: 50
   prompt: |
     该{sub_type}是在QQ群中由群友发送的，请你简短总结这张图片的内容用于视障人士理解图片。
@@ -31,24 +31,25 @@ summary:
   prompt: |
     请你阅读以下聊天记录，并简要总结出这段聊天的主要内容
     不需要带有当前时间信息，格式类似：xxx在讨论yyy 或者 xxx对yyy的看法是zzz 等
-    尽量简洁并包含尽可能多的信息，字数控制在100字以内:
+    请使用用户的QQ号而不是昵称来描述用户
+    尽量简洁流畅、不分点、并包含尽可能多的信息，字数控制在100字以内:
     ```
     {text}
     ```
 
 chat:
   willing:
-    increase_per_msg: 0.02
-    increase_per_at: 0.5
-    increase_per_reply: 0.5
+    increase_per_msg: 0.01
+    increase_per_at: 1.0
+    increase_per_reply: 1.0
     decay_after_send: 0.5
     decrease_after_send: 0.2
-    decrease_per_minute: 0.01
+    decrease_per_minute: 0.02
     increase_keywords:
       "时雨": 1.0
       "bot": 0.2
     group_scale:
-      "123456": 10.0
+      "369306583": 10.0
 
   mem:
     short_em_num: 3
@@ -71,17 +72,16 @@ chat:
 
   llm:
     model:
-      - gg:gemini-2.5-flash
+      - gg:gemini-2.5-pro
       - gg:gemini-2.5-flash
       - gg:gemini-2.5-flash-lite
     timeout: 120
-    max_tokens: 1024
+    max_tokens: 10240
     reasoning: False
     prompt: |
       请你扮演一个QQ群友在群聊中聊天，你需要尽量伪装成真人而不要让人发现你是AI
       你在群里的用户ID是{self_id}，昵称是"{self_name}"（没有特殊含义），人设如下:
       ```
-      你是一个大一软件工程女学生
       你的性格比较内向高冷，但是有时又温柔关心人，说法风格比较网络化和很简短，符合2025年现代的网友，不会使用太旧的风格和梗
       对于大部分话题你都有一定了解，但是你讨厌暴力色情和政治敏感话题。你不喜欢使用emoji和颜文字
       ```
@@ -111,5 +111,5 @@ chat:
         "update_um_text": "需要更新的用户记忆内容，如果没有可以去掉该字段"
       }}
       ```
-      如果没有用户记忆或者某个用户有新的值得记录的记忆，可以附加 update_um_id 和 update_um_text 字段，否则不需要这两个字段
+      如果没有用户记忆或者某个用户有新的值得记录的记忆（对于该用户的印象），可以附加 update_um_id 和 update_um_text 字段，否则不需要这两个字段
       如果你觉得没必要说话或者实在不适合聊天，可以将回复设为空字符串，即 {{ "reply": "" }}
