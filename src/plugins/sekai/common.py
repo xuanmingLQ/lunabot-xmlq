@@ -63,6 +63,14 @@ UNIT_NAMES = [
     ('school_refusal', '25h', '25时', '25'),
     ('piapro', 'vs', 'v'),
 ]
+UNIT_ABBRS = {
+    "light_sound": "ln",
+    "idol": "mmj",
+    "street": "vbs",
+    "theme_park": "ws",
+    "school_refusal": "25h",
+    "piapro": "vs",
+}
 CID_UNIT_MAP = {
     1: "light_sound", 2: "light_sound", 3: "light_sound", 4: "light_sound", 
     5: "idol", 6: "idol", 7: "idol", 8: "idol",
@@ -94,6 +102,13 @@ CARD_ATTRS = [
     "cute",
     "pure",
 ]
+CARD_ATTR_ABBR = {
+    "cool": "蓝",
+    "happy": "橙",
+    "mysterious": "紫",
+    "cute": "粉",
+    "pure": "绿",
+}
 CARD_ATTR_NAMES = [
     ("cool", "COOL", "Cool", "帅气", "蓝星", "蓝"),
     ("happy", "HAPPY", "Happy", "快乐", "橙心", "橙", '黄'),
@@ -114,7 +129,7 @@ CARD_SUPPLIES_NAMES = [
     ("unit_event_limited", "wl", "wl限", "wl限定", "worldlink", "worldlink限定", "WL"),
     ("collaboration_limited", "联动", "联动限定"),
     ("colorful_festival_limited", 'cfes', 'cfes限定', "fes", "fes限", "fes限定", "Fes", "Fes限定"),
-    ("not_limited", "非限", "非限定"),
+    ("not_limited", "非限", "非限定", '常驻',),
     ("term_limited", "期间限定", "期间"),
     ("all_limited", "限定", "限"),
 ]

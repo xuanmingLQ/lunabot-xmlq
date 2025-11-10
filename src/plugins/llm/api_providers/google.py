@@ -106,6 +106,9 @@ class GenaiCompletions:
             }
         }
 
+        if candidate.content.parts is None:
+            raise Exception("返回内容为空")
+
         for part in candidate.content.parts:
             if not part.thought:
                 if part.text is not None:

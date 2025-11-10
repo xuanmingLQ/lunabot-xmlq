@@ -519,6 +519,13 @@ def revert_user_last_add_history(user_id: int) -> tuple[dict, list[int], list[in
     add_history_db.set('history', history)
     return h, ok_list, err_list
 
+# 根据记录id获取上传记录
+def get_user_add_history(hid: int) -> dict:
+    history = add_history_db.get('history', [])
+    h = find_by(history, 'id', hid)
+    assert_and_reply(h is not None, f'上传#{hid}不存在')
+    return h
+
 
 # ======================= 指令处理 ======================= # 
 
@@ -588,7 +595,7 @@ async def _(ctx: HandlerContext):
     # 安全限制
     if l is not None:
         assert_and_reply(r - l < 20, '一次最多删除20张连续图片')
-        gall_names = set()
+    gall_names = set()
     for pid in pids:
         if pic := GalleryManager.get().find_pic(pid, raise_if_nofound=False):
             gall_names.add(pic.gall_name)
@@ -1094,6 +1101,57 @@ async def _(ctx: HandlerContext):
         msg += f'{len(err_list)}张图片删除失败:\n'
         msg += ' '.join(str(pid) for pid in err_list) + '\n'
     await ctx.asend_fold_msg_adaptive(msg.strip())
+
+
+gall_record = CmdHandler([
+    '/gall record', '/上传记录',
+], logger)
+gall_record.check_cdrate(cd).check_wblist(gbl)
+@gall_record.handle()
+async def _(ctx: HandlerContext):
+    args = ctx.get_args().strip()
+    try:
+        hid = int(args)
+    except:
+        raise ReplyException(f'使用方式: {ctx.trigger_cmd} 记录ID')
+    h = get_user_add_history(hid)
+    user_id = h['uid']
+    time = datetime.fromtimestamp(h['ts']).strftime('%Y-%m-%d %H:%M:%S')
+    pids = h['pids']
+    reverted = h['reverted']
+
+    pics: list[GalleryPic] = []
+    no_found_pids: list[int] = []
+    for pid in pids:
+        if pic := GalleryManager.get().find_pic(pid, raise_if_nofound=False):
+            pics.append(pic)
+        else:
+            no_found_pids.append(pid)
+
+    msg = f"{user_id}的上传记录#{h['id']}\n"
+    msg += f"{time}\n"
+    if reverted:
+        msg += f"该上传已撤销\n"
+    msg += f"上传的图片数量:{len(pids)}\n"
+    if no_found_pids:
+        msg += f"未找到的图片id: {' '.join(str(pid) for pid in no_found_pids)}\n"
+    if pics:
+        with Canvas(bg=FillBg((230, 240, 255, 255))).set_padding(8) as canvas:
+            with Grid(row_count=int(math.sqrt(len(pics))), hsep=4, vsep=4):
+                for pic in pics:
+                    pic.ensure_thumb()
+                    with VSplit().set_padding(0).set_sep(2).set_content_align('c').set_item_align('c'):
+                        if pic.thumb_path and os.path.exists(pic.thumb_path):
+                            ImageBox(pic.thumb_path, size=THUMBNAIL_SIZE, image_size_mode='fit').set_content_align('c')
+                        else:
+                            Spacer(w=THUMBNAIL_SIZE[0], h=THUMBNAIL_SIZE[1])
+                        TextBox(f"{pic.pid}", TextStyle(DEFAULT_FONT, 12, BLACK))
+        msg += await get_image_cq(
+            await canvas.get_img(),
+            low_quality=True,
+        )
+
+    return await ctx.asend_fold_msg_adaptive(msg)
 
 
 # ======================= 定时任务 ======================= # 
