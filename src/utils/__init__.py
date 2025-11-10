@@ -3,3 +3,4 @@ if is_main_process():
     from .utils import *
     from .handler import *
     from .request import server,download_data,ApiError
+    from .data import *

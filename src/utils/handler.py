@@ -12,7 +12,7 @@ from nonebot.adapters.onebot.v11.event import Sender, Reply
 from nonebot.adapters.onebot.v11.message import MessageSegment, Message
 from argparse import ArgumentParser
 import requests
-
+from .data import get_data_path
 
 SUPERUSER_CFG = global_config.item('superuser')
 GROUP_MEMBER_NAME_CACHE_EXPIRE_SECONDS_CFG = global_config.item('group_member_name_cache_expire_seconds')

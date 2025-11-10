@@ -3,7 +3,7 @@ from openai import AsyncOpenAI
 import asyncio
 import json
 import os
-from src.utils.data import get_data_path
+from src.utils import get_data_path
 
 class AiyydsApiProvider(ApiProvider):
     def __init__(self):
