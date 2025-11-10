@@ -2,7 +2,7 @@ from ..record.sql import query_recent_msg
 from ..record import before_record_hook
 from src.utils import *
 from src.utils.rpc import *
-from ..llm import ChatSession, ChatSessionResponse, get_text_embedding
+from ..llm import ChatSession, ChatSessionResponse, get_text_embedding, download_image_to_b64
 
 config = Config('chat.autochat')
 logger = get_logger("Chat")
@@ -29,7 +29,6 @@ async def record_new_message(bot: Bot, event: MessageEvent):
         'msg_id': event.message_id,
         'time': event.time,
         'user_id': event.user_id,
-        'self_id': event.self_id,
         'group_id': event.group_id,
         'nickname': user_name,
         'msg': get_msg(event),
@@ -60,6 +59,15 @@ start_rpc_service(
 )
 
 
+# 获取自身信息
+@rpc_method(RPC_SERVICE, 'get_self_info')
+async def handle_get_self_info(cid: str, group_id: int):
+    bot = get_bot()
+    return {
+        'self_id': int(bot.self_id),
+        'nickname': await get_group_member_name(bot, group_id, int(bot.self_id)),
+    }
+
 # 获取所有开启的群组列表
 @rpc_method(RPC_SERVICE, 'get_group_list')
 async def handle_get_group_list(cid: str):
@@ -83,23 +91,32 @@ async def handle_send_group_msg(cid: str, group_id: int, message: list[dict] | s
 @rpc_method(RPC_SERVICE, 'get_group_history_msg')
 async def handle_get_group_msg(cid: str, group_id: int, limit: int):
     msgs = await query_recent_msg(group_id, limit)
+    ret = []
     for msg in msgs:
-        for k in msg:
-            if isinstance(msg[k], datetime):
-                msg[k] = int(msg[k].timestamp())
-    return msgs
+        if check_is_bot_reply_msg(msg['msg_id']):
+            continue
+        if isinstance(msg['time'], datetime):
+           msg['time'] = int(msg['time'].timestamp())
+        ret.append(msg)
+    return ret
 
 # 请求LLM
 @rpc_method(RPC_SERVICE, 'query_llm')
 async def handle_query_llm(cid: str, model: str | list[str], text: str, images: list[str], options: dict):
-    session = ChatSession()
-    session.append_user_content(text, images, verbose=False)
-
     timeout: int = options.get('timeout', 300)
     max_tokens: int = options.get('max_tokens', 2048)
     reasoning: bool = options.get('reasoning', False)
     json_reply: bool = options.get('json_reply', False)
     json_key_restraints: list[dict] = options.get('json_key_restraints', [])
+
+    imgs = []
+    for img in images:
+        if img.startswith('http'):
+            img = await download_image_to_b64(img)
+        imgs.append(img)
+
+    session = ChatSession()
+    session.append_user_content(text, imgs, verbose=False)
 
     def process(resp: ChatSessionResponse) -> str | dict:
         text = resp.result

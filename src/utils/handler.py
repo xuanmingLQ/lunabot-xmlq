@@ -606,6 +606,11 @@ def get_send_msg_daily_count() -> int:
         count = 0
     return count
 
+def check_is_bot_reply_msg(msg_id: int):
+    # 检查是否是bot处理指令后的回复消息
+    global _bot_reply_msg_ids
+    return int(msg_id) in _bot_reply_msg_ids
+
 
 def send_msg_func(func):
     """

@@ -1262,6 +1262,7 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
     qid = ctx.user_id
     try:
+        args = args.replace('u', '')
         index = int(args) - 1
     except:
         raise ReplyException(f"""

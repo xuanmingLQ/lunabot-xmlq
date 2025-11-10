@@ -192,6 +192,14 @@ async def _(ctx: SekaiHandlerContext):
     await ctx.block_region()
 
     args = ctx.get_args().strip()
+    if not args:
+        return await ctx.asend_reply_msg(f"""使用方式
+查询某个角色: {ctx.original_trigger_cmd} miku
+根据id查询: {ctx.original_trigger_cmd} 123
+查询多个: {ctx.original_trigger_cmd} 123 456
+制作表情: {ctx.original_trigger_cmd} 123 文本
+""".strip())
+
     format = 'gif'
     if "png" in args:
         format = 'png'
