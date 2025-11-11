@@ -25,4 +25,7 @@ uvloop
 pjsekai.scores
 setproctitle
 bypy
+colour-science
+
+# autochat service
 chromadb

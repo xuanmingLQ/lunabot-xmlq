@@ -103,13 +103,19 @@ class ImageBg(WidgetBg):
                     p.paste(self.img, (x, y))
 
 class RandomTriangleBg(WidgetBg):
-    def __init__(self, main_hue: float | None=None, size_fixed_rate: float=0.0):
+    def __init__(
+        self, 
+        main_lch: tuple[float, float, float] | None = None, 
+        size_fixed_rate: float = 0.0, 
+        dt: datetime | None = None
+    ):
         super().__init__()
-        self.main_hue = main_hue
+        self.main_lch = main_lch
         self.size_fixed_rate = size_fixed_rate
+        self.dt = dt
 
     def draw(self, p: Painter):
-        p.draw_random_triangle_bg(self.main_hue, self.size_fixed_rate)
+        p.draw_random_triangle_bg(self.main_lch, self.size_fixed_rate, self.dt)
 
 
 # =========================== 布局类型 =========================== #

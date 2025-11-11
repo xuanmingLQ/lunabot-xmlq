@@ -59,13 +59,13 @@ painter:
         - data/utils/assets/random_triangle_bg_images/halloween/2.png
         - data/utils/assets/random_triangle_bg_images/halloween/3.png
         - data/utils/assets/random_triangle_bg_images/halloween/4.png
-      image_weights: [2, 5, 1, 2]
+      image_weights: [1, 2, 1, 2]
       image_colors:
         - [255, 255, 255]
       image_color_weights: [1]
       scale: 1.5
-      dense: 1.0
-      main_hsl: [0.75, 4.0, 0.1]
+      dense: 1.5
+      main_color: [0.0001, 0.20, 0.0]
       periods: 
         - ["10-29 19:00", "10-30 06:00"]
         - ["10-30 19:00", "10-31 06:00"]
@@ -81,15 +81,15 @@ painter:
         - [255, 255, 255]
       image_color_weights: [1]
       scale: 1.5
-      dense: 1.0
+      dense: 1.5
       time_colors:
-        - [0,  0.57, 7.0, 0.1]
-        - [5,  0.57, 3.0, 0.2]
-        - [9,  0.57, 1.0, 0.8]
-        - [12, 0.57, 1.0, 1.0]
-        - [15, 0.57, 1.0, 0.8]
-        - [19, 0.57, 3.0, 0.2]
-        - [24, 0.57, 7.0, 0.1]
+        - [0,  0.00, 0.70, 0.70]
+        - [5,  0.05, 0.70, 0.70]
+        - [9,  0.15, 0.60, 0.70]
+        - [12, 0.40, 0.40, 0.70]
+        - [15, 0.15, 0.60, 0.70]
+        - [19, 0.05, 0.70, 0.70]
+        - [24, 0.00, 0.70, 0.70]
       periods: 
         - ["12-23 00:00", "12-26 06:00"]
 
@@ -99,22 +99,21 @@ painter:
         - data/utils/assets/random_triangle_bg_images/classic/2.png
         - data/utils/assets/random_triangle_bg_images/classic/3.png
       image_weights: [1, 6, 1]  # 三角形图片随机权重
-      image_colors: # 三角形颜色
+      image_colors: # 三角形颜色[R,G,B]
         - [255, 189, 246]
         - [183, 246, 255]
         - [255, 247, 146]
       image_color_weights: [1, 1, 1]  # 三角形颜色随机权重
       scale: 1.0  # 三角形大小
       dense: 1.0  # 三角形密集度
-      time_colors:  # 三角形颜色时间变化
-        - [0,  0.57, 7.0, 0.1]
-        - [5,  0.57, 3.0, 0.2]
-        - [9,  0.57, 1.0, 0.8]
-        - [12, 0.57, 1.0, 1.0]
-        - [15, 0.57, 1.0, 0.8]
-        - [19, 0.57, 3.0, 0.2]
-        - [24, 0.57, 7.0, 0.1]
-      main_hsl: null  # 主色调[H,S,L]和time_colors二选一设置
+      time_colors:  # 三角形颜色时间变化oklch[hour,L^2.2,C,H]
+        - [0,  0.05, 0.70, 0.80]
+        - [5,  0.10, 0.70, 0.75]
+        - [9,  0.30, 0.60, 0.70]
+        - [12, 0.50, 0.40, 0.70]
+        - [15, 0.30, 0.60, 0.70]
+        - [19, 0.10, 0.70, 0.75]
+        - [24, 0.05, 0.70, 0.80]
+      main_color: null  # 主颜色oklch[L^2.2,C,H]和time_colors二选一设置
       periods: null   # 启用周期, null表示所有时间启用
-
 

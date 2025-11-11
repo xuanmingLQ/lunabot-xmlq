@@ -19,6 +19,7 @@ import hashlib
 import pickle
 import glob
 import io
+import colour
 
 from .config import *
 from .img_utils import mix_image_by_color, adjust_image_alpha_inplace
@@ -325,6 +326,21 @@ def resize_by_optional_size(img: Image.Image, size: Tuple[Optional[int], Optiona
         return img
     return img.resize(size, Image.Resampling.BILINEAR)
 
+def rgb_to_oklch(r: int, g: int, b: int) -> Tuple[float, float, float]:
+    rgb_color = colour.sRGB_to_XYZ((r / 255, g / 255, b / 255))
+    lab_color = colour.XYZ_to_Lab(rgb_color)
+    oklch_color = colour.Lab_to_LCHab(lab_color)
+    return oklch_color[0] / 100.0, oklch_color[1] / 100.0, oklch_color[2] / 360.0
+
+def oklch_to_rgb(l: float, c: float, h: float) -> Tuple[int, int, int]:
+    lab_color = colour.LCHab_to_Lab((l * 100.0, c * 100.0, h * 360.0))
+    xyz_color = colour.Lab_to_XYZ(lab_color)
+    rgb_color = colour.XYZ_to_sRGB(xyz_color)
+    r = max(0, min(255, int(rgb_color[0] * 255)))
+    g = max(0, min(255, int(rgb_color[1] * 255)))
+    b = max(0, min(255, int(rgb_color[2] * 255)))
+    return r, g, b
+
 
 class Gradient:
     def get_colors(self, size: Size) -> np.ndarray: 
@@ -422,7 +438,7 @@ class RandomTriangleBgPreset:
     scale: float = 1.0
     dense: float = 1.0
     time_colors: list[tuple[int, Color]] | None = None
-    main_hsl: list[int] | None = None
+    main_color: list[int] | None = None
     periods: list[tuple[str, str]] | None = None
 
 
@@ -650,10 +666,21 @@ class Painter:
         text: str, 
         pos: Position, 
         font: Union[FontDesc, Font],
-        fill: Union[Color, LinearGradient] = BLACK,
+        fill: Union[Color, LinearGradient, AdaptiveTextColor] = BLACK,
         align: str = "left",
         exclude_on_hash: bool = False,
     ):
+        """
+        绘制文本
+
+        Parameters:
+            text: 要绘制的单行文本内容
+            pos: 文本位置 (x, y)
+            font: 字体，可以是FontDesc或PIL ImageFont对象
+            fill: 填充颜色，可以是Color/LinearGradient/AdaptiveTextColor
+            align: 对齐方式，'left', 'center', 'right'
+            exclude_on_hash: 是否在哈希计算中排除此操作
+        """
         return self.add_operation("_impl_text", exclude_on_hash, (text, pos, font, fill, align))
         
     def paste(
@@ -666,6 +693,18 @@ class Painter:
         shadow_alpha: float = 0.6,
         exclude_on_hash: bool = False,
     ) -> Image.Image:
+        """
+        直接粘贴图像
+
+        Parameters:
+            sub_img: 要粘贴的子图像
+            pos: 粘贴位置 (x, y)
+            size: 调整子图像大小 (width, height)
+            use_shadow: 是否使用阴影效果
+            shadow_width: 阴影宽度
+            shadow_alpha: 阴影透明度
+            exclude_on_hash: 是否在哈希计算中排除此操作
+        """
         return self.add_operation("_impl_paste", exclude_on_hash, (sub_img, pos, size, use_shadow, shadow_width, shadow_alpha))
 
     def paste_with_alphablend(
@@ -679,6 +718,19 @@ class Painter:
         shadow_alpha: float = 0.6,
         exclude_on_hash: bool = False,
     ) -> Image.Image:
+        """
+        以Alpha混合的方式粘贴图像
+
+        Parameters:
+            sub_img: 要粘贴的子图像
+            pos: 粘贴位置 (x, y)
+            size: 调整子图像大小 (width, height)
+            alpha: 透明度，范围0.0-1.0
+            use_shadow: 是否使用阴影效果
+            shadow_width: 阴影宽度
+            shadow_alpha: 阴影透明度
+            exclude_on_hash: 是否在哈希计算中排除此操作
+        """
         return self.add_operation("_impl_paste_with_alphablend", exclude_on_hash, (sub_img, pos, size, alpha, use_shadow, shadow_width, shadow_alpha))
 
     def rect(
@@ -690,6 +742,17 @@ class Painter:
         stroke_width: int=1,
         exclude_on_hash: bool = False
     ):
+        """
+        绘制矩形
+
+        Parameters:
+            pos: 矩形位置 (x, y)
+            size: 矩形大小 (width, height)
+            fill: 填充颜色，可以是Color或Gradient
+            stroke: 描边颜色
+            stroke_width: 描边宽度
+            exclude_on_hash: 是否在哈希计算中排除此操作
+        """
         return self.add_operation("_impl_rect", exclude_on_hash, (pos, size, fill, stroke, stroke_width))
         
     def roundrect(
@@ -703,6 +766,19 @@ class Painter:
         corners = (True, True, True, True),
         exclude_on_hash: bool = False
     ):
+        """
+        绘制圆角矩形
+
+        Parameters:
+            pos: 矩形位置 (x, y)
+            size: 矩形大小 (width, height)
+            fill: 填充颜色，可以是Color或Gradient
+            radius: 圆角半径
+            stroke: 描边颜色
+            stroke_width: 描边宽度
+            corners: 四个角的圆角启用状态，顺序为左上、右上、右下、左下
+            exclude_on_hash: 是否在哈希计算中排除此操作
+        """
         return self.add_operation("_impl_roundrect", exclude_on_hash, (pos, size, fill, radius, stroke, stroke_width, corners))
 
     def pieslice(
@@ -716,6 +792,19 @@ class Painter:
         stroke_width: int=1,
         exclude_on_hash: bool = False
     ):
+        """
+        绘制扇形
+
+        Parameters:
+            pos: 扇形位置 (x, y)
+            size: 扇形大小 (width, height)
+            start_angle: 起始角度（度数制）
+            end_angle: 结束角度（度数制）
+            fill: 填充颜色
+            stroke: 描边颜色
+            stroke_width: 描边宽度
+            exclude_on_hash: 是否在哈希计算中排除此操作
+        """
         return self.add_operation("_impl_pieslice", exclude_on_hash, (pos, size, start_angle, end_angle, fill, stroke, stroke_width))
 
     def blurglass_roundrect(
@@ -730,15 +819,39 @@ class Painter:
         corners = (True, True, True, True),
         exclude_on_hash: bool = False
     ):
+        """
+        绘制模糊玻璃圆角矩形
+
+        Parameters:
+            pos: 矩形位置 (x, y)
+            size: 矩形大小 (width, height)
+            fill: 填充颜色
+            radius: 圆角半径
+            blur: 模糊半径
+            shadow_width: 阴影宽度
+            shadow_alpha: 阴影透明度
+            corners: 四个角的圆角启用状态，顺序为左上、右上、右下、左下
+            exclude_on_hash: 是否在哈希计算中排除此操作
+        """
         return self.add_operation("_impl_blurglass_roundrect", exclude_on_hash, (pos, size, fill, radius, blur, shadow_width, shadow_alpha, corners))
 
     def draw_random_triangle_bg(
         self, 
-        main_hue: float | None, 
-        size_fixed_rate: float,
-        exclude_on_hash: bool = False
+        main_lch: tuple[float, float, float] | None = None,
+        size_fixed_rate: float = 0.0,
+        dt: datetime | None = None,
+        exclude_on_hash: bool = False,
     ):
-        return self.add_operation("_impl_draw_random_triangle_bg", exclude_on_hash, (main_hue, size_fixed_rate))
+        """
+        绘制随机三角形背景
+
+        Parameters:
+            main_lch: 主要颜色的OKLCH值 (L, C, H)，设置为None则使用config中的预设
+            size_fixed_rate: 随机三角形固定大小比率，0.0代表大小随画布大小变化，1.0表示总是使用相同大小
+            dt: 用于时间相关颜色计算的时间点，设置为None则使用当前时间
+            exclude_on_hash: 是否在哈希计算中排除此操作
+        """
+        return self.add_operation("_impl_draw_random_triangle_bg", exclude_on_hash, (main_lch, size_fixed_rate, dt))
 
 
     def _impl_text(
@@ -1132,10 +1245,10 @@ class Painter:
         self.img.alpha_composite(overlay, (draw_pos[0], draw_pos[1]))
         return self
 
-    def _impl_draw_random_triangle_bg(self, main_hue: float | None, size_fixed_rate: float):
-        def get_timecolor(timecolors: list[tuple[int, Color]], t: datetime):
+    def _impl_draw_random_triangle_bg(self, main_lch: tuple[float, float, float] | None, size_fixed_rate: float, dt: datetime | None):
+        def get_timecolor(timecolors: list[tuple[int, Color]], t: datetime) -> tuple[float, float, float]:
             """
-            从时间颜色列表中获取当前时间的颜色
+            从时间颜色列表中获取当前时间的颜色(lch)
             """
             if t.hour < timecolors[0][0]:
                 return timecolors[0][1:]
@@ -1143,26 +1256,22 @@ class Painter:
                 return timecolors[-1][1:]
             for i in range(0, len(timecolors) - 1):
                 if t.hour >= timecolors[i][0] and t.hour < timecolors[i + 1][0]:
-                    hour1, h1, s1, l1 = timecolors[i]
-                    hour2, h2, s2, l2 = timecolors[i + 1]
+                    hour1, l1, c1, h1 = timecolors[i]
+                    hour2, l2, c2, h2 = timecolors[i + 1]
                     t1 = datetime(t.year, t.month, t.day, hour1)
                     if hour2 == 24: t2 = datetime(t.year, t.month, t.day, 0) + timedelta(days=1)
                     else:           t2 = datetime(t.year, t.month, t.day, hour2)
                     x = (t - t1) / (t2 - t1)
-                    return (
-                        h1 + (h2 - h1) * x,
-                        s1 + (s2 - s1) * x,
-                        l1 + (l2 - l1) * x,
-                    ) 
+                    return (l1 + (l2 - l1) * x, c1 + (c2 - c1) * x, h1 + (h2 - h1) * x)
                 
-        now = datetime.now()
+        now = dt or datetime.now()
 
         # 根据时间段选择预设
         presets = global_config.get('painter.random_triangle_bg_presets', [])
         preset = None
         for p in presets:
             p = RandomTriangleBgPreset(**p)
-            assert p.main_hsl or p.time_colors, "Preset must have main_hls or time_colors"
+            assert p.main_color or p.time_colors, "Preset must have main_color or time_colors"
             if not p.periods:
                 preset = p
                 break
@@ -1175,7 +1284,7 @@ class Painter:
             if preset:
                 break
 
-        assert main_hue or preset, "No valid random triangle bg preset found"
+        assert main_lch or preset, "No valid random triangle bg preset found"
 
         # 加载预设图片
         images, image_weights = [], []
@@ -1188,35 +1297,35 @@ class Painter:
                 print(f"Warning: failed to load random triangle bg image: {image_path}")
         
         # 确定主色调
-        if main_hue is not None:
-            # 如果指定颜色则忽略timecolor和preset
-            mh = main_hue
-            ms = 1.0
-            ml = 1.0
+        if main_lch is not None:
+            ml, mc, mh = main_lch
         elif preset.time_colors:
-            mh, ms, ml = get_timecolor(preset.time_colors, now)
+            ml, mc, mh = get_timecolor(preset.time_colors, now)
         else:
-            mh = preset.main_hsl[0]
-            ms = preset.main_hsl[1]
-            ml = preset.main_hsl[2]
+            ml, mc, mh = preset.main_color
         
         w, h = self.size
         
-        def h2c(h, s, l, a=255):
-            h = (h + 1.0) % 1.0 
-            r, g, b = colorsys.hls_to_rgb(h, l * ml, s * ms)
-            return [int(255 * c) for c in (r, g, b)] + [a]
+        def getc(dl, dc, dh, a):
+            l = min(1, max(0, ml + dl)) ** (1.0 / 2.2)
+            c = min(1, max(0, mc + dc))
+            h = (mh + dh) % 1.0
+            return list(oklch_to_rgb(l, c, h)) + [a]
 
-        ofs, s = 0.02, 4
+        scale = max(1, min(w, h) // 128)
+        # 左下到右上渐变
         bg = LinearGradient(
-            c1=h2c(mh, 0.6, 0.7), c2=h2c(mh + ofs, 2.25, 0.5),
+            c1=getc(-0.05, +0.05, -0.05, 255), 
+            c2=getc(+0.05, -0.05, +0.05, 255),
             p1=(0, 1), p2=(1, 0)
-        ).get_img((w // s, h // s))
+        ).get_img((w // scale, h // scale))
+        # 左上到右下渐变
         bg.alpha_composite(LinearGradient(
-            c1=h2c(mh, 1.0, 0.7, 100), c2=h2c(mh - ofs, 0.5, 0.5, 100),
+            c1=getc(+0.02, +0.02, +0.02, 75), 
+            c2=getc(-0.02, -0.02, -0.02, 75),
             p1=(0, 0), p2=(1, 1)
-        ).get_img((w // s, h // s)))
-        bg.alpha_composite(Image.new("RGBA", (w // s, h // s), (255, 255, 255, 100)))
+        ).get_img((w // scale, h // scale)))
+        bg.alpha_composite(Image.new("RGBA", (w // scale, h // scale), (255, 255, 255, 100)))
         bg = bg.resize((w, h), Image.Resampling.LANCZOS)
 
         def draw_tri(x, y, rot, size, alpha):
@@ -1249,7 +1358,7 @@ class Painter:
                     size_alpha_factor = size / std_size_lower
                 if size > std_size_upper:
                     size_alpha_factor = 1.0 - (size - std_size_upper * 1.5) / (std_size_upper * 1.5)
-                alpha = int(random.normalvariate(50, 200) * max(0, min(1.2, size_alpha_factor) * (ml ** 0.5)))
+                alpha = int(random.normalvariate(50, 200) * max(0, min(1.2, size_alpha_factor) * max(0.5, ml ** 0.5)))
                 if random.random() < 0.05 and size > std_size_lower:
                     alpha = 255
                 if alpha <= 10:
