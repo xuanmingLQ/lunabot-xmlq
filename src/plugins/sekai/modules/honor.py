@@ -130,11 +130,11 @@ async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict
 
         await add_frame(img, rarity, frame_name, hlv)
         if rank_img:
-            if gtype == 'rank_match':
+            if gtype == 'rank_match':   # 排位
                 img.paste(rank_img, (190, 0) if is_main else (17, 42), rank_img)
-            elif "event" in asset_name:
+            elif "event" in asset_name and 'top' in asset_name: # wl角色牌
                 img.paste(rank_img, (0, 0) if is_main else (0, 0), rank_img)
-            else:
+            else:   # 普通活动
                 img.paste(rank_img, (190, 0) if is_main else (34, 42), rank_img)
 
         if hid in HONOR_DIFF_SCORE_MAP.keys():

@@ -226,7 +226,7 @@ async def run_code_async(code):
         stderr=asyncio.subprocess.PIPE
     )
     stdout, stderr = await proc.communicate()
-    return stdout.decode(), stderr.decode()
+    return proc, stdout.decode(), stderr.decode()
 
 async def select_image_file():
     code = r"""
@@ -238,11 +238,17 @@ if not file_path.endswith(image_suffix):
 else:
     print(file_path)
 """
-    file_path, err = await run_code_async(code)
-    if not file_path.strip():
-        log_box.add_line("未选择图片")
-        return
-    add_content_to_cmdline(f"pic[{file_path.strip()}]", False)
+    proc, file_path, err = await run_code_async(code)
+    try:
+        if not file_path.strip():
+            log_box.add_line("未选择图片")
+            return
+        add_content_to_cmdline(f"pic[{file_path.strip()}]", False)
+    finally:
+        try:
+            proc.kill()
+        except:
+            pass
 
 async def update_server_log(clear_content=True):
     if clear_content:

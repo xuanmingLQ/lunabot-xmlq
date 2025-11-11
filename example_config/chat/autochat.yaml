@@ -25,9 +25,9 @@ image_caption:
   
 summary:
   model:
-    - gg:gemini-2.5-flash-lite
+    - gg:gemini-2.5-flash
   timeout: 60
-  max_tokens: 200
+  max_tokens: 10240
   prompt: |
     请你阅读以下聊天记录，并简要总结出这段聊天的主要内容
     不需要带有当前时间信息，格式类似：xxx在讨论yyy 或者 xxx对yyy的看法是zzz 等
@@ -49,7 +49,7 @@ chat:
       "时雨": 1.0
       "bot": 0.2
     group_scale:
-      "369306583": 10.0
+      "123456778": 10.0
 
   mem:
     short_em_num: 3
