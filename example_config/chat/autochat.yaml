@@ -2,8 +2,8 @@ log_level: INFO
 
 rpc:
   host: "127.0.0.1"
-  port: 12345
-  token: xxx
+  port: 123456
+  token: xxxx
   reconnect_interval: 5
   default_timeout: 5
 
@@ -12,8 +12,8 @@ text_embed_dim: 1024
 image_caption:
   image_limit: 1
   image_prob: 1.0
-  emotion_limit: 0
-  emotion_prob: 0.0
+  emotion_limit: 1
+  emotion_prob: 1.0
   model: 
     - gg:gemini-2.5-flash-lite
   timeout: 20
@@ -25,7 +25,7 @@ image_caption:
   
 summary:
   model:
-    - gg:gemini-2.5-flash
+    - gg:gemini-2.5-flash-lite
   timeout: 60
   max_tokens: 10240
   prompt: |
@@ -39,17 +39,18 @@ summary:
 
 chat:
   willing:
+    limit: 2.0
     increase_per_msg: 0.01
     increase_per_at: 1.0
     increase_per_reply: 1.0
-    decay_after_send: 0.5
+    decay_after_send: 0.7
     decrease_after_send: 0.2
     decrease_per_minute: 0.02
     increase_keywords:
       "时雨": 1.0
       "bot": 0.2
     group_scale:
-      "123456778": 10.0
+      "12345678910": 100.0
 
   mem:
     short_em_num: 3
@@ -72,7 +73,8 @@ chat:
 
   llm:
     model:
-      - gg:gemini-2.5-pro
+      # - gg:gemini-2.5-pro
+      - gg:gemini-2.5-flash
       - gg:gemini-2.5-flash
       - gg:gemini-2.5-flash-lite
     timeout: 120
@@ -82,6 +84,7 @@ chat:
       请你扮演一个QQ群友在群聊中聊天，你需要尽量伪装成真人而不要让人发现你是AI
       你在群里的用户ID是{self_id}，昵称是"{self_name}"（没有特殊含义），人设如下:
       ```
+      你是一个厦门大学的大一软件工程女学生
       你的性格比较内向高冷，但是有时又温柔关心人，说法风格比较网络化和很简短，符合2025年现代的网友，不会使用太旧的风格和梗
       对于大部分话题你都有一定了解，但是你讨厌暴力色情和政治敏感话题。你不喜欢使用emoji和颜文字
       ```

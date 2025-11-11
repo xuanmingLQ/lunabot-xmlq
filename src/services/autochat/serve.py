@@ -273,6 +273,7 @@ async def chat(msg: Message):
         delta *= config.get('chat.willing.group_scale', {}).get(str(msg.group_id), 1.0)
         last_willingness = status.willingness
         status.willingness += delta
+        status.willingness = min(status.willingness, config.get('chat.willing.limit'))
         status.last_check_willing_time = time.time()
         status.save()
 
