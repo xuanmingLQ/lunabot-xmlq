@@ -1011,9 +1011,11 @@ async def do_deck_recommend(
         payload = {
             'create_ts': datetime.now().timestamp(),
             'region': options.region,
-            'masterdata_path': os.path.abspath(f"{SEKAI_ASSET_DIR}/masterdata/{options.region}/"),
+            # 'masterdata_path': os.path.abspath(f"{SEKAI_ASSET_DIR}/masterdata/{options.region}/"),
+            'masterdata_path': rel_data_path(f"{SEKAI_ASSET_DIR}/masterdata/{options.region}/"), #改为相对于data目录的相对路径
             'masterdata_version': str(last_deck_recommend_masterdata_version[options.region]),
-            'musicmetas_path': os.path.abspath(MUSICMETAS_SAVE_PATH),
+            # 'musicmetas_path': os.path.abspath(MUSICMETAS_SAVE_PATH),
+            'musicmetas_path': rel_data_path(MUSICMETAS_SAVE_PATH),#改为相对于data目录的相对路径
             'musicmetas_update_ts': last_deck_recommend_musicmetas_update_time[options.region].timestamp(),
             'options': options.to_dict(),
         }
@@ -1271,7 +1273,8 @@ async def compose_deck_recommend_image(
             await adump_json(profile, userdata_path)
 
         options.region = ctx.region
-        options.user_data_file_path = os.path.abspath(userdata_path)
+        # options.user_data_file_path = os.path.abspath(userdata_path)
+        options.user_data_file_path = rel_data_path(userdata_path) #改为相对于 data目录的相对路径
         log_options(ctx, uid, options)
         # 还原profile避免画头像问题
         profile['userCards'] = original_usercards
