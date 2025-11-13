@@ -400,7 +400,6 @@ class LinearGradient(Gradient):
         self.p2 = p2
         self.method = method
         assert p1 != p2, "p1 and p2 cannot be the same point"
-        assert method in ('combine', 'seperate')
 
     def _get_colors(self, size: Size, mode: str) -> np.ndarray:
         w, h = size
@@ -414,10 +413,12 @@ class LinearGradient(Gradient):
             vector_p1_to_pixel = coords - pixel_p1 # (H, W, 2)
             dot_product = np.sum(vector_p1_to_pixel * gradient_vector, axis=-1) # (H, W)
             t = dot_product / length_sq
-        elif self.method == 'separate':
+        elif self.method == 'seperate':
             vector_pixel_to_p1 = coords - pixel_p1
             vector_p2_to_p1 = pixel_p2 - pixel_p1
             t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
+        else:
+            raise ValueError(f"Invalid LinearGradient method: {self.method}")
         t_clamped = np.clip(t, 0, 1) 
         return self._lerp_color(t_clamped, mode)
 
