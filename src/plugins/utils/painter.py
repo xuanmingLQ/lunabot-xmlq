@@ -157,6 +157,7 @@ PAINTER_PROCESS_NUM = global_config.get('painter.process_num')
 Color = Tuple[int, int, int, int]
 Position = Tuple[int, int]
 Size = Tuple[int, int]
+LchColor = Tuple[float, float, float]
 
 BLACK = (0, 0, 0, 255)
 WHITE = (255, 255, 255, 255)
@@ -235,6 +236,18 @@ def lerp_color(c1, c2, t):
     for i in range(len(c1)):
         ret.append(max(0, min(255, int(c1[i] * (1 - t) + c2[i] * t))))
     return tuple(ret)
+
+def lerp_lch(c1: LchColor, c2: LchColor, t: float) -> LchColor:
+    l = c1[0] * (1 - t) + c2[0] * t
+    c = c1[1] * (1 - t) + c2[1] * t
+    h1, h2 = c1[2], c2[2]
+    if abs(h2 - h1) > 0.5:
+        if h1 > h2:
+            h2 += 1.0
+        else:
+            h1 += 1.0
+    h = (h1 * (1 - t) + h2 * t) % 360.0
+    return l, c, h
 
 def adjust_color(c, r=None, g=None, b=None, a=None):
     c = list(c)
@@ -326,29 +339,47 @@ def resize_by_optional_size(img: Image.Image, size: Tuple[Optional[int], Optiona
         return img
     return img.resize(size, Image.Resampling.BILINEAR)
 
-def rgb_to_oklch(r: int, g: int, b: int) -> Tuple[float, float, float]:
-    rgb_color = colour.sRGB_to_XYZ((r / 255, g / 255, b / 255))
-    lab_color = colour.XYZ_to_Lab(rgb_color)
-    oklch_color = colour.Lab_to_LCHab(lab_color)
-    return oklch_color[0] / 100.0, oklch_color[1] / 100.0, oklch_color[2] / 360.0
+def srgb_to_oklch(rgb_colors: np.ndarray) -> np.ndarray:
+    rgb_colors = rgb_colors.astype(np.float32) / 255.0
+    srgb_linear = colour.sRGB_to_XYZ(rgb_colors)
+    oklab_color = colour.XYZ_to_Oklab(srgb_linear)
+    oklch_color = colour.Oklab_to_Oklch(oklab_color)
+    return oklch_color
 
-def oklch_to_rgb(l: float, c: float, h: float) -> Tuple[int, int, int]:
-    lab_color = colour.LCHab_to_Lab((l * 100.0, c * 100.0, h * 360.0))
-    xyz_color = colour.Lab_to_XYZ(lab_color)
+def oklch_to_srgb(lch_colors: np.ndarray) -> np.ndarray:
+    oklch_color = lch_colors.astype(np.float32)
+    oklab_color = colour.Oklch_to_Oklab(oklch_color)
+    xyz_color = colour.Oklab_to_XYZ(oklab_color)
     rgb_color = colour.XYZ_to_sRGB(xyz_color)
-    r = max(0, min(255, int(rgb_color[0] * 255)))
-    g = max(0, min(255, int(rgb_color[1] * 255)))
-    b = max(0, min(255, int(rgb_color[2] * 255)))
-    return r, g, b
+    rgb_color = np.clip(rgb_color * 255.0, 0, 255).astype(np.uint8)
+    return rgb_color
 
 
 class Gradient:
-    def get_colors(self, size: Size) -> np.ndarray: 
+    def _get_colors(self, size: Size) -> np.ndarray: 
         # [W, H, 4]
         raise NotImplementedError()
 
-    def get_img(self, size: Size, mask: Image.Image=None) -> Image.Image:
-        img = Image.fromarray(self.get_colors(size), 'RGBA')
+    def _lerp_color(self, t: np.ndarray, mode) -> np.ndarray:
+        if mode in 'RGB_OR_RGBA':
+            colors = (1 - t[:, :, np.newaxis]) * np.array(self.c1) + t[:, :, np.newaxis] * np.array(self.c2)
+            return np.clip(colors, 0, 255).astype(np.uint8)
+        elif mode in 'OKLCH':
+            l = self.c1[0] * (1 - t) + self.c2[0] * t
+            c = self.c1[1] * (1 - t) + self.c2[1] * t
+            h1, h2 = self.c1[2] / 360.0, self.c2[2] / 360.0
+            if abs(h2 - h1) > 0.5:
+                if h1 > h2:
+                    h2 += 1.0
+                else:
+                    h1 += 1.0
+            h = (h1 * (1 - t) + h2 * t) % 1.0 * 360.0
+            return np.stack((l, c, h), axis=-1)
+        else:
+            raise ValueError(f"Invalid Gradient color mode: {mode}")
+
+    def get_img(self, size: Size, mask: Image.Image=None, mode='RGB_OR_RGBA') -> Image.Image:
+        img = Image.fromarray(self._get_colors(size, mode), 'RGBA')
         if mask:
             assert mask.size == size, "Mask size must match image size"
             if mask.mode == 'RGBA':
@@ -357,6 +388,9 @@ class Gradient:
                 mask = mask.convert('L')
             img.putalpha(mask)
         return img
+
+    def get_array(self, size: Size, mode='RGB_OR_RGBA') -> np.ndarray:
+        return self._get_colors(size, mode)
 
 class LinearGradient(Gradient):
     def __init__(self, c1: Color, c2: Color, p1: Position, p2: Position, method: str = 'separate'):
@@ -368,7 +402,7 @@ class LinearGradient(Gradient):
         assert p1 != p2, "p1 and p2 cannot be the same point"
         assert method in ('combine', 'separate')
 
-    def get_colors(self, size: Size) -> np.ndarray:
+    def _get_colors(self, size: Size, mode: str) -> np.ndarray:
         w, h = size
         pixel_p1 = np.array((self.p1[1] * h, self.p1[0] * w))
         pixel_p2 = np.array((self.p2[1] * h, self.p2[0] * w))
@@ -383,16 +417,9 @@ class LinearGradient(Gradient):
         elif self.method == 'separate':
             vector_pixel_to_p1 = coords - pixel_p1
             vector_p2_to_p1 = pixel_p2 - pixel_p1
-            if abs(vector_p2_to_p1[0]) < 1e-6:
-                t = vector_pixel_to_p1[:, :, 1] / vector_p2_to_p1[1]
-            elif abs(vector_p2_to_p1[1]) < 1e-6:
-                t = vector_pixel_to_p1[:, :, 0] / vector_p2_to_p1[0]
-            else:
-                t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
+            t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
         t_clamped = np.clip(t, 0, 1) 
-        colors = (1 - t_clamped[:, :, np.newaxis]) * self.c1 + t_clamped[:, :, np.newaxis] * self.c2
-        colors = np.clip(colors, 0, 255).astype(np.uint8)
-        return colors
+        return self._lerp_color(t_clamped, mode)
 
 class RadialGradient(Gradient):
     def __init__(self, c1: Color, c2: Color, center: Position, radius: float):
@@ -401,16 +428,15 @@ class RadialGradient(Gradient):
         self.center = center
         self.radius = radius
 
-    def get_colors(self, size: Size) -> np.ndarray:
+    def _get_colors(self, size: Size, mode: str) -> np.ndarray:
         w, h = size
         center = np.array(self.center) * np.array((w, h))
         y_indices, x_indices = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
         coords = np.stack((x_indices, y_indices), axis=-1)
         dist = np.linalg.norm(coords - center, axis=-1) / self.radius
         dist = np.clip(dist, 0, 1)
-        colors = dist[:, :, np.newaxis] * np.array(self.c1) + (1 - dist)[:, :, np.newaxis] * np.array(self.c2)
-        return colors.astype(np.uint8)
-
+        return self._lerp_color(dist, mode)
+    
 
 @dataclass
 class AdaptiveTextColor:
@@ -429,16 +455,20 @@ ADAPTIVE_SHADOW = AdaptiveTextColor(
 # =========================== 绘图类 =========================== #
 
 
+SingleOrGradientLch = Union[LchColor, tuple[LchColor, LchColor]]
+
 @dataclass
 class RandomTriangleBgPreset:
-    image_paths: list[str]
-    image_weights: list[float]
-    image_colors: list[Color]
-    image_color_weights: list[float]
+    image_paths: list[str] = field(default_factory=list)
+    image_weights: list[float] = field(default_factory=list)
+    image_colors: list[Color] = field(default_factory=list)
+    image_color_weights: list[float] = field(default_factory=list)
     scale: float = 1.0
     dense: float = 1.0
-    time_colors: list[tuple[int, Color]] | None = None
-    main_color: list[int] | None = None
+    time_colors: dict[int, SingleOrGradientLch] | None = None
+    main_color: SingleOrGradientLch | None = None
+    gradient_start: tuple[float, float] | None = (1.0, 0.0)
+    gradient_end: tuple[float, float] | None = (0.0, 1.0)
     periods: list[tuple[str, str]] | None = None
 
 
@@ -837,7 +867,7 @@ class Painter:
 
     def draw_random_triangle_bg(
         self, 
-        main_lch: tuple[float, float, float] | None = None,
+        preset_config_name: str, 
         size_fixed_rate: float = 0.0,
         dt: datetime | None = None,
         exclude_on_hash: bool = False,
@@ -846,12 +876,12 @@ class Painter:
         绘制随机三角形背景
 
         Parameters:
-            main_lch: 主要颜色的OKLCH值 (L, C, H)，设置为None则使用config中的预设
+            preset_config_name: 预设配置名称
             size_fixed_rate: 随机三角形固定大小比率，0.0代表大小随画布大小变化，1.0表示总是使用相同大小
             dt: 用于时间相关颜色计算的时间点，设置为None则使用当前时间
             exclude_on_hash: 是否在哈希计算中排除此操作
         """
-        return self.add_operation("_impl_draw_random_triangle_bg", exclude_on_hash, (main_lch, size_fixed_rate, dt))
+        return self.add_operation("_impl_draw_random_triangle_bg", exclude_on_hash, (preset_config_name, size_fixed_rate, dt))
 
 
     def _impl_text(
@@ -1245,33 +1275,36 @@ class Painter:
         self.img.alpha_composite(overlay, (draw_pos[0], draw_pos[1]))
         return self
 
-    def _impl_draw_random_triangle_bg(self, main_lch: tuple[float, float, float] | None, size_fixed_rate: float, dt: datetime | None):
-        def get_timecolor(timecolors: list[tuple[int, Color]], t: datetime) -> tuple[float, float, float]:
+    def _impl_draw_random_triangle_bg(self, preset_config_name: str, size_fixed_rate: float, dt: datetime | None):
+        def get_timecolor(timecolors: dict[int, SingleOrGradientLch], t: datetime) -> SingleOrGradientLch:
             """
-            从时间颜色列表中获取当前时间的颜色(lch)
+            从时间颜色列表中获取当前时间的插值颜色(lch)
             """
-            if t.hour < timecolors[0][0]:
-                return timecolors[0][1:]
-            elif t.hour >= timecolors[-1][0]:
-                return timecolors[-1][1:]
-            for i in range(0, len(timecolors) - 1):
-                if t.hour >= timecolors[i][0] and t.hour < timecolors[i + 1][0]:
-                    hour1, l1, c1, h1 = timecolors[i]
-                    hour2, l2, c2, h2 = timecolors[i + 1]
+            tcs = [(hour, c) for hour, c in timecolors.items()]
+            tcs.sort(key=lambda x: x[0])
+            if t.hour < tcs[0][0]:
+                return tcs[0][1]
+            elif t.hour >= tcs[-1][0]:
+                return tcs[-1][1]
+            for i in range(0, len(tcs) - 1):
+                if t.hour >= tcs[i][0] and t.hour < tcs[i + 1][0]:
+                    hour1, c1 = tcs[i]
+                    hour2, c2 = tcs[i + 1]
                     t1 = datetime(t.year, t.month, t.day, hour1)
                     if hour2 == 24: t2 = datetime(t.year, t.month, t.day, 0) + timedelta(days=1)
                     else:           t2 = datetime(t.year, t.month, t.day, hour2)
+                    if len(c1) == 3: c1 = (c1, c1)
+                    if len(c2) == 3: c2 = (c2, c2)
                     x = (t - t1) / (t2 - t1)
-                    return (l1 + (l2 - l1) * x, c1 + (c2 - c1) * x, h1 + (h2 - h1) * x)
+                    return lerp_lch(c1[0], c2[0], x), lerp_lch(c1[1], c2[1], x)
                 
+        # 选择预设
         now = dt or datetime.now()
-
-        # 根据时间段选择预设
-        presets = global_config.get('painter.random_triangle_bg_presets', [])
+        preset_config = Config(preset_config_name)
         preset = None
-        for p in presets:
+        for i, p in enumerate(preset_config.get('presets', []), 1):
             p = RandomTriangleBgPreset(**p)
-            assert p.main_color or p.time_colors, "Preset must have main_color or time_colors"
+            assert p.main_color or p.time_colors, f"No main_color or time_colors defined in preset #{i} in {preset_config.path}"
             if not p.periods:
                 preset = p
                 break
@@ -1283,8 +1316,7 @@ class Painter:
                     break
             if preset:
                 break
-
-        assert main_lch or preset, "No valid random triangle bg preset found"
+        assert preset, f"No valid preset found in {preset_config.path}"
 
         # 加载预设图片
         images, image_weights = [], []
@@ -1296,36 +1328,29 @@ class Painter:
             except:
                 print(f"Warning: failed to load random triangle bg image: {image_path}")
         
-        # 确定主色调
-        if main_lch is not None:
-            ml, mc, mh = main_lch
-        elif preset.time_colors:
-            ml, mc, mh = get_timecolor(preset.time_colors, now)
+        # 确定主颜色
+        if preset.time_colors:
+            main_color = get_timecolor(preset.time_colors, now)
         else:
-            ml, mc, mh = preset.main_color
+            main_color = preset.main_color
+        if len(main_color) == 3:
+            l1, c1, h1 = main_color
+            l2, c2, h2 = main_color
+        else:
+            l1, c1, h1 = main_color[0]
+            l2, c2, h2 = main_color[1]
         
+        # 渐变背景
         w, h = self.size
-        
-        def getc(dl, dc, dh, a):
-            l = min(1, max(0, ml + dl)) ** (1.0 / 2.2)
-            c = min(1, max(0, mc + dc))
-            h = (mh + dh) % 1.0
-            return list(oklch_to_rgb(l, c, h)) + [a]
-
-        scale = max(1, min(w, h) // 128)
-        # 左下到右上渐变
+        scale = max(1, min(w, h) // 256)
         bg = LinearGradient(
-            c1=getc(-0.05, +0.05, -0.05, 255), 
-            c2=getc(+0.05, -0.05, +0.05, 255),
-            p1=(0, 1), p2=(1, 0)
-        ).get_img((w // scale, h // scale))
-        # 左上到右下渐变
-        bg.alpha_composite(LinearGradient(
-            c1=getc(+0.02, +0.02, +0.02, 75), 
-            c2=getc(-0.02, -0.02, -0.02, 75),
-            p1=(0, 0), p2=(1, 1)
-        ).get_img((w // scale, h // scale)))
-        bg.alpha_composite(Image.new("RGBA", (w // scale, h // scale), (255, 255, 255, 100)))
+            c1=(l1, c1, h1),
+            c2=(l2, c2, h2),
+            p1=preset.gradient_start, p2=preset.gradient_end,
+            method='combine',
+        ).get_array((w // scale, h // scale), mode='OKLCH')
+        bg = oklch_to_srgb(bg)
+        bg = Image.fromarray(bg, 'RGB').convert('RGBA')
         bg = bg.resize((w, h), Image.Resampling.LANCZOS)
 
         def draw_tri(x, y, rot, size, alpha):
@@ -1358,7 +1383,7 @@ class Painter:
                     size_alpha_factor = size / std_size_lower
                 if size > std_size_upper:
                     size_alpha_factor = 1.0 - (size - std_size_upper * 1.5) / (std_size_upper * 1.5)
-                alpha = int(random.normalvariate(50, 200) * max(0, min(1.2, size_alpha_factor) * max(0.5, ml ** 0.5)))
+                alpha = int(random.normalvariate(50, 200) * max(0, min(1.2, size_alpha_factor) * ((l1 + l2) * 0.25 + 0.5)))
                 if random.random() < 0.05 and size > std_size_lower:
                     alpha = 255
                 if alpha <= 10:

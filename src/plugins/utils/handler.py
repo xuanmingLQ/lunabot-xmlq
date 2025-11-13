@@ -1971,9 +1971,11 @@ class CmdHandler:
                 except ReplyException as e:
                     return await context.asend_reply_msg(str(e))
                 except Exception as e:
+                    exc_desc = get_exc_desc(e)
                     self.logger.print_exc(f'指令\"{context.trigger_cmd}\"处理失败')
                     if self.error_reply:
-                        await context.asend_reply_msg(truncate(f"指令处理失败: {get_exc_desc(e)}", 256))
+                        if not ('ActionFailed' in exc_desc and 'Timeout' in exc_desc):
+                            await context.asend_reply_msg(truncate(f"指令处理失败: {exc_desc}", 256))
                 finally:
                     for block_id in context.block_ids:
                         self.block_set.discard(block_id)

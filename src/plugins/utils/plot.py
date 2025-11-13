@@ -105,17 +105,17 @@ class ImageBg(WidgetBg):
 class RandomTriangleBg(WidgetBg):
     def __init__(
         self, 
-        main_lch: tuple[float, float, float] | None = None, 
+        preset_config_name: str,
         size_fixed_rate: float = 0.0, 
         dt: datetime | None = None
     ):
         super().__init__()
-        self.main_lch = main_lch
+        self.preset_config_name = preset_config_name
         self.size_fixed_rate = size_fixed_rate
         self.dt = dt
 
     def draw(self, p: Painter):
-        p.draw_random_triangle_bg(self.main_lch, self.size_fixed_rate, self.dt)
+        p.draw_random_triangle_bg(self.preset_config_name, self.size_fixed_rate, self.dt)
 
 
 # =========================== 布局类型 =========================== #
