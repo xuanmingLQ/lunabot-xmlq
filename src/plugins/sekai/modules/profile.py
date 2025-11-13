@@ -295,7 +295,8 @@ def add_player_bind_id(ctx: SekaiHandlerContext, qid: str, uid: str, set_main: b
     if set_main:
         all_main_bind_list[region][qid] = uid
         profile_db.set("main_bind_list", all_main_bind_list)
-        additional_info += f"已将该账号设为你的{region_name}主账号\n"
+        uid_index = uids.index(uid) + 1
+        additional_info += f"已将该账号u{uid_index}设为你的{region_name}主账号\n"
         logger.info(f"为 {qid} 设定 {region_name}主账号: {uid}")
 
     return additional_info.strip()
@@ -1254,6 +1255,7 @@ async def _(ctx: SekaiHandlerContext):
         if not args:
             index = None
         else:
+            args = args.replace('u', '')
             index = int(args) - 1
     except:
         raise ReplyException(f"""
@@ -1299,8 +1301,8 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip().split()
     qid = ctx.user_id
     try:
-        index1 = int(args[0]) - 1
-        index2 = int(args[1]) - 1
+        index1 = int(args[0].replace('u', '')) - 1
+        index2 = int(args[1].replace('u', '')) - 1
     except:
         raise ReplyException(f"""
 使用方式:
@@ -1738,9 +1740,6 @@ async def _(ctx: SekaiHandlerContext):
                 elif num:
                     break
             alpha = (100 - int(num)) * 255 // 100
-
-        else:
-            raise Exception()
     except:
         raise ReplyException(HELP)
     
