@@ -1177,12 +1177,13 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
         'mysekai/system/fixture_reaction_data_rip/fixture_reaction_data.asset', 
         cache_expire_secs=60*60*24, 
     )
-    react_data = find_by(react_data['FixturerRactions'], 'FixtureId', fid)
     if react_data:
-        for item in react_data['ReactionCharacter']:
-            chara_imgs = [await get_chara_icon_by_chara_unit_id(ctx, cuid) for cuid in item['CharacterUnitIds']]
-            react_chara_group_imgs[len(chara_imgs)].append(chara_imgs)
-            has_chara_react = True
+        react_data = find_by(react_data['FixturerRactions'], 'FixtureId', fid)
+        if react_data:
+            for item in react_data['ReactionCharacter']:
+                chara_imgs = [await get_chara_icon_by_chara_unit_id(ctx, cuid) for cuid in item['CharacterUnitIds']]
+                react_chara_group_imgs[len(chara_imgs)].append(chara_imgs)
+                has_chara_react = True
     # 制作材料
     blueprint = await ctx.md.mysekai_blueprints.find_by("craftTargetId", fid, mode='all')
     blueprint = find_by(blueprint, "mysekaiCraftType", "mysekai_fixture")

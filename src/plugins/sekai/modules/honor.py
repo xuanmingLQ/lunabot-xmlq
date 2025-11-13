@@ -16,6 +16,8 @@ HONOR_DIFF_SCORE_MAP = {
     4701: ("append", "allPerfect"),
 }
 
+bonds_honor_sd_face_pos_config = Config('sekai.bonds_honor_sd_face_pos')
+
 
 # ======================= 处理逻辑 ======================= #
 
@@ -130,11 +132,11 @@ async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict
 
         await add_frame(img, rarity, frame_name, hlv)
         if rank_img:
-            if gtype == 'rank_match':
+            if gtype == 'rank_match':   # 排位
                 img.paste(rank_img, (190, 0) if is_main else (17, 42), rank_img)
-            elif "event" in asset_name:
+            elif "event" in asset_name and 'top' in asset_name: # wl角色牌
                 img.paste(rank_img, (0, 0) if is_main else (0, 0), rank_img)
-            else:
+            else:   # 普通活动
                 img.paste(rank_img, (190, 0) if is_main else (34, 42), rank_img)
 
         if hid in HONOR_DIFF_SCORE_MAP.keys():
@@ -171,8 +173,13 @@ async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict
 
         c1_img = await ctx.rip.img(f"bonds_honor/character/chr_sd_{cuid1:02d}_01.png")
         c2_img = await ctx.rip.img(f"bonds_honor/character/chr_sd_{cuid2:02d}_01.png")
+        face_pos = bonds_honor_sd_face_pos_config.get_all() or {}
+        c1_face = face_pos.get(cuid1, c1_img.size[0] // 2)
+        c2_face = face_pos.get(cuid2, c2_img.size[0] // 2)
 
-        if rev: c1_img, c2_img = c2_img, c1_img
+        if rev: 
+            c1_img, c2_img = c2_img, c1_img
+            c1_face, c2_face = c2_face, c1_face
 
         w, h = img.size
         scale = 0.8
@@ -180,21 +187,25 @@ async def compose_full_honor_image(ctx: SekaiHandlerContext, profile_honor: Dict
         c2_img = resize_keep_ratio(c2_img, scale, mode='scale')
         c1w, c1h = c1_img.size
         c2w, c2h = c2_img.size
+        c1_face = int(c1_face * scale)
+        c2_face = int(c2_face * scale)
 
-        if not is_main:
-            offset = 20
-            # 非主honor需要裁剪
-            mid = w // 2
-            target_w = mid - offset
-            c1_img = c1_img.crop((0, 0, target_w, c1h))
-            c2_img = c2_img.crop((c2w - target_w, 0, c2w, c2h))
-            c1w, c2w = target_w, target_w
-            img.paste(c1_img, (offset,           h - c1h), c1_img)
-            img.paste(c2_img, (w - c2w - offset, h - c2h), c2_img)
-        else:
-            offset = 25
-            img.paste(c1_img, (offset,           h - c1h), c1_img)
-            img.paste(c2_img, (w - c2w - offset, h - c2h), c2_img)
+        offset_to_mid = 120 if is_main else 30
+        mid = w // 2
+        c1_face_x = mid - offset_to_mid
+        c2_face_x = mid + offset_to_mid
+
+        overlap1 = (c1_face_x - c1_face + c1w) - mid
+        if overlap1 > 0:
+            c1_img = c1_img.crop((0, 0, c1w - overlap1, c1h))
+        overlap2 = mid - (c2_face_x - c2_face)
+        if overlap2 > 0:
+            c2_img = c2_img.crop((overlap2, 0, c2w, c2h))
+            c2_face -= overlap2
+
+        img.paste(c1_img, (c1_face_x - c1_face, h - c1h), c1_img)
+        img.paste(c2_img, (c2_face_x - c2_face, h - c2h), c2_img)
+
         _, _, _, mask = ctx.static_imgs.get(f"honor/mask_degree_{ms}.png").split()
         img.putalpha(mask)
 

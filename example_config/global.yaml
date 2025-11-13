@@ -18,7 +18,7 @@ msg_send:
   tmp_img_keep_minutes: 5  # 临时图片保存时间（分钟）
 
 font:
-  path: "/root/.fonts/MicrosoftYaHei/Microsoft Yahei.ttf"  # 中文字体路径
+  path: "utils/fonts/Microsoft YaHei.ttf"  # 中文字体路径
   name: "Microsoft YaHei"                                  # Matplotlib库使用的中文字体名称
 
 default_cd: 2             # 默认指令处理冷却时间（秒）
@@ -50,71 +50,3 @@ plot:
 painter:
   debug: False
   process_num: 4
-
-  # 随机三角形背景预设，优先级从上至下
-  random_triangle_bg_presets:
-    # 万圣节预设
-    - image_paths:
-        - data/utils/assets/random_triangle_bg_images/halloween/1.png
-        - data/utils/assets/random_triangle_bg_images/halloween/2.png
-        - data/utils/assets/random_triangle_bg_images/halloween/3.png
-        - data/utils/assets/random_triangle_bg_images/halloween/4.png
-      image_weights: [2, 5, 1, 2]
-      image_colors:
-        - [255, 255, 255]
-      image_color_weights: [1]
-      scale: 1.5
-      dense: 1.0
-      main_hsl: [0.75, 4.0, 0.1]
-      periods: 
-        - ["10-29 19:00", "10-30 06:00"]
-        - ["10-30 19:00", "10-31 06:00"]
-        - ["10-31 19:00", "11-01 06:00"]
-
-    # 圣诞节预设
-    - image_paths:
-        - data/utils/assets/random_triangle_bg_images/xmas/1.png
-        - data/utils/assets/random_triangle_bg_images/xmas/2.png
-        - data/utils/assets/random_triangle_bg_images/xmas/3.png
-      image_weights: [1, 1, 4]
-      image_colors:
-        - [255, 255, 255]
-      image_color_weights: [1]
-      scale: 1.5
-      dense: 1.0
-      time_colors:
-        - [0,  0.57, 7.0, 0.1]
-        - [5,  0.57, 3.0, 0.2]
-        - [9,  0.57, 1.0, 0.8]
-        - [12, 0.57, 1.0, 1.0]
-        - [15, 0.57, 1.0, 0.8]
-        - [19, 0.57, 3.0, 0.2]
-        - [24, 0.57, 7.0, 0.1]
-      periods: 
-        - ["12-23 00:00", "12-26 06:00"]
-
-    # 默认预设
-    - image_paths: # 三角形图片路径
-        - data/utils/assets/random_triangle_bg_images/classic/1.png
-        - data/utils/assets/random_triangle_bg_images/classic/2.png
-        - data/utils/assets/random_triangle_bg_images/classic/3.png
-      image_weights: [1, 6, 1]  # 三角形图片随机权重
-      image_colors: # 三角形颜色
-        - [255, 189, 246]
-        - [183, 246, 255]
-        - [255, 247, 146]
-      image_color_weights: [1, 1, 1]  # 三角形颜色随机权重
-      scale: 1.0  # 三角形大小
-      dense: 1.0  # 三角形密集度
-      time_colors:  # 三角形颜色时间变化
-        - [0,  0.57, 7.0, 0.1]
-        - [5,  0.57, 3.0, 0.2]
-        - [9,  0.57, 1.0, 0.8]
-        - [12, 0.57, 1.0, 1.0]
-        - [15, 0.57, 1.0, 0.8]
-        - [19, 0.57, 3.0, 0.2]
-        - [24, 0.57, 7.0, 0.1]
-      main_hsl: null  # 主色调[H,S,L]和time_colors二选一设置
-      periods: null   # 启用周期, null表示所有时间启用
-
-

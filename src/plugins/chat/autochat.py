@@ -6,7 +6,7 @@ from ..llm import ChatSession, ChatSessionResponse, get_text_embedding, download
 
 config = Config('chat.autochat')
 logger = get_logger("Chat")
-file_db = get_file_db("data/chat/db.json", logger)
+file_db = get_file_db(get_data_path("chat/db.json"), logger)
 
 chat_gwl = get_group_white_list(file_db, logger, 'chat')
 autochat_gwl = get_group_white_list(file_db, logger, 'autochat', is_service=False)

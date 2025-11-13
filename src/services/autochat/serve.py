@@ -1,5 +1,6 @@
 from .utils import *
 from .memory import *
+from src.utils.data import get_data_path
 import re
 
 
@@ -63,7 +64,7 @@ async def rpc_query_embeddings(texts: list[str]) -> list[list[float]]:
 
 # ================ 处理逻辑 ================= #
 
-file_db = get_file_db("data/chat/autochat/db.json")
+file_db = get_file_db(get_data_path("chat/autochat/db.json"))
 
 @dataclass
 class GroupStatus:
@@ -94,11 +95,11 @@ group_mems: dict[int, MemorySystem] = {}
 
 def get_group_memory_system(group_id: int) -> MemorySystem:
     if group_id not in group_mems:
-        group_mems[group_id] = MemorySystem("data/chat/autochat", group_id)
+        group_mems[group_id] = MemorySystem(get_data_path("chat/autochat"), group_id)
     return group_mems[group_id]
 
 
-image_caption_db = get_file_db("data/chat/autochat/image_captions.json")
+image_caption_db = get_file_db(get_data_path("chat/autochat/image_captions.json"))
 
 async def get_image_caption(data: dict, use_llm: bool) -> str:
     summary = data.get("summary", '')
@@ -273,6 +274,7 @@ async def chat(msg: Message):
         delta *= config.get('chat.willing.group_scale', {}).get(str(msg.group_id), 1.0)
         last_willingness = status.willingness
         status.willingness += delta
+        status.willingness = min(status.willingness, config.get('chat.willing.limit'))
         status.last_check_willing_time = time.time()
         status.save()
 

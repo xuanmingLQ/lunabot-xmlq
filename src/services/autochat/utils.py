@@ -12,7 +12,7 @@ import traceback
 import orjson
 import random
 import websockets
-
+from src.utils.env import CONFIG_DIR
 import uvloop
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
@@ -206,7 +206,6 @@ def get_float_str(value: float, precision: int = 2, remove_zero: bool = True) ->
 
 # ========================== Config ========================== #
 
-CONFIG_DIR = "config/"
 
 @dataclass
 class ConfigData:

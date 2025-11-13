@@ -96,7 +96,7 @@ async def get_pie_frame(gid, date_str, recs, topk_user, topk_name) -> Frame:
         topk_user_count.append(other_count)
         topk_user_image_count.append(other_image_count)
         topk_user.append("其他")
-        topk_name.append("其他")
+        topk_name.append(f"其他({other_count})")
     
     rates = [count/total_count for count in topk_user_count]
     start_angles, end_angles, cur_angle = [], [], -90

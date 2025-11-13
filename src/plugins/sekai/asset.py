@@ -693,6 +693,8 @@ def haruki_url_map(url: str) -> str:
     # 谱面文件添加.txt
     if 'music_score' in part2:
         part2 = part2 + ".txt"
+    # .asset改为.json
+    part2 = part2.replace(".asset", ".json")
     # 添加类别
     if any([part2.startswith(prefix) for prefix in ONDEMAND_PREFIXES]):
         category = 'ondemand'
