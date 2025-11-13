@@ -1,7 +1,7 @@
 import aiohttp
 from urllib.parse import urlencode
 from .utils import loads_json,get_logger,HttpError
-from .env import API_BASE_PATH, ASSETS_BASE_PATH
+from .env import API_BASE_PATH, ASSETS_BASE_PATH, DECK_RECOMMEND_BASE_PATH
 
 api_logger = get_logger("Api")
 download_logger = get_logger("Assets")
@@ -58,6 +58,26 @@ async def download_data(path:str, params:list|None=None, query:dict|None=None):
     except aiohttp.ClientConnectionError as e:
         raise Exception(f"连接资源Api失败，请稍后再试")
     pass
+async def deck_server(path:str, method:str='post', json:dict|None=None):
+    url = f'{DECK_RECOMMEND_BASE_PATH}{path}'
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.request(method, url, json=json) as resp:
+                if resp.status!=200:
+                    try:
+                        detail = await resp.text()
+                        detail = loads_json(detail)['detail']
+                    except Exception:
+                        pass
+                    raise HttpError(resp.status, detail)
+                data = await resp.json()
+                if data['status'] != 'success':
+                    raise ApiError(path, data['exception'])
+                return data
+    except aiohttp.ClientConnectionError as e:
+        raise Exception(f"连接组卡服务失败，请稍后再试")
+    pass
+            
 # 把查询参数转换为查询字符串
 def parse_query(query:dict|None):
     if query is None:

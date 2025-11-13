@@ -1181,7 +1181,7 @@ class Painter:
         images, image_weights = [], []
         for i, image_path in enumerate(preset.image_paths):
             try:
-                img = Image.open(image_path).convert("RGBA")
+                img = Image.open(get_data_path(image_path)).convert("RGBA")
                 images.append(img)
                 image_weights.append(preset.image_weights[i])
             except:

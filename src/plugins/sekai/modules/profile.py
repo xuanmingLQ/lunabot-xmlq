@@ -1767,12 +1767,12 @@ async def _(ctx: HandlerContext):
                     uids.add(uid)
         qid_set.update(qids)
 
-        suites = glob.glob(config.get("suite_path").format(region=region))
+        suites = glob.glob(get_data_path(config.get("suite_path").format(region=region)))
         if group_mode:
             suites = [s for s in suites if s.split('/')[-1].split('.')[0] in uids]
         suite_total += len(suites)
 
-        mysekais = glob.glob(config.get("mysekai_path").format(region=region))
+        mysekais = glob.glob(get_data_path(config.get("mysekai_path").format(region=region)))
         if group_mode:
             mysekais = [m for m in mysekais if m.split('/')[-1].split('.')[0] in uids]
         mysekai_total += len(mysekais)

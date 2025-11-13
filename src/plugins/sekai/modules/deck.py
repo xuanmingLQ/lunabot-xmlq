@@ -24,7 +24,7 @@ from sekai_deck_recommend import (
     DeckRecommendSaOptions,
     RecommendDeck,
 )
-
+from src.api.game.user import deck_recommend
 
 RECOMMEND_TIMEOUT_CFG = config.item('deck.timeout.default')
 NO_EVENT_RECOMMEND_TIMEOUT_CFG = config.item('deck.timeout.no_event')
@@ -1019,14 +1019,21 @@ async def do_deck_recommend(
             'musicmetas_update_ts': last_deck_recommend_musicmetas_update_time[options.region].timestamp(),
             'options': options.to_dict(),
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(RECOMMEND_SERVE_URL_CFG.get(), json=payload) as resp:
-                if resp.status != 200:
-                    raise ReplyException(f"组卡请求失败: HTTP {resp.status}")
-                data = await resp.json()
-                if data['status'] != 'success':
-                    raise ReplyException(data['exception'])
-                return data
+        try:
+            data = await deck_recommend(json=payload)
+            return data
+        except HttpError as e:
+            raise ReplyException(f"组卡请求失败：HTTP {e.status_code} {e.message}")
+        except ApiError as e:
+            raise ReplyException(e.msg)
+        # async with aiohttp.ClientSession() as session:
+        #     async with session.post(RECOMMEND_SERVE_URL_CFG.get(), json=payload) as resp:
+        #         if resp.status != 200:
+        #             raise ReplyException(f"组卡请求失败: HTTP {resp.status}")
+        #         data = await resp.json()
+        #         if data['status'] != 'success':
+        #             raise ReplyException(data['exception'])
+        #         return data
 
     # 组卡!
     futs = []
