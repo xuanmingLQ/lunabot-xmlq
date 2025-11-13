@@ -413,10 +413,15 @@ class LinearGradient(Gradient):
             vector_p1_to_pixel = coords - pixel_p1 # (H, W, 2)
             dot_product = np.sum(vector_p1_to_pixel * gradient_vector, axis=-1) # (H, W)
             t = dot_product / length_sq
-        elif self.method == 'seperate':
-            vector_pixel_to_p1 = coords - pixel_p1
-            vector_p2_to_p1 = pixel_p2 - pixel_p1
-            t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
+        elif self.method == 'seperate': # seperate仅支持对角线/水平/垂直
+            if abs(pixel_p1[0] - pixel_p2[0]) < 0.5:
+                t = (coords[:, :, 1] - pixel_p1[1]) / (pixel_p2[1] - pixel_p1[1])
+            elif abs(pixel_p1[1] - pixel_p2[1]) < 0.5:
+                t = (coords[:, :, 0] - pixel_p1[0]) / (pixel_p2[0] - pixel_p1[0])
+            else:
+                vector_pixel_to_p1 = coords - pixel_p1
+                vector_p2_to_p1 = pixel_p2 - pixel_p1
+                t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
         else:
             raise ValueError(f"Invalid LinearGradient method: {self.method}")
         t_clamped = np.clip(t, 0, 1) 
