@@ -393,14 +393,14 @@ class Gradient:
         return self._get_colors(size, mode)
 
 class LinearGradient(Gradient):
-    def __init__(self, c1: Color, c2: Color, p1: Position, p2: Position, method: str = 'separate'):
+    def __init__(self, c1: Color, c2: Color, p1: Position, p2: Position, method: str = 'seperate'):
         self.c1 = c1
         self.c2 = c2
         self.p1 = p1
         self.p2 = p2
         self.method = method
         assert p1 != p2, "p1 and p2 cannot be the same point"
-        assert method in ('combine', 'separate')
+        assert method in ('combine', 'seperate')
 
     def _get_colors(self, size: Size, mode: str) -> np.ndarray:
         w, h = size
