@@ -1347,7 +1347,7 @@ class Painter:
             c1=(l1, c1, h1),
             c2=(l2, c2, h2),
             p1=preset.gradient_start, p2=preset.gradient_end,
-            method='combine',
+            method='seperate',
         ).get_array((w // scale, h // scale), mode='OKLCH')
         bg = oklch_to_srgb(bg)
         bg = Image.fromarray(bg, 'RGB').convert('RGBA')
@@ -1383,7 +1383,7 @@ class Painter:
                     size_alpha_factor = size / std_size_lower
                 if size > std_size_upper:
                     size_alpha_factor = 1.0 - (size - std_size_upper * 1.5) / (std_size_upper * 1.5)
-                alpha = int(random.normalvariate(50, 200) * max(0, min(1.2, size_alpha_factor) * ((l1 + l2) * 0.25 + 0.5)))
+                alpha = int(random.normalvariate(50, 200) * max(0, min(1.2, size_alpha_factor) * ((l1 + l2) * 0.5 * 0.7 + 0.3)))
                 if random.random() < 0.05 and size > std_size_lower:
                     alpha = 255
                 if alpha <= 10:
