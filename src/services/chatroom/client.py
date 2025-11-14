@@ -1623,7 +1623,7 @@ async def update_loop():
             if group_index is None: group_index = -1
             if gdata.cur_group_id:
                 group_str = f' [{group_index+1}/{len(gdata.opened_group)}] {gdata.cur_group_name}({gdata.cur_group_id})'
-            title_text = urwid.Text(f'[{time_str}] MYBOT客户端')
+            title_text = urwid.Text(f'[{time_str}] LUNABOT客户端')
 
             title.contents.append((title_text, title.options(width_type='pack')))
             title.contents.append((reload_button, title.options(width_type='pack')))

@@ -364,9 +364,11 @@ def extract_fixed_cards_and_characters(args: str, options: DeckRecommendOptions)
                 assert fixed_characters
             except:
                 raise ReplyException("""
-格式错误，固定卡牌或固定角色参数必须放在最后，示例:
+格式错误，#固定卡牌 或 #固定角色 必须放在最后，示例:
 /组卡指令 其他参数 #123 456 789...
 /组卡指令 其他参数 #miku rin...
+如果你想在固定卡牌时同时指定该卡牌的状态，示例:
+/组卡指令 123满技能满破 #123
 """.strip())
 
         if fixed_cards:
