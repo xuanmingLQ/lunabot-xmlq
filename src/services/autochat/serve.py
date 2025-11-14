@@ -252,7 +252,7 @@ async def chat(msg: Message):
     if status.last_reply_time and msg.time.timestamp() <= status.last_reply_time:
         return
     
-    info(f"{msg.group_id} 的新消息 {msg.msg_id} {msg.nickname}({msg.user_id}): {msg}")
+    info(f"{msg.group_id} 的新消息 {msg.msg_id} {msg.nickname}({msg.user_id}): {get_plain_text(msg)}")
     
     # ---------------- 更新意愿值 ---------------- #
 
@@ -269,8 +269,10 @@ async def chat(msg: Message):
             stype, sdata = seg['type'], seg['data']
             if stype == 'at' and int(sdata['qq']) == self_id:
                 delta += config.get('chat.willing.increase_per_at')
+                break
             if stype == 'reply' and int(sdata['id']) in status.self_msg_ids:
                 delta += config.get('chat.willing.increase_per_reply')
+                break
         # 基于关键字调整
         plain_text = get_plain_text(msg).lower()
         for kw, value in config.get('chat.willing.increase_keywords', {}).items():
