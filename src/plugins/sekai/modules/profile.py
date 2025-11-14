@@ -766,7 +766,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
                         truncate(game_data['name'], 64),
                         TextStyle(font=DEFAULT_BOLD_FONT, size=32, color=ADAPTIVE_WB, use_shadow=True, shadow_offset=2),
                     )
-                    TextBox(f"{ctx.region.upper()}: {process_hide_uid(ctx, game_data['userId'])}", TextStyle(font=DEFAULT_FONT, size=20, color=ADAPTIVE_WB))
+                    TextBox(f"{ctx.region.upper()}: {process_hide_uid(ctx, game_data['userId'], keep=6)}", TextStyle(font=DEFAULT_FONT, size=20, color=ADAPTIVE_WB))
                     with Frame():
                         ImageBox(ctx.static_imgs.get("lv_rank_bg.png"), size=(180, None))
                         TextBox(f"{game_data['rank']}", TextStyle(font=DEFAULT_FONT, size=30, color=WHITE)).set_offset((110, 0))
