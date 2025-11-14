@@ -111,5 +111,10 @@ mysekai:
       - mysekai_material_67~92
       - material_174~203
 
-  
-
+sk:
+  record_interval_seconds: 60
+  record_time_after_event_end_minutes: 0
+  update_ranking_log_interval: 30
+  csb_judge_stop_threshold_minutes: 5
+  compress_ranking_data_interval_seconds: 3600
+  compress_ranking_data_threshold_days: 7

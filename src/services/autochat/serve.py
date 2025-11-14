@@ -71,6 +71,7 @@ class GroupStatus:
     willingness: float
     self_msg_ids: list[int]
     last_check_willing_time: float
+    last_reply_time: float
     
     @staticmethod
     def load(group_id):
@@ -80,6 +81,7 @@ class GroupStatus:
             willingness=data.get('willingness', 0.0),
             self_msg_ids=data.get('self_msg_ids', []),
             last_check_willing_time=data.get('last_check_willing_time', None),
+            last_reply_time=data.get('last_reply_time', None),
         )
     
     def save(self):
@@ -87,6 +89,7 @@ class GroupStatus:
             'willingness': self.willingness,
             'self_msg_ids': self.self_msg_ids,
             'last_check_willing_time': self.last_check_willing_time,
+            'last_reply_time': self.last_reply_time,
         })
 
 
@@ -236,20 +239,24 @@ _self_infos: dict[int, dict] = {}
 async def chat(msg: Message):
     if msg.group_id not in _self_infos:
         _self_infos[msg.group_id] = await rpc_get_self_info(msg.group_id)
-    self_id = _self_infos[msg.group_id]['self_id']
+    self_id = int(_self_infos[msg.group_id]['self_id'])
     self_name = _self_infos[msg.group_id]['nickname']
 
     if msg.user_id == self_id:  # 自己发的消息不触发
         return
     if get_plain_text(msg).startswith("/"):  # 命令消息不触发
         return
+
+    status = GroupStatus.load(msg.group_id)
+    # 忽略上次回复思考时接收到的消息
+    if status.last_reply_time and msg.time.timestamp() <= status.last_reply_time:
+        return
     
-    info(f"{msg.group_id} 的新消息 {msg.msg_id} {msg.nickname}({msg.user_id}): {get_plain_text(msg)}")
+    info(f"{msg.group_id} 的新消息 {msg.msg_id} {msg.nickname}({msg.user_id}): {msg}")
     
     # ---------------- 更新意愿值 ---------------- #
 
     try:
-        status = GroupStatus.load(msg.group_id)
         delta = 0.0
         # 随时间减少
         if status.last_check_willing_time:
@@ -455,6 +462,7 @@ async def chat(msg: Message):
             status.load(msg.group_id)
             status.self_msg_ids.append(send_msg_id)
             status.self_msg_ids = status.self_msg_ids[-100:]
+            status.last_reply_time = time.time()
             status.save()
 
     except:

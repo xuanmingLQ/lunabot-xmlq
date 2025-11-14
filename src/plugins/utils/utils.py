@@ -220,7 +220,7 @@ def run_in_pool_nowait(func, *args):
     return asyncio.get_event_loop().run_in_executor(_default_pool_executor, func, *args)
 
 def start_repeat_with_interval(
-    interval: int, 
+    interval: int | ConfigItem,
     func: Callable,
     logger: 'Logger',
     name: str,
@@ -247,7 +247,7 @@ def start_repeat_with_interval(
                         return
                     except Exception as e:
                         logger.print_exc(f'循环执行 {name} sleep失败')
-                next_time = next_time + timedelta(seconds=interval)
+                next_time = next_time + timedelta(seconds=get_cfg_or_value(interval))
                 try:
                     if every_output:
                         logger.debug(f'开始执行 {name}')
@@ -268,7 +268,7 @@ def start_repeat_with_interval(
             logger.print_exc(f'循环执行 {name} 任务失败')
 
 def repeat_with_interval(
-    interval_secs: int, 
+    interval_secs: int | ConfigItem, 
     name: str, 
     logger: 'Logger', 
     every_output=False, 

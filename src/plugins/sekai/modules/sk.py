@@ -34,7 +34,7 @@ plt.switch_backend('agg')
 matplotlib.rcParams['font.family'] = [FONT_NAME]
 matplotlib.rcParams['axes.unicode_minus'] = False  
 
-SK_RECORD_INTERVAL = 60
+SK_RECORD_INTERVAL_CFG = config.item("sk.record_interval_seconds")
 
 SKL_QUERY_RANKS = [
     *range(10, 51, 10),
@@ -664,14 +664,14 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
 
         pts = []
         abnormal = False
-        abnormal_time = timedelta(seconds=SK_RECORD_INTERVAL * 2)
+        abnormal_time = timedelta(seconds=SK_RECORD_INTERVAL_CFG.get() * 2)
         if ranks[0].time - cf_start_time > abnormal_time:
             abnormal = True
         for i in range(len(ranks) - 1):
             if ranks[i + 1].score != ranks[i].score:
                 pts.append(ranks[i + 1].score - ranks[i].score)
-                if ranks[i + 1].time - ranks[i].time > abnormal_time:
-                    abnormal = True
+            if ranks[i + 1].time - ranks[i].time > abnormal_time:
+                abnormal = True
         
         if len(pts) < 1:
             return { 'status': 'no_enough' }
@@ -741,6 +741,99 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             if d['abnormal']:
                 texts.append((f"记录时间内有数据空缺，周回数仅供参考", style2))
             texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style2))
+
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
+        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
+            with HSplit().set_content_align('rt').set_item_align('rt').set_padding(8).set_sep(7):
+                with VSplit().set_content_align('lt').set_item_align('lt').set_sep(5):
+                    TextBox(get_event_id_and_name_text(ctx.region, eid, truncate(title, 20)), TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK))
+                    time_to_end = event_end - datetime.now()
+                    if time_to_end.total_seconds() <= 0:
+                        time_to_end = "活动已结束"
+                    else:
+                        time_to_end = f"距离活动结束还有{get_readable_timedelta(time_to_end)}"
+                    TextBox(time_to_end, TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK))
+                if wl_cid:
+                    ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
+        
+            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(6).set_padding(16):
+                for text, style in texts:
+                    TextBox(text, style)
+    
+    add_watermark(canvas)
+    return await canvas.get_img(1.5)
+
+# 合成查水表图片
+async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str, int], event: dict = None) -> Image.Image:
+    if not event:
+        event = await get_current_event(ctx, fallback="prev")
+    assert_and_reply(event, "未找到当前活动")
+
+    eid = event['id']
+    title = event['name']
+    event_end = datetime.fromtimestamp(event['aggregateAt'] / 1000 + 1)
+    wl_cid = await get_wl_chapter_cid(ctx, eid)
+
+    style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)
+    style2 = TextStyle(font=DEFAULT_FONT, size=24, color=BLACK)
+    style3 = TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)
+    texts: List[str, TextStyle] = []
+
+    ranks = []
+    
+    match qtype:
+        case 'self':
+            ranks = await query_ranking(ctx.region, eid, uid=qval)
+        case 'uid':
+            ranks = await query_ranking(ctx.region, eid, uid=qval)
+        case 'name':
+            ranks = await query_ranking(ctx.region, eid, name=qval)
+        case 'rank':
+            latest_ranks = await get_latest_ranking(ctx, eid, ALL_RANKS)
+            r = find_by_predicate(latest_ranks, lambda x: x.rank == qval)
+            assert_and_reply(r, f"找不到排名 {qval} 的榜线数据")
+            ranks = await query_ranking(ctx.region, eid, uid=r.uid)
+        case 'ranks':
+            raise ReplyException("查水表不支持同时查询多个玩家")
+        case _:
+            raise ReplyException(f"不支持的查询类型: {qtype}")
+
+    if not ranks:
+        raise ReplyException(f"找不到{format_sk_query_params(qtype, qval)}的榜线数据")
+
+    segs: list[tuple[Ranking, Ranking]] = []
+    l, r = None, None
+    for rank in ranks:
+        if not l: l = rank
+        if not r: r = rank
+        # 如果掉出100（排名大于100或数据缺失过长），提前结算当前区间
+        if rank.rank > 100 or rank.time - r.time > timedelta(seconds=SK_RECORD_INTERVAL_CFG.get() * 2):
+            if l != r:
+                segs.append((l, r))
+            l, r = rank, None
+        # 如果分数出现变化，提前结算当前区间
+        elif rank.score != r.score:
+            if l != r:
+                segs.append((l, r))
+            l, r = rank, None
+        # 否则认为正在停车，更新右边界
+        else:
+            r = rank
+    if l and r:
+        segs.append((l, r))
+    
+    texts.append((f"{ranks[-1].name} 的停车区间", style1))
+    for l, r in segs:
+        if l == r:
+            continue
+        if r.time - l.time < timedelta(minutes=config.get('sk.csb_judge_stop_threshold_minutes')):
+            continue
+        start = l.time.strftime('%m-%d %H:%M')
+        end = r.time.strftime('%m-%d %H:%M')
+        duration = get_readable_timedelta(r.time - l.time)
+        texts.append((f"{start} ~ {end}（{duration}）", style2))
+    if len(texts) == 1:
+        texts.append((f"未找到停车区间", style2))
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
@@ -1219,6 +1312,23 @@ async def _(ctx: SekaiHandlerContext):
     ))
 
 
+# 查水表
+pjsk_csb = SekaiCmdHandler([
+    "/csb", "/查水表", "/pjsk查水表", "/停车时间",
+], prefix_args=['', 'wl'])
+pjsk_csb.check_cdrate(cd).check_wblist(gbl)
+@pjsk_csb.handle()
+async def _(ctx: SekaiHandlerContext):
+    args = ctx.get_args().strip() + ctx.prefix_arg
+    wl_event, args = await extract_wl_event(ctx, args)
+
+    qtype, qval = await get_sk_query_params(ctx, args)
+    return await ctx.asend_msg(await get_image_cq(
+        await compose_csb_image(ctx, qtype, qval, event=wl_event),
+        low_quality=True,
+    ))
+
+
 # 玩家追踪
 pjsk_ptr = SekaiCmdHandler([
     "/ptr", "/玩家追踪", "/pjsk玩家追踪",
@@ -1276,12 +1386,12 @@ async def _(ctx: SekaiHandlerContext):
 
 # ======================= 定时任务 ======================= #
 
-UPDATE_RANKING_LOG_INTERVAL_TIMES = 30
-RECORD_TIME_AFTER_EVENT_END = 60 * 0
+UPDATE_RANKING_LOG_INTERVAL_CFG = config.item('sk.update_ranking_log_interval')
+RECORD_TIME_AFTER_EVENT_END_CFG = config.item('sk.record_time_after_event_end_minutes')
 ranking_update_times = { region: 0 for region in ALL_SERVER_REGIONS }
 ranking_update_failures = { region: 0 for region in ALL_SERVER_REGIONS }
 
-@repeat_with_interval(SK_RECORD_INTERVAL, '更新榜线数据', logger, every_output=False, error_limit=1)
+@repeat_with_interval(SK_RECORD_INTERVAL_CFG, '更新榜线数据', logger, every_output=False, error_limit=1)
 async def update_ranking():
     tasks = []
     region_failed = {}
@@ -1297,7 +1407,7 @@ async def update_ranking():
         # 获取当前运行中的活动
         if not (event := await get_current_event(ctx, fallback="prev")):
             continue
-        if datetime.now() > datetime.fromtimestamp(event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END):
+        if datetime.now() > datetime.fromtimestamp(event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END_CFG.get() * 60):
             continue
 
         # 获取榜线数据
@@ -1353,7 +1463,7 @@ async def update_ranking():
             wl_events = await get_wl_events(ctx, eid)
             if wl_events and len(wl_events) > 1:
                 for wl_event in wl_events:
-                    if datetime.now() > datetime.fromtimestamp(wl_event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END):
+                    if datetime.now() > datetime.fromtimestamp(wl_event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END_CFG.get() * 60):
                         continue
                     if not await update_board(ctx, wl_event['id'], data):
                         region_failed[region] = True
@@ -1362,16 +1472,17 @@ async def update_ranking():
         for region in ALL_SERVER_REGIONS:
             if region_failed.get(region, False):
                 ranking_update_failures[region] += 1
-            if ranking_update_times[region] >= UPDATE_RANKING_LOG_INTERVAL_TIMES:
-                logger.info(f"最近 {UPDATE_RANKING_LOG_INTERVAL_TIMES} 次更新 {region} 榜线数据失败次数: {ranking_update_failures[region]}")
+            log_interval = UPDATE_RANKING_LOG_INTERVAL_CFG.get()
+            if ranking_update_times[region] >= log_interval:
+                logger.info(f"最近 {log_interval} 次更新 {region} 榜线数据失败次数: {ranking_update_failures[region]}")
                 ranking_update_times[region] = 0
                 ranking_update_failures[region] = 0
 
 
-SK_COMPRESS_INTERVAL = 60 * 60
-SK_COMPRESS_THRESHOLD = timedelta(days=7)
+SK_COMPRESS_INTERVAL_CFG = config.item('sk.compress_ranking_data_interval_seconds')
+SK_COMPRESS_THRESHOLD_CFG = config.item('sk.compress_ranking_data_threshold_days')
 
-@repeat_with_interval(60 * 60, '压缩榜线数据', logger)
+@repeat_with_interval(SK_COMPRESS_INTERVAL_CFG, '压缩榜线数据', logger)
 async def compress_ranking_data():
     for region in ALL_SERVER_REGIONS:
         ctx = SekaiHandlerContext.from_region(region)
@@ -1387,7 +1498,7 @@ async def compress_ranking_data():
                 event = await ctx.md.events.find_by_id(event_id)
                 assert event, f"未找到活动 {event_id}"
                 end_time = datetime.fromtimestamp(event['aggregateAt'] / 1000)
-                if datetime.now() - end_time < SK_COMPRESS_THRESHOLD:
+                if datetime.now() - end_time < timedelta(days=SK_COMPRESS_THRESHOLD_CFG.get()):
                     continue
 
                 def do_zip():

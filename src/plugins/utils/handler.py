@@ -1,6 +1,8 @@
 from .utils import *
 from nonebot import on_command, get_bot, get_bots
 from nonebot.rule import to_me as rule_to_me
+from nonebot.message import handle_event
+from nonebot.compat import model_dump, type_validate_python
 from nonebot.adapters.onebot.v11 import (
     Bot, 
     MessageEvent, 
@@ -10,12 +12,122 @@ from nonebot.adapters.onebot.v11 import (
 )
 from nonebot.adapters.onebot.v11.event import Sender, Reply
 from nonebot.adapters.onebot.v11.message import MessageSegment, Message
+import nonebot.adapters.onebot.v11.bot as bot_module
 from argparse import ArgumentParser
 import requests
 
 
 SUPERUSER_CFG = global_config.item('superuser')
 GROUP_MEMBER_NAME_CACHE_EXPIRE_SECONDS_CFG = global_config.item('group_member_name_cache_expire_seconds')
+
+
+# ============================ MonkeyPatch ============================ #
+
+# 修改adapters.onebot.v11.bot中的函数，使得event处理消息的时候获取to_me时不会把at和reply去掉
+
+async def _mp_check_reply(bot: "Bot", event: MessageEvent) -> None:
+    """检查消息中存在的回复，去除并赋值 `event.reply`, `event.to_me`。
+
+    参数:
+        bot: Bot 对象
+        event: MessageEvent 对象
+    """
+    try:
+        index = [x.type == "reply" for x in event.message].index(True)
+    except ValueError:
+        return
+    msg_seg = event.message[index]
+    try:
+        event.reply = type_validate_python(
+            Reply, await bot.get_msg(message_id=int(msg_seg.data["id"]))
+        )
+    except Exception as e:
+        # log("WARNING", f"Error when getting message reply info: {e!r}")
+        return
+
+    if event.reply.sender.user_id is not None:
+        # ensure string comparation
+        if str(event.reply.sender.user_id) == str(event.self_id):
+            event.to_me = True
+        # del event.message[index]
+
+        # if (
+        #     len(event.message) > index
+        #     and event.message[index].type == "at"
+        #     and event.message[index].data.get("qq") == str(event.reply.sender.user_id)
+        # ):
+        #     del event.message[index]
+
+    # if len(event.message) > index and event.message[index].type == "text":
+    #     event.message[index].data["text"] = event.message[index].data["text"].lstrip()
+    #     if not event.message[index].data["text"]:
+    #         del event.message[index]
+
+    if not event.message:
+        event.message.append(MessageSegment.text(""))
+
+def _mp_check_at_me(bot: "Bot", event: MessageEvent) -> None:
+    """检查消息开头或结尾是否存在 @机器人，去除并赋值 `event.to_me`。
+
+    参数:
+        bot: Bot 对象
+        event: MessageEvent 对象
+    """
+    if not isinstance(event, MessageEvent):
+        return
+
+    # ensure message not empty
+    if not event.message:
+        event.message.append(MessageSegment.text(""))
+
+    if event.message_type == "private":
+        event.to_me = True
+    else:
+
+        def _is_at_me_seg(segment: MessageSegment):
+            return segment.type == "at" and str(segment.data.get("qq", "")) == str(
+                event.self_id
+            )
+
+        # check the first segment
+        if _is_at_me_seg(event.message[0]):
+            event.to_me = True
+            # event.message.pop(0)
+            # if event.message and event.message[0].type == "text":
+            #     event.message[0].data["text"] = event.message[0].data["text"].lstrip()
+            #     if not event.message[0].data["text"]:
+            #         del event.message[0]
+            #         pass
+            # if event.message and _is_at_me_seg(event.message[0]):
+            #     event.message.pop(0)
+            #     if event.message and event.message[0].type == "text":
+            #         event.message[0].data["text"] = (
+            #             event.message[0].data["text"].lstrip()
+            #         )
+            #         if not event.message[0].data["text"]:
+            #             del event.message[0]
+
+        # if not event.to_me:
+        #     # check the last segment
+        #     i = -1
+        #     last_msg_seg = event.message[i]
+        #     if (
+        #         last_msg_seg.type == "text"
+        #         and not last_msg_seg.data["text"].strip()
+        #         and len(event.message) >= 2
+        #     ):
+        #         i -= 1
+        #         last_msg_seg = event.message[i]
+
+        #     if _is_at_me_seg(last_msg_seg):
+        #         event.to_me = True
+        #         del event.message[i:]
+
+        if not event.message:
+            event.message.append(MessageSegment.text(""))
+
+bot_module._check_at_me = _mp_check_at_me
+bot_module._check_reply = _mp_check_reply
 
 
 # ============================ API调用 ============================ #
@@ -225,7 +337,7 @@ async def upload_group_file(bot: Bot, group_id: int, file_path: str, name: str, 
 
 # ============================ 消息获取 ============================ #
 
-def process_msg_segs(msg: list[dict] | Message) -> list[dict]:
+def process_msg_segs(msg: list[dict] | Message, event: MessageEvent | None = None) -> list[dict]:
     """
     对消息段列表进行一些处理以保证各个bot后端的兼容性
     """
@@ -268,7 +380,7 @@ def get_msg(event: MessageEvent) -> List[dict]:
     """
     从event中获取消息段内容
     """
-    return process_msg_segs(event.message)
+    return process_msg_segs(event.message, event)
 
 async def get_msg_obj_by_bot(bot: Bot, msg_id: int) -> dict:
     """
