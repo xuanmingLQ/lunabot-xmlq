@@ -116,5 +116,11 @@ sk:
   record_time_after_event_end_minutes: 0
   update_ranking_log_interval: 30
   csb_judge_stop_threshold_minutes: 5
-  compress_ranking_data_interval_seconds: 3600
-  compress_ranking_data_threshold_days: 7
+  
+  backup:
+    interval_seconds: 21600
+    threshold_days: 5
+    pybd_upload: false
+    pybd_remote_dir: "LunabotSekaiRankingData"
+    pybd_verbose: true
+

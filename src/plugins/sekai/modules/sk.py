@@ -29,6 +29,8 @@ import matplotlib.dates as mdates
 import matplotlib
 import matplotlib.cm as cm
 import numpy as np
+import subprocess
+
 FONT_NAME = "Source Han Sans CN"
 plt.switch_backend('agg')
 matplotlib.rcParams['font.family'] = [FONT_NAME]
@@ -1479,11 +1481,15 @@ async def update_ranking():
                 ranking_update_failures[region] = 0
 
 
-SK_COMPRESS_INTERVAL_CFG = config.item('sk.compress_ranking_data_interval_seconds')
-SK_COMPRESS_THRESHOLD_CFG = config.item('sk.compress_ranking_data_threshold_days')
+SK_COMPRESS_INTERVAL_CFG = config.item('sk.backup.interval_seconds')
+SK_COMPRESS_THRESHOLD_CFG = config.item('sk.backup.threshold_days')
+SK_PYBD_UPLOAD_ENABLED_CFG = config.item('sk.backup.pybd_upload')
+SK_PYBD_UPLOAD_REMOTE_DIR_CFG = config.item('sk.backup.pybd_remote_dir')
+SK_PYBD_VERBOSE_CFG = config.item('sk.backup.pybd_verbose')
 
-@repeat_with_interval(SK_COMPRESS_INTERVAL_CFG, '压缩榜线数据', logger)
+@repeat_with_interval(SK_COMPRESS_INTERVAL_CFG, '备份榜线数据', logger)
 async def compress_ranking_data():
+    # 压缩过期榜线数据库
     for region in ALL_SERVER_REGIONS:
         ctx = SekaiHandlerContext.from_region(region)
         db_path = SEKAI_DATA_DIR + f"/db/sk_{region}/*_ranking.db"
@@ -1512,3 +1518,64 @@ async def compress_ranking_data():
                 
             except Exception as e:
                 logger.warning(f"尝试检查压缩 {db_file} 失败: {get_exc_desc(e)}")
+
+    # 上传往期数据到百度云
+    if SK_PYBD_UPLOAD_ENABLED_CFG.get():
+        for region in ALL_SERVER_REGIONS:
+            src_dir = SEKAI_DATA_DIR + f"/db/sk_{region}/"
+            local_dir = SEKAI_DATA_DIR + f"/tmp/sk_backup_{region}"
+            remote_dir = SK_PYBD_UPLOAD_REMOTE_DIR_CFG.get() + f"/{region}"
+            verbose = SK_PYBD_VERBOSE_CFG.get()
+
+            def sync():
+                try:
+                    src_paths = sorted(glob.glob(os.path.join(src_dir, '*.zip')))
+                    if not src_paths:
+                        return
+
+                    logger.info(f'开始同步{region}的往期榜线数据到百度网盘({remote_dir})')
+
+                    for path in src_paths:
+                        dst_path = os.path.join(local_dir, os.path.basename(path))
+                        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+                        shutil.copy2(path, dst_path)
+                    
+                    command = [
+                        'bypy',
+                        'syncup',
+                        local_dir,
+                        remote_dir,
+                        'False', '-v'
+                    ]
+                    process = subprocess.Popen(
+                        command, 
+                        stdout=subprocess.PIPE, 
+                        stderr=subprocess.STDOUT, 
+                        text=True,
+                        encoding='utf-8'
+                    )
+                    while True:
+                        output = process.stdout.readline()
+                        if output == '' and process.poll() is not None:
+                            break
+                        if output and verbose:
+                            logger.info(f"[bypy] {output.strip()}")
+                    if process.returncode != 0:
+                        raise Exception(f'bypy执行失败: code={process.returncode}')
+                    
+                    # 同步成功后删除往期数据
+                    for path in src_paths:
+                        os.remove(path)
+                    
+                    logger.info(f'同步{region}的往期榜线数据到百度网盘完成，成功上传 {len(src_paths)} 个文件')
+
+                except Exception as e:
+                    logger.error(f'同步{region}的往期榜线数据到百度网盘失败: {get_exc_desc(e)}')
+
+                finally:
+                    if os.path.exists(local_dir):
+                        shutil.rmtree(local_dir, ignore_errors=True)
+            
+            await run_in_pool(sync)
+        
+
