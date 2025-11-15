@@ -1396,6 +1396,7 @@ async def send_msg(msg):
             log_box.add_line(f'发送失败 找不到消息: {id}')
             return
     if not msg: return
+    msg = config.get('send_prefix', '') + msg + config.get('send_suffix', '')
     log_box.add_line(f"发送消息到{gdata.cur_group_name}({gdata.cur_group_id}): {limit_str_len(str(msg), 100)}")
     await rpc_send_group_msg_split(gdata.cur_group_id, msg)
 
