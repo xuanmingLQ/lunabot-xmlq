@@ -55,13 +55,13 @@ async def _mp_check_reply(bot: "Bot", event: MessageEvent) -> None:
         del event.message[index]
         _reply_me_msg_ids.add(event.message_id)
 
-        if (
-            len(event.message) > index
-            and event.message[index].type == "at"
-            and event.message[index].data.get("qq") == str(event.reply.sender.user_id)
-        ):
-            del event.message[index]
-            _at_me_msg_ids.add(event.message_id)
+        # if (
+        #     len(event.message) > index
+        #     and event.message[index].type == "at"
+        #     and event.message[index].data.get("qq") == str(event.reply.sender.user_id)
+        # ):
+        #     del event.message[index]
+        #     _at_me_msg_ids.add(event.message_id)
 
     # if len(event.message) > index and event.message[index].type == "text":
     #     event.message[index].data["text"] = event.message[index].data["text"].lstrip()

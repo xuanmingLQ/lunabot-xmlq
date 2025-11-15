@@ -226,7 +226,7 @@ async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_rank
     rankings = latest_rankings_cache.get(ctx.region, {}).get(event_id, None)
     if rankings:
         logger.info(f"从缓存中获取 {ctx.region}_{event_id} 最新榜线数据")
-        return deepcopy([r for r in rankings if r.rank in query_ranks])
+        return [r for r in rankings if r.rank in query_ranks]
     rankings = await query_latest_ranking(ctx.region, event_id, query_ranks)
     if rankings:
         logger.info(f"从数据库获取 {ctx.region}_{event_id} 最新榜线数据")
