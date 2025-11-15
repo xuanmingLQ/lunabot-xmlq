@@ -63,16 +63,18 @@ def get_cmap(gid, date, n=10, hue_range=0.2):
     return ret
 
 # 饼图Frame控件
-async def get_pie_frame(gid, date_str, recs, topk_user, topk_name) -> Frame:
+async def get_pie_frame(gid, date_str, recs, topk_user: list[int], topk_name: list[int]) -> Frame:
     logger.info(f"开始绘制饼图")
 
     # 统计数量
     topk_user_set = set(topk_user)
     user_count, user_image_count = Counter(), Counter()
     other_count, other_image_count = 0, 0
+    other_users = set()
     for rec in recs:
         if rec['user_id'] not in topk_user_set:
             other_count += 1
+            other_users.add(rec['user_id'])
             if has_image(rec['msg']):
                 other_image_count += 1
         else:
@@ -86,19 +88,17 @@ async def get_pie_frame(gid, date_str, recs, topk_user, topk_name) -> Frame:
     
     # 计算其他数量（比例小于多少的用户并入其他）
     rate_threshold = 0.03
-    other_user_count = 0
     while topk_user_count and topk_user_count[-1] / total_count < rate_threshold:
         other_count += topk_user_count.pop()
         other_image_count += topk_user_image_count.pop()
-        topk_user.pop()
+        other_users.add(topk_user.pop())
         topk_name.pop()
-        other_user_count += 1
 
     if other_count > 0:
         topk_user_count.append(other_count)
         topk_user_image_count.append(other_image_count)
         topk_user.append("其他")
-        topk_name.append(f"其他({other_user_count})")
+        topk_name.append(f"其他({len(other_users)})")
     
     rates = [count/total_count for count in topk_user_count]
     start_angles, end_angles, cur_angle = [], [], -90
