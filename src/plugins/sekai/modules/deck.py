@@ -932,8 +932,11 @@ async def do_deck_recommend_batch(
             raise ReplyException("未配置可用的组卡服务")
         server_urls = [s['url'] for s in servers]
         server_weights = [s['weight'] for s in servers]
+        min_weight = min([w for w in server_weights if w > 0], default=0)
+        if min_weight <= 0:
+            raise ReplyException("未配置可用的组卡服务")
 
-        server_order = [[] for _ in range(min(server_weights))]
+        server_order = [[] for _ in range(min_weight)]
         for i, w in enumerate(server_weights):
             for j in range(w):
                 server_order[j % len(server_order)].append(i)
