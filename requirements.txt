@@ -18,7 +18,7 @@ imageio[ffmpeg]
 pilmoji[requests]
 zhon
 orjson
-tencentcloud
+tencentcloud-sdk-python-common
 ffmpeg-python
 pdf2image   # also need to install poppler-utils
 uvloop
