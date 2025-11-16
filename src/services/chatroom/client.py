@@ -1,6 +1,3 @@
-"""
-连接chatroom服务的终端客户端
-"""
 import urwid
 import aiorpcx
 import asyncio

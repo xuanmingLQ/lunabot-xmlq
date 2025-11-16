@@ -37,21 +37,9 @@ RECOMMEND_ALG_NAMES = {
     'ga': '遗传算法',
 }
 
-musicmetas_json = WebJsonRes(
-    name="MusicMeta", 
-    url="https://sekai-data.3-3.dev/music_metas.json", 
-    update_interval=timedelta(hours=1),
-)
-MUSICMETAS_SAVE_PATH = f"{SEKAI_ASSET_DIR}/music_metas.json"
-DECK_RECOMMEND_MUSICMETAS_UPDATE_INTERVAL = timedelta(days=1)
 
 OMAKASE_MUSIC_ID = 10000
 OMAKASE_MUSIC_DIFFS = ["master", "expert", "hard"]
-
-data_update_lock = asyncio.Lock()
-last_deck_recommend_masterdata_version: Dict[str, str] = {}
-last_deck_recommend_masterdata_update_time: Dict[str, datetime] = {} 
-last_deck_recommend_musicmetas_update_time: Dict[str, datetime] = {}
 
 
 # ======================= 默认配置 ======================= #
@@ -126,6 +114,17 @@ BONUS_TARGET_LIMIT = 1
 
 DEFAULT_TEAMMATE_POWER = 250000
 DEFAULT_TEAMMATE_SCOREUP = 200
+
+
+def add_payload_segment(payloads: list[bytes], data: bytes):
+    payloads.append(len(data).to_bytes(4, 'big'))
+    payloads.append(data)
+
+def build_multiparts_payload(payloads: list[bytes]) -> bytes:
+    with Timer('join_payload', logger):
+        payload = b''.join(payloads)
+    with Timer('compress_payload', logger):
+        return compress_zstd(payload)
 
 
 # ======================= 参数获取 ======================= #
@@ -834,7 +833,9 @@ async def extract_mysekai_options(ctx: SekaiHandlerContext, args: str) -> Dict:
 
 # ======================= 处理逻辑 ======================= #
 
-RECOMMEND_SERVE_URL_CFG = config.item("deck.url")
+RECOMMEND_SERVERS_CFG = config.item("deck.servers")
+_deckrec_request_id = 0
+
 
 # 添加OMAKASE音乐
 def add_omakase_music(music_metas: list[dict]) -> list[dict]:
@@ -916,151 +917,130 @@ def log_options(ctx: SekaiHandlerContext, user_id: int, options: DeckRecommendOp
     log += f"fixed_cards={options.fixed_cards}"
     logger.info(log)
 
-# 自动组卡实现 返回Tuple[结果，结果算法来源，Dict[算法: Tuple[耗时，等待时间]]]
-async def do_deck_recommend(
+# 自动组卡实现(批量提交) 返回 [Tuple[结果，结果算法来源，Dict[算法: Tuple[耗时，等待时间]]], ...]
+async def do_deck_recommend_batch(
     ctx: SekaiHandlerContext, 
-    options: DeckRecommendOptions,
-) -> Tuple[DeckRecommendResult, List[str], Dict[str, Tuple[timedelta, timedelta]]]:
-    # 检查数据更新
-    with Timer("deckrec:checkupdate", logger):
-        async with data_update_lock:
-            global last_deck_recommend_masterdata_version
-            global last_deck_recommend_musicmetas_update_time
-            
-            # 更新masterdata
-            if last_deck_recommend_masterdata_version.get(ctx.region) != await ctx.md.get_version():
-                logger.info(f"重新加载本地自动组卡 {ctx.region} masterdata")
-                # 确保所有masterdata就绪
-                mds = [
-                    ctx.md.area_item_levels.get(),
-                    ctx.md.area_items.get(),
-                    ctx.md.areas.get(),
-                    ctx.md.card_episodes.get(),
-                    ctx.md.cards.get(),
-                    ctx.md.card_rarities.get(),
-                    ctx.md.character_ranks.get(),
-                    ctx.md.event_cards.get(),
-                    ctx.md.event_deck_bonuses.get(),
-                    ctx.md.event_exchange_summaries.get(),
-                    ctx.md.events.get(),
-                    ctx.md.event_items.get(),
-                    ctx.md.event_rarity_bonus_rates.get(),
-                    ctx.md.game_characters.get(),
-                    ctx.md.game_character_units.get(),
-                    ctx.md.honors.get(),
-                    ctx.md.master_lessons.get(),
-                    ctx.md.music_diffs.get(),
-                    ctx.md.musics.get(),
-                    ctx.md.music_vocals.get(),
-                    ctx.md.shop_items.get(),
-                    ctx.md.skills.get(),
-                    ctx.md.world_bloom_different_attribute_bonuses.get(),
-                    ctx.md.world_blooms.get(),
-                    ctx.md.world_bloom_support_deck_bonuses.get(),
-                ]
-                if ctx.region in MYSEKAI_REGIONS:
-                    mds += [
-                        ctx.md.world_bloom_support_deck_unit_event_limited_bonuses.get(),
-                        ctx.md.card_mysekai_canvas_bonuses.get(),
-                        ctx.md.mysekai_fixture_game_character_groups.get(),
-                        ctx.md.mysekai_fixture_game_character_group_performance_bonuses.get(),
-                        ctx.md.mysekai_gates.get(),
-                        ctx.md.mysekai_gate_levels.get(),
-                    ]
-                await asyncio.gather(*mds)
-                last_deck_recommend_masterdata_version[ctx.region] = await ctx.md.get_version()
+    options_list: list[DeckRecommendOptions]
+) -> list[Tuple[DeckRecommendResult, List[str], Dict[str, Tuple[timedelta, timedelta]]]]:
+    # 请求组卡函数（负载均衡）
+    async def request_recommend(index: int, payload: bytes) -> dict:
+        global _deckrec_request_id
+        _deckrec_request_id += 1
 
-            # 更新musicmetas
-            if last_deck_recommend_musicmetas_update_time.get(ctx.region) is None \
-                or datetime.now() - last_deck_recommend_musicmetas_update_time[ctx.region] > DECK_RECOMMEND_MUSICMETAS_UPDATE_INTERVAL:
-                logger.info(f"重新加载本地自动组卡 {ctx.region} musicmetas")
-                try:
-                    # 尝试从网络下载
-                    musicmetas = await musicmetas_json.get()
-                    musicmetas = add_omakase_music(musicmetas)
-                    await adump_json(musicmetas, MUSICMETAS_SAVE_PATH)
-                except Exception as e:
-                    logger.warning(f"下载music_metas.json失败: {get_exc_desc(e)}")
-                    if os.path.exists(MUSICMETAS_SAVE_PATH):
-                        # 使用本地缓存
-                        logger.info(f"使用本地缓存music_metas.json")
-                    else:
-                        raise ReplyException(f"获取music_metas.json失败: {get_exc_desc(e)}")
-                last_deck_recommend_musicmetas_update_time[ctx.region] = datetime.now()
+        servers = RECOMMEND_SERVERS_CFG.get()
+        if not servers:
+            raise ReplyException("未配置可用的组卡服务")
+        server_urls = [s['url'] for s in servers]
+        server_weights = [s['weight'] for s in servers]
 
-    # 算法选择
-    if options.algorithm == "all": 
-        algs = RECOMMEND_ALGS_CFG.get()
-    else:
-        algs = [options.algorithm]
+        server_order = [[] for _ in range(min(server_weights))]
+        for i, w in enumerate(server_weights):
+            for j in range(w):
+                server_order[j % len(server_order)].append(i)
+        server_order = [idx for sublist in server_order for idx in sublist]
+        select_idx = server_order[_deckrec_request_id % len(server_order)]
+        urls = server_urls[select_idx:] + server_urls[:select_idx]
+        
+        async def req(index: int, payload: bytes, url: str) -> dict:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url + "/recommend", data=payload) as resp:
+                    if resp.status != 200:
+                        msg = f"HTTP {resp.status}: "
+                        try:
+                            err_data = await resp.json()
+                            msg += err_data.get('message', '')
+                        except:
+                            try:
+                                msg += await resp.text()
+                            except:
+                                pass
+                        raise ReplyException(msg)
+                    data = await resp.json()
+                    return index, data
+        
+        errors = []
+        for url in urls:
+            try:
+                return await req(index, payload, url)
+            except Exception as e:
+                logger.warning(f"组卡请求 {url} 失败: {get_exc_desc(e)}")
+                errors.append(get_exc_desc(e))
 
-    # 请求组卡函数
-    async def request_recommend(options: DeckRecommendOptions) -> dict:
-        payload = {
-            'create_ts': datetime.now().timestamp(),
-            'region': options.region,
-            'masterdata_path': os.path.abspath(f"{SEKAI_ASSET_DIR}/masterdata/{options.region}/"),
-            'masterdata_version': str(last_deck_recommend_masterdata_version[options.region]),
-            'musicmetas_path': os.path.abspath(MUSICMETAS_SAVE_PATH),
-            'musicmetas_update_ts': last_deck_recommend_musicmetas_update_time[options.region].timestamp(),
-            'options': options.to_dict(),
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(RECOMMEND_SERVE_URL_CFG.get(), json=payload) as resp:
-                if resp.status != 200:
-                    raise ReplyException(f"组卡请求失败: HTTP {resp.status}")
-                data = await resp.json()
-                if data['status'] != 'success':
-                    raise ReplyException(data['exception'])
-                return data
+        raise ReplyException(f"请求所有可用的组卡服务失败:\n" + "\n".join(errors))
 
-    # 组卡!
-    futs = []
-    for alg in algs:
-        opt = DeckRecommendOptions(options)
-        opt.algorithm = alg
-        futs.append(request_recommend(opt))
+    tasks = []
+    for i, options in enumerate(options_list):
+        # 算法选择
+        if options.algorithm == "all": 
+            algs = RECOMMEND_ALGS_CFG.get()
+        else:
+            algs = [options.algorithm]
+
+        opt = options.to_dict()
+        payloads_userdata = []
+        with open(opt['user_data_file_path'], 'rb') as f:
+            add_payload_segment(payloads_userdata, f.read())
+
+        for alg in algs:
+            payloads = []
+            opt['algorithm'] = alg
+            data = {
+                'region': opt['region'],
+                'options': opt,
+            }
+            add_payload_segment(payloads, dumps_json(data).encode('utf-8'))
+            payload = build_multiparts_payload(payloads + payloads_userdata)
+
+            tasks.append(request_recommend(i, payload))
+
     with Timer("deckrec:request", logger):
-        results: List[dict] = await asyncio.gather(*futs)
-
-    # 结果排序去重
-    decks: List[RecommendDeck] = []
-    cost_and_wait_times = {}
-    deck_src_alg = {}
-    for resp in results:
-        alg = resp['alg']
-        cost_time = resp['cost_time']
-        wait_time = resp['wait_time']
-        result = DeckRecommendResult.from_dict(resp['result'])
-        cost_and_wait_times[alg] = (cost_time, wait_time)
-        for deck in result.decks:
-            deck_hash = get_deck_hash(deck)
-            if deck_hash not in deck_src_alg:
-                deck_src_alg[deck_hash] = alg
-                decks.append(deck)
-            else:
-                deck_src_alg[deck_hash] += "+" + alg
-    def key_func(deck: RecommendDeck):
-        if options.live_type == "mysekai":
-            return (deck.mysekai_event_point, deck.total_power)
-        elif options.target == "score":
-            return (deck.score, deck.multi_live_score_up)
-        elif options.target == "power":
-            return deck.total_power
-        elif options.target == "skill":
-            return deck.multi_live_score_up
-        elif options.target == "bonus":
-            return (-deck.event_bonus_rate, deck.score)
-    limit = options.limit if options.target != "bonus" else options.limit * len(options.target_bonus_list)
-    decks = sorted(decks, key=key_func, reverse=True)[:limit]
-    src_algs = [deck_src_alg[get_deck_hash(deck)] for deck in decks]
-    res = DeckRecommendResult()
-    # 加成组卡的队伍按照加成排序
-    if options.target == "bonus":
-        for deck in decks:
-            deck.cards = sorted(deck.cards, key=lambda x: x.event_bonus_rate, reverse=True)
-    res.decks = decks
-    return res, src_algs, cost_and_wait_times
+        results_list: list[tuple[int, dict]] = await asyncio.gather(*tasks)
+    result_dict = {}
+    for index, data in results_list:
+        result_dict.setdefault(index, []).append(data)
+    
+    ret = []
+    for index in range(len(options_list)):
+        results = result_dict[index]
+        # 结果排序去重
+        decks: List[RecommendDeck] = []
+        cost_and_wait_times = {}
+        deck_src_alg = {}
+        for resp in results:
+            alg = resp['alg']
+            cost_time = resp['cost_time']
+            wait_time = resp['wait_time']
+            result = DeckRecommendResult.from_dict(resp['result'])
+            cost_and_wait_times[alg] = (cost_time, wait_time)
+            for deck in result.decks:
+                deck_hash = get_deck_hash(deck)
+                if deck_hash not in deck_src_alg:
+                    deck_src_alg[deck_hash] = alg
+                    decks.append(deck)
+                else:
+                    deck_src_alg[deck_hash] += "+" + alg
+        def key_func(deck: RecommendDeck):
+            if options.live_type == "mysekai":
+                return (deck.mysekai_event_point, deck.total_power)
+            elif options.target == "score":
+                return (deck.score, deck.multi_live_score_up)
+            elif options.target == "power":
+                return deck.total_power
+            elif options.target == "skill":
+                return deck.multi_live_score_up
+            elif options.target == "bonus":
+                return (-deck.event_bonus_rate, deck.score)
+        limit = options.limit if options.target != "bonus" else options.limit * len(options.target_bonus_list)
+        decks = sorted(decks, key=key_func, reverse=True)[:limit]
+        src_algs = [deck_src_alg[get_deck_hash(deck)] for deck in decks]
+        res = DeckRecommendResult()
+        # 加成组卡的队伍按照加成排序
+        if options.target == "bonus":
+            for deck in decks:
+                deck.cards = sorted(deck.cards, key=lambda x: x.event_bonus_rate, reverse=True)
+        res.decks = decks
+        ret.append((res, src_algs, cost_and_wait_times))
+    return ret
 
 # 构造顶配profile
 async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
@@ -1265,6 +1245,7 @@ async def compose_deck_recommend_image(
         profile['userCards'] = original_usercards
 
         # 组卡！
+        all_options = []
         cost_times, wait_times = {}, {}
         result_decks = []
         result_algs = []
@@ -1273,7 +1254,9 @@ async def compose_deck_recommend_image(
             for cid in range(1, 26 + 1):
                 options.challenge_live_character_id = cid
                 options.limit = 1
-                res, algs, cost_and_wait_times = await do_deck_recommend(ctx, options)
+                all_options.append(DeckRecommendOptions(options))
+            options.challenge_live_character_id = None
+            for res, algs, cost_and_wait_times in await do_deck_recommend_batch(ctx, all_options):
                 result_decks.extend(res.decks)
                 result_algs.extend(algs)
                 for alg, (cost, wait) in cost_and_wait_times.items():
@@ -1282,10 +1265,9 @@ async def compose_deck_recommend_image(
                         wait_times[alg] = 0
                     cost_times[alg] += cost
                     wait_times[alg] = max(wait_times[alg], wait)
-            options.challenge_live_character_id = None
         else:
             # 正常组卡
-            res, algs, cost_and_wait_times = await do_deck_recommend(ctx, options)
+            res, algs, cost_and_wait_times = (await do_deck_recommend_batch(ctx, [options]))[0]
             for alg, (cost, wait) in cost_and_wait_times.items():
                 cost_times[alg] = cost
                 wait_times[alg] = wait
@@ -1777,3 +1759,124 @@ async def _(ctx: SekaiHandlerContext):
         raise ReplyException(f"使用方式: {ctx.trigger_cmd} 100 100 100 100 100") 
     res = values[0] + (values[1] + values[2] + values[3] + values[4]) / 5.
     return await ctx.asend_reply_msg(f"实效: {res:.1f}%")
+
+
+
+# ======================= 定时任务 ======================= #
+
+musicmetas_json = WebJsonRes(
+    name="MusicMeta", 
+    url = config.get("deck.music_meta_url"),
+    update_interval=timedelta(hours=1),
+)
+MUSICMETAS_SAVE_PATH = f"{SEKAI_ASSET_DIR}/music_metas.json"
+DECKREC_DATA_UPDATE_INTERVAL_CFG = config.item('deck.data_update_interval_seconds')
+
+
+@repeat_with_interval(DECKREC_DATA_UPDATE_INTERVAL_CFG, "组卡数据更新", logger)
+async def deckrec_update_data():
+    for region in ALL_SERVER_REGIONS:
+        try:
+            ctx = SekaiHandlerContext.from_region(region)
+
+            current_masterdata_version = await ctx.md.get_version()
+            current_musicmetas_update_ts = await musicmetas_json.get_update_time()
+            logger.debug(f"组卡 {region} 当前 masterdata 版本: {current_masterdata_version} musicmetas 更新时间: {current_musicmetas_update_ts}")
+
+            
+
+            async def construct_payload(with_masterdata: bool, with_musicmetas: bool) -> bytes:
+                payloads = []
+
+                data = { 
+                    'region': ctx.region,
+                    'masterdata_version': str(current_masterdata_version),
+                    'musicmetas_update_ts': int(current_musicmetas_update_ts.timestamp()),
+                }
+                add_payload_segment(payloads, dumps_json(data, indent=False).encode('utf-8'))
+
+                if with_masterdata:
+                    logger.info(f"为自动组卡加载 {ctx.region} masterdata")
+                    mds = [
+                        ctx.md.area_item_levels.get_path(),
+                        ctx.md.area_items.get_path(),
+                        ctx.md.areas.get_path(),
+                        ctx.md.card_episodes.get_path(),
+                        ctx.md.cards.get_path(),
+                        ctx.md.card_rarities.get_path(),
+                        ctx.md.character_ranks.get_path(),
+                        ctx.md.event_cards.get_path(),
+                        ctx.md.event_deck_bonuses.get_path(),
+                        ctx.md.event_exchange_summaries.get_path(),
+                        ctx.md.events.get_path(),
+                        ctx.md.event_items.get_path(),
+                        ctx.md.event_rarity_bonus_rates.get_path(),
+                        ctx.md.game_characters.get_path(),
+                        ctx.md.game_character_units.get_path(),
+                        ctx.md.honors.get_path(),
+                        ctx.md.master_lessons.get_path(),
+                        ctx.md.music_diffs.get_path(),
+                        ctx.md.musics.get_path(),
+                        ctx.md.music_vocals.get_path(),
+                        ctx.md.shop_items.get_path(),
+                        ctx.md.skills.get_path(),
+                        ctx.md.world_bloom_different_attribute_bonuses.get_path(),
+                        ctx.md.world_blooms.get_path(),
+                        ctx.md.world_bloom_support_deck_bonuses.get_path(),
+                    ]
+                    if ctx.region in MYSEKAI_REGIONS:
+                        mds += [
+                            ctx.md.world_bloom_support_deck_unit_event_limited_bonuses.get_path(),
+                            ctx.md.card_mysekai_canvas_bonuses.get_path(),
+                            ctx.md.mysekai_fixture_game_character_groups.get_path(),
+                            ctx.md.mysekai_fixture_game_character_group_performance_bonuses.get_path(),
+                            ctx.md.mysekai_gates.get_path(),
+                            ctx.md.mysekai_gate_levels.get_path(),
+                        ]
+                    for path in await asyncio.gather(*mds):
+                        with open(path, 'rb') as f:
+                            add_payload_segment(payloads, os.path.basename(path).encode('utf-8'))
+                            add_payload_segment(payloads, f.read())
+
+                if with_musicmetas:
+                    logger.info(f"为自动组卡加载 {ctx.region} musicmetas")
+                    with open(MUSICMETAS_SAVE_PATH, 'rb') as f:
+                        add_payload_segment(payloads, b'musicmetas')
+                        add_payload_segment(payloads, f.read())
+                
+                return build_multiparts_payload(payloads)
+
+            async def req(url :str, with_masterdata: bool, with_musicmetas: bool):
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url + "/update_data", data=await construct_payload(with_masterdata, with_musicmetas)) as resp:
+                        if not (with_masterdata or with_musicmetas) and resp.status == 426:
+                            data = await resp.json()
+                            missing_data = data.get('detail', {}).get('missing_data', [])
+                            if not missing_data:
+                                logger.warning(f"{region} 组卡数据需要更新但未指明具体内容")
+                                return
+                            logger.info(f"{region} 组卡数据需要更新: {missing_data}")
+                            await req(
+                                url,
+                                with_masterdata = 'masterdata' in missing_data,
+                                with_musicmetas = 'musicmetas' in missing_data,
+                            )
+                            logger.info(f"{region} 组卡数据更新完成")
+                            return
+                        elif resp.status != 200:
+                            msg = f"更新组卡数据失败 ({resp.status}): "
+                            try:
+                                err_data = await resp.json()
+                                msg += err_data.get('message', '')
+                            except:
+                                try:
+                                    msg += await resp.text()
+                                except:
+                                    pass
+                            raise Exception(msg)
+
+            for server in RECOMMEND_SERVERS_CFG.get():
+                await req(server['url'], False, False)
+
+        except Exception as e:
+            logger.print_exc(f"更新组卡数据失败 ({region})")

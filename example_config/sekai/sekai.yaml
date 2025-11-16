@@ -60,7 +60,14 @@ stamp:
       请你将第一张图片的文字去掉，保留其他部分内容和大小比例严格不变（其他图片用于被文字遮挡部分的角色外观的参考）
 
 deck:
-  url: "http://localhost:45556/recommend"
+  servers:
+    - url: http://127.0.0.1:12345
+      weight: 4 # 负载均衡权重
+    - url: http://127.0.0.1:45678
+      weight: 8
+
+  music_meta_url: https://sekai-data.3-3.dev/music_metas.json
+  data_update_interval_seconds: 30
   default_algs: ['dfs', 'ga']
   timeout:
     default: 5

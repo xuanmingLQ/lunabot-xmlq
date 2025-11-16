@@ -480,6 +480,14 @@ def get_float_str(value: float, precision: int = 2, remove_zero: bool = True) ->
 def get_date_str() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
+def compress_zstd(b: bytes):
+    cctx = zstandard.ZstdCompressor()
+    return cctx.compress(b)
+
+def decompress_zstd(b: bytes):
+    dctx = zstandard.ZstdDecompressor()
+    return dctx.decompress(b, max_output_size=100*1024*1024)
+
 
 # ============================ 文件 ============================ #
 

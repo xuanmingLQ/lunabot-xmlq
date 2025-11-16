@@ -20,11 +20,6 @@ Note: This project is for reference and learning purposes only, and is **not** a
 
 5.  Send a message `@yourbot /enable` to enable the bot in the group.
 
-6.  (Optional) Start the Project Sekai deck recommendation service:
-```bash
-pip install git+https://github.com/NeuraXmy/sekai-deck-recommend-cpp.git
-cd lunabot
-uvicorn src/services/deck_recommender/serve.py:app --port 45556
-```
+6.  (Optional) Start the Sekai Deck Recommendation Service: [README.md](./src/services/deck_recommender/README.md)
 
 

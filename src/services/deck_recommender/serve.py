@@ -1,19 +1,8 @@
-"""
-sekai组卡服务
-"""
-from datetime import datetime, timedelta
-import orjson
-import time
-import os
-from glob import glob
-from tenacity import retry, stop_after_attempt, wait_fixed
-from typing import List, Dict, Any, Union, Optional, Tuple, Set
-from os.path import join as pjoin
-from dataclasses import dataclass, field
-import asyncio
-import yaml
+from utils import *
+from process_pool import *
+
 from fastapi import FastAPI, HTTPException, Request, Response
-import asyncio
+import uvicorn
 from sekai_deck_recommend import (
     SekaiDeckRecommend, 
     DeckRecommendOptions, 
@@ -22,63 +11,39 @@ from sekai_deck_recommend import (
     DeckRecommendResult,
 )
 
-import setproctitle
-setproctitle.setproctitle('lunabot-deckrec')
+try:
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+except ImportError:
+    pass
 
 
-def load_json(file_path: str) -> dict:
-    with open(file_path, 'rb') as file:
-        return orjson.loads(file.read())
-    
-def dump_json(data: dict, file_path: str, indent: bool = True) -> None:
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with open(file_path, 'wb') as file:
-        buffer = orjson.dumps(data, option=orjson.OPT_INDENT_2 if indent else 0)
-        file.write(buffer)
+CONFIG = {}
+CONFIG_PATH = pjoin(os.path.dirname(os.path.abspath(__file__)), 'config.yaml')
+if os.path.exists(CONFIG_PATH):
+    with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+        CONFIG = yaml.safe_load(f)
+else:
+    log(f"未找到配置文件 {CONFIG_PATH}，使用默认配置")
 
-def loads_json(s: str | bytes) -> dict:
-    return orjson.loads(s)
+HOST = CONFIG.get('host', '127.0.0.1')
+PORT = CONFIG.get('port', 45556)
+WORKER_NUM = CONFIG.get('worker_num', 1)
+DATA_DIR = CONFIG.get('data_dir', 'lunabot_deckrec_data')
+DB_PATH = pjoin(DATA_DIR, 'deckrec.json')
 
-def dumps_json(data: dict, indent: bool = True) -> str:
-    return orjson.dumps(data, option=orjson.OPT_INDENT_2 if indent else 0).decode('utf-8')
+process_pool = ProcessPool(WORKER_NUM)
+worker_recommender = SekaiDeckRecommend()
+worker_masterdata_version: dict[str, str] = {}
+worker_musicmetas_update_ts: dict[str, int] = {}
 
-async def aload_json(path: str) -> Dict[str, Any]:
-    return await asyncio.to_thread(load_json, path)
+log(f"组卡服务初始化 worker_num={WORKER_NUM} data_dir={DATA_DIR}")
 
-async def asave_json(data: Dict[str, Any], path: str):
-    return await asyncio.to_thread(dump_json, data, path)
 
-def get_exc_desc(e: Exception) -> str:
-    et = type(e).__name__
-    e = str(e)
-    if et in ['AssertionError', 'HTTPException', 'Exception']:
-        return e
-    if et and e:
-        return f"{et}: {e}"
-    return et or e
+# =========================== 处理逻辑 =========================== #
 
-def log(*args, **kwargs):
-    time_str = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-    pname = f"[{os.getpid()}] "
-    print(time_str, pname, *args, **kwargs, flush=True)
-
-def error(*args, **kwargs):
-    log(*args, **kwargs)
-    import traceback
-    print(traceback.format_exc(), flush=True)
-
-def print_headers(headers: Dict[str, str]):
-    headers = dict(headers)
-    print("=" * 20)
-    for k, v in headers.items():
-        print(f"{k}: {v}")
-    print("=" * 20)
-
-def create_parent_folder(path: str) -> str:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    return path
-
-def options_to_str(options: DeckRecommendOptions) -> str:
+def deckrec_options_to_str(options: dict) -> str:
+    options: DeckRecommendOptions = DeckRecommendOptions.from_dict(options)
     def fmtbool(b: bool):
         return int(bool(b))
     def cardconfig2str(cfg: DeckRecommendCardConfig):
@@ -105,59 +70,188 @@ def options_to_str(options: DeckRecommendOptions) -> str:
     log += f"fixed_cards={options.fixed_cards})"
     return log
 
+def update_data(
+    region: str, 
+    masterdata_version: str, 
+    masterdata: dict[str, bytes] | None,
+    musicmetas_update_ts: int,
+    musicmetas: bytes | None,
+):
+    db = load_json(DB_PATH, default={})
+
+    missing_data = set()
+
+    current_masterdata_version = db.get('masterdata_version', {}).get(region)
+    if current_masterdata_version != masterdata_version:
+        if not masterdata:
+            missing_data.add('masterdata')
+        else:
+            local_md_dir = pjoin(DATA_DIR, 'masterdata', region)
+            for name, md in masterdata.items():
+                write_file(pjoin(local_md_dir, name), md)
+            db.setdefault('masterdata_version', {})[region] = masterdata_version
+            log(f"更新 {region} MasterData {current_masterdata_version} -> {masterdata_version}")
+
+    current_musicmetas_update_ts = db.get('musicmetas_update_ts', {}).get(region)
+    if current_musicmetas_update_ts != musicmetas_update_ts:
+        if not musicmetas:
+            missing_data.add('musicmetas')
+        else:
+            local_mm_path = pjoin(DATA_DIR, f'musicmetas_{region}.json')
+            write_file(local_mm_path, musicmetas)
+            db.setdefault('musicmetas_update_ts', {})[region] = musicmetas_update_ts
+            current_ts_text = datetime.fromtimestamp(current_musicmetas_update_ts).strftime('%Y-%m-%d %H:%M:%S') if current_musicmetas_update_ts else 'None'
+            local_ts_text = datetime.fromtimestamp(musicmetas_update_ts).strftime('%Y-%m-%d %H:%M:%S')
+            log(f"更新 {region} MusicMetas {current_ts_text} -> {local_ts_text}")
+
+    dump_json(db, DB_PATH)
+    if missing_data:
+        log(f"{region} 检测到数据更新不完整，缺少：{', '.join(missing_data)}")
+        raise HTTPException(status_code=426, detail={
+            'missing_data': list(missing_data),
+            "message": "缺少必要的数据，请上传完整数据",
+        })
+        
+def do_recommend(region: str, options: dict) -> dict:
+    start_time = datetime.now()
+    db = load_json(DB_PATH, default={})
+
+    masterdata_version = db.get('masterdata_version', {}).get(region)
+    if worker_masterdata_version.get(region) != masterdata_version:
+        local_md_dir = pjoin(DATA_DIR, 'masterdata', region)
+        worker_recommender.update_masterdata(local_md_dir, region)
+        worker_masterdata_version[region] = masterdata_version
+        log(f"加载 {region} MasterData: v{masterdata_version}")
+
+    musicmetas_update_ts = db.get('musicmetas_update_ts', {}).get(region)
+    if worker_musicmetas_update_ts.get(region) != musicmetas_update_ts:
+        local_mm_path = pjoin(DATA_DIR, f'musicmetas_{region}.json')
+        worker_recommender.update_musicmetas(local_mm_path, region)
+        worker_musicmetas_update_ts[region] = musicmetas_update_ts
+        log(f"加载 {region} MusicMetas: {datetime.fromtimestamp(musicmetas_update_ts).strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    if not worker_masterdata_version.get(region) or not worker_musicmetas_update_ts.get(region):
+        return HTTPException(status_code=500, detail={
+            'status': 'error',
+            'message': f'组卡服务端数据未初始化完成，请稍后再试',
+        })
+
+    options = DeckRecommendOptions.from_dict(options)
+    res =  worker_recommender.recommend(options)
+    cost_time = datetime.now() - start_time
+
+    return {
+        'result': res.to_dict(),
+        'cost_time': cost_time.total_seconds(),
+    }
+
 
 # =========================== API =========================== #
 
-recommender = SekaiDeckRecommend()
-last_masterdata_version = {}
-last_musicmetas_update_ts = {}
-
 app = FastAPI()
 
-@app.post("/recommend")
-async def recommend_deck(request: Request):
+async def extract_decompressed_payload(request: Request) -> list[bytes]:
+    payload = decompress_zstd(await request.body())
+    segments = []
+    index = 0
+    while index < len(payload):
+        if index + 4 > len(payload):
+            raise HTTPException(status_code=400, detail="数据格式错误")
+        segment_size = int.from_bytes(payload[index:index+4], 'big')
+        index += 4
+        if index + segment_size > len(payload):
+            raise HTTPException(status_code=400, detail="数据格式错误")
+        segment = payload[index:index+segment_size]
+        segments.append(segment)
+        index += segment_size
+    return segments
+
+@app.post("/update_data")
+async def _(request: Request):
     try:
-        data = await request.json()
-        create_time = datetime.fromtimestamp(data['create_ts'])
-        wait_time = datetime.now() - create_time
+        segments = await extract_decompressed_payload(request)
+
+        data = loads_json(segments[0])
         region = data['region']
-        masterdata_path         = data['masterdata_path']
-        musicmetas_path         = data['musicmetas_path']
         masterdata_version      = data['masterdata_version']
         musicmetas_update_ts    = data['musicmetas_update_ts']
-        options = DeckRecommendOptions.from_dict(data['options'])
 
-        log(f"收到 {create_time.strftime('%Y-%m-%d %H:%M:%S')} 的组卡请求 region={region}, {options_to_str(options)}")
+        masterdatas: dict[str, bytes] = {}
+        musicmetas: bytes = None
+        for i in range(1, len(segments), 2):
+            key = segments[i].decode('utf-8')
+            value = segments[i+1]
+            if key == 'musicmetas':
+                musicmetas = value
+            else:
+                masterdatas[key] = value
+            
+        update_data(region, masterdata_version, masterdatas, musicmetas_update_ts, musicmetas)
 
-        # 更新 masterdata 和 musicmeta
-        global last_masterdata_version, last_musicmetas_update_ts
-        if last_masterdata_version.get(region) != masterdata_version:
-            log(f"更新 {region} MasterData: v{masterdata_version}")
-            recommender.update_masterdata(masterdata_path, region)
-            last_masterdata_version[region] = masterdata_version
-        if last_musicmetas_update_ts.get(region) != musicmetas_update_ts:
-            log(f"更新 {region} MusicMetas: {datetime.fromtimestamp(musicmetas_update_ts).strftime('%Y-%m-%d %H:%M:%S')}")
-            recommender.update_musicmetas(musicmetas_path, region)
-            last_musicmetas_update_ts[region] = musicmetas_update_ts
+    except HTTPException as he:
+        raise he
 
-        # 执行组卡
-        log(f"开始组卡")
+    except Exception as e:
+        error("更新数据失败")
+        raise HTTPException(status_code=500, detail={
+            'exception': get_exc_desc(e),
+        })
+
+
+deckrec_id = 0
+
+@app.post("/recommend")
+async def _(request: Request):
+    global deckrec_id
+    try:
+        segments = await extract_decompressed_payload(request)
+
+        data = loads_json(segments[0])
+        region = data['region']
+        options = data['options']
+
+        user_data = segments[1] if len(segments) > 1 else None
+        if user_data:
+            del options['user_data_file_path']
+            options['user_data_str'] = user_data
+        
+        did = deckrec_id
+        deckrec_id += 1
+        log(f"组卡#{did:05d}请求 region={region}, {deckrec_options_to_str(options)}")
+
         start_time = datetime.now()
-        result: DeckRecommendResult = recommender.recommend(options)
-        cost_time = datetime.now() - start_time
-        log(f"组卡完成, 耗时 {cost_time.total_seconds()} 秒")
+
+        result: DeckRecommendResult = await process_pool.submit(do_recommend, region, options)
+        if isinstance(result, BaseException):
+            raise result
+
+        total_time = (datetime.now() - start_time).total_seconds()
+        wait_time = total_time - result['cost_time']
+
+        log(f"组卡#{did:05d}完成 wait={wait_time:.3f}s cost={result['cost_time']:.3f}s")
 
         return {
-            "status": "success",
-            "result": result.to_dict(),
-            "alg": options.algorithm,
-            "cost_time": cost_time.total_seconds(),
-            "wait_time": wait_time.total_seconds(),
+            "result": result['result'],
+            "alg": options['algorithm'],
+            "cost_time": result['cost_time'],
+            "wait_time": wait_time,
         }
+    
+    except HTTPException as he:
+        raise he
 
     except Exception as e:
         error("组卡请求处理失败")
-        return {
-            "status": "error",
-            "exception": get_exc_desc(e),
-        }
+        raise HTTPException(status_code=500, detail={
+            'exception': get_exc_desc(e),
+        })
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "serve:app",
+        host=HOST,
+        port=PORT,
+        log_level="warning",
+        workers=1,
+        timeout_keep_alive=60,
+    )
