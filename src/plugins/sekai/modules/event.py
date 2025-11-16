@@ -776,7 +776,12 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
                                 cprogress_end = (chapter['end_time'] - detail.start_time) / (detail.end_time - detail.start_time)
                                 chapter_cid = chapter['wl_cid']
                                 chara_color = color_code_to_rgb((await ctx.md.game_character_units.find_by_id(chapter_cid))['colorCode'])
-                                Spacer(w=int(progress_w * (cprogress_end - cprogress_start)), h=progress_h).set_bg(RoundRectBg(chara_color, 4)) \
+                                corners = (False, False, False, False)
+                                if i == 0:
+                                    corners = (True, False, False, True)
+                                if i == len(wl_chapters) - 1:
+                                    corners = (False, True, True, False)
+                                Spacer(w=int(progress_w * (cprogress_end - cprogress_start)), h=progress_h).set_bg(RoundRectBg(chara_color, 4, corners=corners)) \
                                     .set_offset((border + int(progress_w * cprogress_start), border))
                             Spacer(w=int(progress_w * progress), h=progress_h).set_bg(RoundRectBg((255, 255, 255, 200), 4)).set_offset((border, border))
                     else:

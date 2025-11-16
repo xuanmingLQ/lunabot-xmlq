@@ -51,3 +51,4 @@ painter:
   debug: False
   process_num: 4
   log_operation: False
+  roundrect_aa_target_radius: 32

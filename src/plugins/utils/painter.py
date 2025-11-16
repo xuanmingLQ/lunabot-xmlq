@@ -168,7 +168,7 @@ BLUE = (0, 0, 255, 255)
 TRANSPARENT = (0, 0, 0, 0)
 SHADOW = (0, 0, 0, 150)
 
-ROUNDRECT_ANTIALIASING_TARGET_RADIUS = 16
+ROUNDRECT_ANTIALIASING_TARGET_RADIUS_CFG = global_config.item('painter.roundrect_aa_target_radius')
 
 FONT_DIR = "data/utils/fonts/"
 DEFAULT_FONT = "SourceHanSansCN-Regular"
@@ -541,6 +541,7 @@ class Painter:
         self.h = self.size[1]
         self.region_stack = []
 
+
     def _text(
         self, 
         text: str, 
@@ -561,6 +562,95 @@ class Painter:
                 pos = (pos[0] - text_offset[0] + self.offset[0], pos[1] - text_offset[1] + self.offset[1])
                 pilmoji.text(pos, text, font=font, fill=fill, align=align, emoji_position_offset=(0, -std_size[1]), anchor='ls')
         return self
+    
+    def _get_aa_roundrect(
+        self,
+        size: Size, 
+        fill: Color,
+        radius: int, 
+        stroke: Color=None, 
+        stroke_width: int=1,
+        corners = (True, True, True, True), 
+        margin: int | tuple[int, int, int, int] = 0,    # left, top, right, bottom
+    ) -> Image.Image:
+        width, height = size
+        radius = min(radius, width // 2, height // 2)
+
+        if isinstance(margin, int):
+            margin = (margin, margin, margin, margin)
+        ml, mt, mr, mb = margin
+        realsize = (width + ml + mr, height + mt + mb)
+
+        def getbox(x1, y1, x2, y2):
+            return (x1 + ml, y1 + mt, x2 + ml, y2 + mt)
+        def getpos(x, y):
+            return (x + ml, y + mt)
+
+        # 特殊情况：半径为0，直接绘制矩形
+        if radius <= 0:
+            img = Image.new('RGBA', realsize, (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            draw.rectangle(getbox(0, 0, width, height), fill=fill, outline=stroke, width=stroke_width)
+            return img
+
+        img = Image.new('RGBA', realsize, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        
+        # 绘制中心矩形区域
+        if fill:
+            draw.rectangle(getbox(radius, 0, width - radius, height), fill=fill)
+            draw.rectangle(getbox(0, radius, width, height - radius), fill=fill)
+
+        # 绘制四条直边的描边
+        if stroke and stroke_width > 0:
+            draw.rectangle(getbox(radius, 0, width - radius, stroke_width), fill=stroke) # 上
+            draw.rectangle(getbox(radius, height - stroke_width, width - radius, height), fill=stroke) # 下
+            draw.rectangle(getbox(0, radius, stroke_width, height - radius), fill=stroke) # 左
+            draw.rectangle(getbox(width - stroke_width, radius, width, height - radius), fill=stroke) # 右
+
+        # 抗锯齿的缩放比例
+        aa_scale = max(1, math.ceil(ROUNDRECT_ANTIALIASING_TARGET_RADIUS_CFG.get() / radius))
+        aa_radius = radius * aa_scale
+        aa_stroke_width = stroke_width * aa_scale
+
+        # 创建一个放大的、带抗锯齿的圆角模板 (左上角)，并缩小回原始大小
+        corner_aa = None
+        if any(corners):
+            corner_canvas = Image.new('RGBA', (aa_radius * 2, aa_radius * 2), (0, 0, 0, 0))
+            corner_draw = ImageDraw.Draw(corner_canvas)
+            corner_draw.rounded_rectangle(
+                (0, 0, aa_radius * 2, aa_radius * 2),
+                radius=aa_radius,
+                fill=fill,
+                outline=stroke,
+                width=aa_stroke_width,
+                corners=(True, True, True, True)
+            )
+            corner_canvas = corner_canvas.crop((0, 0, aa_radius, aa_radius))
+            corner_aa = corner_canvas.resize((radius, radius), Image.Resampling.BICUBIC)
+        
+        # 创建一个普通的直角模板 (不需要圆角的角落)
+        sharp_corner = None
+        if not all(corners):
+            sharp_corner = Image.new('RGBA', (radius + 1, radius + 1), (0, 0, 0, 0))
+            sharp_draw = ImageDraw.Draw(sharp_corner)
+            if fill:
+                sharp_draw.rectangle((0, 0, radius + 1, radius + 1), fill=fill)
+            if stroke and stroke_width > 0:
+                sharp_draw.rectangle((0, 0, radius + 1, stroke_width), fill=stroke) # 上
+                sharp_draw.rectangle((0, 0, stroke_width, radius + 1), fill=stroke) # 左
+
+        tl, tr, br, bl = corners
+        corner = corner_aa if tl else sharp_corner
+        img.paste(corner, getpos(0, 0))
+        corner = (corner_aa if tr else sharp_corner).transpose(Image.FLIP_LEFT_RIGHT)
+        img.paste(corner, getpos(width - radius, 0))
+        corner = (corner_aa if br else sharp_corner).transpose(Image.ROTATE_180)
+        img.paste(corner, getpos(width - radius, height - radius))
+        corner = (corner_aa if bl else sharp_corner).transpose(Image.FLIP_TOP_BOTTOM)
+        img.paste(corner, getpos(0, height - radius))
+        return img
+
 
     @staticmethod
     def _execute(operations: List[PainterOperation], img: Image.Image, size: Tuple[int, int], image_dict: Dict[str, Image.Image]) -> Image.Image:
@@ -1123,19 +1213,12 @@ class Painter:
 
         pos = (pos[0] + self.offset[0], pos[1] + self.offset[1])
 
-        aa_scale = max(radius, ROUNDRECT_ANTIALIASING_TARGET_RADIUS) / radius if radius > 0 else 1.0
-        aa_size = (int(size[0] * aa_scale), int(size[1] * aa_scale))
-        aa_radius = radius * aa_size[0] / size[0] if size[0] > 0 else radius
+        overlay = self._get_aa_roundrect(size, fill, radius, stroke, stroke_width, corners)
 
-        overlay_size = (aa_size[0] + 1, aa_size[1] + 1)
-        overlay = Image.new('RGBA', overlay_size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
-        draw.rounded_rectangle((0, 0, aa_size[0], aa_size[1]), fill=fill, radius=aa_radius, outline=stroke, width=stroke_width, corners=corners)
         if gradient:
-            gradient_img = gradient.get_img(overlay_size, overlay)
+            gradient_img = gradient.get_img(overlay.size, overlay)
             overlay = gradient_img
 
-        overlay = overlay.resize((size[0], size[1]), Image.Resampling.BICUBIC)
         self.img.alpha_composite(overlay, (pos[0], pos[1]))
         
         return self
@@ -1197,12 +1280,6 @@ class Painter:
         draw_pos = (pos[0] - sw, pos[1] - sw)
         draw_size = (size[0] + sw * 2, size[1] + sw * 2)
 
-        aa_scale = max(radius, ROUNDRECT_ANTIALIASING_TARGET_RADIUS) / radius if radius > 0 else 1.0
-        aa_size = (int(draw_size[0] * aa_scale), int(draw_size[1] * aa_scale))
-        aa_sw = int(sw * aa_scale)
-        aa_r = radius * aa_size[0] / draw_size[0] if draw_size[0] > 0 else radius
-        aa_resize_method = Image.Resampling.BILINEAR if aa_scale < 2 else Image.Resampling.BICUBIC
-
         alpha = fill[3] if isinstance(fill, tuple) and len(fill) == 4 else 0
         bg_offset = int(24 * min(blur / 6, alpha / 200))
         bg_offset = min(bg_offset, draw_size[0] - bg_offset, draw_size[1] - bg_offset)
@@ -1227,11 +1304,14 @@ class Painter:
                 bg = bg.filter(ImageFilter.GaussianBlur(radius=blur))
             bg = mix_image_by_color(bg, fill)
 
-        # 超分绘制圆角矩形，缩放到目标大小
-        overlay = Image.new('RGBA', (aa_size[0], aa_size[1]), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
-        draw.rounded_rectangle((aa_sw, aa_sw, aa_size[0] - aa_sw - 1, aa_size[1] - aa_sw - 1), fill=BLACK, radius=aa_r, corners=corners)
-        overlay = overlay.resize((draw_size[0], draw_size[1]), aa_resize_method)
+        # 超分绘制圆角矩形
+        overlay = self._get_aa_roundrect(
+            size=size,
+            fill=BLACK,
+            radius=radius,
+            corners=corners,
+            margin=sw,
+        )
 
         # 取得mask
         inner_mask = overlay.copy()
@@ -1252,14 +1332,16 @@ class Painter:
             edge_width = min(4, min(draw_size) // 16, radius // 2)
             if edge_width > 0:
                 # 绘制超分圆角矩形边缘底图
-                edge_overlay = Image.new('RGBA', (aa_size[0], aa_size[1]), TRANSPARENT)
-                draw = ImageDraw.Draw(edge_overlay)
-                ew, aa_ew = edge_width, int(edge_width * aa_scale)
-                draw.rounded_rectangle(
-                    (aa_sw, aa_sw, aa_size[0] - aa_sw - 1, aa_size[1] - aa_sw - 1), 
-                    outline=WHITE, width=aa_ew, radius=aa_r, corners=corners
+                ew = edge_width
+                edge_overlay = self._get_aa_roundrect(
+                    size=size,
+                    fill=None,
+                    radius=radius,
+                    stroke=WHITE,
+                    stroke_width=ew,
+                    corners=corners,
+                    margin=sw,
                 )
-                edge_overlay = edge_overlay.resize(draw_size, aa_resize_method)
 
                 # 生成各个位置的渐变色块矩形（左上角，左边，上边，右下角，右边，下边）通过坐标换算保证渐变颜色过渡正确
                 alpha1, alpha2 = int(255 * edge_strength), int(255 * edge_strength * 0.75)
@@ -1369,7 +1451,7 @@ class Painter:
         
         # 渐变背景
         w, h = self.size
-        scale = max(1, min(w, h) // 256)
+        scale = max(1, min(w, h) // 64)
         bg = LinearGradient(
             c1=(l1, c1, h1),
             c2=(l2, c2, h2),
