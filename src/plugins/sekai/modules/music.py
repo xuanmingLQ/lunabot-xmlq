@@ -476,7 +476,10 @@ async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearc
     # 箱活匹配
     if not search_type and options.use_ban_event:
         start_time = time.time()
-        event, _ = await extract_ban_event(ctx, query)
+        try:
+            event, _ = await extract_ban_event(ctx, query)
+        except:
+            event = None
         if event:
             music = await get_music_of_event(ctx, event['id'])
             search_type = "ban_event"
