@@ -1,6 +1,5 @@
 from . import *
 from ..utils import *
-import easyocr
 from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_fixed
 
@@ -12,6 +11,12 @@ file_db = get_file_db("data/llm/db.json", logger)
 
 from concurrent.futures import ThreadPoolExecutor
 ocr_pool_executor = ThreadPoolExecutor(max_workers=1)
+
+
+try:
+    import easyocr
+except ImportError:
+    logger.warning("Easyocr未安装")
 
 
 @dataclass

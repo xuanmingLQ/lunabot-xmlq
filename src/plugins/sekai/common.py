@@ -147,7 +147,11 @@ CARD_SKILL_NAMES = [
     ("judgment_up", "判", "判卡"),
 ]
 
-UNKNOWN_IMG = Image.open(f"{SEKAI_ASSET_DIR}/static_images/unknown.png")
+try:
+    UNKNOWN_IMG = Image.open(f"{SEKAI_ASSET_DIR}/static_images/unknown.png")
+except Exception as e:
+    logger.warning(f"加载 UNKNOWN_IMG 失败: {get_exc_desc(e)}")
+    UNKNOWN_IMG = None
 
 
 MUSIC_TAG_UNIT_MAP = {

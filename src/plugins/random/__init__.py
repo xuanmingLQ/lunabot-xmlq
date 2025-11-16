@@ -7,10 +7,13 @@ cd = ColdDown(file_db, logger)
 gbl = get_group_black_list(file_db, logger, 'random')
 
 
-DICE_SIZE = 32
-dice_images = [f"data/random/dice/{i}.png" for i in range(1, 7)]
-dice_images = [Image.open(d).resize((DICE_SIZE, DICE_SIZE)) for d in dice_images]
-dice_rule_image = Image.open("data/random/dice_rule.jpg")
+try:
+    DICE_SIZE = 32
+    dice_images = [f"data/random/dice/{i}.png" for i in range(1, 7)]
+    dice_images = [Image.open(d).resize((DICE_SIZE, DICE_SIZE)) for d in dice_images]
+    dice_rule_image = Image.open("data/random/dice_rule.jpg")
+except Exception as e:
+    logger.warning(f"加载骰子图片失败: {get_exc_desc(e)}")
 
 
 # 博饼
