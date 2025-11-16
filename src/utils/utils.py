@@ -220,7 +220,7 @@ def run_in_pool_nowait(func, *args):
     return asyncio.get_event_loop().run_in_executor(_default_pool_executor, func, *args)
 
 def start_repeat_with_interval(
-    interval: int, 
+    interval: int | ConfigItem,
     func: Callable,
     logger: 'Logger',
     name: str,
@@ -247,7 +247,7 @@ def start_repeat_with_interval(
                         return
                     except Exception as e:
                         logger.print_exc(f'循环执行 {name} sleep失败')
-                next_time = next_time + timedelta(seconds=interval)
+                next_time = next_time + timedelta(seconds=get_cfg_or_value(interval))
                 try:
                     if every_output:
                         logger.debug(f'开始执行 {name}')
@@ -268,7 +268,7 @@ def start_repeat_with_interval(
             logger.print_exc(f'循环执行 {name} 任务失败')
 
 def repeat_with_interval(
-    interval_secs: int, 
+    interval_secs: int | ConfigItem, 
     name: str, 
     logger: 'Logger', 
     every_output=False, 
@@ -480,6 +480,14 @@ def get_float_str(value: float, precision: int = 2, remove_zero: bool = True) ->
 def get_date_str() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
+def compress_zstd(b: bytes):
+    cctx = zstandard.ZstdCompressor()
+    return cctx.compress(b)
+
+def decompress_zstd(b: bytes):
+    dctx = zstandard.ZstdDecompressor()
+    return dctx.decompress(b, max_output_size=100*1024*1024)
+
 
 # ============================ 文件 ============================ #
 
@@ -503,6 +511,9 @@ def loads_json(s: str | bytes) -> dict:
 
 def dumps_json(data: dict, indent: bool = True) -> str:
     return orjson.dumps(data, option=orjson.OPT_INDENT_2 if indent else 0).decode('utf-8')
+
+def dump_bytes_json(data: dict) -> bytes:
+    return orjson.dumps(data)
 
 def create_folder(folder_path) -> str:
     """

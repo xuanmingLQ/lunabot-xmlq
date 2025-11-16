@@ -678,13 +678,13 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
     if check_time:
         all_user_read_cids = file_db.get(f'{ctx.region}_mysekai_all_user_read_cids', {})
         if phenom_idx == 0:
-            all_user_read_cids[str(qid)] = {
+            all_user_read_cids[str(uid)] = {
                 "time": int(datetime.now().timestamp()),
                 "cids": visit_cids
             }
             file_db.set(f'{ctx.region}_mysekai_all_user_read_cids', all_user_read_cids)
         else:
-            read_info = all_user_read_cids.get(str(qid))
+            read_info = all_user_read_cids.get(str(uid))
             if read_info:
                 read_time = datetime.fromtimestamp(read_info['time'])
                 if (datetime.now() - read_time).days < 1:

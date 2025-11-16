@@ -17,13 +17,15 @@ font_size = 100
 font_jp_size = 80
 s_font_zoom_ratio = 0.8
 
-ttfont_jp = TTFont(font_jp_path)
+try:
+    ttfont_jp = TTFont(font_jp_path)
+except Exception as e:
+    logger.warning(f"加载字体 {font_jp_path} 失败: {get_exc_desc(e)}")
 
 line_break_symbol = "\n"
 
 preview_column = 4
 preview_font_size = 32
-preview_font = ImageFont.truetype(font_path, preview_font_size)
 padding = 64
 spacing = 32 + preview_font_size
 
@@ -62,12 +64,6 @@ sticker_colors = {
 import math
 import numpy as np
 from PIL import Image, ImageDraw
-
-
-font = ImageFont.truetype(font_path, font_size)
-font_jp = ImageFont.truetype(font_jp_path, font_jp_size)
-s_font = ImageFont.truetype(font_path, int(font_size * s_font_zoom_ratio))
-s_font_jp = ImageFont.truetype(font_jp_path, int(font_jp_size * s_font_zoom_ratio))
 
 
 def has_glyph(ttfont, glyph):
@@ -192,6 +188,13 @@ def _get_text_img(
     disable_different_font_size: bool = True,
 ) -> Image.Image:
     """绘制文字图像"""
+
+    # preview_font = get_font(font_path, preview_font_size)
+    font = get_font(font_path, font_size)
+    font_jp = get_font(font_jp_path, font_jp_size)
+    s_font = get_font(font_path, int(font_size * s_font_zoom_ratio))
+    s_font_jp = get_font(font_jp_path, int(font_jp_size * s_font_zoom_ratio))
+
 
     def get_y_offset(c: str, f: ImageFont.ImageFont) -> int:
         if c.isascii() and c != "a":

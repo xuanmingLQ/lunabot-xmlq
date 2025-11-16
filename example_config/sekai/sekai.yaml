@@ -60,7 +60,14 @@ stamp:
       请你将第一张图片的文字去掉，保留其他部分内容和大小比例严格不变（其他图片用于被文字遮挡部分的角色外观的参考）
 
 deck:
-  recommend_server_url: "http://localhost:45556/recommend"
+  servers:
+    - url: http://127.0.0.1:12345
+      weight: 4 # 负载均衡权重
+    - url: http://127.0.0.1:45678
+      weight: 8
+
+  music_meta_url: https://sekai-data.3-3.dev/music_metas.json
+  data_update_interval_seconds: 30
   default_algs: ['dfs', 'ga']
   timeout:
     default: 5
@@ -111,5 +118,16 @@ mysekai:
       - mysekai_material_67~92
       - material_174~203
 
+sk:
+  record_interval_seconds: 60
+  record_time_after_event_end_minutes: 0
+  update_ranking_log_interval: 30
+  csb_judge_stop_threshold_minutes: 5
   
+  backup:
+    interval_seconds: 21600
+    threshold_days: 5
+    pybd_upload: false
+    pybd_remote_dir: "LunabotSekaiRankingData"
+    pybd_verbose: true
 

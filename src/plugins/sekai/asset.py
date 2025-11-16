@@ -283,6 +283,13 @@ class MasterDataManager:
         await self._update_before_get(region)
         return self.data[region]
     
+    async def get_path(self, region: str):
+        """
+        获取数据文件路径
+        """
+        await self._update_before_get(region)
+        return self.get_cache_path(region)
+    
     async def get_indices(self, region: str, key: str) -> Dict[str, Any]:
         """
         获取索引，如果key没有索引，返回None
@@ -370,14 +377,26 @@ class RegionMasterDataWrapper:
         self.mgr = MasterDataManager.get(name)
     
     async def get(self):
+        """
+        获取数据
+        """
         return await self.mgr.get_data(self.region)
+    
+    async def get_path(self):
+        """
+        获取数据文件路径
+        """
+        return await self.mgr.get_path(self.region)
 
-    async def indices(self, key: str):
+    async def _indices(self, key: str):
         return await self.mgr.get_indices(self.region, key)
     
     async def find_by(self, key: str, value: Any, mode='first'):
+        """
+        查找item[key]=value的元素，mode=first/last/all
+        """
         # 使用indices优化
-        ind = await self.indices(key)
+        ind = await self._indices(key)
         if ind is not None:
             ret = ind.get(value)
             if not ret: 
@@ -392,8 +411,11 @@ class RegionMasterDataWrapper:
         return find_by(data, key, value, mode)
 
     async def collect_by(self, key: str, values: Union[List[Any], Set[Any]]):
+        """
+        收集item[key]在values中的所有元素
+        """
         # 使用索引
-        ind = await self.indices(key)
+        ind = await self._indices(key)
         if ind is not None:
             ret = []
             for value in values:
@@ -410,9 +432,15 @@ class RegionMasterDataWrapper:
         return ret
                     
     async def find_by_id(self, id: int):
+        """
+        查找id对应的元素
+        """
         return await self.find_by('id', id)
     
     async def collect_by_ids(self, ids: Union[List[int], Set[int]]):
+        """
+        收集id在ids中的所有元素
+        """
         return await self.collect_by('id', ids)
 
 class RegionMasterDataCollection:
@@ -1060,5 +1088,16 @@ class WebJsonRes:
                 else:
                     raise e
         return self.data
+    
+    async def get_update_time(self) -> datetime:
+        if not self.data or not self.update_interval or datetime.now() - self.update_time > self.update_interval:
+            try:
+                await self.download()
+            except Exception as e:
+                if self.data:
+                    logger.error(f"更新网页Json资源 [{self.name}] 失败: {e}，继续使用旧数据")
+                else:
+                    raise e
+        return self.update_time
     
 

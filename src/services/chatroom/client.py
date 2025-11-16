@@ -1,6 +1,3 @@
-"""
-连接chatroom服务的终端客户端
-"""
 import urwid
 import aiorpcx
 import asyncio
@@ -1396,6 +1393,7 @@ async def send_msg(msg):
             log_box.add_line(f'发送失败 找不到消息: {id}')
             return
     if not msg: return
+    msg = config.get('send_prefix', '') + msg + config.get('send_suffix', '')
     log_box.add_line(f"发送消息到{gdata.cur_group_name}({gdata.cur_group_id}): {limit_str_len(str(msg), 100)}")
     await rpc_send_group_msg_split(gdata.cur_group_id, msg)
 
@@ -1623,7 +1621,7 @@ async def update_loop():
             if group_index is None: group_index = -1
             if gdata.cur_group_id:
                 group_str = f' [{group_index+1}/{len(gdata.opened_group)}] {gdata.cur_group_name}({gdata.cur_group_id})'
-            title_text = urwid.Text(f'[{time_str}] MYBOT客户端')
+            title_text = urwid.Text(f'[{time_str}] LUNABOT客户端')
 
             title.contents.append((title_text, title.options(width_type='pack')))
             title.contents.append((reload_button, title.options(width_type='pack')))

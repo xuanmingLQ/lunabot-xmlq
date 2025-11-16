@@ -6,3 +6,6 @@ server:
   
 file_db_path: ./file_db.json
 tmp_file_folder: ./cache
+
+send_prefix: ""
+send_suffix: ""

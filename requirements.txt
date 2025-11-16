@@ -1,3 +1,9 @@
+nonebot2[fastapi]
+nonebot-adapter-onebot
+nonebot_plugin_htmlrender==0.6.0
+nonebot_plugin_picstatus==2.1.3.post1
+nonebot_plugin_apscheduler
+tenacity
 matplotlib
 jieba
 requests
@@ -14,11 +20,12 @@ PicImageSearch
 aiorpcx
 asteval
 yt-dlp
+emoji==2.0.0
 imageio[ffmpeg]
 pilmoji[requests]
 zhon
 orjson
-tencentcloud
+tencentcloud-sdk-python
 ffmpeg-python
 pdf2image   # also need to install poppler-utils
 uvloop
@@ -26,6 +33,14 @@ pjsekai.scores
 setproctitle
 bypy
 colour-science
+opencv-python
+zstandard
+selenium
+google-genai
+aiosqlite
+rapidfuzz
+sekai_deck_recommend_cpp
+pydub
+audioop-lts
 
-# autochat service
-chromadb
+# easyocr   # optional for llm.translator

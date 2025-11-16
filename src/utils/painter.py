@@ -413,10 +413,15 @@ class LinearGradient(Gradient):
             vector_p1_to_pixel = coords - pixel_p1 # (H, W, 2)
             dot_product = np.sum(vector_p1_to_pixel * gradient_vector, axis=-1) # (H, W)
             t = dot_product / length_sq
-        elif self.method == 'seperate':
-            vector_pixel_to_p1 = coords - pixel_p1
-            vector_p2_to_p1 = pixel_p2 - pixel_p1
-            t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
+        elif self.method == 'seperate': # seperate仅支持对角线/水平/垂直
+            if abs(pixel_p1[0] - pixel_p2[0]) < 0.5:
+                t = (coords[:, :, 1] - pixel_p1[1]) / (pixel_p2[1] - pixel_p1[1])
+            elif abs(pixel_p1[1] - pixel_p2[1]) < 0.5:
+                t = (coords[:, :, 0] - pixel_p1[0]) / (pixel_p2[0] - pixel_p1[0])
+            else:
+                vector_pixel_to_p1 = coords - pixel_p1
+                vector_p2_to_p1 = pixel_p2 - pixel_p1
+                t = np.average(vector_pixel_to_p1 / vector_p2_to_p1, axis=-1)
         else:
             raise ValueError(f"Invalid LinearGradient method: {self.method}")
         t_clamped = np.clip(t, 0, 1) 
@@ -1379,16 +1384,28 @@ class Painter:
                 dist = (((x - w // 2) / w * 2) ** 2 + ((y - h // 2) / h * 2) ** 2)
                 size = int(size * dist)
 
+                alpha = random.normalvariate(50, 200) 
+
+                # 大小影响透明度
                 size_alpha_factor, std_size_lower, std_size_upper = 1.0, 64 * size_factor, 128 * size_factor
                 if size < std_size_lower:
                     size_alpha_factor = size / std_size_lower
                 if size > std_size_upper:
                     size_alpha_factor = 1.0 - (size - std_size_upper * 1.5) / (std_size_upper * 1.5)
-                alpha = int(random.normalvariate(50, 200) * max(0, min(1.2, size_alpha_factor) * ((l1 + l2) * 0.5 * 0.7 + 0.3)))
+                alpha *= max(0, min(1.2, size_alpha_factor))    
+
+                # 背景亮度影响透明度
+                lightness_alpha_factor = max(((l1 + l2) * 0.5), 0.3)
+                alpha *= lightness_alpha_factor   
+
+                # 随机一些特别亮的三角形
                 if random.random() < 0.05 and size > std_size_lower:
-                    alpha = 255
+                    alpha = 255 * lightness_alpha_factor
+
+                alpha = int(alpha)
                 if alpha <= 10:
                     continue
+
                 draw_tri(x, y, rot, size, alpha)
 
         rand_tri(int(20 * dense_factor), (128 * size_factor, 16 * size_factor))

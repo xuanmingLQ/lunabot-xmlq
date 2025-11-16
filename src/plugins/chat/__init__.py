@@ -145,7 +145,8 @@ async def get_forward_msg_text(model: str, forward_seg, indent: int = 0) -> str:
             elif mtype == "face":
                 text += f"[表情]"
             elif mtype == "image":
-                text += await get_image_caption(mdata, model, IMAGE_CAPTION_TIMEOUT_SEC_CFG.get(), use_llm=True)
+                use_llm = mdata.get("sub_type", 0) == 0
+                text += await get_image_caption(mdata, model, IMAGE_CAPTION_TIMEOUT_SEC_CFG.get(), use_llm=use_llm)
             elif mtype == "video":
                 text += f"[视频]"
             elif mtype == "audio":

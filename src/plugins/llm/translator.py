@@ -14,6 +14,12 @@ from concurrent.futures import ThreadPoolExecutor
 ocr_pool_executor = ThreadPoolExecutor(max_workers=1)
 
 
+try:
+    import easyocr
+except ImportError:
+    logger.warning("Easyocr未安装")
+
+
 @dataclass
 class TranslationResult:
     img: Image.Image
