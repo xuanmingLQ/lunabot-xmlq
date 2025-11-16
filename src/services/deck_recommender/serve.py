@@ -212,7 +212,8 @@ async def _(request: Request):
 
         user_data = segments[1] if len(segments) > 1 else None
         if user_data:
-            del options['user_data_file_path']
+            if 'user_data_file_path' in options:
+                del options['user_data_file_path']
             options['user_data_str'] = user_data
         
         did = deckrec_id

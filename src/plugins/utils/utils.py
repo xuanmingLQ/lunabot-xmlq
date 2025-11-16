@@ -512,6 +512,9 @@ def loads_json(s: str | bytes) -> dict:
 def dumps_json(data: dict, indent: bool = True) -> str:
     return orjson.dumps(data, option=orjson.OPT_INDENT_2 if indent else 0).decode('utf-8')
 
+def dump_bytes_json(data: dict) -> bytes:
+    return orjson.dumps(data)
+
 def create_folder(folder_path) -> str:
     """
     创建文件夹，返回文件夹路径

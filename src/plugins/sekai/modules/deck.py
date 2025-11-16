@@ -920,7 +920,8 @@ def log_options(ctx: SekaiHandlerContext, user_id: int, options: DeckRecommendOp
 # 自动组卡实现(批量提交) 返回 [Tuple[结果，结果算法来源，Dict[算法: Tuple[耗时，等待时间]]], ...]
 async def do_deck_recommend_batch(
     ctx: SekaiHandlerContext, 
-    options_list: list[DeckRecommendOptions]
+    options_list: list[DeckRecommendOptions],
+    user_data: bytes,
 ) -> list[Tuple[DeckRecommendResult, List[str], Dict[str, Tuple[timedelta, timedelta]]]]:
     # 请求组卡函数（负载均衡）
     async def request_recommend(index: int, payload: bytes) -> dict:
@@ -981,8 +982,7 @@ async def do_deck_recommend_batch(
 
         opt = options.to_dict()
         payloads_userdata = []
-        with open(opt['user_data_file_path'], 'rb') as f:
-            add_payload_segment(payloads_userdata, f.read())
+        add_payload_segment(payloads_userdata, user_data)
 
         for alg in algs:
             payloads = []
@@ -1236,46 +1236,43 @@ async def compose_deck_recommend_image(
             else:
                 profile['userCards'].append(bp_card)
 
+    options.region = ctx.region
+    log_options(ctx, uid, options)
+
     # 准备用户数据
-    with TempFilePath("json") as userdata_path:
-        with Timer("deckrec:dump_profile", logger):
-            await adump_json(profile, userdata_path)
+    user_data = dump_bytes_json(profile)  
+    # 还原profile避免画头像问题
+    profile['userCards'] = original_usercards
 
-        options.region = ctx.region
-        options.user_data_file_path = os.path.abspath(userdata_path)
-        log_options(ctx, uid, options)
-        # 还原profile避免画头像问题
-        profile['userCards'] = original_usercards
-
-        # 组卡！
-        all_options = []
-        cost_times, wait_times = {}, {}
-        result_decks = []
-        result_algs = []
-        if recommend_type == "challenge_all":
-            # 挑战组卡没有指定角色情况下，每角色组1个最强
-            for cid in range(1, 26 + 1):
-                options.challenge_live_character_id = cid
-                options.limit = 1
-                all_options.append(DeckRecommendOptions(options))
-            options.challenge_live_character_id = None
-            for res, algs, cost_and_wait_times in await do_deck_recommend_batch(ctx, all_options):
-                result_decks.extend(res.decks)
-                result_algs.extend(algs)
-                for alg, (cost, wait) in cost_and_wait_times.items():
-                    if alg not in cost_times:
-                        cost_times[alg] = 0
-                        wait_times[alg] = 0
-                    cost_times[alg] += cost
-                    wait_times[alg] = max(wait_times[alg], wait)
-        else:
-            # 正常组卡
-            res, algs, cost_and_wait_times = (await do_deck_recommend_batch(ctx, [options]))[0]
+    # 组卡！
+    all_options = []
+    cost_times, wait_times = {}, {}
+    result_decks = []
+    result_algs = []
+    if recommend_type == "challenge_all":
+        # 挑战组卡没有指定角色情况下，每角色组1个最强
+        for cid in range(1, 26 + 1):
+            options.challenge_live_character_id = cid
+            options.limit = 1
+            all_options.append(DeckRecommendOptions(options))
+        options.challenge_live_character_id = None
+        for res, algs, cost_and_wait_times in await do_deck_recommend_batch(ctx, all_options, user_data):
+            result_decks.extend(res.decks)
+            result_algs.extend(algs)
             for alg, (cost, wait) in cost_and_wait_times.items():
-                cost_times[alg] = cost
-                wait_times[alg] = wait
-            result_decks = res.decks
-            result_algs = algs
+                if alg not in cost_times:
+                    cost_times[alg] = 0
+                    wait_times[alg] = 0
+                cost_times[alg] += cost
+                wait_times[alg] = max(wait_times[alg], wait)
+    else:
+        # 正常组卡
+        res, algs, cost_and_wait_times = (await do_deck_recommend_batch(ctx, [options], user_data))[0]
+        for alg, (cost, wait) in cost_and_wait_times.items():
+            cost_times[alg] = cost
+            wait_times[alg] = wait
+        result_decks = res.decks
+        result_algs = algs
 
     # 获取音乐标题和封面
     if options.music_id == OMAKASE_MUSIC_ID:
@@ -1882,4 +1879,4 @@ async def deckrec_update_data():
                 await req(server['url'], False, False)
 
         except Exception as e:
-            logger.print_exc(f"更新组卡数据失败 ({region})")
+            logger.warning(f"更新组卡数据失败 ({region}): {get_exc_desc(e)}")
