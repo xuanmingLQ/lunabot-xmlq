@@ -3,6 +3,7 @@ from PIL import Image, ImageFont, ImageDraw, ImageFilter, ImageChops
 from PIL.ImageFont import ImageFont as Font
 from dataclasses import dataclass, is_dataclass, fields
 import os
+import emoji.unicode_codes
 import numpy as np
 from copy import deepcopy
 import math
@@ -197,6 +198,7 @@ class FontCacheEntry:
 
 FONT_CACHE_MAX_NUM = 128
 font_cache: dict[str, FontCacheEntry] = {}
+font_std_size_cache: dict[Font, Size] = {}
 
 def crop_by_align(original_size, crop_size, align):
     w, h = original_size
@@ -276,15 +278,33 @@ def get_font(path: str, size: int) -> Font:
                 break
         if font is None:
             raise FileNotFoundError(f"Font file not found: {path}")
-        font_cache[key] = FontCacheEntry(font, datetime.now())
+        font_cache[key] = FontCacheEntry(
+            font=font, 
+            last_used=datetime.now(),
+        )
         # 清理过期的字体缓存
         while len(font_cache) > FONT_CACHE_MAX_NUM:
             oldest_key = min(font_cache, key=lambda k: font_cache[k].last_used)
-            del font_cache[oldest_key]
+            removed = font_cache.pop(oldest_key)
+            font_std_size_cache.pop(removed.font, None)
     return font_cache[key].font
 
+def get_font_std_size(font: Font) -> Size:
+    global font_std_size_cache
+    if font not in font_std_size_cache:
+        std_size = get_text_size(font, "哇")
+        font_std_size_cache[font] = std_size
+        return std_size
+    return font_std_size_cache[font]
+
+def has_emoji(text: str) -> bool:
+    for c in text:
+        if c in emoji.EMOJI_DATA:
+            return True
+    return False
+
 def get_text_size(font: Font, text: str) -> Size:
-    if emoji.emoji_count(text) > 0:
+    if has_emoji(text):
         return getsize_emoji(text, font=font)
     else:
         bbox = font.getbbox(text)
@@ -529,9 +549,8 @@ class Painter:
         fill: Color = BLACK,
         align: str = "left"
     ):
-        std_size = get_text_size(font, "哇")
-        has_emoji = emoji.emoji_count(text) > 0
-        if not has_emoji:
+        std_size = get_font_std_size(font)
+        if not has_emoji(text):
             draw = ImageDraw.Draw(self.img)
             text_offset = (0, -std_size[1])
             pos = (pos[0] - text_offset[0] + self.offset[0], pos[1] - text_offset[1] + self.offset[1])
@@ -545,7 +564,7 @@ class Painter:
 
     @staticmethod
     def _execute(operations: List[PainterOperation], img: Image.Image, size: Tuple[int, int], image_dict: Dict[str, Image.Image]) -> Image.Image:
-        t = datetime.now()
+        start_time = datetime.now()
         debug_print(f"Sub process enter memory usage: {get_memo_usage()} MB")
         if img is None:
             img = Image.new('RGBA', size, TRANSPARENT)
@@ -561,9 +580,11 @@ class Painter:
             for key, value in get_type_hints(func).items():
                 if value == Painter:
                     kwargs[key] = p
+            t = datetime.now()
             func(*op.args, **kwargs)
-            # debug_print(f"Method {op.name} executed, current memory usage: {get_memo_usage()} MB")
-        debug_print(f"Sub process use time: {datetime.now() - t}")
+            if global_config.get('painter.log_operation', False):
+                debug_print(f"Method {op.func} executed, mem: {get_memo_usage()} MB, time: {datetime.now() - t}")
+        debug_print(f"Sub process use time: {datetime.now() - start_time}")
         return p.img
 
     async def get(self, cache_key: str=None) -> Image.Image:

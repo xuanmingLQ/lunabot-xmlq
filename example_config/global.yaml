@@ -50,3 +50,4 @@ plot:
 painter:
   debug: False
   process_num: 4
+  log_operation: False

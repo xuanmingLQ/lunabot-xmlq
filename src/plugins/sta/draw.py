@@ -74,7 +74,7 @@ async def get_pie_frame(gid, date_str, recs, topk_user: list[int], topk_name: li
     for rec in recs:
         if rec['user_id'] not in topk_user_set:
             other_count += 1
-            other_users.add(rec['user_id'])
+            other_users.add(int(rec['user_id']))
             if has_image(rec['msg']):
                 other_image_count += 1
         else:
@@ -91,7 +91,7 @@ async def get_pie_frame(gid, date_str, recs, topk_user: list[int], topk_name: li
     while topk_user_count and topk_user_count[-1] / total_count < rate_threshold:
         other_count += topk_user_count.pop()
         other_image_count += topk_user_image_count.pop()
-        other_users.add(topk_user.pop())
+        other_users.add(int(topk_user.pop()))
         topk_name.pop()
 
     if other_count > 0:
