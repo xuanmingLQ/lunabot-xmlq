@@ -703,7 +703,6 @@ class Painter:
                             print(f"Failed to remove cache file {p}: {e}")
                     debug_print(f"Cache mismatch, removed {len(paths)} files")
 
-        global _painter_pool
         debug_print(f"Main process memory usage: {get_memo_usage()} MB")
 
         # 收集所有图片对象到字典中
@@ -715,12 +714,15 @@ class Painter:
             total_img_size += img.size[0] * img.size[1] * 4
         debug_print(f"image_dict len: {len(image_dict)}, total size: {total_img_size//1024//1024} MB")
 
-        # for op in self.operations:
-        #     debug_print(f"Operation: {op.name}, args: {op.args}, offset: {op.offset}, size: {op.size}")
-
         # 执行绘图操作
         t = datetime.now()
-        self.img = await _painter_pool.submit(Painter._execute, self.operations, self.img, self.size, image_dict)
+
+        if PAINTER_PROCESS_NUM > 0:
+            global _painter_pool
+            self.img = await _painter_pool.submit(Painter._execute, self.operations, self.img, self.size, image_dict)
+        else:
+            self.img = await asyncio.to_thread(Painter._execute, self.operations, self.img, self.size, image_dict)
+
         self.operations = []
         debug_print(f"Painter executed in {datetime.now() - t}")
 
@@ -1517,5 +1519,6 @@ class Painter:
         self.img.paste(bg, self.offset)
 
 
-_painter_pool: ProcessPool = ProcessPool(PAINTER_PROCESS_NUM, name='draw')
+if PAINTER_PROCESS_NUM > 0:
+    _painter_pool: ProcessPool = ProcessPool(PAINTER_PROCESS_NUM, name='draw')
 
