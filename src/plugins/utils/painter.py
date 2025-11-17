@@ -23,7 +23,7 @@ import io
 import colour
 
 from .config import *
-from .img_utils import mix_image_by_color, adjust_image_alpha_inplace
+from .img_utils import adjust_image_alpha_inplace
 from .process_pool import *
 
 
@@ -403,7 +403,7 @@ class Gradient:
         if mask:
             assert mask.size == size, "Mask size must match image size"
             if mask.mode == 'RGBA':
-                mask = mask.split()[3]
+                mask = mask.getchannel('A')
             else:
                 mask = mask.convert('L')
             img.putalpha(mask)
@@ -1014,7 +1014,7 @@ class Painter:
         def adjust_overlay_alpha_by_color(overlay: Image.Image, color: Color):
             if len(color) < 4 or color[3] == 255:
                 return
-            overlay_alpha = overlay.split()[3]
+            overlay_alpha = overlay.getchannel('A')
             overlay_alpha = Image.eval(overlay_alpha, lambda a: int(a * color[3] / 255))
             overlay.putalpha(overlay_alpha)
 
@@ -1135,7 +1135,7 @@ class Painter:
         overlay = Image.new('RGBA', sub_img.size, (0, 0, 0, 0))
         overlay.paste(sub_img, (0, 0))
         if alpha is not None:
-            overlay_alpha = overlay.split()[3]
+            overlay_alpha = overlay.getchannel('A')
             overlay_alpha = Image.eval(overlay_alpha, lambda a: int(a * alpha))
             overlay.putalpha(overlay_alpha)
 
@@ -1303,8 +1303,16 @@ class Painter:
             # 复制pos位置的size大小的原图模糊并混合颜色
             bg = self.img.crop(bg_region)
             if blur > 0:
-                bg = bg.filter(ImageFilter.GaussianBlur(radius=blur))
-            bg = mix_image_by_color(bg, fill)
+                # 适当缩小背景
+                downsample = max(1, blur // 2)
+                if downsample > 1:
+                    bg = bg.resize(
+                        (bg.width // downsample, bg.height // downsample),
+                        Image.Resampling.BILINEAR
+                    )
+                blur_method = ImageFilter.GaussianBlur if downsample >= 2 else ImageFilter.BoxBlur
+                bg = bg.filter(blur_method(radius=blur / downsample))
+            bg.alpha_composite(Image.new('RGBA', bg.size, tuple(fill)))
 
         # 超分绘制圆角矩形
         overlay = self._get_aa_roundrect(
@@ -1321,12 +1329,25 @@ class Painter:
 
         # 通过模糊底图获取阴影，然后删除内部阴影
         adjust_image_alpha_inplace(overlay, shadow_alpha, method='multiply')
-        overlay = overlay.filter(ImageFilter.GaussianBlur(radius=int(sw * 0.5)))
+        # 只模糊四个边以提升性能
+        swb = int(sw * 1.5)
+        overlay_left = overlay.crop((0, 0, min(swb, overlay.width), overlay.height))
+        overlay_right = overlay.crop((overlay.width - min(swb, overlay.width), 0, overlay.width, overlay.height))
+        overlay_upper = overlay.crop((0, 0, overlay.width, min(swb, overlay.height)))
+        overlay_lower = overlay.crop((0, overlay.height - min(swb, overlay.height), overlay.width, overlay.height))
+        overlay_left = overlay_left.filter(ImageFilter.GaussianBlur(radius=sw * 0.5))
+        overlay_right = overlay_right.filter(ImageFilter.GaussianBlur(radius=sw * 0.5))
+        overlay_upper = overlay_upper.filter(ImageFilter.GaussianBlur(radius=sw * 0.5))
+        overlay_lower = overlay_lower.filter(ImageFilter.GaussianBlur(radius=sw * 0.5))
+        overlay.paste(overlay_left, (0, 0))
+        overlay.paste(overlay_right, (overlay.width - overlay_right.width, 0))
+        overlay.paste(overlay_upper, (0, 0))
+        overlay.paste(overlay_lower, (0, overlay.height - overlay_lower.height))
         overlay = ImageChops.multiply(overlay, ImageChops.invert(inner_mask))
 
         # 用圆角矩形mask裁剪并粘贴背景
         bg = bg.resize(size, Image.Resampling.BILINEAR)
-        bg.putalpha(bg_mask.split()[3]) 
+        bg.putalpha(bg_mask.getchannel('A')) 
         overlay.alpha_composite(bg, (sw, sw))
 
         # 边缘效果
@@ -1514,7 +1535,7 @@ class Painter:
                 draw_tri(x, y, rot, size, alpha)
 
         rand_tri(int(20 * dense_factor), (128 * size_factor, 16 * size_factor))
-        rand_tri(int(200 * dense_factor), (64 * size_factor, 16 * size_factor))
+        rand_tri(int(100 * dense_factor), (100 * size_factor, 16 * size_factor))
 
         self.img.paste(bg, self.offset)
 
