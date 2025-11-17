@@ -824,7 +824,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
     if l and r:
         segs.append((l, r))
     
-    texts.append((f"{ranks[-1].name} 的停车区间", style1))
+    texts.append((f"T{ranks[-1].rank} \"{ranks[-1].name}\" 的停车区间", style1))
     for l, r in segs:
         if l == r:
             continue
@@ -856,7 +856,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
                     TextBox(text, style)
     
     add_watermark(canvas)
-    return await canvas.get_img(1.5)
+    return await canvas.get_img(1.5 if len(texts) < 10 else 1.0)
 
 # 合成玩家追踪图片
 async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str, int], event: dict = None) -> Image.Image:
