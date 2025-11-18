@@ -690,7 +690,10 @@ async def send_boost(ctx: SekaiHandlerContext, qid: int) -> str:
     failed_reason = result.get('failed_reason', '未知错误')
     ret_msg = f"成功送火{ok_times}次"
     if ok_times < 3:
-        ret_msg += f"，失败{3-ok_times}次，错误信息: {failed_reason}"
+        if 'opponent_user_receivable_count_max' in failed_reason:
+            ret_msg += f"，失败{3-ok_times}次（达到送火上限）"
+        else:
+            ret_msg += f"，失败{3-ok_times}次，错误信息: \n{failed_reason}"
     return ret_msg
 
 # 合成活动详情图片
