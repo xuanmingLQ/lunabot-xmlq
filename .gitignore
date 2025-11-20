@@ -295,13 +295,7 @@ dmypy.json
 data/
 logs/
 sandbox/
-<<<<<<< HEAD
 debug/
 cache/
 notgit/
 notgit.*
-=======
-config/
-debug/
-cache/
->>>>>>> origin/xmlq
