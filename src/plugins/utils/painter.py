@@ -591,7 +591,7 @@ class Painter:
         if radius <= 0:
             img = Image.new('RGBA', realsize, (0, 0, 0, 0))
             draw = ImageDraw.Draw(img)
-            draw.rectangle(getbox(0, 0, width - 1, height - 1), fill=fill, outline=stroke, width=stroke_width)
+            draw.rectangle(getbox(0, 0, width, height), fill=fill, outline=stroke, width=stroke_width)
             return img
 
         img = Image.new('RGBA', realsize, (0, 0, 0, 0))
