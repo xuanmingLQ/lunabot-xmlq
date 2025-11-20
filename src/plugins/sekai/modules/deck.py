@@ -952,7 +952,7 @@ async def do_deck_recommend_batch(
                         msg = f"HTTP {resp.status}: "
                         try:
                             err_data = await resp.json()
-                            msg += err_data.get('message', '')
+                            msg += err_data.get('exception', '') or err_data.get('message', '')
                         except:
                             try:
                                 msg += await resp.text()
