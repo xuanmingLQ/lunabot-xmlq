@@ -147,7 +147,7 @@ CARD_SKILL_NAMES = [
 ]
 
 try:
-    UNKNOWN_IMG = Image.open(f"{SEKAI_ASSET_DIR}/static_images/unknown.png")
+    UNKNOWN_IMG = Image.open(f"{SEKAI_ASSET_DIR}/static_images/unknown.jpg")
 except Exception as e:
     logger.warning(f"加载 UNKNOWN_IMG 失败: {get_exc_desc(e)}")
     UNKNOWN_IMG = None

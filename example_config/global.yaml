@@ -1,6 +1,8 @@
 log_level: "INFO"
 superuser:
   - 12345678
+  
+data_dir: data/
 
 group_member_name_cache_expire_seconds: 60  # 群成员名称缓存过期时间（秒）
 
