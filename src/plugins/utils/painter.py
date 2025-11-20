@@ -579,7 +579,8 @@ class Painter:
         if isinstance(margin, int):
             margin = (margin, margin, margin, margin)
         ml, mt, mr, mb = margin
-        realsize = (width + ml + mr, height + mt + mb)
+        width, height = width - 1, height - 1
+        realsize = (width + ml + mr + 1, height + mt + mb + 1)
 
         def getbox(x1, y1, x2, y2):
             return (x1 + ml, y1 + mt, x2 + ml, y2 + mt)
@@ -590,7 +591,7 @@ class Painter:
         if radius <= 0:
             img = Image.new('RGBA', realsize, (0, 0, 0, 0))
             draw = ImageDraw.Draw(img)
-            draw.rectangle(getbox(0, 0, width, height), fill=fill, outline=stroke, width=stroke_width)
+            draw.rectangle(getbox(0, 0, width - 1, height - 1), fill=fill, outline=stroke, width=stroke_width)
             return img
 
         img = Image.new('RGBA', realsize, (0, 0, 0, 0))
@@ -627,7 +628,7 @@ class Painter:
                 corners=(True, True, True, True)
             )
             corner_canvas = corner_canvas.crop((0, 0, aa_radius, aa_radius))
-            corner_aa = corner_canvas.resize((radius, radius), Image.Resampling.BICUBIC)
+            corner_aa = corner_canvas.resize((radius + 1, radius + 1), Image.Resampling.BICUBIC)
         
         # 创建一个普通的直角模板 (不需要圆角的角落)
         sharp_corner = None
@@ -1269,7 +1270,7 @@ class Painter:
         fill: Color,
         radius: int, 
         blur: float=4,
-        shaodow_width: int=6,
+        shadow_width: int=6,
         shadow_alpha: float=0.3,
         corners = (True, True, True, True),
         edge_strength: float=0.6,
@@ -1277,7 +1278,7 @@ class Painter:
         if min(size) <= 0:
             return self
 
-        sw = shaodow_width
+        sw = shadow_width
         pos = (pos[0] + self.offset[0], pos[1] + self.offset[1])
         draw_pos = (pos[0] - sw, pos[1] - sw)
         draw_size = (size[0] + sw * 2, size[1] + sw * 2)
