@@ -1,11 +1,9 @@
 import aiohttp
 from urllib.parse import urlencode
 from .utils import loads_json,get_logger,HttpError
-from .config import Config
+from .env import SEKAI_API_BASE_PATH, SEKAI_ASSET_BASE_PATH
 
 logger = get_logger("Request")
-gameapi_config = Config('sekai.gameapi')
-asset_config = Config('sekai.asset')
 
 class ApiError(Exception):
     def __init__(self, path, msg, *args):
@@ -15,7 +13,7 @@ class ApiError(Exception):
     pass
 # Api请求
 async def server(path:str, method:str, json:dict|None=None, query:dict|None=None)->dict:
-    url = f"{gameapi_config.get('api_base_path')}{path}"
+    url = f"{SEKAI_API_BASE_PATH}{path}"
     if query:
         url = f"{url}?{parse_query(query)}"
     logger.info(url)
@@ -40,7 +38,7 @@ async def server(path:str, method:str, json:dict|None=None, query:dict|None=None
     pass
 # 下载资源
 async def download_data(path:str, params:list|None=None, query:dict|None=None):
-    url = f"{asset_config.get('assets_base_path')}{path}"
+    url = f"{SEKAI_ASSET_BASE_PATH}{path}"
     if params: url = "/".join([url]+params)
     if query:
         url=f"{url}?{parse_query(query)}"

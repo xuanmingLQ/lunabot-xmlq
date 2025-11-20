@@ -1,3 +1,4 @@
+api_base_path: http://127.0.0.1:8888
 # 日服
 jp:
   profile_api_url:                "https://xxx/api/jp/user/{uid}/profile"       # 游戏API: 获取用户profile
