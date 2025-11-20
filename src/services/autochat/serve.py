@@ -290,7 +290,9 @@ async def chat(msg: Message):
         if random.random() > reply_rate:
             info(f"意愿值: {last_willingness:.4f} -> {status.willingness:.4f}")
             return
+        
         info(f"意愿值: {last_willingness:.4f} -> {status.willingness:.4f}, 决定回复该消息")
+        await asyncio.sleep(config.get('chat.get_history_msg_delay_seconds'))
 
     except:
         error(f"更新意愿值时失败，放弃聊天处理")
