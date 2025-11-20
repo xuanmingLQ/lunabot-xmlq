@@ -109,7 +109,6 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-<<<<<<< HEAD
 
 .venv
 env/
@@ -257,9 +256,6 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-=======
-.env
->>>>>>> origin/xmlq
 .venv
 env/
 venv/
