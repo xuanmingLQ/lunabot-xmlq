@@ -694,7 +694,10 @@ async def send_boost(ctx: SekaiHandlerContext, qid: int) -> str:
     failed_reason = result.get('failed_reason', '未知错误')
     ret_msg = f"成功送火{ok_times}次"
     if ok_times < 3:
-        ret_msg += f"，失败{3-ok_times}次，错误信息: {failed_reason}"
+        if 'opponent_user_receivable_count_max' in failed_reason:
+            ret_msg += f"（达到送火上限）"
+        else:
+            ret_msg += f"，失败{3-ok_times}次，错误信息: \n{failed_reason}"
     return ret_msg
 
 # 合成活动详情图片
@@ -780,7 +783,12 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
                                 cprogress_end = (chapter['end_time'] - detail.start_time) / (detail.end_time - detail.start_time)
                                 chapter_cid = chapter['wl_cid']
                                 chara_color = color_code_to_rgb((await ctx.md.game_character_units.find_by_id(chapter_cid))['colorCode'])
-                                Spacer(w=int(progress_w * (cprogress_end - cprogress_start)), h=progress_h).set_bg(RoundRectBg(chara_color, 4)) \
+                                corners = (False, False, False, False)
+                                if i == 0:
+                                    corners = (True, False, False, True)
+                                if i == len(wl_chapters) - 1:
+                                    corners = (False, True, True, False)
+                                Spacer(w=int(progress_w * (cprogress_end - cprogress_start)), h=progress_h).set_bg(RoundRectBg(chara_color, 4, corners=corners)) \
                                     .set_offset((border + int(progress_w * cprogress_start), border))
                             Spacer(w=int(progress_w * progress), h=progress_h).set_bg(RoundRectBg((255, 255, 255, 200), 4)).set_offset((border, border))
                     else:
@@ -895,7 +903,8 @@ async def compose_event_record_image(ctx: SekaiHandlerContext, qid: int) -> Imag
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
             await get_detailed_profile_card(ctx, profile, err_msg)
-            TextBox("每次上传时进行增量更新，未上传过的记录将会丢失", style4).set_bg(roundrect_bg()).set_padding(12)
+            TextBox("每次上传时进行增量更新，未上传过的记录将会丢失\n领取活动牌子后上传数据才能记录排名", style4, use_real_line_count=True) \
+                .set_bg(roundrect_bg()).set_padding(12)
             with HSplit().set_sep(16).set_item_align('lt').set_content_align('lt'):
                 if user_events:
                     await draw_events("活动", user_events)

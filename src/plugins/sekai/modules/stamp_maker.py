@@ -210,7 +210,7 @@ def _get_text_img(
 
         return y_offset
 
-    def get_font(chart: str) -> ImageFont.ImageFont:
+    def gf(chart: str) -> ImageFont.ImageFont:
         empty_glyph_bbox = font_jp.getmask(chr(35813)).getbbox()  # 仅适用于该字体
         glyph_bbox = font_jp.getmask(chart).getbbox()
 
@@ -234,7 +234,7 @@ def _get_text_img(
         t_width = 0
         t_height = 0
         for chart in t:
-            c_font = get_font(chart)
+            c_font = gf(chart)
 
             c_width, c_height = get_text_size(c_font, chart)
             t_width += c_width
@@ -258,7 +258,7 @@ def _get_text_img(
         sentence_width[i] = 0
         sentence_height[i] = 0
         for chart in sentence:
-            c_font = get_font(chart)
+            c_font = gf(chart)
 
             width, height = get_text_size(c_font, chart)
 
@@ -271,7 +271,7 @@ def _get_text_img(
     for i, sentence in enumerate(texts):
         x = (text_width - sentence_width[i]) // 2
         for chart in sentence:
-            c_font = get_font(chart)
+            c_font = gf(chart)
             p._impl_text(chart, (int(x), int(y + get_y_offset(chart, c_font))), c_font, color)
             x += c_font.getlength(chart)
         y += sentence_height[i] + line_spacing
