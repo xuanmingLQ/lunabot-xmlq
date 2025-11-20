@@ -574,12 +574,12 @@ class Painter:
         margin: int | tuple[int, int, int, int] = 0,    # left, top, right, bottom
     ) -> Image.Image:
         width, height = size
-        radius = min(radius, width // 2, height // 2)
-
         if isinstance(margin, int):
             margin = (margin, margin, margin, margin)
         ml, mt, mr, mb = margin
+
         width, height = width - 1, height - 1
+        radius = min(radius, width // 2, height // 2)
         realsize = (width + ml + mr + 1, height + mt + mb + 1)
 
         def getbox(x1, y1, x2, y2):
