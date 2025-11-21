@@ -132,19 +132,26 @@ def do_recommend(region: str, options: dict) -> dict:
             log(f"加载 {region} MusicMetas: {datetime.fromtimestamp(musicmetas_update_ts).strftime('%Y-%m-%d %H:%M:%S')}")
         
         if not worker_masterdata_version.get(region) or not worker_musicmetas_update_ts.get(region):
-            return Exception('组卡服务端数据未初始化完成，请稍后再试')
+            return {
+                'status': 'error',
+                'message': '组卡服务端数据未初始化完成，请稍后再试'
+            }
         
         options = DeckRecommendOptions.from_dict(options)
         res =  worker_recommender.recommend(options)
         cost_time = datetime.now() - start_time
 
         return {
+            'status': 'success',
             'result': res.to_dict(),
             'cost_time': cost_time.total_seconds(),
         }
 
-    except Exception as e:
-        return e
+    except BaseException as e:
+        return {
+            'status': 'error',
+            'message': get_exc_desc(e),
+        }
 
 
 # =========================== API =========================== #
@@ -225,8 +232,11 @@ async def _(request: Request):
         start_time = datetime.now()
 
         result: DeckRecommendResult = await process_pool.submit(do_recommend, region, options)
-        if isinstance(result, BaseException):
-            raise result
+        if result['status'] != 'success':
+            raise HTTPException(
+                status_code=500, 
+                detail=result.get('message', '内部错误'),
+            )
 
         total_time = (datetime.now() - start_time).total_seconds()
         wait_time = total_time - result['cost_time']
@@ -241,6 +251,8 @@ async def _(request: Request):
         }
 
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         error("组卡请求处理失败")
         raise HTTPException(
             status_code=500, 
