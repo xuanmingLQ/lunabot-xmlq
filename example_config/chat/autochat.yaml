@@ -68,6 +68,7 @@ chat:
 
     um_num: 3
 
+  get_history_msg_delay_seconds: 5
   history_msg_num: 10
   reply_max_length: 512
 
