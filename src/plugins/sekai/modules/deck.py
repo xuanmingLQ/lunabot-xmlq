@@ -1771,7 +1771,6 @@ musicmetas_json = WebJsonRes(
     url = config.get("deck.music_meta_url"),
     update_interval=timedelta(hours=1),
 )
-MUSICMETAS_SAVE_PATH = f"{SEKAI_ASSET_DIR}/music_metas.json"
 DECKREC_DATA_UPDATE_INTERVAL_CFG = config.item('deck.data_update_interval_seconds')
 
 
@@ -1784,8 +1783,6 @@ async def deckrec_update_data():
             current_masterdata_version = await ctx.md.get_version()
             current_musicmetas_update_ts = await musicmetas_json.get_update_time()
             logger.debug(f"组卡 {region} 当前 masterdata 版本: {current_masterdata_version} musicmetas 更新时间: {current_musicmetas_update_ts}")
-
-            
 
             async def construct_payload(with_masterdata: bool, with_musicmetas: bool) -> bytes:
                 payloads = []
@@ -1842,9 +1839,8 @@ async def deckrec_update_data():
 
                 if with_musicmetas:
                     logger.info(f"为自动组卡加载 {ctx.region} musicmetas")
-                    with open(MUSICMETAS_SAVE_PATH, 'rb') as f:
-                        add_payload_segment(payloads, b'musicmetas')
-                        add_payload_segment(payloads, f.read())
+                    add_payload_segment(payloads, b'musicmetas')
+                    add_payload_segment(payloads, dumps_json(await musicmetas_json.get(), indent=False)).encode('utf-8'))
                 
                 return build_multiparts_payload(payloads)
 
