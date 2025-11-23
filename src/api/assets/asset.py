@@ -1,6 +1,6 @@
 from src.utils import download_data
-def download_rip_assets(region:str,path:str):
+def download_asset(region:str,path:str):
     return download_data(
-        path="/rip/downloadAssets",
+        path="/asset/downloadAsset",
         params=[region, path]
     )

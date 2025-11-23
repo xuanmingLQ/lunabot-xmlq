@@ -34,13 +34,13 @@ async def get_wiki_page_image(ctx: HandlerContext, name: str, url: str, refresh:
         return sorted(files)
     try:
         await ctx.asend_reply_msg(f"正在获取{name}的wiki页面...")
-        async with WebDriver() as driver:
-            driver.get(url)
-            WebDriverWait(driver, 10).until(
-                lambda d: d.execute_script('return document.readyState') == 'complete'
+        async with WebDriver() as page:
+            await page.goto(url, wait_until='networkidle')
+            pdf = await page.pdf(
+                format='A4', # 设置页面格式
+                print_background=True, # 确保背景打印
+                margin={"top": "0.5in", "bottom": "0.5in", "left": "0.5in", "right": "0.5in"} # 边距设置
             )
-            pdf = driver.print_page()
-        pdf = base64.b64decode(pdf)
         with TempFilePath("pdf") as pdf_path:
             with open(pdf_path, 'wb') as f:
                 f.write(pdf)

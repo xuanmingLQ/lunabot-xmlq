@@ -1,7 +1,7 @@
 from src.utils import *
 from .common import *
 from ...api.assets.masterdata import get_masterdata_version, download_masterdata
-from ...api.assets.rip import download_rip_assets
+from ...api.assets.asset import download_asset
 from src.utils.request import ApiError
 import threading
 
@@ -853,7 +853,7 @@ class RegionRipAssetManger:
 
         # 尝试从网络下载
         try:
-            data = await download_rip_assets(self.region, path)
+            data = await download_asset(self.region, path)
             if use_cache:
                 create_parent_folder(cache_path)
                 with open(cache_path, "wb") as f:
@@ -924,37 +924,17 @@ class RegionRipAssetManger:
             return cache_path
         except:
             pass
-        
-        # 尝试从网络下载
-        error_list: List[Tuple[str, str]] = []
-        for source in self.sources:
-            if source.prefixes and not any([path.startswith(prefix) for prefix in source.prefixes]):
-                continue
-
-            url = None
-            try:
-                if not source.base_url.endswith("/"):
-                    source.base_url += "/"
-                url = source.url_map_method(source.base_url + path)
-                data = await self._download_data(url, get_cfg_or_value(timeout))
-                create_parent_folder(cache_path)
-                with open(cache_path, "wb") as f:
-                    f.write(data)
-                return cache_path
-            
-            except Exception as e:
-                e = get_exc_desc(e)
-                error_list.append((source.name, e))
-                # logger.print_exc(f"从数据源 [{source.name}] 获取 {self.region} 解包资源 {path} 失败: {e}, url={url}")
-                logger.warning(f"从数据源 [{source.name}] 获取 {self.region} 解包资源 {path} 失败: {e}, url={url}")
-
-        if not allow_error:
-            error_list_text = ""
-            for source_name, err in error_list:
-                error_list_text += f"[{source_name}] {truncate(err, 40)}\n"
-            raise Exception(f"从所有数据源获取 {self.region} 解包资源 {path} 失败:\n{error_list_text.strip()}")
-        
-        logger.warning(f"从所有数据源获取 {self.region} 解包资源 {path} 失败: {error_list}，返回默认值")
+        try:
+            data = await download_asset(self.region, path)
+            create_parent_folder(cache_path)
+            with open(cache_path, "wb") as f:
+                f.write(data)
+            return cache_path
+        except Exception as e:
+            e = get_exc_desc(e)
+            logger.warning(f"从数据源获取 {self.region} 解包资源 {path} 失败: {e}")
+            if not allow_error:
+                raise Exception(f"从数据源获取 {self.region} 解包资源 {path} 失败\n{e}")
         return default
 
     async def img(

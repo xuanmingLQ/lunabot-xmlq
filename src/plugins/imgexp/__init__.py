@@ -117,20 +117,23 @@ async def _(ctx: HandlerContext):
 
 
 async def get_twitter_image_urls(url):
-    async with WebDriver() as driver:
+    async with WebDriver() as page: # 获取 Playwright Page
         @retry(wait=wait_fixed(1), stop=stop_after_attempt(3), reraise=True)
-        def get_image_urls(url):
-            import bs4
-            driver.get(url)
-            time.sleep(3)
-            soup = bs4.BeautifulSoup(driver.page_source, features="lxml")
-            with open('sandbox/test.html', 'w') as f:
-                f.write(soup.prettify())
-            images = soup.find_all('img')
-            images = [img['src'] for img in images if '/media/' in img['src']]
-            images = [image[:image.rfind('&')] + "&name=large" for image in images]
-            return images
-        return await run_in_pool(get_image_urls, url)
+        async def get_image_urls(url): # 访问连接，读取内容，因为playwright是异步的所以用异步方法
+            await page.goto(url, wait_until='networkidle')
+            await asyncio.sleep(3) 
+            html_content = await page.content()
+            def _parse_and_extract_image_urls(html_content: str) -> list[str]: # 因为BeautifulSoup是同步的，将它放入线程池中运行
+                import bs4
+                soup = bs4.BeautifulSoup(html_content, features="lxml")
+                with open('sandbox/test.html', 'w') as f:
+                    f.write(soup.prettify())
+                images = soup.find_all('img')
+                images = [img['src'] for img in images if '/media/' in img['src']]
+                images = [image[:image.rfind('&')] + "&name=large" for image in images]
+                return images
+            return await run_in_pool(_parse_and_extract_image_urls, html_content)
+        return await get_image_urls(url)
 
 
 ximg = CmdHandler(['/ximg', '/x_img', '/twimg', '/tw_img'], logger)
