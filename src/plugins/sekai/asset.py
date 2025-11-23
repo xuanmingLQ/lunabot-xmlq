@@ -1,7 +1,7 @@
 from src.utils import *
 from .common import *
-from ...api.assets.masterdata import get_masterdata_version, download_masterdata
-from ...api.assets.asset import download_asset
+from src.api.assets.masterdata import get_masterdata_version, download_masterdata
+from src.api.assets.asset import download_asset
 from src.utils.request import ApiError
 import threading
 
