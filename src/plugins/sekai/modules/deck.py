@@ -1839,8 +1839,10 @@ async def deckrec_update_data():
 
                 if with_musicmetas:
                     logger.info(f"为自动组卡加载 {ctx.region} musicmetas")
+                    musicmetas = await musicmetas_json.get()
+                    musicmetas = add_omakase_music(musicmetas)
                     add_payload_segment(payloads, b'musicmetas')
-                    add_payload_segment(payloads, dumps_json(await musicmetas_json.get(), indent=False).encode('utf-8'))
+                    add_payload_segment(payloads, dumps_json(musicmetas, indent=False).encode('utf-8'))
                 
                 return build_multiparts_payload(payloads)
 
