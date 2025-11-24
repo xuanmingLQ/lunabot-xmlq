@@ -832,11 +832,18 @@ utils_file_db = get_file_db('data/utils/db.json', utils_logger)
 
 # ============================ Playwright ============================ #
 
-from playwright.async_api import async_playwright, Browser, Playwright, BrowserType, BrowserContext, Page  # 引入 Playwright 异步 API
+from playwright.async_api import (
+    async_playwright, 
+    Browser, 
+    Playwright, 
+    BrowserType, 
+    BrowserContext, 
+    Page,
+)
 
 _playwright_instance: Playwright | None = None
 _browser_type: BrowserType | None = None
-_browsers: asyncio.Queue[Browser] = None # 队列现在存放的是 Playwright 的 Browser 对象
+_browsers: asyncio.Queue[Browser] = None
 
 WEB_DRIVER_NUM = global_config.get('web_driver_num')
 
@@ -848,14 +855,16 @@ class PlaywrightPage:
         self.browser: Browser | None = None
         self.context: BrowserContext | None = None
         self.page: Page | None = None
-        self.context_options: dict = context_options if context_options is not None else { 'locale': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6' }
+        self.context_options: dict = context_options if context_options is not None else { 
+            'locale': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
+        }
 
     async def __aenter__(self) -> Page:
         global _playwright_instance, _browser_type, _browsers
         
         if _playwright_instance is None:
             _playwright_instance = await async_playwright().start()
-            _browser_type = _playwright_instance.firefox # 或 .firefox, .webkit
+            _browser_type = _playwright_instance.chromium
             
             if os.system("rm -rf /tmp/rust_mozprofile*") != 0:
                 utils_logger.error(f"清空WebDriver临时文件失败")
