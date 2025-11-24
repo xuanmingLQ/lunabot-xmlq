@@ -34,7 +34,6 @@ bypy
 colour-science
 opencv-python
 zstandard
-selenium
 google-genai
 aiosqlite
 rapidfuzz
