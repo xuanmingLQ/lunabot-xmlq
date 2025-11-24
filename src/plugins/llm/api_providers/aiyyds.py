@@ -1,7 +1,5 @@
 from ...llm.api_provider import *
 from openai import AsyncOpenAI
-import asyncio
-import json
 import os
 
 
@@ -17,49 +15,38 @@ class AiyydsApiProvider(ApiProvider):
         )
         
     async def _update_sync_quota_web_cookies(self):
-        def get_cookies():
-            from selenium import webdriver
-            from selenium.webdriver.chrome.options import Options
-            import time
-            options = Options()
-            options.add_argument('--headless')
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--disable-gpu')
-            driver = webdriver.Chrome(options=options)
-            try:
+        try:
+            async with PlaywrightPage() as page:
                 login_url = self.config.get("login_url")
-                driver.get(login_url)
-                time.sleep(1)
-                driver.find_element(by='name', value='username').send_keys(self.config.get("username"))
-                driver.find_element(by='name', value='password').send_keys(self.config.get("password"))
-                driver.find_element(by='xpath', value='//button[text()="登录"]').click()
-                time.sleep(1)
-                cookies = driver.get_cookies()
-                for c in cookies:
+                await page.goto(login_url, wait_until="load")
+                await page.fill('input[name="username"]', self.config.get("username"))
+                await page.fill('input[name="password"]', self.config.get("password"))
+                await page.click('xpath=//button[text()="登录"]')
+                await page.wait_for_timeout(1000)
+                all_cookies = await page.context.cookies()
+                
+                target_cookies = None
+                for c in all_cookies:
                     if c['name'] == 'session':
-                        return { "session": c['value'] }
-                raise Exception("No cookie found")
-            except Exception as e:
-                logger.print_exc(f"获取cookies失败: {e}")  
-                return None
-            finally:
-                driver.quit()
-        cookies = await asyncio.get_event_loop().run_in_executor(None, get_cookies)
-        if not cookies:
-            raise Exception("获取AI-YYDScookies失败")
-        os.makedirs(os.path.dirname(self.cookies_save_path), exist_ok=True)
-        with open(self.cookies_save_path, "w") as f:
-            json.dump(cookies, f)
-        return cookies
+                        target_cookies = { "session": c['value'] }
+                        break
+    
+                if not target_cookies:
+                    raise Exception("No aiyyds cookie found")
+                os.makedirs(os.path.dirname(self.cookies_save_path), exist_ok=True)
+                dump_json(target_cookies, self.cookies_save_path)
+                return target_cookies
+
+        except Exception as e:
+            utils_logger.error(f"获取cookies失败: {e}")  
+            return None
 
     async def sync_quota(self):
         api_url = self.config.get("quota_url")
         while True:
             # 读取本地cookies，如果读取失败则重新获取
             try:
-                with open(self.cookies_save_path, "r") as f:
-                    cookies = json.load(f)
+                cookies = load_json(self.cookies_save_path)
             except:
                 logger.warning("未找到本地AI-YYDScookies文件, 重新获取")
                 cookies = await self._update_sync_quota_web_cookies()
