@@ -855,7 +855,7 @@ class PlaywrightPage:
         
         if _playwright_instance is None:
             _playwright_instance = await async_playwright().start()
-            _browser_type = _playwright_instance.chromium # 或 .firefox, .webkit
+            _browser_type = _playwright_instance.firefox # 或 .firefox, .webkit
             
             if os.system("rm -rf /tmp/rust_mozprofile*") != 0:
                 utils_logger.error(f"清空WebDriver临时文件失败")
@@ -1006,7 +1006,7 @@ async def markdown_to_image(markdown_text: str, width: int = 600) -> Image.Image
                     f.write(full_html)
                 
                 await page.goto(f"file://{osp.abspath(html_path)}", wait_until="load")
-                await page.set_viewport_size({"width": width, "height": width})
+                await page.set_viewport_size({"width": width, "height": 1})
                 
                 with TempFilePath('png') as img_path:
                     await page.screenshot(path=img_path, full_page=True)
