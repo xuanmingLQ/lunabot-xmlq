@@ -34,13 +34,14 @@ async def get_wiki_page_image(ctx: HandlerContext, name: str, url: str, refresh:
         return sorted(files)
     try:
         await ctx.asend_reply_msg(f"正在获取{name}的wiki页面...")
-        async with WebDriver() as page:
+        async with PlaywrightPage() as page:
             await page.goto(url, wait_until='networkidle')
             pdf = await page.pdf(
                 format='A4', # 设置页面格式
                 print_background=True, # 确保背景打印
                 margin={"top": "0.5in", "bottom": "0.5in", "left": "0.5in", "right": "0.5in"} # 边距设置
             )
+        # page.pdf本身返回的就是bytes
         with TempFilePath("pdf") as pdf_path:
             with open(pdf_path, 'wb') as f:
                 f.write(pdf)

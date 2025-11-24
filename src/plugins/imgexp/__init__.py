@@ -117,7 +117,7 @@ async def _(ctx: HandlerContext):
 
 
 async def get_twitter_image_urls(url):
-    async with WebDriver() as page: # 获取 Playwright Page
+    async with PlaywrightPage() as page: # 获取 Playwright Page
         @retry(wait=wait_fixed(1), stop=stop_after_attempt(3), reraise=True)
         async def get_image_urls(url): # 访问连接，读取内容，因为playwright是异步的所以用异步方法
             await page.goto(url, wait_until='networkidle')
@@ -134,7 +134,6 @@ async def get_twitter_image_urls(url):
                 return images
             return await run_in_pool(_parse_and_extract_image_urls, html_content)
         return await get_image_urls(url)
-
 
 ximg = CmdHandler(['/ximg', '/x_img', '/twimg', '/tw_img'], logger)
 ximg.check_cdrate(cd).check_wblist(gbl, allow_private=True)
