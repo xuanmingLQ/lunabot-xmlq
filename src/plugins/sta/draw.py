@@ -111,7 +111,7 @@ async def get_pie_frame(gid, date_str, recs, topk_user: list[int], topk_name: li
     with Frame().set_size((canvas_w, canvas_h)).set_padding((20, 0)) as frame:
         cx, cy = int(canvas_w / 2), int(canvas_h / 2)
         radius = int(canvas_h * 0.8 / 2)
-        cmap = get_cmap(gid, date_str)
+        cmap = get_cmap(gid, date_str, n=len(topk_user))
 
         # 绘制饼图扇形
         for i in range(len(topk_user)):
