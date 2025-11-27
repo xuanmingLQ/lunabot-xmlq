@@ -34,7 +34,7 @@ SEARCH_MULTI_CARD_HELP = """
 团/团oc/团vs/纯vs：mmj mmjoc mmjv 纯v
 稀有度/属性/技能：4 四星 生日 蓝 蓝星 判 分 p分
 限定类型: 非限 限定 期间限定 fes
-年份: 2025 去年
+年份: 25年 去年
 活动id或者箱活缩写: event123 mnr1
 以上参数可以混合使用，用空格分隔
 """.strip()
@@ -114,6 +114,8 @@ async def search_multi_cards(ctx: SekaiHandlerContext, args: str, cards: List[di
     if cards is None:
         cards = await ctx.md.cards.get()
 
+    year, args = extract_year(args)
+
     # 活动id
     event = None
     if m := re.match(r"event(\d+)", args):
@@ -137,11 +139,9 @@ async def search_multi_cards(ctx: SekaiHandlerContext, args: str, cards: List[di
                 args = args.replace(keyword, "").strip()
                 break
 
-    # 其他参数
     attr, args = extract_card_attr(args)
     supply, args = extract_card_supply(args)
     skill, args = extract_card_skill(args)
-    year, args = extract_year(args)
 
     vs_unit, args = extract_vs_unit(args)
     oc_unit, args = extract_oc_unit(args)

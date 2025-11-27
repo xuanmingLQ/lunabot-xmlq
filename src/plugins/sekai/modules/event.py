@@ -25,7 +25,7 @@ QUERY_MULTI_EVENT_HELP = """
 【查多个活动格式】
 1. 活动类型：5v5 普活 wl
 2. 颜色和团：紫 25h
-3. 年份：2025 去年
+3. 年份：25年 去年
 4. 活动角色：mnr hrk 可以加多个
 5. 活动ban主：mnr箱
 """.strip()
@@ -935,10 +935,10 @@ async def _(ctx: SekaiHandlerContext):
 
     async def query_multi(args: str):
         filter = EventListFilter()
+        filter.year, args = extract_year(args)
         filter.attr, args = extract_card_attr(args)
         filter.event_type, args = extract_event_type(args)
         filter.unit, args = extract_unit(args)
-        filter.year, args = extract_year(args)
         if any([x in args for x in ['混活', '混']]):
             assert_and_reply(not filter.unit, "查混活不能指定团名")
             filter.unit = "blend"
