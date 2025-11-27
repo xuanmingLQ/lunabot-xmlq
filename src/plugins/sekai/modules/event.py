@@ -255,10 +255,9 @@ async def get_event_banner_img(ctx: SekaiHandlerContext, event: dict) -> Image.I
 # 从文本中提取箱活，返回 (活动，剩余文本）
 async def extract_ban_event(ctx: SekaiHandlerContext, text: str) -> Tuple[Dict, str]:
     all_ban_event_texts = []
-    for item in get_character_nickname_data():
-        for nickname in item.nicknames:
-            for i in range(1, 10):
-                all_ban_event_texts.append(f"{nickname}{i}")
+    for nickname, cid in get_character_nickname_data().nickname_ids:
+        for i in range(1, 10):
+            all_ban_event_texts.append(f"{nickname}{i}")
     for ban_event_text in all_ban_event_texts:
         if ban_event_text in text:
             nickname = ban_event_text[:-1]
@@ -402,10 +401,10 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
 # 根据"昵称箱数"（比如saki1）获取活动，不存在返回None
 async def get_event_by_ban_name(ctx: SekaiHandlerContext, ban_name: str) -> Optional[dict]:
     idx = None
-    for nickname, cid in get_all_nickname_cid_pairs():
+    for nickname, cid in get_character_nickname_data().nickname_ids:
         if nickname in ban_name:
             try:
-                idx = int(ban_name.replace(nickname, ""))
+                idx = int(ban_name.replace(nickname, "", 1))
                 break
             except: 
                 pass

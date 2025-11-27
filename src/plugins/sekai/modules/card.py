@@ -93,7 +93,7 @@ async def get_character_sd_image(cuid: int) -> Image.Image:
 # 解析查单张卡的参数
 async def search_single_card(ctx: SekaiHandlerContext, args: str) -> dict:
     args = args.strip()
-    for nickname, cid in get_all_nickname_cid_pairs():
+    for nickname, cid in get_character_nickname_data().nickname_ids:
         if nickname in args:
             seq = args.replace(nickname, "").strip()
             chara_cards = await ctx.md.cards.find_by("characterId", cid, mode="all")
