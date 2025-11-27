@@ -571,6 +571,12 @@ async def get_basic_profile_card(ctx: SekaiHandlerContext, profile: dict) -> Fra
                     TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2, shadow_color=ADAPTIVE_SHADOW),
                 )
                 TextBox(f"{ctx.region.upper()}: {user_id}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
+                if 'update_time' in profile:
+                    update_time = datetime.fromtimestamp(profile['update_time'] / 1000)
+                    update_time_text = update_time.strftime('%m-%d %H:%M:%S') + f" ({get_readable_datetime(update_time, show_original_time=False)})"
+                else:
+                    update_time_text = "?"
+                TextBox(f"更新时间: {update_time_text}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
     return f
 
 # 从玩家基本信息获取该玩家头像PlayerAvatarInfo
