@@ -289,12 +289,11 @@ async def _(ctx: SekaiHandlerContext):
     # 如果存在角色昵称，只返回指定角色昵称的随机表情
     cid = None
     if args:
-        for item in get_character_nickname_data():
-            for nickname in item.nicknames:
-                if args.startswith(nickname):
-                    cid = item.id
-                    args = args[len(nickname):].strip()
-                    break
+        for nickname, i in get_character_nickname_data().nickname_ids:
+            if args.startswith(nickname):
+                cid = i
+                args = args[len(nickname):].strip()
+                break
 
     if args:
         # 表情制作模式
