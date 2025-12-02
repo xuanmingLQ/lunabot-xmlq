@@ -1062,7 +1062,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
     try:
         sekairanking_history, _ = await get_sekairanking_history(ctx.region, event_id=eid, rank=rank)
         predictions_data = sekairanking_history['predictions']
-        snowy_history_times = [datetime.fromisoformat(item['t']) for item in predictions_data]
+        snowy_history_times = [datetime.fromtimestamp(datetime.fromisoformat(item['t']).timestamp()) for item in predictions_data]
         snowy_history_preds = [item['y'] for item in predictions_data]
     except:
         snowy_history_times = None
@@ -1132,7 +1132,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(int(x)) + "/h"))
         ax2.set_ylim(0, max(speeds) * 1.2)
         
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M',))
         ax.xaxis.set_major_locator(mdates.AutoDateLocator())
         fig.autofmt_xdate()
         plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} T{rank} 分数线")

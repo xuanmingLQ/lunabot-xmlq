@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib
 import aiohttp
+import pytz
 # 字体
 FONT_NAME = "Source Han Sans CN"
 plt.switch_backend('agg')
@@ -162,11 +163,11 @@ async def compose_history_image(predictions_history: dict, start_time: datetime,
         # --- 1. Prepare Data for Plotting ---
         
         # Historical Data
-        history_times = [datetime.fromisoformat(item['t'].replace('Z', '+00:00')).astimezone() for item in history_data]
+        history_times = [datetime.fromtimestamp(datetime.fromisoformat(item['t']).timestamp()) for item in history_data]
         history_scores = [item['y'] for item in history_data]
 
         # Predicted Data
-        prediction_times = [datetime.fromisoformat(item['t'].replace('Z', '+00:00')).astimezone() for item in predictions_data]
+        prediction_times = [datetime.fromtimestamp(datetime.fromisoformat(item['t']).timestamp()) for item in predictions_data]
         prediction_scores = [item['y'] for item in predictions_data]
 
         # --- 2. Create the Plot ---
@@ -265,8 +266,6 @@ async def get_cnskp_msg(ctx: SekaiHandlerContext, args: str) -> str:
 
         for ranking in predictions['rankings']:
             msg += f"排名：{ranking['rank']} 当前：{get_board_score_str(ranking['current_score'])} 预测：{get_board_score_str(ranking['predicted_score'])}\n" #  预测时间：{datetime.fromisoformat(ranking['update_time']).strftime('%m-%d %H:%M:%S')}
-    
-    
     msg += f"\n更新时间：{update_time.strftime('%m-%d %H:%M:%S')} （{get_readable_datetime(update_time, show_original_time=False)}）\n"
     msg += "数据来源：SnowyBot"
     return msg
