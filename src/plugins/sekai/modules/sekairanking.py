@@ -71,8 +71,8 @@ def get_board_score_str(score: int, width: int = None) -> str:
     return ret
 
 # 获取有数据的活动列表
-async def get_sekairanking_events(ctx: SekaiHandlerContext)->Tuple[Any, datetime]:
-    assert_and_reply(ctx.region == "cn", "只能获取简中服活动列表")
+async def get_sekairanking_events(region: str)->Tuple[Any, datetime]:
+    assert_and_reply(region == "cn", "只能获取简中服活动列表")
     # 先从缓存中获取
     duration = sekairanking_config.get("cache_duration", 300)
     try:
@@ -93,13 +93,13 @@ async def get_sekairanking_events(ctx: SekaiHandlerContext)->Tuple[Any, datetime
     return events_cache['data'], events_cache['update_time']
 
 # 获取最新的活动id
-async def get_sekairanking_latest_event_id(ctx: SekaiHandlerContext) -> int:
-    events, _  = await get_sekairanking_events(ctx)
+async def get_sekairanking_latest_event_id(region: str) -> int:
+    events, _  = await get_sekairanking_events(region)
     return events[0]['id']
 
 # 获取预测数据
-async def get_sekairanking_predictions(ctx: SekaiHandlerContext, event_id: int) -> Tuple[Dict, datetime]:
-    events, _ = await get_sekairanking_events(ctx)
+async def get_sekairanking_predictions(region: str, event_id: int) -> Tuple[Dict, datetime]:
+    events, _ = await get_sekairanking_events(region)
     assert_and_reply(any(event['id'] == event_id for event in events), f"活动：{event_id}的数据不存在，请使用\"/cnske\"来查找有数据的活动")
     # 先从缓存中获取
     duration = sekairanking_config.get("cache_duration", 300)
@@ -121,9 +121,9 @@ async def get_sekairanking_predictions(ctx: SekaiHandlerContext, event_id: int) 
     return predictions_cache['data'], predictions_cache['update_time']
 
 # 获取历史预测时间序列
-async def get_sekairanking_history(ctx: SekaiHandlerContext, event_id: int, rank: int) -> Tuple[Dict, datetime]:
+async def get_sekairanking_history(region: str, event_id: int, rank: int) -> Tuple[Dict, datetime]:
     assert_and_reply(rank in ALL_SEKAIRANKING_RANKS, f"不支持的排名：{rank}\n只能获取排名为：\n{', '.join(str(r) for r in ALL_SEKAIRANKING_RANKS)}\n的预测数据")
-    events, _ = await get_sekairanking_events(ctx)
+    events, _ = await get_sekairanking_events(region)
     assert_and_reply(any(event['id'] == event_id for event in events), f"活动：{event_id}的数据不存在，请使用\"/cnske\"来查找有数据的活动")
     # 先从缓存中获取
     duration = sekairanking_config.get("cache_duration", 300)
@@ -270,29 +270,29 @@ async def get_cnskp_msg(ctx: SekaiHandlerContext, args: str) -> str:
     msg += f"\n更新时间：{update_time.strftime('%m-%d %H:%M:%S')} （{get_readable_datetime(update_time, show_original_time=False)}）\n"
     msg += "数据来源：SnowyBot"
     return msg
-
-sekairanking_events = SekaiCmdHandler([
-    "/sekairanking events", "/预测活动列表",
-    "/skpe"
-], regions=['cn'], prefix_args=[''])
-sekairanking_events.check_cdrate(cd).check_wblist(gbl)
-@sekairanking_events.handle()
-async def _(ctx: SekaiHandlerContext):
-    events, update_time = await get_sekairanking_events(ctx)
-    msg = f"活动数量：{len(events)}\n"
-    latest = events[0]
-    msg += f"最新活动：{latest['id']} {latest['name']}\n"
-    start_time = datetime.fromtimestamp(latest['start_at'] / 1000)
-    end_time = datetime.fromtimestamp(latest['end_at'] / 1000)
-    time_to_end = end_time - datetime.now()
-    msg += f"{start_time.strftime('%m-%d %H:%M:%S')} ~ {end_time.strftime('%m-%d %H:%M:%S')}\n"
-    if time_to_end.total_seconds() <= 0:
-        msg += "（活动已结束）\n"
-    else:
-        msg += f"距离活动结束还有{get_readable_timedelta(time_to_end)}\n"
-    msg += "所有活动：\n"
-    for i in range(0, len(events), 5):
-        msg += f"{', '.join(str(event['id']) for event in events[i: i+5])}\n"
-    msg += f"\n更新时间：{update_time.strftime('%m-%d %H:%M:%S')} （{get_readable_datetime(update_time, show_original_time=False)}）\n"
-    msg += "数据来源：SnowyBot"
-    return await ctx.asend_msg(msg)
+# 
+# sekairanking_events = SekaiCmdHandler([
+#     "/sekairanking events", "/预测活动列表",
+#     "/skpe"
+# ], regions=['cn'], prefix_args=[''])
+# sekairanking_events.check_cdrate(cd).check_wblist(gbl)
+# @sekairanking_events.handle()
+# async def _(ctx: SekaiHandlerContext):
+#     events, update_time = await get_sekairanking_events(ctx)
+#     msg = f"活动数量：{len(events)}\n"
+#     latest = events[0]
+#     msg += f"最新活动：{latest['id']} {latest['name']}\n"
+#     start_time = datetime.fromtimestamp(latest['start_at'] / 1000)
+#     end_time = datetime.fromtimestamp(latest['end_at'] / 1000)
+#     time_to_end = end_time - datetime.now()
+#     msg += f"{start_time.strftime('%m-%d %H:%M:%S')} ~ {end_time.strftime('%m-%d %H:%M:%S')}\n"
+#     if time_to_end.total_seconds() <= 0:
+#         msg += "（活动已结束）\n"
+#     else:
+#         msg += f"距离活动结束还有{get_readable_timedelta(time_to_end)}\n"
+#     msg += "所有活动：\n"
+#     for i in range(0, len(events), 5):
+#         msg += f"{', '.join(str(event['id']) for event in events[i: i+5])}\n"
+#     msg += f"\n更新时间：{update_time.strftime('%m-%d %H:%M:%S')} （{get_readable_datetime(update_time, show_original_time=False)}）\n"
+#     msg += "数据来源：SnowyBot"
+#     return await ctx.asend_msg(msg)
