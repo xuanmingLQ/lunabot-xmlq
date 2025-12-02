@@ -1059,8 +1059,8 @@ async def get_mysekai_photo_and_time(ctx: SekaiHandlerContext, qid: int, seq: in
     photo = photos[seq-1]
     photo_time = datetime.fromtimestamp(photo['obtainedAt'] / 1000)
 
-    url = get_gameapi_config(ctx).mysekai_photo_api_url
-    assert_and_reply(url, f"暂不支持查询 {ctx.region} 的MySekai照片")
+    # url = get_gameapi_config(ctx).mysekai_photo_api_url
+    # assert_and_reply(url, f"暂不支持查询 {ctx.region} 的MySekai照片")
 
     # image_bytes = await request_gameapi(url, data_type='bytes', json=photo)
     try:
@@ -2092,9 +2092,9 @@ async def msr_auto_push():
         region_name = get_region_name(region)
         ctx = SekaiHandlerContext.from_region(region)
 
-        get_upload_time_url = get_gameapi_config(ctx).mysekai_upload_time_api_url
-        if not get_upload_time_url: continue
-        if region not in msr_sub.regions: continue
+        # get_upload_time_url = get_gameapi_config(ctx).mysekai_upload_time_api_url
+        # if not get_upload_time_url: continue
+        # if region not in msr_sub.regions: continue
 
         # 获取订阅的用户列表和抓包模式
         qids = list(set([qid for qid, gid in msr_sub.get_all_gid_uid(region)]))
@@ -2109,18 +2109,25 @@ async def msr_auto_push():
         if not uid_modes: continue
 
         # 向api服务器更新msr订阅信息
-        update_msr_sub_url = get_gameapi_config(ctx).update_msr_sub_api_url
-        if update_msr_sub_url:
-            try:
-                # await request_gameapi(update_msr_sub_url, json=uid_modes, method='PUT')
-                await set_msr_sub()
-            except Exception as e:
-                logger.warning(f"更新{region_name}Mysekai订阅信息失败: {get_exc_desc(e)}")
+        # update_msr_sub_url = get_gameapi_config(ctx).update_msr_sub_api_url
+        # if update_msr_sub_url:
+        try:
+            # await request_gameapi(update_msr_sub_url, json=uid_modes, method='PUT')
+            await set_msr_sub()
+        except ApiError as e:
+            logger.debug(f"更新{region_name}Mysekai订阅信息失败: {e.msg}")
+            continue 
+        except Exception as e:
+            logger.warning(f"更新{region_name}Mysekai订阅信息失败: {get_exc_desc(e)}")
+            continue
 
         # 获取不同uid_mode的Mysekai上传时间
         try:
             # upload_times: list[int] = await request_gameapi(get_upload_time_url, json=uid_modes)
             upload_times: list[int] = await get_mysekai_upload_time()
+        except ApiError as e:
+            logger.debug(f"获取{region_name}Mysekai上传时间失败: {e.msg}")
+            continue 
         except Exception as e:
             logger.warning(f"获取{region_name}Mysekai上传时间失败: {get_exc_desc(e)}")
             continue

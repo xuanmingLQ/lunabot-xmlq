@@ -1062,7 +1062,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
     try:
         sekairanking_history, _ = await get_sekairanking_history(ctx.region, event_id=eid, rank=rank)
         predictions_data = sekairanking_history['predictions']
-        snowy_history_times = [datetime.fromisoformat(item['t']).astimezone() for item in predictions_data]
+        snowy_history_times = [datetime.fromisoformat(item['t']) for item in predictions_data]
         snowy_history_preds = [item['y'] for item in predictions_data]
     except:
         snowy_history_times = None
@@ -1457,10 +1457,6 @@ async def update_ranking():
     # 获取所有服务器的榜线数据
     for region in ALL_SERVER_REGIONS:
         ctx = SekaiHandlerContext.from_region(region)
-
-        url = get_gameapi_config(ctx).ranking_api_url
-        if not url:
-            continue
         
         # 获取当前运行中的活动
         if not (event := await get_current_event(ctx, fallback="prev")):

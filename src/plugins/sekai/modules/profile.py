@@ -1429,8 +1429,8 @@ pjsk_check_service = SekaiCmdHandler([
 pjsk_check_service.check_cdrate(cd).check_wblist(gbl)
 @pjsk_check_service.handle()
 async def _(ctx: SekaiHandlerContext):
-    url = get_gameapi_config(ctx).api_status_url
-    assert_and_reply(url, f"暂无 {ctx.region} 的查询服务器")
+    # url = get_gameapi_config(ctx).api_status_url
+    # assert_and_reply(url, f"暂无 {ctx.region} 的查询服务器")
     try:
         # data = await request_gameapi(url)
         data = await get_service_status()
@@ -1886,8 +1886,8 @@ pjsk_create_guest_account.check_cdrate(cd).check_wblist(gbl).check_cdrate(guest_
 @pjsk_create_guest_account.handle()
 async def _(ctx: SekaiHandlerContext):
     region_name = get_region_name(ctx.region)
-    url = get_gameapi_config(ctx).create_account_api_url
-    assert_and_reply(url, f"不支持注册{region_name}帐号")
+    # url = get_gameapi_config(ctx).create_account_api_url
+    # assert_and_reply(url, f"不支持注册{region_name}帐号")
     # data = await request_gameapi(url, method="POST")
     try:
         data = await create_account()

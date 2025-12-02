@@ -690,8 +690,8 @@ async def send_boost(ctx: SekaiHandlerContext, qid: int) -> str:
     uid = get_player_bind_id(ctx)
     event = await get_current_event(ctx)
     assert_and_reply(event and event['eventType'] == 'cheerful_carnival', "当前没有进行中的5v5活动")
-    url = get_gameapi_config(ctx).send_boost_api_url
-    assert_and_reply(url, "该区服不支持自动送火")
+    # url = get_gameapi_config(ctx).send_boost_api_url
+    # assert_and_reply(url, "该区服不支持自动送火")
     # result = await request_gameapi(url.format(uid=uid), method='POST')
     try:
         result = await send_boost_api()

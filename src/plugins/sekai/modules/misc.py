@@ -352,9 +352,9 @@ async def msr_auto_push():
         region_name = get_region_name(region)
         ctx = SekaiHandlerContext.from_region(region)
 
-        update_time_url = get_gameapi_config(ctx).ad_result_update_time_api_url
-        result_url = get_gameapi_config(ctx).ad_result_api_url
-        if not update_time_url or not result_url: continue
+        # update_time_url = get_gameapi_config(ctx).ad_result_update_time_api_url
+        # result_url = get_gameapi_config(ctx).ad_result_api_url
+        # if not update_time_url or not result_url: continue
         if region not in ad_result_sub.regions: continue
 
         # 获取订阅的用户列表
