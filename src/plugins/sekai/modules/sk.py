@@ -33,6 +33,8 @@ from src.api.game.event import get_ranking
 from src.utils.request import ApiError
 
 import subprocess
+# 导入国服预测
+from .sekairanking import get_cnskp_msg
 
 FONT_NAME = "Source Han Sans CN"
 plt.switch_backend('agg')
@@ -1182,7 +1184,7 @@ async def compose_winrate_predict_image(ctx: SekaiHandlerContext) -> Image.Image
 pjsk_skp = SekaiCmdHandler([
     "/pjsk sk predict", "/pjsk_sk_predict", "/pjsk board predict", "/pjsk_board_predict",
     "/sk预测", "/榜线预测", "/skp",
-], regions=['jp'], prefix_args=['', 'wl'])
+], regions=['cn','jp'], prefix_args=['', 'wl'])
 pjsk_skp.check_cdrate(cd).check_wblist(gbl)
 @pjsk_skp.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -1190,6 +1192,9 @@ async def _(ctx: SekaiHandlerContext):
     wl_event, args = await extract_wl_event(ctx, args)
     assert_and_reply(not wl_event, "榜线预测不支持WL单榜")
 
+    if ctx.region == 'cn':
+        return await ctx.asend_msg(await get_cnskp_msg(ctx, args))
+    
     return await ctx.asend_msg(await get_image_cq(
         await compose_skp_image(ctx),
         low_quality=True,

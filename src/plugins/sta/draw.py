@@ -15,7 +15,7 @@ logger = get_logger("Sta")
 file_db = get_file_db(get_data_path("sta/db.json"), logger)
 
 FONT_NAME = global_config.get("font.name")
-FONT_PATH = global_config.get("font.path")
+FONT_PATH = get_data_path(global_config.get("font.path"))
 
 plt.switch_backend('agg')
 matplotlib.rcParams['font.family'] = [FONT_NAME]

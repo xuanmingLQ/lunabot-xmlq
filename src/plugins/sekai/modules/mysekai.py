@@ -24,8 +24,8 @@ from .profile import (
 )
 from .music import get_music_cover_thumb
 from .card import get_character_sd_image
-from ....api.game.user import get_mysekai,get_mysekai_photo,get_mysekai_upload_time
-from ....api.subscribe.pjsk import set_msr_sub
+from src.api.game.user import get_mysekai,get_mysekai_photo,get_mysekai_upload_time
+from src.api.subscribe.pjsk import set_msr_sub
 
 MYSEKAI_REGIONS = ['jp',  'cn']
 BD_MYSEKAI_REGIONS = ['cn',]
