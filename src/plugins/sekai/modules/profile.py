@@ -572,6 +572,12 @@ async def get_basic_profile_card(ctx: SekaiHandlerContext, profile: dict) -> Fra
                     TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK, use_shadow=True, shadow_offset=2, shadow_color=ADAPTIVE_SHADOW),
                 )
                 TextBox(f"{ctx.region.upper()}: {user_id}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
+                if 'update_time' in profile:
+                    update_time = datetime.fromtimestamp(profile['update_time'] / 1000)
+                    update_time_text = update_time.strftime('%m-%d %H:%M:%S') + f" ({get_readable_datetime(update_time, show_original_time=False)})"
+                else:
+                    update_time_text = "?"
+                TextBox(f"更新时间: {update_time_text}", TextStyle(font=DEFAULT_FONT, size=16, color=BLACK))
     return f
 
 # 从玩家基本信息获取该玩家头像PlayerAvatarInfo
@@ -1484,7 +1490,7 @@ async def _(ctx: SekaiHandlerContext):
 # 查询抓包数据
 pjsk_check_data = SekaiCmdHandler([
     "/pjsk check data", "/pjsk_check_data",
-    "/pjsk抓包", "/pjsk抓包状态", "/pjsk抓包数据", "/pjsk抓包查询", "/抓包数据", "/抓包状态",
+    "/pjsk抓包", "/pjsk抓包状态", "/pjsk抓包数据", "/pjsk抓包查询", "/抓包数据", "/抓包状态", "/抓包信息",
 ])
 pjsk_check_data.check_cdrate(cd).check_wblist(gbl)
 @pjsk_check_data.handle()
@@ -1843,7 +1849,26 @@ async def _(ctx: HandlerContext):
                     msg += f"[{time}] {qid}"
     else:
         # QQ号查游戏ID
-        msg = f"用户{qid}的绑定历史:\n"
+        has_any = False
+        msg = f"用户{qid}当前绑定:\n"
+        for region in ALL_SERVER_REGIONS:
+            region_ctx = SekaiHandlerContext.from_region(region)
+            main_uid = get_player_bind_id(region_ctx, ctx.user_id, check_bind=False)
+            lines = []
+            for i in range(get_player_bind_count(region_ctx, ctx.user_id)):
+                uid = get_player_bind_id(region_ctx, ctx.user_id, index=i)
+                is_main = (uid == main_uid)
+                line = f"[{i+1}] {uid}"
+                if is_main:
+                    line = "*" + line
+                lines.append(line)
+            if lines:
+                has_any = True
+                msg += f"【{get_region_name(region)}】\n" + '\n'.join(lines) + '\n'
+        if not has_any:
+            msg += "当前没有绑定任何游戏ID\n"
+
+        msg += f"用户{qid}的绑定历史:\n"
         items = bind_history.get(qid, [])
         for item in items:
             time = datetime.fromtimestamp(item['time'] / 1000).strftime('%Y-%m-%d %H:%M:%S')

@@ -25,7 +25,7 @@ QUERY_MULTI_EVENT_HELP = """
 【查多个活动格式】
 1. 活动类型：5v5 普活 wl
 2. 颜色和团：紫 25h
-3. 年份：2025 去年
+3. 年份：25年 去年
 4. 活动角色：mnr hrk 可以加多个
 5. 活动ban主：mnr箱
 """.strip()
@@ -80,6 +80,15 @@ class EventListFilter:
 
 
 # ======================= 处理逻辑 ======================= #
+
+# 获取图片左侧全透明部分宽度（用于裁剪活动详情角色特写）
+def get_left_transparent_width(img: Image.Image) -> int:
+    alpha = np.array(img.getchannel('A'))
+    col_has_pixel = np.any(alpha > 0, axis=0)
+    if not np.any(col_has_pixel):
+        return img.shape[1]
+    left_width = np.argmax(col_has_pixel)
+    return left_width
 
 # 判断某个卡牌id的限定类型
 async def get_card_supply_type(ctx: SekaiHandlerContext, cid: int) -> str:
@@ -246,10 +255,9 @@ async def get_event_banner_img(ctx: SekaiHandlerContext, event: dict) -> Image.I
 # 从文本中提取箱活，返回 (活动，剩余文本）
 async def extract_ban_event(ctx: SekaiHandlerContext, text: str) -> Tuple[Dict, str]:
     all_ban_event_texts = []
-    for item in get_character_nickname_data():
-        for nickname in item.nicknames:
-            for i in range(1, 10):
-                all_ban_event_texts.append(f"{nickname}{i}")
+    for nickname, cid in get_character_nickname_data().nickname_ids:
+        for i in range(1, 10):
+            all_ban_event_texts.append(f"{nickname}{i}")
     for ban_event_text in all_ban_event_texts:
         if ban_event_text in text:
             nickname = ban_event_text[:-1]
@@ -393,10 +401,10 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
 # 根据"昵称箱数"（比如saki1）获取活动，不存在返回None
 async def get_event_by_ban_name(ctx: SekaiHandlerContext, ban_name: str) -> Optional[dict]:
     idx = None
-    for nickname, cid in get_all_nickname_cid_pairs():
+    for nickname, cid in get_character_nickname_data().nickname_ids:
         if nickname in ban_name:
             try:
-                idx = int(ban_name.replace(nickname, ""))
+                idx = int(ban_name.replace(nickname, "", 1))
                 break
             except: 
                 pass
@@ -726,7 +734,9 @@ async def compose_event_detail_image(ctx: SekaiHandlerContext, event: dict) -> I
         with Canvas(bg=bg, w=w, h=h).set_padding(BG_PADDING).set_content_align('r') as canvas:
             with Frame().set_size((w-BG_PADDING*2, h-BG_PADDING*2)).set_content_align('lb').set_padding((64, 0)):
                 if use_story_bg:
-                    ImageBox(detail.event_ban_chara_img, size=(None, int(h * 0.9)), use_alphablend=True).set_offset((0, BG_PADDING))
+                    chara_img = detail.event_ban_chara_img
+                    chara_img = chara_img.crop((get_left_transparent_width(chara_img), 0, chara_img.width, chara_img.height))
+                    ImageBox(chara_img, size=(None, int(h * 0.9)), use_alphablend=True).set_offset((0, BG_PADDING))
 
             with VSplit().set_padding(16).set_sep(16).set_item_align('t').set_content_align('t').set_item_bg(roundrect_bg()):
                 # logo
@@ -928,10 +938,10 @@ async def _(ctx: SekaiHandlerContext):
 
     async def query_multi(args: str):
         filter = EventListFilter()
+        filter.year, args = extract_year(args)
         filter.attr, args = extract_card_attr(args)
         filter.event_type, args = extract_event_type(args)
         filter.unit, args = extract_unit(args)
-        filter.year, args = extract_year(args)
         if any([x in args for x in ['混活', '混']]):
             assert_and_reply(not filter.unit, "查混活不能指定团名")
             filter.unit = "blend"

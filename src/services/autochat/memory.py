@@ -204,6 +204,7 @@ class MemorySystem:
         """
         ums = self.file_db.get('ums', {})
         ums[str(user_id)] = asdict(um)
+        self.file_db.set('ums', ums)
         info(f"更新用户记忆 {user_id}: {um}")
 
     def um_get(self, user_id: int) -> UserMemory | None:
