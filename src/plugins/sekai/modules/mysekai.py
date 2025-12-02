@@ -19,8 +19,7 @@ from .profile import (
     process_hide_uid,
     get_player_frames,
     get_avatar_widget_with_frame,
-    process_sensitive_cmd_source,
-    request_gameapi,
+    process_sensitive_cmd_source
 )
 from .music import get_music_cover_thumb
 from .card import get_character_sd_image

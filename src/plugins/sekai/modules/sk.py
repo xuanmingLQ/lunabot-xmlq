@@ -7,7 +7,6 @@ from ..draw import *
 from .profile import (
     get_gameapi_config,
     get_player_bind_id,
-    request_gameapi,
 )
 from .event import (
     get_current_event, 
@@ -36,6 +35,8 @@ import matplotlib
 import matplotlib.cm as cm
 import numpy as np
 import subprocess
+from src.api.game.event import get_ranking
+
 # 导入国服预测
 from .sekairanking import get_sekairanking_history
 
@@ -230,10 +231,10 @@ async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_rank
         logger.info(f"从数据库获取 {ctx.region}_{event_id} 最新榜线数据")
         return rankings
     # 从API获取
-    url = get_gameapi_config(ctx).ranking_api_url
-    assert_and_reply(url, f"暂不支持获取{ctx.region}榜线数据")
-    data = await request_gameapi(url.format(event_id=event_id % 1000))
-    assert_and_reply(data, "获取榜线数据失败")
+    try:
+        data = await get_ranking(ctx.region, event_id)
+    except ApiError as e:
+        raise ReplyException(e.msg)
     logger.info(f"从API获取 {ctx.region}_{event_id} 最新榜线数据")
     return [r for r in await parse_rankings(ctx, event_id, data, False) if r.rank in query_ranks]
 
@@ -1045,7 +1046,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
         for f in forecasts 
         if f and f.rank_data and rank in f.rank_data
     }
-    
+
     def get_unique_colors(n: int) -> list:
         num_part1 = n // 2
         num_part2 = n - num_part1
@@ -1057,7 +1058,6 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
         else:
             combined_colors = []
         return combined_colors
-
     # 从SnowyBot直接获取历史预测，由于方法是异步的，从这里提前获取
     try:
         sekairanking_history, _ = await get_sekairanking_history(ctx.region, event_id=eid, rank=rank)
@@ -1126,9 +1126,6 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
         # 用np库计算上界
         all_scores = np.array(all_scores)
         ax.set_ylim(0, np.percentile(all_scores, 99.9)*1.05)
-        # max_score = max(all_scores)
-        # min_score = min(all_scores)
-
         # 绘制时速
         ax2 = ax.twinx()
         line_speeds, = ax2.plot(times, speeds, 'o', label='时速', color='green', markersize=0.5, linewidth=0.5)
@@ -1473,16 +1470,16 @@ async def update_ranking():
 
         # 获取榜线数据
         @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
-        async def _get_ranking(ctx: SekaiHandlerContext, eid: int, url: str):
+        async def _get_ranking(ctx: SekaiHandlerContext, eid: int):
             try:
-                data = await request_gameapi(url.format(event_id=eid))
+                data = await get_ranking(ctx.region, eid)
                 return ctx.region, eid, data
             except Exception as e:
                 logger.warning(f"获取 {ctx.region} 榜线数据失败: {get_exc_desc(e)}")
                 region_failed[ctx.region] = True
                 return ctx.region, eid, None
             
-        tasks.append(_get_ranking(ctx, event['id'], url))
+        tasks.append(_get_ranking(ctx, event['id']))
 
     if not tasks:
         return

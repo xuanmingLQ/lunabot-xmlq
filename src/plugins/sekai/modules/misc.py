@@ -12,7 +12,6 @@ from .profile import (
     get_player_bind_id,
     get_player_bind_count,
     process_hide_uid,
-    request_gameapi,
 )
 from .card import (
     has_after_training, 
