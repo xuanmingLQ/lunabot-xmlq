@@ -35,9 +35,6 @@ import matplotlib.colors as mcolors
 import matplotlib
 import matplotlib.cm as cm
 import numpy as np
-from src.api.game.event import get_ranking
-from src.utils.request import ApiError
-
 import subprocess
 # 导入国服预测
 from .sekairanking import get_sekairanking_history
@@ -144,8 +141,10 @@ async def extract_wl_event(ctx: SekaiHandlerContext, args: str) -> Tuple[dict, s
         event['aggregateAt'] = chapter['aggregateAt']
         event['wl_cid'] = chapter.get('gameCharacterId', None)
         args = args.replace(carg, "").replace("wl", "")
+
         logger.info(f"查询WL活动章节: chapter_arg={carg} wl_id={event['id']}")
         return event, args
+
 # 给图表绘制一个昼夜颜色背景
 def draw_daynight_bg(ax, start_time: datetime, end_time: datetime):
     def get_time_bg_color(time: datetime) -> str:
@@ -164,6 +163,7 @@ def draw_daynight_bg(ax, start_time: datetime, end_time: datetime):
         start = bg_times[i]
         end = bg_times[i] + interval
         ax.axvspan(start, end, facecolor=bg_colors[i], edgecolor=None, zorder=0)
+
 # 从榜线列表中找到最近的前一个榜线
 def find_prev_ranking(ranks: List[Ranking], rank: int) -> Optional[Ranking]:
     most_prev = None
@@ -173,6 +173,7 @@ def find_prev_ranking(ranks: List[Ranking], rank: int) -> Optional[Ranking]:
         if not most_prev or r.rank > most_prev.rank:
             most_prev = r
     return most_prev
+
 # 从榜线列表中找到最近的后一个榜线
 def find_next_ranking(ranks: List[Ranking], rank: int) -> Optional[Ranking]:
     most_next = None
@@ -182,12 +183,14 @@ def find_next_ranking(ranks: List[Ranking], rank: int) -> Optional[Ranking]:
         if not most_next or r.rank < most_next.rank:
             most_next = r
     return most_next
+
 # 从榜线数据解析Rankings
 async def parse_rankings(ctx: SekaiHandlerContext, event_id: int, data: dict, ignore_no_update: bool) -> List[Ranking]:
     # 普通活动
     if event_id < 1000:
         top100 = [Ranking.from_sk(item) for item in data['top100']['rankings']]
         border = [Ranking.from_sk(item) for item in data['border']['borderRankings'] if item['rank'] != 100]
+    
     # WL活动
     else:
         cid = await get_wl_chapter_cid(ctx, event_id)
@@ -195,10 +198,12 @@ async def parse_rankings(ctx: SekaiHandlerContext, event_id: int, data: dict, ig
         top100 = [Ranking.from_sk(item) for item in top100_rankings['rankings']]
         border_rankings = find_by(data['border'].get('userWorldBloomChapterRankingBorders', []), 'gameCharacterId', cid)
         border = [Ranking.from_sk(item) for item in border_rankings['borderRankings'] if item['rank'] != 100]
+
     for item in top100:
         item.uid = str(item.uid)
     for item in border:
         item.uid = str(item.uid)
+
     if ignore_no_update:
         # 过滤掉没有更新的border榜线
         border_has_diff = False
@@ -225,10 +230,10 @@ async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_rank
         logger.info(f"从数据库获取 {ctx.region}_{event_id} 最新榜线数据")
         return rankings
     # 从API获取
-    try:
-        data = await get_ranking(ctx.region, event_id)
-    except ApiError as e:
-        raise ReplyException(e.msg)
+    url = get_gameapi_config(ctx).ranking_api_url
+    assert_and_reply(url, f"暂不支持获取{ctx.region}榜线数据")
+    data = await request_gameapi(url.format(event_id=event_id % 1000))
+    assert_and_reply(data, "获取榜线数据失败")
     logger.info(f"从API获取 {ctx.region}_{event_id} 最新榜线数据")
     return [r for r in await parse_rankings(ctx, event_id, data, False) if r.rank in query_ranks]
 
@@ -1111,10 +1116,11 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
                     history_times = snowy_history_times
                     history_preds = snowy_history_preds
                 else:
-                    history_times = [datetime.fromtimestamp(x.ts) for x in f.history_final_score]
-                    history_preds = [x.score for x in f.history_final_score]
+                    history = [(datetime.fromtimestamp(x.ts), x.score) for x in f.history_final_score]
+                    history_times = [x[0] for x in history]
+                    history_preds = [x[1] for x in history]
                 line, = ax.plot(history_times, history_preds, label=f'{name}历史', color=color, 
-                                linestyle='--', linewidth=0.8, marker='x', markersize=3)
+                                linestyle=':', linewidth=1.0)
                 line_histories.append(line)
 
         # 绘制时速
@@ -1431,6 +1437,8 @@ async def _(ctx: SekaiHandlerContext):
         await compose_winrate_predict_image(ctx),
         low_quality=True,
     ))
+
+
 # ======================= 定时任务 ======================= #
 
 UPDATE_RANKING_LOG_INTERVAL_CFG = config.item('sk.update_ranking_log_interval')
@@ -1442,26 +1450,33 @@ ranking_update_failures = { region: 0 for region in ALL_SERVER_REGIONS }
 async def update_ranking():
     tasks = []
     region_failed = {}
+    
     # 获取所有服务器的榜线数据
     for region in ALL_SERVER_REGIONS:
         ctx = SekaiHandlerContext.from_region(region)
+
+        url = get_gameapi_config(ctx).ranking_api_url
+        if not url:
+            continue
+        
         # 获取当前运行中的活动
         if not (event := await get_current_event(ctx, fallback="prev")):
             continue
         if datetime.now() > datetime.fromtimestamp(event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END_CFG.get() * 60):
             continue
+
         # 获取榜线数据
         @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
-        async def _get_ranking(ctx: SekaiHandlerContext, eid: int):
+        async def _get_ranking(ctx: SekaiHandlerContext, eid: int, url: str):
             try:
-                data = await get_ranking(ctx.region, eid)
+                data = await request_gameapi(url.format(event_id=eid))
                 return ctx.region, eid, data
             except Exception as e:
                 logger.warning(f"获取 {ctx.region} 榜线数据失败: {get_exc_desc(e)}")
                 region_failed[ctx.region] = True
                 return ctx.region, eid, None
             
-        tasks.append(_get_ranking(ctx, event['id']))
+        tasks.append(_get_ranking(ctx, event['id'], url))
 
     if not tasks:
         return
