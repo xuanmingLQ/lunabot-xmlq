@@ -1103,10 +1103,11 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
                         ha='right', va='bottom', transform=ax.get_yaxis_transform())
             # 预测历史
             if config.get(f'sk.forecast.{source}.show_history') and f.history_final_score:
-                history_times = [datetime.fromtimestamp(x.ts) for x in f.history_final_score]
-                history_preds = [x.score for x in f.history_final_score]
+                history = [(datetime.fromtimestamp(x.ts), x.score) for x in f.history_final_score]
+                history_times = [x[0] for x in history]
+                history_preds = [x[1] for x in history]
                 line, = ax.plot(history_times, history_preds, label=f'{name}历史', color=color, 
-                                linestyle='--', linewidth=0.8, marker='x', markersize=3)
+                                linestyle=':', linewidth=1.0)
                 line_histories.append(line)
 
         # 绘制时速
