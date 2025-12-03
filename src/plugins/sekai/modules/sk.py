@@ -256,6 +256,25 @@ def get_board_rank_str(rank: int) -> str:
     # 每3位加一个逗号
     return "{:,}".format(rank)
 
+# 判断字符串是否为排名文本
+def is_rank_text(s: str) -> bool:
+    s = s.strip().rstrip('w').rstrip('k')
+    return s.isdigit()
+
+# 从排名文本获取排名整数
+def get_rank_from_text(s: str) -> int:
+    s = s.strip().lower()
+    try:
+        if s.endswith('w'):
+            s = s[:-1]
+            return int(s) * 10000
+        if s.endswith('k'):
+            s = s[:-1]
+            return int(s) * 1000
+        return int(s)
+    except:
+        raise ReplyException(f"无法解析的排名\"{s}\"")
+
 # 合成榜线预测图片
 async def compose_skp_image(ctx: SekaiHandlerContext) -> Image.Image:
     event = await get_current_event(ctx, fallback="prev")
@@ -508,6 +527,8 @@ async def compose_sks_image(ctx: SekaiHandlerContext, unit: str, event: dict = N
     
 # 从文本获取sk查询参数 (类型，值) 类型: 'name' 'uid' 'rank' 'ranks'
 async def get_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str, Union[str, int, List[int]]]:
+    MAX_QUERY_RANKS = 20
+
     ats = ctx.get_at_qids()
     if ats:
         uid = get_player_bind_id(ctx, ats[0], check_bind=False)
@@ -519,35 +540,32 @@ async def get_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str,
             return 'self', uid
     else:
         segs = [s for s in args.split() if s]
-        if len(segs) > 1 and all(s.isdigit() for s in segs):
-            ranks = [int(s) for s in segs]
-            assert_and_reply(len(ranks) <= 20, "查询排名过多，最多查询20个排名")
+        if len(segs) > 1 and all(is_rank_text(s) for s in segs):
+            ranks = [get_rank_from_text(s) for s in segs]
+            assert_and_reply(len(ranks) <= MAX_QUERY_RANKS, f"查询排名过多，最多查询{MAX_QUERY_RANKS}个排名")
             for rank in ranks:
                 if rank not in ALL_RANKS:
                     raise ReplyException(f"不支持的排名: {rank}")
             return 'ranks', ranks
         elif '-' in args:
             start, end = args.split('-', 1)
-            start, end = int(start), int(end)
+            start, end = get_rank_from_text(start), get_rank_from_text(end)
             assert_and_reply(start <= end, "查询排名范围错误: 起始排名大于结束排名")
-            assert_and_reply(end - start + 1 <= 20, "查询排名范围过大，最多查询20个排名")
+            assert_and_reply(end - start + 1 <= MAX_QUERY_RANKS, f"查询排名范围过大，最多查询{MAX_QUERY_RANKS}个排名")
             assert_and_reply(start in ALL_RANKS, f"不支持的起始排名: {start}")
             assert_and_reply(end in ALL_RANKS, f"不支持的结束排名: {end}")
             return 'ranks', list(range(start, end + 1))
-        elif args.isdigit():
-            if int(args) in ALL_RANKS:
-                return 'rank', int(args)
+        elif is_rank_text(args):
+            if is_rank_text(args) in ALL_RANKS:
+                return 'rank', is_rank_text(args)
             else:
                 return 'uid', int(args)
-        else:
-            return 'name', args
     raise ReplyException(f"""
 查询指定榜线方式：
-查询自己: {ctx.original_trigger_cmd} (需要使用\"/{ctx.region}绑定\"绑定游戏ID)
+查询自己: {ctx.original_trigger_cmd} (需要绑定游戏ID)
 查询排名: {ctx.original_trigger_cmd} 100
 查询多个排名: {ctx.original_trigger_cmd} 1 2 3
 查询UID: {ctx.original_trigger_cmd} 12345678910
-查询昵称: {ctx.original_trigger_cmd} ABC
 """.strip())
 
 # 格式化sk查询参数
@@ -1447,10 +1465,7 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip() + ctx.prefix_arg
     wl_event, args = await extract_wl_event(ctx, args)
 
-    try:
-        rank = int(args)
-    except:
-        return await ctx.asend_reply_msg(f"请输入正确的单个排名")
+    rank = get_rank_from_text(args)
     
     assert_and_reply(rank in ALL_RANKS, f"不支持的排名: {rank}")
 
