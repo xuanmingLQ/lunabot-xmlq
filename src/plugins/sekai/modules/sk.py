@@ -236,13 +236,17 @@ async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_rank
     return [r for r in await parse_rankings(ctx, event_id, data, False) if r.rank in query_ranks]
 
 # 获取榜线分数字符串
-def get_board_score_str(score: int, width: int = None) -> str:
+def get_board_score_str(score: int, width: int = None, precise: bool = True) -> str:
     if score is None:
         ret = "?"
     else:
         score = int(score)
         M = 10000
-        ret = f"{score // M}.{score % M:04d}w"
+        if precise:
+            ret = f"{score // M}.{score % M:04d}w"
+        else:
+            ret = f"{score // M}.{score % M:04d}"
+            ret = ret.rstrip('0').rstrip('.') + 'w'
     if width:
         ret = ret.rjust(width)
     return ret
@@ -931,11 +935,12 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
         rs2 = [rank.rank for rank in ranks2]
 
     def draw_graph() -> Image.Image:
-        fig, ax = plt.subplots()
+        fig, ax1 = plt.subplots()
+        ax2 = ax1.twinx()
         fig.set_size_inches(12, 8)
         fig.subplots_adjust(wspace=0, hspace=0)
 
-        draw_daynight_bg(ax, times[0], times[-1])
+        draw_daynight_bg(ax1, times[0], times[-1])
 
         min_score = min(scores)
         max_score = max(scores) 
@@ -949,53 +954,53 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
         color_p2 = ('orangered', 'coral')
 
         # 绘制分数
-        line_score, = ax.plot(times, scores, 'o', label=f'{name}分数', color=color_p1[0], markersize=1, linewidth=0.5)
+        line_score, = ax2.plot(times, scores, 'o', label=f'{name} 分数', color=color_p1[0], markersize=1, linewidth=0.5)
         lines.append(line_score)
         plt.annotate(f"{get_board_score_str(scores[-1])}", xy=(times[-1], scores[-1]), xytext=(times[-1], scores[-1]), 
                      color=color_p1[0], fontsize=12, ha='right')
         if ranks2 is not None:
-            line_score2, = ax.plot(times2, scores2, 'o', label=f'{name2}分数', color=color_p2[0], markersize=1, linewidth=0.5)
+            line_score2, = ax2.plot(times2, scores2, 'o', label=f'{name2} 分数', color=color_p2[0], markersize=1, linewidth=0.5)
             lines.append(line_score2)
             plt.annotate(f"{get_board_score_str(scores2[-1])}", xy=(times2[-1], scores2[-1]), xytext=(times2[-1], scores2[-1]),
                             color=color_p2[0], fontsize=12, ha='right')
 
-        ax.set_ylim(min_score * 0.95, max_score * 1.05)
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(x)))
-        ax.grid(True, linestyle='-', alpha=0.3, color='gray')
+        ax2.set_ylim(min_score * 0.95, max_score * 1.05)
+        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(x, precise=False)))
+        ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+        ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
+        fig.autofmt_xdate()
 
         # 绘制排名
-        ax2 = ax.twinx()
-
-        line_rank, = ax2.plot(times, rs, 'o', label=f'{name}排名', color=color_p1[1], markersize=0.7, linewidth=0.5)
+        line_rank, = ax1.plot(times, rs, 'o', label=f'{name} 排名', color=color_p1[1], markersize=0.7, linewidth=0.5)
         lines.append(line_rank)
         plt.annotate(f"{int(rs[-1])}", xy=(times[-1], rs[-1] * 1.02), xytext=(times[-1], rs[-1] * 1.02),
                      color=color_p1[1], fontsize=12, ha='right')
         if ranks2 is not None:
-            line_rank2, = ax2.plot(times2, rs2, 'o', label=f'{name2}排名', color=color_p2[1], markersize=0.7, linewidth=0.5)
+            line_rank2, = ax1.plot(times2, rs2, 'o', label=f'{name2} 排名', color=color_p2[1], markersize=0.7, linewidth=0.5)
             lines.append(line_rank2)
             plt.annotate(f"{int(rs2[-1])}", xy=(times2[-1], rs2[-1] * 1.02), xytext=(times2[-1], rs2[-1] * 1.02),
                             color=color_p2[1], fontsize=12, ha='right')
+        ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x)) if 1 <= int(x) <= 100 else ''))
+        ax1.set_ylim(110, -10)
 
-        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x)) if 1 <= int(x) <= 100 else ''))
-        ax2.set_ylim(110, -10)
-
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
-        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-        fig.autofmt_xdate()
-
-        if ranks2 is None:
-            plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} 玩家: {name}")
-        else:
-            plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} 玩家: {name} vs {name2}")
-
+        # 标签
         labels = [l.get_label() for l in lines]
-        ax.legend(lines, labels, loc='upper left')
+        ax2.legend(lines, labels, loc='upper left')
 
-        return plt_fig_to_image(fig)
+        # 网格
+        ax1.xaxis.grid(True, linestyle='-', alpha=0.3, color='gray')
+        ax2.yaxis.grid(True, linestyle='-', alpha=0.3, color='gray')
+        
+        if ranks2 is None:
+            plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} 玩家: 【{name}】(T{ranks[-1].rank})")
+        else:
+            plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} 玩家: 【{name}】(T{ranks[-1].rank})  vs 【{name2}】(T{ranks2[-1].rank})")
+
+        return plt_fig_to_image(fig, tight=True)
     
     img = await run_in_pool(draw_graph)
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        ImageBox(img).set_bg(roundrect_bg(fill=(255, 255, 255, 200)))
+        ImageBox(img).set_bg(roundrect_bg(fill=(255, 255, 255, 200))).set_padding(16)
         if wl_cid:
             with VSplit().set_content_align('c').set_item_align('c').set_sep(4).set_bg(roundrect_bg()).set_padding(8):
                 ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
@@ -1056,6 +1061,31 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
             combined_colors = []
         return combined_colors
 
+    def pixel_size_to_data_size(ax, pixel_size: int) -> float:
+        # 将像素大小转换为数据坐标大小
+        fig = ax.get_figure()
+        dpi = fig.dpi
+        phys_size = pixel_size * dpi / 72
+        inv = ax.transData.inverted()
+        data_size = abs(inv.transform((0, phys_size))[1] - inv.transform((0, 0))[1])
+        return data_size
+
+    def draw_nocollide_texts(ax, texts: list[str], colors: list, x: float, y_positions: list[float], fontsize: int, ha: str, va: str):
+        objs = list(zip(texts, colors, y_positions))
+        objs.sort(key=lambda item: item[2], reverse=True)
+        last_y = float('inf')
+        for i in range(len(objs)):
+            text, color, y = objs[i]
+            height = pixel_size_to_data_size(ax, fontsize)
+            if last_y - y < height:
+                new_y = last_y - height * 1.1
+                # 避免和线本身冲突
+                if va == 'bottom' and y - new_y < height:
+                    new_y = y - height * 1.1
+                y = new_y
+            ax.text(x, y, text, color=color, fontsize=fontsize, ha=ha, va=va, transform=ax.get_yaxis_transform())  
+            last_y = y
+
     def draw_graph() -> Image.Image:
         max_score = max(scores + pred_scores)
         min_score = min(scores + pred_scores)
@@ -1063,16 +1093,22 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
             if f.final_score:
                 max_score = max(max_score, f.final_score)
                 min_score = min(min_score, f.final_score)
+            if f.history_final_score:
+                hist_scores = [x.score for x in f.history_final_score if x.score <= max_score * 1.2]
+                if hist_scores:
+                    max_score = max(max_score, max(hist_scores))
+                    min_score = min(min_score, min(hist_scores))
 
-        fig, ax = plt.subplots()
+        fig, ax1 = plt.subplots()
+        ax2 = ax1.twinx()
         fig.set_size_inches(12, 8)
         fig.subplots_adjust(wspace=0, hspace=0)
 
-        draw_daynight_bg(ax, times[0], times[-1])
+        draw_daynight_bg(ax1, times[0], times[-1])
 
         unique_uids = sorted(list(set(uids)))
         num_unique_uids = len(unique_uids)
-        if len(uids) / num_unique_uids < 10:
+        if num_unique_uids > 20:
             # 数量太多，直接使用同一个颜色
             point_colors = ['blue' for _ in uids]
         else:
@@ -1082,54 +1118,66 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
             point_colors = [uid_to_color.get(uid) for uid in uids]
 
         # 绘制分数，为不同uid的数据点使用不同颜色
-        ax.scatter(times, scores, c=point_colors, s=2)
-        if scores: 
-            plt.annotate(f"{get_board_score_str(scores[-1])}", xy=(times[-1], scores[-1]), xytext=(times[-1], scores[-1]),
-                        color=point_colors[-1], fontsize=12, ha='right')
-
+        ax2.scatter(times, scores, c=point_colors, s=2)
+        ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+        ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
+        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(int(x), precise=False)))
+        fig.autofmt_xdate()
+        if scores: # 当前分数
+            plt.annotate(f"{get_board_score_str(scores[-1])}", 
+                         xy=(times[-1], scores[-1]), xytext=(times[-1], scores[-1]),
+                         color=point_colors[-1], fontsize=12, ha='right', va='bottom')
+        
         # 绘制预测
         line_histories = []
         colors = list(mcolors.TABLEAU_COLORS.values())
+        final_score_texts, final_score_ys, final_score_colors = [], [], []
         for i, (source, f) in enumerate(forecasts.items()):
             name = config.get(f'sk.forecast.{source}.name')
             color = colors[i % len(colors)]
             # 最终预测线
             if f.final_score:
-                ax.axhline(y=f.final_score, color=color, linestyle='--', linewidth=1.0)
-                x_pos = 0.9 - (i * 0.175)
-                text_str = f"{name}: {get_board_score_str(f.final_score)}"
-                ax.text(x_pos, f.final_score, text_str, 
-                        color=color, fontsize=10, 
-                        ha='right', va='bottom', transform=ax.get_yaxis_transform())
+                ax2.axhline(y=f.final_score, color=color, linestyle='--', linewidth=0.8, alpha=0.7)
+                score = round(f.final_score / 10000) * 10000
+                final_score_texts.append(f"{name}: {get_board_score_str(score, precise=False)}")
+                final_score_ys.append(f.final_score)
+                final_score_colors.append(color)
             # 预测历史
             if config.get(f'sk.forecast.{source}.show_history') and f.history_final_score:
                 history = [(datetime.fromtimestamp(x.ts), x.score) for x in f.history_final_score]
                 history_times = [x[0] for x in history]
                 history_preds = [x[1] for x in history]
-                line, = ax.plot(history_times, history_preds, label=f'{name}历史', color=color, 
-                                linestyle=':', linewidth=1.0)
+                line, = ax2.plot(history_times, history_preds, label=f'{name}历史', color=color, 
+                                linestyle='-', linewidth=1.0, alpha=1.0)
                 line_histories.append(line)
+        # 统一绘制最终预测线对应的文本，避免重叠
+        draw_nocollide_texts(
+            ax2, final_score_texts, final_score_colors,
+            1.0, final_score_ys,
+            10, 'right', 'bottom'
+        )
 
         # 绘制时速
-        ax2 = ax.twinx()
-        line_speeds, = ax2.plot(times, speeds, 'o', label='时速', color='green', markersize=0.5, linewidth=0.5)
-        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(int(x)) + "/h"))
-        ax2.set_ylim(0, max(speeds) * 1.2)
+        line_speeds, = ax1.plot(times, speeds, 'o', label='时速', color='green', markersize=0.5, linewidth=0.5)
+        ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(int(x), precise=False) + "/h"))
+        ax1.set_ylim(0, max(speeds) * 1.2)
         
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
-        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-        fig.autofmt_xdate()
-        plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} T{rank} 分数线")
-
+        # 标签
         lines = [line_speeds] + line_histories
         labels = [l.get_label() for l in lines]
-        ax.legend(lines, labels, loc='upper left')
+        ax2.legend(lines, labels, loc='upper left')
 
-        return plt_fig_to_image(fig)
+        # 网格
+        ax1.xaxis.grid(True, linestyle='-', alpha=0.3, color='gray')
+        ax2.yaxis.grid(True, linestyle='-', alpha=0.3, color='gray')
+
+        plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} T{rank} 分数线")
+
+        return plt_fig_to_image(fig, tight=True)
     
     img = await run_in_pool(draw_graph)
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        ImageBox(img).set_bg(roundrect_bg(fill=(255, 255, 255, 200)))
+        ImageBox(img).set_bg(roundrect_bg(fill=(255, 255, 255, 200))).set_padding(16)
         if wl_cid:
             with VSplit().set_content_align('c').set_item_align('c').set_sep(4).set_bg(roundrect_bg()).set_padding(8):
                 ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
