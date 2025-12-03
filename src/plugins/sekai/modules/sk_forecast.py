@@ -190,26 +190,6 @@ async def get_snowy_forecast_data(region: str, event_id: int, chapter_id: int | 
     for ranking in predictions['rankings']:
         data.rank_data[ranking['rank']] = RankForecastData(final_score=ranking['predicted_score'])
     data.forecast_ts = int(update_time.timestamp())
-    '''
-    async with TempBotOrInternetFilePath('html', cfg['url']) as html_path:
-        with open(html_path, 'r', encoding='utf-8') as f:
-            html = f.read()
-
-        if f'event_{event_id}' not in html:
-            raise Exception("最新活动预测未更新")
-
-        rank_preds = {}
-
-        pattern = re.compile(r'"Rank":(\d+),"CurrentScore":\d+,"PredictedScore":(\d+),')
-        for match in pattern.finditer(html):
-            rank = int(match.group(1))
-            pred_score = int(match.group(2))
-            rank_preds[rank] = pred_score
-        
-        data.forecast_ts = int(time.time())
-        for rank, pred in rank_preds.items():
-            data.rank_data[rank] = RankForecastData(final_score=pred)
-    '''
     return data
 
 async def get_sekarun_forecast_data(region: str, event_id: int, chapter_id: int | None = None) -> ForecastData | None:
