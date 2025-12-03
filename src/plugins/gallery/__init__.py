@@ -672,7 +672,8 @@ async def _(ctx: HandlerContext):
 使用方式: 
 /看 画廊名称 
 /看 画廊名称 x2
-/看 pid1 pid2...
+/看 画廊名称 -1
+/看 123 456...
 """.strip()
 
     args = ctx.get_args().strip()
@@ -688,7 +689,15 @@ async def _(ctx: HandlerContext):
         pics = None
         num = 1
         args = args.replace('*', 'x').replace('×', 'x')
-        if 'x' in args:
+        if '-' in args:
+            args, nindex_str = args.rsplit('-', 1)
+            try: nindex = int(nindex_str)
+            except: raise ReplyException(HELP)
+            pics = GalleryManager.get().find_gall(args.strip(), raise_if_nofound=True).pics
+            if len(pics) < nindex:
+                raise ReplyException(f'画廊\"{args.strip()}\"仅有{len(pics)}张图片')
+            pics = [pics[-nindex]]
+        elif 'x' in args:
             args, num_str = args.rsplit('x', 1)
             try: num = int(num_str)
             except: raise ReplyException(HELP)
@@ -1090,10 +1099,11 @@ async def _(ctx: HandlerContext):
     if hid:
         assert_and_reply(check_superuser(ctx.event), '仅管理员可撤销指定上传记录，非管理员可留空参数撤销自己的最近一次上传')
         h, ok_list, err_list = revert_user_add_history(hid)
+        msg = f"撤销{h['uid']}的上传记录#{h['id']}\n"
     else:
         h, ok_list, err_list = revert_user_last_add_history(ctx.user_id)
+        msg = f"撤销你的最近一次上传记录#{h['id']}\n"
 
-    msg = f"撤销{h['uid']}的上传记录#{h['id']}\n"
     if ok_list:
         msg += f'{len(ok_list)}张图片删除成功:\n'
         msg += ' '.join(str(pid) for pid in ok_list) + '\n'
