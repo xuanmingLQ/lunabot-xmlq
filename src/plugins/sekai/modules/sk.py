@@ -235,6 +235,10 @@ async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_rank
         data = await get_ranking(ctx.region, event_id)
     except ApiError as e:
         raise ReplyException(e.msg)
+    # url = get_gameapi_config(ctx).ranking_api_url
+    # assert_and_reply(url, f"暂不支持获取{ctx.region}榜线数据")
+    # data = await request_gameapi(url.format(event_id=event_id % 1000))
+    # assert_and_reply(data, "获取榜线数据失败")
     logger.info(f"从API获取 {ctx.region}_{event_id} 最新榜线数据")
     return [r for r in await parse_rankings(ctx, event_id, data, False) if r.rank in query_ranks]
 
@@ -1132,7 +1136,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(int(x)) + "/h"))
         ax2.set_ylim(0, max(speeds) * 1.2)
         
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M',))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
         ax.xaxis.set_major_locator(mdates.AutoDateLocator())
         fig.autofmt_xdate()
         plt.title(f"{get_event_id_and_name_text(ctx.region, eid, '')} T{rank} 分数线")
@@ -1457,6 +1461,10 @@ async def update_ranking():
     # 获取所有服务器的榜线数据
     for region in ALL_SERVER_REGIONS:
         ctx = SekaiHandlerContext.from_region(region)
+
+        # url = get_gameapi_config(ctx).ranking_api_url
+        # if not url:
+        #     continue
         
         # 获取当前运行中的活动
         if not (event := await get_current_event(ctx, fallback="prev")):
