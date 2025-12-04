@@ -632,6 +632,8 @@ async def get_player_avatar_info_by_detailed_profile(ctx: SekaiHandlerContext, d
     unit = await get_unit_by_card_id(ctx, card_id)
     return PlayerAvatarInfo(card_id, cid, unit, avatar_img)
 
+
+
 # 获取玩家详细信息的简单卡片控件，返回Frame
 async def get_detailed_profile_card(ctx: SekaiHandlerContext, profile: dict, err_msg: str, mode=None) -> Frame:
     with Frame().set_bg(roundrect_bg()).set_padding(16) as f:
