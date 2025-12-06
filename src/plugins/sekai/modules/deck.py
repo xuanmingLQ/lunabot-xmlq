@@ -1285,20 +1285,35 @@ async def compose_deck_recommend_image(
     # 使用当前队伍
     use_current_deck = additional.get('use_current_deck', False)
     if use_current_deck:
-        assert_and_reply(options.live_type not in ['challenge'], "暂不支持获取挑战组卡的当前队伍")
-        basic_profile = await get_basic_profile(
-            ctx, get_player_bind_id(ctx), 
-            use_cache=False, use_remote_cache=False,
-        )
-        options.fixed_cards = [basic_profile['userDeck'][f'member{i}'] for i in range(1, 6)]
-        options.fixed_characters = None
-        options.best_skill_as_leader = False
-        # 转移basic_profile中的卡到profile中
-        for bp_card in basic_profile['userCards']:
-            if p_card := find_by(profile['userCards'], 'cardId', bp_card['cardId']):
-                p_card.update(bp_card)
-            else:
-                profile['userCards'].append(bp_card)
+        assert_and_reply(recommend_type != 'challenge_all', "需要指定挑战组卡角色才能使用\"当前\"参数")
+        if recommend_type == 'challenge':
+            deck = find_by(profile.get('userChallengeLiveSoloDecks', []), "characterId", options.challenge_live_character_id)
+            assert_and_reply(deck, "找不到你的该角色的当前挑战卡组（更新当前挑战卡组需要抓包）")
+            cards = []
+            if deck.get('leader'): cards.append(deck['leader'])
+            if deck.get('support1'): cards.append(deck['support1'])
+            if deck.get('support2'): cards.append(deck['support2'])
+            if deck.get('support3'): cards.append(deck['support3'])
+            if deck.get('support4'): cards.append(deck['support4'])
+            if len(cards)!= 5:
+                raise ReplyException("你的该角色的当前挑战卡组不足5张，无法使用\"当前\"参数（更新当前挑战卡组需要抓包）")
+            options.fixed_cards = cards
+            options.fixed_characters = None
+            options.best_skill_as_leader = False
+        else:
+            basic_profile = await get_basic_profile(
+                ctx, get_player_bind_id(ctx), 
+                use_cache=False, use_remote_cache=False,
+            )
+            options.fixed_cards = [basic_profile['userDeck'][f'member{i}'] for i in range(1, 6)]
+            options.fixed_characters = None
+            options.best_skill_as_leader = False
+            # 转移basic_profile中的卡到profile中
+            for bp_card in basic_profile['userCards']:
+                if p_card := find_by(profile['userCards'], 'cardId', bp_card['cardId']):
+                    p_card.update(bp_card)
+                else:
+                    profile['userCards'].append(bp_card)
 
     # 如果卡组完全固定则只需要跑一种算法，并删除profile中除固定以外的其他卡牌以减少开销
     is_deck_fixed = options.fixed_cards and len(options.fixed_cards) == 5 or use_current_deck
@@ -1620,9 +1635,10 @@ async def compose_deck_recommend_image(
                             info_text += "检测到你的歌曲查询中包含团名或颜色，可能是参数格式不正确\n"
                             info_text += "如果你想指定仅包含某个团名或颜色的卡牌请用: 纯mmj 纯绿\n"
                             info_text += "如果你想组某个团名颜色加成的模拟活动请使用“/组卡”\n"
-
                     if use_max_profile:
                         info_text += "“顶配”为该服截止当前的全卡满养成配置(并非基于你的卡组计算)\n"
+                    if use_current_deck:
+                        info_text += "活动组卡的“当前”队伍无需抓包更新，挑战组卡则需要抓包更新\n"
 
                     if info_text:  
                         TextBox(info_text.strip(), TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(200, 75, 75)), use_real_line_count=True)
