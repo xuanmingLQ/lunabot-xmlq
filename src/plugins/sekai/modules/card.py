@@ -979,11 +979,11 @@ async def _(ctx: SekaiHandlerContext):
         
     ## 尝试解析：查多张卡
     res, args = await search_multi_cards(ctx, args, cards, contain_leak=True)
-
     box = False
     if 'box' in args:
         args = args.replace('box', '').strip()
         box = True
+    assert_and_reply(not args, f"无法解析的参数:\"{args}\"")
 
     logger.info(f"搜索到{len(res)}个卡牌")
 
@@ -1050,7 +1050,6 @@ pjsk_box.check_cdrate(cd).check_wblist(gbl)
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
     cards, args = await search_multi_cards(ctx, args, contain_leak=False)
-    assert_and_reply(cards, "没有找到符合条件的卡牌")
 
     show_id = False
     if 'id' in args:
@@ -1066,6 +1065,9 @@ async def _(ctx: SekaiHandlerContext):
     if 'before' in args:
         use_after_training = False
         args = args.replace('before', '').strip()
+
+    assert_and_reply(not args, f"无法解析的参数:\"{args}\"")
+    assert_and_reply(cards, "没有找到符合条件的卡牌")
     
     await ctx.asend_reply_msg(await get_image_cq(
         await compose_box_image(ctx, ctx.user_id, cards, show_id, show_box, use_after_training),
