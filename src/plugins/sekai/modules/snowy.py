@@ -308,7 +308,7 @@ async def get_sekaiprofile_image(region: str, uid: str) -> Image.Image:
     url = base_url.format(user_id=uid, token=token)
     async with PlaywrightPage() as page:
         try:
-            await page.goto(url, wait_until='domcontentloaded', timeout=60000)
+            await page.goto(url, wait_until='networkidle', timeout=60000)
             # 等待加载遮罩消失
             await page.wait_for_selector(
                 "#loadingOverlay.hidden",
