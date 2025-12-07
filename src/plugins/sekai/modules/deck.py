@@ -19,7 +19,6 @@ from .music import (
     MusicSearchOptions, 
     extract_diff, 
     is_valid_music, 
-    get_music_diff_info,
     get_music_cover_thumb,
 )
 from .mysekai import MYSEKAI_REGIONS
@@ -73,6 +72,10 @@ DEFAULT_DECK_RECOMMEND_MUSICDIFFS = {
         (540, "master"),
         (104, "master"),
     ],
+    "challenge_auto": [
+        (540, "master"),
+        (104, "master"),
+    ],
 }
 
 POWER_TARGET_KEYWORDS = ('综合力', '综合', '总合力', '总和', 'power')
@@ -100,8 +103,15 @@ CURRENT_DECK_KEYWORDS = ('当前', '目前')
 
 MUSIC_COMPARE_KEYWORDS = ('歌曲比较', '歌曲排行', '歌曲排名', '歌曲推荐',)
 MUSIC_COMPARE_DEFAULT_MUSIC_NUM = 8
-MUSIC_COMPARE_CANDIDATE_MUSIC_NUM = 80
+MUSIC_COMPARE_CANDIDATE_MUSIC_NUM = 40
 MUSCI_COMPARE_MAX_MUSIC_NUM = 5
+
+MAX_KEYWORDS = ('最高', '最大', '最优', '最强', '最佳')
+MIN_KEYWORDS = ('最低', '最小', '最差', '最弱', '最烂')
+AVG_KEYWORDS = ('平均', '均值', '期望')
+
+SKILL_ORDER_KEYWORDS = ('技能顺序', '技能排列')
+SKILL_REF_KEYWORDS = ('技能抽取', '技能吸取')
 
 DEFAULT_CARD_CONFIG_12 = DeckRecommendCardConfig()
 DEFAULT_CARD_CONFIG_12.disable = False
@@ -372,7 +382,59 @@ def extract_target(args: str, options: DeckRecommendOptions) -> str:
             break
     
     return args.strip()
+
+# 从args中提取随机因素选择策略
+def extract_random_strategy(
+    args: str, 
+    options: DeckRecommendOptions,
+    default_skill_order_strategy: str,
+    default_skill_reference_strategy: str,
+) -> str:
+    for seg in args.split():
+        # 技能顺序选择
+        for keyword in SKILL_ORDER_KEYWORDS:
+            if keyword in seg:
+                if any(kw in seg for kw in MAX_KEYWORDS):
+                    options.skill_order_choose_strategy = "max"
+                elif any(kw in seg for kw in MIN_KEYWORDS):
+                    options.skill_order_choose_strategy = "min"
+                elif any(kw in seg for kw in AVG_KEYWORDS):
+                    options.skill_order_choose_strategy = "average"
+                else:
+                    # 指定顺序
+                    options.skill_order_choose_strategy = "specific"
+                    try:
+                        order = seg.replace(keyword, "").strip()
+                        order = [int(c) - 1 for c in order]
+                        assert set(order) == set(range(5))
+                        options.specific_skill_order = order
+                    except:
+                        raise ReplyException("""
+指定技能顺序方式:
+最优顺序: /指令 ... 技能顺序最优
+最差顺序: /指令 ... 技能顺序最差
+平均顺序: /指令 ... 技能顺序平均
+特定顺序: /指令 ... 技能顺序12345
+""".strip())
+                args = args.replace(seg, "", 1).strip()
+        # 技能吸取选择
+        for keyword in SKILL_REF_KEYWORDS:
+            if keyword in seg:
+                if any(kw in seg for kw in MAX_KEYWORDS):
+                    options.skill_reference_choose_strategy = "max"
+                elif any(kw in seg for kw in MIN_KEYWORDS):
+                    options.skill_reference_choose_strategy = "min"
+                elif any(kw in seg for kw in AVG_KEYWORDS):
+                    options.skill_reference_choose_strategy = "average"
+                args = args.replace(seg, "", 1).strip()
     
+    if options.skill_order_choose_strategy is None:
+        options.skill_order_choose_strategy = default_skill_order_strategy
+    if options.skill_reference_choose_strategy is None:
+        options.skill_reference_choose_strategy = default_skill_reference_strategy
+
+    return args.strip()
+                
 # 从args中提取固定卡牌
 def extract_fixed_cards_and_characters(args: str, options: DeckRecommendOptions) -> str:
     args = args.replace('＃', '#')
@@ -602,7 +664,7 @@ async def extract_music_and_diff(
     if isinstance(default_musicdiffs, dict):
         default_musicdiffs = default_musicdiffs[live_type]
     for mid, diff in default_musicdiffs:
-        if mid == OMAKASE_MUSIC_ID or await is_valid_music(ctx, mid, leak=False):
+        if mid == OMAKASE_MUSIC_ID or await is_valid_music(ctx, mid, leak=False, diff=diff):
             if options.music_id is None:
                 options.music_id = mid
             if options.music_diff is None:
@@ -674,6 +736,7 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     additional, args = extract_addtional_options(args)
 
     args = extract_live_type(args, options)
+    args = extract_random_strategy(args, options, "average", "average")
     args = extract_multilive_options(args, options)
     args = extract_fixed_cards_and_characters(args, options)
     args = extract_card_config(args, options)
@@ -699,9 +762,6 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     # 组卡限制
     options.limit = DEFAULT_LIMIT
 
-    # bfes技能计算策略
-    options.skill_reference_choose_strategy = "average"
-
     # 模拟退火设置
     options.sa_options = DeckRecommendSaOptions()
     options.sa_options.max_no_improve_iter = 10000
@@ -719,11 +779,13 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
 
     additional, args = extract_addtional_options(args)
 
+    args = extract_live_type(args, options)
+    options.live_type = 'challenge_auto' if options.live_type == 'auto' else 'challenge'
+    random_strategy = 'average' if 'auto' in options.live_type else 'max'
+    args = extract_random_strategy(args, options, random_strategy, random_strategy)
     args = extract_fixed_cards_and_characters(args, options)
     args = extract_card_config(args, options)
     args = extract_target(args, options)
-
-    options.live_type = "challenge"
 
     # 算法
     options.algorithm = "all"
@@ -747,9 +809,6 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
     # 组卡限制
     options.limit = DEFAULT_LIMIT
 
-    # bfes技能计算策略
-    options.skill_reference_choose_strategy = "max"
-
     # 模拟退火设置
     options.sa_options = DeckRecommendSaOptions()
     if options.challenge_live_character_id is None:
@@ -769,6 +828,7 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     additional, args = extract_addtional_options(args)
 
     args = extract_live_type(args, options)
+    args = extract_random_strategy(args, options, "average", "average")
     args = extract_multilive_options(args, options)
     args = extract_fixed_cards_and_characters(args, options)
     args = extract_card_config(args, options)
@@ -790,9 +850,6 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
-
-    # bfes技能计算策略
-    options.skill_reference_choose_strategy = "max"
 
     # 模拟退火设置
     options.sa_options = DeckRecommendSaOptions()
@@ -1230,7 +1287,7 @@ async def compose_deck_recommend_image(
             recommend_type = "wl_bonus"
         else:
             recommend_type = "bonus"
-    elif options.live_type == "challenge":
+    elif options.live_type in ["challenge", "challenge_auto"]:
         if options.challenge_live_character_id:
             recommend_type = "challenge"
         else:
@@ -1349,10 +1406,12 @@ async def compose_deck_recommend_image(
             musicmetas = await musicmetas_json.get()
             music_values = []
             is_multi = options.live_type in ['multi', 'cheerful']
-            is_auto = options.live_type == 'auto'
+            is_auto = options.live_type in ['auto', 'challenge_auto']
             for item in musicmetas:
                 music_id = item['music_id']
                 diff = item['difficulty']
+                if not await is_valid_music(ctx, music_id, False, diff):
+                    continue
                 value = item['base_score'] if not is_auto else item['base_score_auto']
                 for i in range(6):
                     key = 'skill_score_solo'
@@ -1537,6 +1596,8 @@ async def compose_deck_recommend_image(
                             title += f"烤森模拟活动组卡"
                     elif recommend_type in ['challenge', 'challenge_all']: 
                         title += "每日挑战组卡"
+                        if options.live_type == "challenge_auto":
+                            title += "(AUTO)"
                     elif recommend_type in ['bonus', 'wl_bonus']:
                         if recommend_type == "bonus":
                             title += f"活动#{event_id}加成组卡"
@@ -1625,6 +1686,26 @@ async def compose_deck_recommend_image(
                                 else:
                                     ImageBox(music_cover, size=(50, 50), shadow=True)
                             TextBox(music_title, TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
+
+                    if recommend_type not in ["bonus", "wl_bonus", "mysekai"]:
+                        if options.skill_order_choose_strategy == 'average':
+                            skill_order_text = "技能顺序: 平均情况"
+                        elif options.skill_order_choose_strategy == 'max':
+                            skill_order_text = "技能顺序: 最优顺序"
+                        elif options.skill_order_choose_strategy == 'min':
+                            skill_order_text = "技能顺序: 最差顺序"
+                        elif options.skill_order_choose_strategy == 'specific':
+                            skill_order = options.specific_skill_order
+                            skill_order_text = f"技能顺序: {''.join([str(s+1) for s in skill_order])}"
+
+                        if options.skill_reference_choose_strategy == 'average':
+                            skill_reference_text = "BFes花前技能吸取: 平均值"
+                        elif options.skill_reference_choose_strategy == 'max':
+                            skill_reference_text = "BFes花前技能吸取: 最大值"
+                        elif options.skill_reference_choose_strategy == 'min':
+                            skill_reference_text = "BFes花前技能吸取: 最小值"
+
+                        TextBox(skill_order_text + "  " + skill_reference_text, TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(70, 70, 70)))
                     
                     info_text = ""
 
@@ -1681,7 +1762,7 @@ async def compose_deck_recommend_image(
                                         with Frame().set_content_align('rb'):
                                             alg_offset = 0
                                             # 挑战分数差距
-                                            if recommend_type in ['challenge', 'challenge_all']:
+                                            if recommend_type in ['challenge', 'challenge_all']: 
                                                 alg_offset = 20
                                                 dlt = challenge_score_dlt[i]
                                                 color = (50, 150, 50) if dlt > 0 else (150, 50, 50)
@@ -1801,15 +1882,13 @@ async def compose_deck_recommend_image(
                 # 说明
                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
                     tip_style = TextStyle(font=DEFAULT_FONT, size=16, color=(20, 20, 20))
-                    if recommend_type not in ["bonus", "wl_bonus"]:
-                        TextBox(f"12星卡默认全满，34星及生日卡默认满级，oc的bfes花前技能活动组卡为平均值，挑战组卡为最大值", tip_style)
                     TextBox(f"功能移植并修改自33Kit https://3-3.dev/sekai/deck-recommend 算错概不负责", tip_style)
                     alg_and_cost_text = "本次组卡使用算法: "
                     for alg, cost in cost_times.items():
                         alg_name = RECOMMEND_ALG_NAMES[alg]
                         cost_time = f"{cost:.2f}s"
                         wait_time = f"{wait_times[alg]:.2f}s"
-                        alg_and_cost_text += f"{alg_name} (等待{wait_time}/耗时{cost_time}) + "
+                        alg_and_cost_text += f"{alg.upper()}-{alg_name} (等待{wait_time}/耗时{cost_time}) + "
                     alg_and_cost_text = alg_and_cost_text[:-3]
                     TextBox(alg_and_cost_text, tip_style)
                     TextBox(f"若发现组卡漏掉最优解可指定固定卡牌再尝试，发送\"{ctx.original_trigger_cmd}help\"获取详细帮助", tip_style)
