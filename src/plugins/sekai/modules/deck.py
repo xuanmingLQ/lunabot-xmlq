@@ -14,7 +14,14 @@ from .profile import (
 )
 from .education import get_user_challenge_live_info
 from .card import get_unit_by_card_id, has_after_training
-from .music import DIFF_NAMES, search_music, MusicSearchOptions, extract_diff, is_valid_music
+from .music import (
+    search_music,
+    MusicSearchOptions, 
+    extract_diff, 
+    is_valid_music, 
+    get_music_diff_info,
+    get_music_cover_thumb,
+)
 from .mysekai import MYSEKAI_REGIONS
 from sekai_deck_recommend import (
     DeckRecommendOptions, 
@@ -23,6 +30,13 @@ from sekai_deck_recommend import (
     DeckRecommendResult,
     DeckRecommendSaOptions,
     RecommendDeck,
+)
+
+
+musicmetas_json = WebJsonRes(
+    name="MusicMeta", 
+    url = config.get("deck.music_meta_url"),
+    update_interval=timedelta(hours=1),
 )
 
 RECOMMEND_TIMEOUT_CFG = config.item('deck.timeout.default')
@@ -83,6 +97,11 @@ UNIT_FILTER_KEYWORDS = {
 }
 MAX_PROFILE_KEYWORDS = ('顶配', '满配',)
 CURRENT_DECK_KEYWORDS = ('当前', '目前')
+
+MUSIC_COMPARE_KEYWORDS = ('歌曲比较', '歌曲排行', '歌曲排名', '歌曲推荐',)
+MUSIC_COMPARE_DEFAULT_MUSIC_NUM = 8
+MUSIC_COMPARE_CANDIDATE_MUSIC_NUM = 80
+MUSCI_COMPARE_MAX_MUSIC_NUM = 5
 
 DEFAULT_CARD_CONFIG_12 = DeckRecommendCardConfig()
 DEFAULT_CARD_CONFIG_12.disable = False
@@ -551,19 +570,41 @@ def extract_multilive_options(args: str, options: DeckRecommendOptions) -> str:
 
     return args.strip()
 
-# 从args中提取歌曲和难度
-async def extract_music_and_diff(ctx: SekaiHandlerContext, args: str, options: DeckRecommendOptions, rec_type: str, live_type: str) -> str:
+# 从args中提取歌曲和难度，返回用于匹配歌曲的参数
+async def extract_music_and_diff(
+    ctx: SekaiHandlerContext, 
+    args: str, 
+    options: DeckRecommendOptions, 
+    rec_type: str, 
+    live_type: str, 
+    additional_args: dict
+) -> str:
+    search_options = MusicSearchOptions(
+        use_emb=False,
+        use_id=False,
+        use_nidx=False,
+        raise_when_err=False,
+    )
+
+    # 歌曲比较模式匹配（多首歌曲）
+    if additional_args.get('music_compare'):
+        segs = args.split()
+        assert_and_reply(len(segs) <= MUSCI_COMPARE_MAX_MUSIC_NUM, f"最多只能指定 {MUSCI_COMPARE_MAX_MUSIC_NUM} 首歌曲进行比较")
+        additional_args['music_diffs_to_compare'] = []
+        for seg in segs:
+            music_diff, seg = extract_diff(seg, default='master')
+            search_options.diff = music_diff
+            music = (await search_music(ctx, seg, search_options)).music
+            assert_and_reply(music, f"找不到歌曲\"{seg}\"")
+            additional_args['music_diffs_to_compare'].append((music['id'], music_diff, seg))
+        return ""
+
+    # 一般歌曲匹配（单首歌曲&默认判断）
     options.music_diff, args = extract_diff(args, default=None)
     args = args.strip()
 
     if args:
-        search_options = MusicSearchOptions(
-            use_emb=False,
-            use_id=False,
-            use_nidx=False,
-            diff=options.music_diff, 
-            raise_when_err=False,
-        )
+        search_options.diff = options.music_diff
         music = (await search_music(ctx, args, search_options)).music
         assert_and_reply(music, f"找不到歌曲\"{args}\"\n发送\"{ctx.trigger_cmd}help\"查看帮助")
         options.music_id = music['id']
@@ -571,7 +612,6 @@ async def extract_music_and_diff(ctx: SekaiHandlerContext, args: str, options: D
     default_musicdiffs = DEFAULT_DECK_RECOMMEND_MUSICDIFFS[rec_type]
     if isinstance(default_musicdiffs, dict):
         default_musicdiffs = default_musicdiffs[live_type]
-
     for mid, diff in default_musicdiffs:
         if mid == OMAKASE_MUSIC_ID or await is_valid_music(ctx, mid, leak=False):
             if options.music_id is None:
@@ -617,6 +657,11 @@ def extract_addtional_options(args: str) -> Tuple[dict, str]:
             args = args.replace(keyword, "").strip()
             break
 
+    for keyword in MUSIC_COMPARE_KEYWORDS:
+        if keyword in args:
+            ret['music_compare'] = True
+            args = args.replace(keyword, "").strip()
+
     ret['excluded_cards'] = []
     segs = args.split()
     for seg in segs:
@@ -661,7 +706,7 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
         options.world_bloom_character_id = wl_cid
         
     # 歌曲id和难度
-    args = await extract_music_and_diff(ctx, args, options, "event", options.live_type)
+    args = await extract_music_and_diff(ctx, args, options, "event", options.live_type, additional)
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -710,7 +755,7 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
     ## 不指定角色情况下每个角色都组1个最强卡
 
     # 歌曲id和难度
-    args = await extract_music_and_diff(ctx, args, options, "challenge", options.live_type)
+    args = await extract_music_and_diff(ctx, args, options, "challenge", options.live_type, additional)
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -755,7 +800,7 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.event_id = None
         
     # 歌曲id和难度
-    args = await extract_music_and_diff(ctx, args, options, "event", options.live_type)
+    args = await extract_music_and_diff(ctx, args, options, "event", options.live_type, additional)
 
     # 组卡限制
     options.limit = DEFAULT_LIMIT
@@ -803,7 +848,7 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.world_bloom_character_id = wl_cid
         
     # 歌曲id和难度
-    await extract_music_and_diff(ctx, "", options, "event", options.live_type)
+    await extract_music_and_diff(ctx, "", options, "event", options.live_type, additional)
 
     # 组卡限制
     options.limit = BONUS_TARGET_LIMIT
@@ -844,7 +889,7 @@ async def extract_mysekai_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.limit = DEFAULT_LIMIT
 
     # 歌曲id和难度
-    await extract_music_and_diff(ctx, "", options, "event", "multi")
+    await extract_music_and_diff(ctx, "", options, "event", "multi", additional)
 
     return {
         'options': options,
@@ -1186,7 +1231,11 @@ async def compose_deck_recommend_image(
     last_args: str,
     additional: dict,
 ) -> Image.Image:
-    # 判断组卡类型方便后续处理
+    
+    # ---------------------------- 判断组卡类型方便后续处理 ---------------------------- #
+
+    NO_MUSIC_TYPES = ["bonus", "wl_bonus", "mysekai"]
+
     is_wl = options.world_bloom_character_id or options.event_id == 180
     if options.live_type == "mysekai":
         recommend_type = "mysekai"
@@ -1211,6 +1260,8 @@ async def compose_deck_recommend_image(
         else:
             recommend_type = "no_event"
 
+    # ---------------------------- 处理额外参数 ---------------------------- #
+            
     # 是否是顶配租卡
     use_max_profile = additional.get('max_profile', False)
     if use_max_profile:
@@ -1248,20 +1299,88 @@ async def compose_deck_recommend_image(
     # 使用当前队伍
     use_current_deck = additional.get('use_current_deck', False)
     if use_current_deck:
-        assert_and_reply(options.live_type not in ['challenge'], "暂不支持获取挑战组卡的当前队伍")
-        basic_profile = await get_basic_profile(
-            ctx, get_player_bind_id(ctx), 
-            use_cache=False, use_remote_cache=False,
-        )
-        options.fixed_cards = [basic_profile['userDeck'][f'member{i}'] for i in range(1, 6)]
-        options.fixed_characters = None
-        options.best_skill_as_leader = False
-        # 转移basic_profile中的卡到profile中
-        for bp_card in basic_profile['userCards']:
-            if p_card := find_by(profile['userCards'], 'cardId', bp_card['cardId']):
-                p_card.update(bp_card)
-            else:
-                profile['userCards'].append(bp_card)
+        assert_and_reply(recommend_type != 'challenge_all', "需要指定挑战组卡角色才能使用\"当前\"参数")
+        if recommend_type == 'challenge':
+            deck = find_by(profile.get('userChallengeLiveSoloDecks', []), "characterId", options.challenge_live_character_id)
+            assert_and_reply(deck, "找不到你的该角色的当前挑战卡组（更新当前挑战卡组需要抓包）")
+            cards = []
+            if deck.get('leader'): cards.append(deck['leader'])
+            if deck.get('support1'): cards.append(deck['support1'])
+            if deck.get('support2'): cards.append(deck['support2'])
+            if deck.get('support3'): cards.append(deck['support3'])
+            if deck.get('support4'): cards.append(deck['support4'])
+            if len(cards)!= 5:
+                raise ReplyException("你的该角色的当前挑战卡组不足5张，无法使用\"当前\"参数（更新当前挑战卡组需要抓包）")
+            options.fixed_cards = cards
+            options.fixed_characters = None
+            options.best_skill_as_leader = False
+        else:
+            basic_profile = await get_basic_profile(
+                ctx, get_player_bind_id(ctx), 
+                use_cache=False, use_remote_cache=False,
+            )
+            options.fixed_cards = [basic_profile['userDeck'][f'member{i}'] for i in range(1, 6)]
+            options.fixed_characters = None
+            options.best_skill_as_leader = False
+            # 转移basic_profile中的卡到profile中
+            for bp_card in basic_profile['userCards']:
+                if p_card := find_by(profile['userCards'], 'cardId', bp_card['cardId']):
+                    p_card.update(bp_card)
+                else:
+                    profile['userCards'].append(bp_card)
+
+    # 如果卡组完全固定则只需要跑一种算法，并删除profile中除固定以外的其他卡牌以减少开销
+    is_deck_fixed = options.fixed_cards and len(options.fixed_cards) == 5 or use_current_deck
+    if is_deck_fixed:
+        options.algorithm = "dfs"
+        profile['userCards'] = [
+            uc for uc in profile['userCards']
+            if uc['cardId'] in options.fixed_cards
+        ]
+
+    # 歌曲比较相关
+    music_compare = False
+    if additional.get('music_compare'):
+        options.best_skill_as_leader = False    # 固定位置
+        music_compare = True
+        music_diffs_to_compare: list[tuple[int, str, str]] = additional.get('music_diffs_to_compare', [])
+        music_compare_show_num = len(music_diffs_to_compare) if music_diffs_to_compare else MUSIC_COMPARE_DEFAULT_MUSIC_NUM
+
+        if not music_diffs_to_compare:
+            # 必须至少固定歌曲或固定卡组，（非固定卡组的情况每首都组一遍开销太大）
+            assert_and_reply(is_deck_fixed, f"""
+如果不限定要比较的歌曲，则必须固定一个卡组！
+1. 固定5个卡牌ID:
+/指令 ... 歌曲比较 #1 2 3 4 5
+2. 固定为你的主队配置(实时更新):
+/指令 ... 歌曲比较 当前
+3. 限定比较的歌曲（难度默认ma）:
+/指令 ... 歌曲比较 龙 虾ex 群青apd
+4. 限定比较的歌曲并固定卡组:
+/指令 ... 歌曲比较 龙 虾ex #1 2 3 4 5
+""".strip())
+            # 没有指定比较的歌曲，则通过musicmeta计算出5张卡技能加分全100%的情况的前排候选歌曲，
+            musicmetas = await musicmetas_json.get()
+            music_values = []
+            is_multi = options.live_type in ['multi', 'cheerful']
+            is_auto = options.live_type == 'auto'
+            for item in musicmetas:
+                music_id = item['music_id']
+                diff = item['difficulty']
+                value = item['base_score'] if not is_auto else item['base_score_auto']
+                for i in range(6):
+                    key = 'skill_score_solo'
+                    if is_multi: key = 'skill_score_multi'
+                    if is_auto: key = 'skill_score_auto'
+                    value += item[key][i] * (1.8 if is_multi else 1.0)
+                if is_multi:
+                    value += item['fever_score'] * 0.5
+                music_values.append((value, music_id, diff))
+            music_values = sorted(music_values, key=lambda x: x[0], reverse=True)[:MUSIC_COMPARE_CANDIDATE_MUSIC_NUM]
+            for _, mid, diff in music_values:
+                music_diffs_to_compare.append((mid, diff, ""))
+
+    # ---------------------------- 调用组卡服务 ---------------------------- #
 
     options.region = ctx.region
     log_options(ctx, uid, options)
@@ -1271,46 +1390,61 @@ async def compose_deck_recommend_image(
     # 还原profile避免画头像问题
     profile['userCards'] = original_usercards
 
-    # 组卡！
+    # 准备批次组卡参数
     all_options = []
-    cost_times, wait_times = {}, {}
-    result_decks = []
-    result_algs = []
     if recommend_type == "challenge_all":
         # 挑战组卡没有指定角色情况下，每角色组1个最强
+        assert_and_reply(not music_compare, f"挑战组卡必须指定一个角色才能进行歌曲比较")
         for cid in range(1, 26 + 1):
             options.challenge_live_character_id = cid
             options.limit = 1
             all_options.append(DeckRecommendOptions(options))
         options.challenge_live_character_id = None
-        for res, algs, cost_and_wait_times in await do_deck_recommend_batch(ctx, all_options, user_data):
-            result_decks.extend(res.decks)
-            result_algs.extend(algs)
-            for alg, (cost, wait) in cost_and_wait_times.items():
-                if alg not in cost_times:
-                    cost_times[alg] = 0
-                    wait_times[alg] = 0
-                cost_times[alg] += cost
-                wait_times[alg] = max(wait_times[alg], wait)
+    elif music_compare:
+        # 歌曲比较
+        options.limit = 1
+        for mid, diff, _ in music_diffs_to_compare:
+            options.music_id = mid
+            options.music_diff = diff
+            all_options.append(DeckRecommendOptions(options))
     else:
         # 正常组卡
-        res, algs, cost_and_wait_times = (await do_deck_recommend_batch(ctx, [options], user_data))[0]
-        for alg, (cost, wait) in cost_and_wait_times.items():
-            cost_times[alg] = cost
-            wait_times[alg] = wait
-        result_decks = res.decks
-        result_algs = algs
+        all_options = [options]
 
-    # 获取音乐标题和封面
-    if options.music_id == OMAKASE_MUSIC_ID:
-        music_title = "おまかせ（所有歌曲平均）"
-        music_cover = ctx.static_imgs.get('omakase.png')
-    else:
-        music = await ctx.md.musics.find_by_id(options.music_id)
-        asset_name = music['assetbundleName']
-        music_title = music['title']
-        music_title += f" ({options.music_diff.upper()})"
-        music_cover = await ctx.rip.img(f"music/jacket/{asset_name}_rip/{asset_name}.png", use_img_cache=True)
+    # 调用组卡并合并批次结果
+    cost_times, wait_times = {}, {}
+    result_decks = []
+    result_algs = []
+    for res, algs, cost_and_wait_times in await do_deck_recommend_batch(ctx, all_options, user_data):
+        result_decks.extend(res.decks)
+        result_algs.extend(algs)
+        for alg, (cost, wait) in cost_and_wait_times.items():
+            if alg not in cost_times:
+                cost_times[alg] = 0
+                wait_times[alg] = 0
+            cost_times[alg] += cost
+            wait_times[alg] = max(wait_times[alg], wait)
+
+    # 歌曲比较模式还要额外进行排序
+    if music_compare:
+        result_music_decks = list(zip(music_diffs_to_compare, result_decks))
+        result_music_decks.sort(key=lambda x: x[1].score, reverse=True)
+        result_music_decks = result_music_decks[:music_compare_show_num]
+        result_decks = [d for _, d in result_music_decks]
+        music_diffs_to_compare = [md for md, _ in result_music_decks]
+
+    # ---------------------------- 绘图数据获取 ---------------------------- #
+
+    if not music_compare:
+        # 获取一般情况音乐标题和封面
+        if options.music_id == OMAKASE_MUSIC_ID:
+            music_title = "おまかせ（所有歌曲平均）"
+            music_cover = ctx.static_imgs.get('omakase.png')
+        else:
+            music = await ctx.md.musics.find_by_id(options.music_id)
+            music_title = music['title']
+            music_title += f" ({options.music_diff.upper()})"
+            music_cover = await get_music_cover_thumb(ctx, options.music_id)
 
     # 获取活动banner和标题
     live_name = "协力"
@@ -1397,8 +1531,9 @@ async def compose_deck_recommend_image(
             chara_id = (await ctx.md.cards.find_by_id(card_id))['characterId']
             _, high_score, _, _ = challenge_live_info.get(chara_id, (None, 0, None, None))
             challenge_score_dlt.append(deck.score - high_score)
+
+    # ---------------------------- 绘图 ---------------------------- #
         
-    # 绘图
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16):
             if not use_max_profile:
@@ -1492,7 +1627,8 @@ async def compose_deck_recommend_image(
                         TextBox(f"友情提醒：控分前请核对加成和体力设置", TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(255, 50, 50)))
                         if recommend_type == "wl_bonus":
                             TextBox(f"WL仅支持自动组主队，支援队请自行配置", TextStyle(font=DEFAULT_FONT, size=26, color=(50, 50, 50)))
-                    elif recommend_type != 'mysekai':
+                    
+                    if recommend_type not in NO_MUSIC_TYPES and not music_compare:
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(16):
                             if last_args:
                                 TextBox(f"{last_args} → ", TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
@@ -1513,9 +1649,10 @@ async def compose_deck_recommend_image(
                             info_text += "检测到你的歌曲查询中包含团名或颜色，可能是参数格式不正确\n"
                             info_text += "如果你想指定仅包含某个团名或颜色的卡牌请用: 纯mmj 纯绿\n"
                             info_text += "如果你想组某个团名颜色加成的模拟活动请使用“/组卡”\n"
-
                     if use_max_profile:
                         info_text += "“顶配”为该服截止当前的全卡满养成配置(并非基于你的卡组计算)\n"
+                    if use_current_deck:
+                        info_text += "活动组卡的“当前”队伍无需抓包更新，挑战组卡则需要抓包更新\n"
 
                     if info_text:  
                         TextBox(info_text.strip(), TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(200, 75, 75)), use_real_line_count=True)
@@ -1529,6 +1666,22 @@ async def compose_deck_recommend_image(
                             th_style2 = TextStyle(font=DEFAULT_BOLD_FONT, size=28, color=(75, 75, 75))
                             th_main_sign = '∇'
                             tb_style = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(70, 70, 70))
+
+                            # 歌曲比较添加额外歌曲列
+                            if music_compare:
+                                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsp).set_padding(8):
+                                    TextBox("歌曲", th_style2).set_h(gh // 2).set_content_align('c')
+                                    Spacer(h=6)
+                                    for (mid, diff, marg), deck in zip(music_diffs_to_compare, result_decks):
+                                        music = await ctx.md.musics.find_by_id(mid)
+                                        music_title = music['title'] + f" ({diff.upper()})"
+                                        with VSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(0).set_h(gh):
+                                            with Frame().set_content_align('c'):
+                                                Spacer(w=64, h=64).set_bg(FillBg(fill=DIFF_COLORS[diff])).set_offset((3, 3))
+                                                ImageBox(await get_music_cover_thumb(ctx, mid), size=(64, 64)).set_offset((-3, -3))
+                                            text = f"{mid}"
+                                            if marg: text = f"{truncate(marg, 8)} → " + text
+                                            TextBox(text, TextStyle(font=DEFAULT_FONT, size=15, color=(75, 75, 75)))
 
                             # 分数
                             if recommend_type not in ["bonus", "wl_bonus"]:
@@ -1791,13 +1944,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # ======================= 定时任务 ======================= #
 
-musicmetas_json = WebJsonRes(
-    name="MusicMeta", 
-    url = config.get("deck.music_meta_url"),
-    update_interval=timedelta(hours=1),
-)
 DECKREC_DATA_UPDATE_INTERVAL_CFG = config.item('deck.data_update_interval_seconds')
-
 
 @repeat_with_interval(DECKREC_DATA_UPDATE_INTERVAL_CFG, "组卡数据更新", logger)
 async def deckrec_update_data():
