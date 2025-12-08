@@ -49,7 +49,7 @@ async def get_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, format: str) ->
         return await get_image_cq(await get_stamp_image(ctx, sid))
 
 # 合成某个角色的所有表情图片
-async def compose_character_all_stamp_image(ctx: SekaiHandlerContext, cid):
+async def compose_character_all_stamp_image(ctx: SekaiHandlerContext, cid: int, show_cutout: bool = False):
     stamp_ids = []
     for stamp in await ctx.md.stamps.get():
         if stamp.get('characterId1') == cid or stamp.get('characterId2') == cid:
@@ -75,8 +75,14 @@ async def compose_character_all_stamp_image(ctx: SekaiHandlerContext, cid):
                             text_color = (0, 150, 0, 255)
                         elif p and info:
                             text_color = (0, 0, 200, 255)
-                    with VSplit().set_padding(4).set_sep(4):
-                        ImageBox(img, size=(None, 100), use_alphablend=True, shadow=True)
+                    with VSplit().set_padding(4).set_sep(4).set_item_align('c').set_content_align('c'):
+                        with HSplit().set_padding(0).set_sep(4).set_item_align('c').set_content_align('c'):
+                            ImageBox(img, size=(None, 100), use_alphablend=True, shadow=True)
+                            if show_cutout:
+                                if res:
+                                    ImageBox(open_image(res[0]), size=(None, 100), use_alphablend=True, shadow=True)
+                                else:
+                                    Spacer(w=100, h=100)
                         TextBox(str(sid), style=TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=text_color))
     add_watermark(canvas)
     return await canvas.get_img()
@@ -228,6 +234,10 @@ async def _(ctx: SekaiHandlerContext):
     # 尝试解析：单独昵称作为参数
     if not qtype:
         try:
+            cutout_image = False
+            if '底图' in args:
+                args = args.replace('底图', '', 1).strip()
+                cutout_image = True
             cid = get_cid_by_nickname(args)
             assert cid is not None
             qtype = "cid"
@@ -261,7 +271,7 @@ async def _(ctx: SekaiHandlerContext):
     # 获取角色所有表情
     if qtype == "cid":
         logger.info(f"合成角色表情: cid={cid}")
-        msg = await get_image_cq(await compose_character_all_stamp_image(ctx, cid))
+        msg = await get_image_cq(await compose_character_all_stamp_image(ctx, cid, cutout_image))
         return await ctx.asend_reply_msg(msg)
 
     # 制作表情
