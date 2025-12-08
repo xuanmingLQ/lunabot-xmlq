@@ -201,7 +201,7 @@ async def ensure_stamp_maker_base_image(ctx: SekaiHandlerContext, sid: int, use_
     alpha_channel = img_np[:, :, 3]
     transparent_pixel_count = np.sum(alpha_channel < 10)
     total_pixel_count = img_np.shape[0] * img_np.shape[1]
-    if transparent_pixel_count / total_pixel_count > 0.4:
+    if transparent_pixel_count / total_pixel_count > config.get('stamp.cutout.max_transparent_ratio'):
         raise Exception(f"抠图失败（检测到透明像素比例过高），请重试")
 
     create_parent_folder(cutout_image_path)
