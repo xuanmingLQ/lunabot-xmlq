@@ -178,6 +178,14 @@ async def ensure_stamp_maker_base_image(ctx: SekaiHandlerContext, sid: int, use_
 
     image = await run_in_pool(cutout_image, image, tolerance)
     image = await run_in_pool(shrink_image, image, 0, edge)
+
+    img_np = np.array(image)
+    alpha_channel = img_np[:, :, 3]
+    transparent_pixel_count = np.sum(alpha_channel < 10)
+    total_pixel_count = img_np.shape[0] * img_np.shape[1]
+    if transparent_pixel_count / total_pixel_count > 0.4:
+        raise Exception(f"抠图失败（检测到透明像素比例过高），请重试")
+
     create_parent_folder(cutout_image_path)
     image.save(cutout_image_path)
     return cutout_image_path, cutout_info
