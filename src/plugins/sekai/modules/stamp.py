@@ -162,9 +162,21 @@ async def ensure_stamp_maker_base_image(ctx: SekaiHandlerContext, sid: int, use_
     black.alpha_composite(img)
     imgs = [black]
 
-    imgs.append(await get_character_sd_image(c1))
+    # 查找该角色第一张人工抠图作为参考图
+    async def get_chara_first_base_image(cid: int) -> Image.Image:
+        for stamp in await ctx.md.stamps.get():
+            if stamp.get('characterId1') != cid or stamp.get('characterId2'):
+                continue
+            stamp_id = stamp['id']
+            filename = f"{stamp_id:06d}.png"
+            path = f"{STAMP_BASE_IMAGE_DIR}/{filename}"
+            if os.path.isfile(path):
+                return open_image(path)
+        raise Exception(f"未找到角色cid={cid}的人工抠图参考图，无法进行AI抠图")
+
+    imgs.append(await get_chara_first_base_image(c1))
     if c2:
-        imgs.append(await get_character_sd_image(c2))
+        imgs.append(await get_chara_first_base_image(c2))
 
     model = get_model_preset('sekai.stamp_cutout')
     prompt = config.get('stamp.cutout.prompt')
@@ -383,7 +395,7 @@ async def _(ctx: SekaiHandlerContext):
                 await ctx.asend_msg(f"表情{sid}底图已刷新\n{img_cq}")
             except Exception as e:
                 await ctx.asend_msg(f"表情{sid}底图刷新失败: {get_exc_desc(e)}")
-        await ctx.asend_reply_msg(f"角色cid={cid}的表情底图全部刷新完成")
+        await ctx.asend_msg(f"角色cid={cid}的表情底图全部刷新完成")
 
 
 # 查看表情底图
