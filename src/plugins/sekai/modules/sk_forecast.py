@@ -290,7 +290,7 @@ async def get_forecast_data(region: str, event_id: int, chapter_id: int | None =
                 )
                 if data.load_from_local(cfg['update_interval_minutes']):
                     return data
-
+                
                 # 尝试从数据源获取
                 last_error_time = _forecast_last_error_time.get(sr, datetime.min)
                 if datetime.now() - last_error_time < timedelta(minutes=cfg['error_retry_minutes']):
@@ -298,6 +298,11 @@ async def get_forecast_data(region: str, event_id: int, chapter_id: int | None =
                     if data.load_from_local():
                         return data
                     return None
+                
+                event = await SekaiHandlerContext.from_region(region).md.events.find_by_id(event_id)
+                end_time = datetime.fromtimestamp(event['aggregateAt'] / 1000 + 1)
+                if end_time - datetime.now() < timedelta(hours=config.get('sk.stop_forecast_hours_before_event_end')):
+                    raise GetForecastException(f"活动即将结束或已经结束")
 
                 if source not in FORECAST_DATA_GET_FUNCS:
                     raise Exception(f"该来源 {source} {region} 未实现获取函数")
@@ -337,11 +342,11 @@ async def _update_forecast_data():
         if event:
             await get_forecast_data(region, event['id'], None)
 
-        wl_events = await get_wl_events(ctx, event['id'])
-        if wl_events:
-            for wl_event in wl_events:
-                chapter_id = wl_event['id'] // 1000
-                await get_forecast_data(region, event['id'], chapter_id)
+            wl_events = await get_wl_events(ctx, event['id'])
+            if wl_events:
+                for wl_event in wl_events:
+                    chapter_id = wl_event['id'] // 1000
+                    await get_forecast_data(region, event['id'], chapter_id)
 
 
 # ============================= 本地预测 ============================= #

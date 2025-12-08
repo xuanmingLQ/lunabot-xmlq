@@ -120,7 +120,7 @@ async def make_stamp_image_cq(ctx: SekaiHandlerContext, sid: int, text: str, for
         return await get_image_cq(img) + addtional_info
 
 # 检查某个表情是否有用于制作的底图，没有底图的情况可以请求LLM抠图或返回None，返回[底图路径,额外信息]
-async def ensure_stamp_maker_base_image(ctx: SekaiHandlerContext, sid: int, use_cutout: bool) -> tuple[str, str] | None:
+async def ensure_stamp_maker_base_image(ctx: SekaiHandlerContext, sid: int, use_cutout: bool, reply: bool = True) -> tuple[str, str] | None:
     await ctx.block(f"sid={sid}")
     filename = f"{sid:06d}.png"
     base_image_path = f"{STAMP_BASE_IMAGE_DIR}/{filename}"
@@ -141,7 +141,8 @@ async def ensure_stamp_maker_base_image(ctx: SekaiHandlerContext, sid: int, use_
         raise NoReplyException()
     
     # 请求LLM抠图
-    await ctx.asend_reply_msg(f"正在进行表情{sid}的AI抠图...")
+    if reply:
+        await ctx.asend_reply_msg(f"正在进行表情{sid}的AI抠图...")
 
     stamp = await ctx.md.stamps.find_by_id(sid)
     assert_and_reply(stamp, f"表情 {sid} 不存在")
@@ -334,6 +335,37 @@ async def _(ctx: SekaiHandlerContext):
         save_transparent_static_gif(open_image(path), gif_path)
         img_cq = await get_image_cq(gif_path)
     return await ctx.asend_reply_msg(f"表情{sid}底图已刷新\n{img_cq}")
+
+
+# 批量刷新表情底图
+pjsk_stamp_refresh_batch = SekaiCmdHandler([
+    "/pjsk stamp refresh batch", "/pjsk表情刷新批量",
+])
+pjsk_stamp_refresh_batch.check_cdrate(cd).check_wblist(gbl).check_superuser()
+@pjsk_stamp_refresh_batch.handle()
+async def _(ctx: SekaiHandlerContext):
+    await ctx.block_region()
+    for cid in range(1, 27):
+        for stamp in await ctx.md.stamps.get():
+            if stamp.get('characterId2'):
+                continue
+            if stamp.get('characterId1') != cid:
+                continue
+            sid = stamp['id']
+            filename = f"{sid:06d}.png"
+            base_image_path = f"{STAMP_BASE_IMAGE_DIR}/{filename}"
+            cutout_image_path = f"{STAMP_CUTOUT_IMAGE_DIR}/{filename}"
+            if os.path.isfile(base_image_path) or os.path.isfile(cutout_image_path):
+                continue
+            try:
+                path, _ = await ensure_stamp_maker_base_image(ctx, sid, use_cutout=True, reply=False)
+                with TempFilePath("gif") as gif_path:
+                    save_transparent_static_gif(open_image(path), gif_path)
+                    img_cq = await get_image_cq(gif_path)
+                await ctx.asend_msg(f"表情{sid}底图已刷新\n{img_cq}")
+            except Exception as e:
+                await ctx.asend_msg(f"表情{sid}底图刷新失败: {get_exc_desc(e)}")
+        await ctx.asend_reply_msg(f"角色cid={cid}的表情底图全部刷新完成")
 
 
 # 查看表情底图
