@@ -430,3 +430,37 @@ async def _(ctx: SekaiHandlerContext):
 
     return await ctx.asend_reply_msg(img_cq + f"使用\"/pjsk表情刷新{sid}\"可重新生成底图")
 
+
+# 删除表情底图
+pjsk_stamp_base_delete = SekaiCmdHandler([
+    "/pjsk remove stamp base", "/pjsk删除表情底图",
+])
+pjsk_stamp_base_delete.check_cdrate(cd).check_wblist(gbl).check_superuser()
+@pjsk_stamp_base_delete.handle()
+async def _(ctx: SekaiHandlerContext):
+    args = ctx.get_args().strip()
+    try:
+        sids = [int(x) for x in args.split()]
+        for sid in sids:
+            stamp = await ctx.md.stamps.find_by_id(sid)
+            assert_and_reply(stamp, f"表情 {sid} 不存在")
+    except:
+        return await ctx.asend_reply_msg(f"使用方式: {ctx.original_trigger_cmd} 123 456")
+    
+    removed, failed = [], []
+    for sid in sids:
+        filename = f"{sid:06d}.png"
+        cutout_image_path = f"{STAMP_CUTOUT_IMAGE_DIR}/{filename}"
+        try:
+            assert os.path.isfile(cutout_image_path)
+            os.remove(cutout_image_path)
+            removed.append(sid)
+        except Exception as e:
+            failed.append(sid)
+
+    msg = ""
+    if removed:
+        msg += f"已删除表情底图: {', '.join([str(x) for x in removed])}\n"
+    if failed:
+        msg += f"删除表情底图失败: {', '.join([str(x) for x in failed])}\n"
+    return await ctx.asend_reply_msg(msg.strip())
