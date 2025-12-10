@@ -134,7 +134,8 @@ sk:
     pybd_remote_dir: "LunabotSekaiRankingData"
     pybd_verbose: true
 
-  stop_forecast_hours_before_event_end: 1
+  start_forecast_hours_after_event_start: 2 
+  stop_forecast_hours_before_event_end: 2
   forecast:
     local:
       name: "本地预测"

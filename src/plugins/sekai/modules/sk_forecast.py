@@ -300,7 +300,10 @@ async def get_forecast_data(region: str, event_id: int, chapter_id: int | None =
                     return None
                 
                 event = await SekaiHandlerContext.from_region(region).md.events.find_by_id(event_id)
+                start_time = datetime.fromtimestamp(event['startAt'] / 1000)
                 end_time = datetime.fromtimestamp(event['aggregateAt'] / 1000 + 1)
+                if datetime.now() - start_time < timedelta(hours=config.get('sk.start_forecast_hours_after_event_start')):
+                    raise GetForecastException(f"活动还没开始或刚开始")
                 if end_time - datetime.now() < timedelta(hours=config.get('sk.stop_forecast_hours_before_event_end')):
                     raise GetForecastException(f"活动即将结束或已经结束")
 
