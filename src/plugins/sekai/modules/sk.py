@@ -285,6 +285,9 @@ async def compose_skp_image(ctx: SekaiHandlerContext) -> Image.Image:
     banner_img = await get_event_banner_img(ctx, event)
     chapter_id = event_id // 1000
 
+    start_hours = config.get('sk.start_forecast_hours_after_event_start')
+    end_hours = config.get('sk.stop_forecast_hours_before_event_end')
+
     forecasts = await get_forecast_data(ctx.region, event['id'])
     sources = {}
     for key, cfg in config.get('sk.forecast').items():
@@ -312,11 +315,17 @@ async def compose_skp_image(ctx: SekaiHandlerContext) -> Image.Image:
                     TextBox(f"{event_start.strftime('%Y-%m-%d %H:%M')} ~ {event_end.strftime('%Y-%m-%d %H:%M')}", 
                             TextStyle(font=DEFAULT_FONT, size=18, color=BLACK))
                     time_to_end = event_end - datetime.now()
+                    time_from_start = datetime.now() - event_start
                     if time_to_end.total_seconds() <= 0:
-                        time_to_end = "活动已结束"
+                        time_to_end_text = "活动已结束"
                     else:
-                        time_to_end = f"距离活动结束还有{get_readable_timedelta(time_to_end)}"
-                    TextBox(time_to_end, TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK))
+                        time_to_end_text = f"距离活动结束还有{get_readable_timedelta(time_to_end)}"
+                    TextBox(time_to_end_text, TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK))
+                    if time_from_start < timedelta(hours=start_hours):
+                        TextBox(f"活动开始{start_hours}小时后开始更新数据", TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=RED))
+                    elif time_to_end < timedelta(hours=end_hours):
+                        TextBox(f"活动结束前{end_hours}小时停止更新数据", TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=RED))
+
                 if banner_img:
                     ImageBox(banner_img, size=(140, None))
 
@@ -1043,7 +1052,6 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
     times = [rank.time for rank in ranks]
     scores = [rank.score for rank in ranks]
     uids = [rank.uid for rank in ranks]
-    pred_scores = []
 
     # 时速计算
     speeds = []
@@ -1105,17 +1113,14 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
             last_y = y
 
     def draw_graph() -> Image.Image:
-        max_score = max(scores + pred_scores)
-        min_score = min(scores + pred_scores)
+        max_score = max(scores)
         for f in forecasts.values():
             if f.final_score:
                 max_score = max(max_score, f.final_score)
-                min_score = min(min_score, f.final_score)
             if f.history_final_score:
-                hist_scores = [x.score for x in f.history_final_score if x.score <= max_score * 1.2]
+                hist_scores = [x.score for x in f.history_final_score]
                 if hist_scores:
-                    max_score = max(max_score, max(hist_scores))
-                    min_score = min(min_score, min(hist_scores))
+                    max_score = max(max_score, min(f.final_score * 1.1, max(hist_scores)))
 
         fig, ax1 = plt.subplots()
         ax2 = ax1.twinx()
@@ -1140,6 +1145,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
         ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
         ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(int(x), precise=False)))
+        ax2.set_ylim(0, max_score * 1.1)
         fig.autofmt_xdate()
         if scores: # 当前分数
             plt.annotate(f"{get_board_score_str(scores[-1])}", 
