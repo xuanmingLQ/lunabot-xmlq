@@ -1031,6 +1031,7 @@ async def do_deck_recommend_batch(
     ctx: SekaiHandlerContext, 
     options_list: list[DeckRecommendOptions],
     user_data: bytes,
+    timeout_ms: int=60000
 ) -> list[Tuple[DeckRecommendResult, List[str], Dict[str, Tuple[timedelta, timedelta]]]]:
     # 请求组卡函数（负载均衡）
     async def request_recommend(index: int, payload: bytes) -> dict:
@@ -1058,7 +1059,7 @@ async def do_deck_recommend_batch(
         
         async def req(index: int, payload: bytes, url: str) -> dict:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url + "/recommend", data=payload) as resp:
+                async with session.post(url + "/recommend", data=payload, timeout=timeout_ms/1000) as resp:
                     if resp.status != 200:
                         msg = f"{resp.status}: "
                         try:
@@ -1273,7 +1274,7 @@ async def compose_deck_recommend_image(
     last_args: str,
     additional: dict,
 ) -> Image.Image:
-    
+    timeout_ms = options.timeout_ms
     # ---------------------------- 判断组卡类型方便后续处理 ---------------------------- #
 
     NO_MUSIC_TYPES = ["bonus", "wl_bonus", "mysekai"]
@@ -1459,7 +1460,7 @@ async def compose_deck_recommend_image(
     cost_times, wait_times = {}, {}
     result_decks = []
     result_algs = []
-    for res, algs, cost_and_wait_times in await do_deck_recommend_batch(ctx, all_options, user_data):
+    for res, algs, cost_and_wait_times in await do_deck_recommend_batch(ctx, all_options, user_data, timeout_ms):
         result_decks.extend(res.decks)
         result_algs.extend(algs)
         for alg, (cost, wait) in cost_and_wait_times.items():
