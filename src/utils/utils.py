@@ -846,7 +846,7 @@ _browser_type: BrowserType | None = None
 # 只启动一个浏览器实例，降低开销
 _playwright_browser: Browser | None = None
 # 使用playwright的context隔离浏览器
-MAX_CONTEXTS = global_config.get('max_contexts')
+MAX_CONTEXTS = global_config.get('max_playwright_contexts')
 # 使用asyncio.Semaphore限制同时运行的context数量
 _context_semaphore = asyncio.Semaphore(MAX_CONTEXTS)
 
