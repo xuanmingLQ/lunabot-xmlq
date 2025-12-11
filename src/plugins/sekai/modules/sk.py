@@ -1217,7 +1217,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
                     history_times = [x[0] for x in history]
                     history_preds = [x[1] for x in history]
                 # 记录所有分数，用于设置上界
-                all_scores += history_preds
+                # all_scores += history_preds
                 line, = ax2.plot(history_times, history_preds, label=f'{name}历史', color=color, 
                                 linestyle='-', linewidth=1.0, alpha=1.0)
                 line_histories.append(line)
@@ -1228,8 +1228,8 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
             10, 'right', 'bottom'
         )
         # 用np库计算上界
-        all_scores = np.array(all_scores)
-        ax2.set_ylim(0, np.percentile(all_scores, 99.9)*1.05)
+        # all_scores = np.array(all_scores)
+        # ax2.set_ylim(0, np.percentile(all_scores, 99.9)*1.05)
         # 绘制时速
         line_speeds, = ax1.plot(times, speeds, 'o', label='时速', color='green', markersize=0.5, linewidth=0.5)
         ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: get_board_score_str(int(x), precise=False) + "/h"))
