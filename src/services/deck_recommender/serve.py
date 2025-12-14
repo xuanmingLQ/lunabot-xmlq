@@ -122,7 +122,9 @@ async def _(request: Request):
         segments = await extract_decompressed_payload(request)
         userdata_bytes = segments[0]
 
+        t = datetime.now()
         all_result = await asyncio.gather(*[ctx.cache_userdata(userdata_bytes) for ctx in WorkerContext.workers()])
+        elapsed = (datetime.now() - t).total_seconds()
         
         for result in all_result:
             if result['status'] != 'success':
@@ -130,10 +132,11 @@ async def _(request: Request):
                     status_code=500, 
                     detail=result.get('message', '内部错误'),
                 )
+            
+        userdata_hash = all_result[0]['userdata_hash']
+        log(f"缓存用户数据 {userdata_hash} 成功，耗时 {elapsed:.3f} 秒")
         
-        return {
-            "userdata_hash": all_result[0]['userdata_hash'],
-        }
+        return { "userdata_hash": userdata_hash }
 
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -151,29 +154,30 @@ async def _(request: Request):
 
         data = loads_json(segments[0])
         region = data['region']
-        options = data['options']
-        userdata_hash = data.get('userdata_hash')
+        batch_options = data['batch_options']
+        userdata_hash = data['userdata_hash']
 
-        start_time = datetime.now()
+        async def do_recommend(options):
+            start_time = datetime.now()
+            async with WorkerContext() as ctx:
+                result = await ctx.recommend(region, options, userdata_hash)
+            total_time = (datetime.now() - start_time).total_seconds()
+            wait_time = total_time - result['cost_time']
+        
+            if result['status'] != 'success':
+                raise HTTPException(
+                    status_code=500, 
+                    detail=result.get('message', '内部错误'),
+                )
 
-        async with WorkerContext() as ctx:
-            result = await ctx.recommend(region, options, userdata_hash)
-
-        if result['status'] != 'success':
-            raise HTTPException(
-                status_code=500, 
-                detail=result.get('message', '内部错误'),
-            )
-
-        total_time = (datetime.now() - start_time).total_seconds()
-        wait_time = total_time - result['cost_time']
-
-        return {
-            "result": result['result'],
-            "alg": options['algorithm'],
-            "cost_time": result['cost_time'],
-            "wait_time": wait_time,
-        }
+            return {
+                "result": result['result'],
+                "alg": options['algorithm'],
+                "cost_time": result['cost_time'],
+                "wait_time": wait_time,
+            }
+            
+        return await asyncio.gather(*[do_recommend(options) for options in batch_options])
 
     except Exception as e:
         if isinstance(e, HTTPException):

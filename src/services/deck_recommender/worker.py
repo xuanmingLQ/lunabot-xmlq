@@ -12,6 +12,7 @@ from sekai_deck_recommend import (
 from hashlib import md5
 import multiprocessing as mp
 from multiprocessing import Queue, Process
+from concurrent.futures import ThreadPoolExecutor
 import setproctitle
 
 
@@ -97,10 +98,10 @@ class Worker:
             userdata = DeckRecommendUserData()
             userdata.load_from_bytes(userdata_bytes)
             self.userdata_cache.append((hash, userdata))
-            self.log(f"缓存用户数据: hash={hash}")
+            # self.log(f"缓存用户数据: hash={hash}")
             while len(self.userdata_cache) > USERDATA_CACHE_NUM:
                 h, _ = self.userdata_cache.pop(0)
-                self.log(f"移除用户数据缓存: hash={h}")
+                # self.log(f"移除用户数据缓存: hash={h}")
             return {
                 'status': 'success',
                 'userdata_hash': hash,
@@ -166,6 +167,7 @@ class WorkerContext:
     available_workers: asyncio.Queue[Worker] = {}
     task_queues: dict[int, Queue] = {}
     result_queues: dict[int, Queue] = {}
+    thread_pool: ThreadPoolExecutor = None
 
     @staticmethod
     def worker_loop(worker: Worker, task_queue: Queue, result_queue: Queue):
@@ -206,6 +208,7 @@ class WorkerContext:
         cls.available_workers = asyncio.Queue()
         for w in cls.all_workers.values():
             cls.available_workers.put_nowait(w)
+        cls.thread_pool = ThreadPoolExecutor(max_workers=worker_num)
         
     def __init__(self) -> None:
         self.worker: Worker | None = None
@@ -228,12 +231,12 @@ class WorkerContext:
 
     async def cache_userdata(self, userdata_bytes: bytes) -> dict:
         self.task_queues[self.worker.worker_id].put(('cache_userdata', (userdata_bytes,), {},))
-        result = await asyncio.to_thread(self.result_queues[self.worker.worker_id].get)
+        result = await asyncio.get_event_loop().run_in_executor(self.thread_pool, self.result_queues[self.worker.worker_id].get)
         return result
     
     async def recommend(self, region: str, options: dict, userdata_hash: str) -> dict:
         self.task_queues[self.worker.worker_id].put(('recommend', (region, options, userdata_hash,), {},))
-        result = await asyncio.to_thread(self.result_queues[self.worker.worker_id].get)
+        result = await asyncio.get_event_loop().run_in_executor(self.thread_pool, self.result_queues[self.worker.worker_id].get)
         return result
 
 
