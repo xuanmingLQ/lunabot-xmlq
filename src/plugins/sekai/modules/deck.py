@@ -1032,22 +1032,53 @@ async def do_deck_recommend_batch(
     options_list: list[DeckRecommendOptions],
     user_data: bytes,
 ) -> list[Tuple[DeckRecommendResult, List[str], Dict[str, Tuple[timedelta, timedelta]]]]:
-    # 请求组卡函数（负载均衡）
-    async def request_recommend(index: int, payload: bytes) -> dict:
+    # 获取组卡后端相关信息
+    servers = RECOMMEND_SERVERS_CFG.get()
+    if not servers:
+        raise ReplyException("未配置可用的组卡服务")
+    server_urls = [s['url'] for s in servers]
+    server_weights = [s['weight'] for s in servers]
+    server_url_indices = list(range(len(server_urls)))
+    server_min_weight = min([w for w in server_weights if w > 0], default=0)
+    if server_min_weight <= 0:
+        raise ReplyException("未配置可用的组卡服务")
+
+    # 通用请求函数
+    async def req(payload: bytes, url: str) -> dict:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=payload) as resp:
+                if resp.status != 200:
+                    msg = f"{resp.status}: "
+                    try:
+                        err_data = await resp.json()
+                        msg += err_data.get('detail', '')
+                    except:
+                        try: msg += await resp.text()
+                        except: pass
+                    raise ReplyException(msg)
+                return await resp.json()
+
+    # 向所有后端缓存用户数据段
+    async def request_cache_userdata(payload: bytes, url: str) -> tuple[str, str]:
+        try:
+            res = await req(payload, url + "/cache_userdata")
+            return url, res['userdata_hash']
+        except Exception as e:
+            logger.warning(f"组卡用户数据缓存请求 {url} 失败: {get_exc_desc(e)}")
+            return url, None
+    userdata_payload = []
+    add_payload_segment(userdata_payload, user_data)
+    userdata_payload = build_multiparts_payload(userdata_payload)
+    results = await batch_gather(*[request_cache_userdata(userdata_payload, url) for url in server_urls])
+    server_userdata_hash = { url: userdata_hash for url, userdata_hash in results if userdata_hash is not None }
+
+    # 请求组卡（负载均衡）返回 (原始options_list的索引, 组卡结果)
+    async def request_recommend(original_index: int, data: dict) -> tuple[int, dict]:
         global _deckrec_request_id
         _deckrec_request_id += 1
 
-        servers = RECOMMEND_SERVERS_CFG.get()
-        if not servers:
-            raise ReplyException("未配置可用的组卡服务")
-        server_urls = [s['url'] for s in servers]
-        server_weights = [s['weight'] for s in servers]
-        server_url_indices = list(range(len(server_urls)))
-        min_weight = min([w for w in server_weights if w > 0], default=0)
-        if min_weight <= 0:
-            raise ReplyException("未配置可用的组卡服务")
-
-        server_order = [[] for _ in range(min_weight)]
+        # 负载均衡决定请求后端优先级
+        server_order = [[] for _ in range(server_min_weight)]
         for i, w in enumerate(server_weights):
             for j in range(w):
                 server_order[j % len(server_order)].append(i)
@@ -1055,28 +1086,15 @@ async def do_deck_recommend_batch(
         select_idx = server_order[_deckrec_request_id % len(server_order)]
         urls = server_urls[select_idx:] + server_urls[:select_idx]
         url_indices = server_url_indices[select_idx:] + server_url_indices[:select_idx]
-        
-        async def req(index: int, payload: bytes, url: str) -> dict:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url + "/recommend", data=payload) as resp:
-                    if resp.status != 200:
-                        msg = f"{resp.status}: "
-                        try:
-                            err_data = await resp.json()
-                            msg += err_data.get('detail', '')
-                        except:
-                            try:
-                                msg += await resp.text()
-                            except:
-                                pass
-                        raise ReplyException(msg)
-                    data = await resp.json()
-                    return index, data
-        
+
         errors = {}
         for url, url_index in zip(urls, url_indices):
             try:
-                return await req(index, payload, url)
+                payload = []
+                data['userdata_hash'] = server_userdata_hash.get(url, "")
+                add_payload_segment(payload, dumps_json(data, indent=False).encode('utf-8'))
+                payload = build_multiparts_payload(payload)
+                return original_index, await req(payload, url + "/recommend")
             except Exception as e:
                 logger.warning(f"组卡请求 {url} 失败: {get_exc_desc(e)}")
                 errors.setdefault(get_exc_desc(e), []).append(url_index+1)
@@ -1086,6 +1104,7 @@ async def do_deck_recommend_batch(
             error_text += "".join([f"[{url_index}]" for url_index in url_idxs]) + f" {err_msg}\n"
         raise ReplyException(f"请求所有可用的组卡服务失败:\n" + error_text.strip())
 
+    # 收集组卡请求任务
     tasks = []
     for i, options in enumerate(options_list):
         # 算法选择
@@ -1093,22 +1112,11 @@ async def do_deck_recommend_batch(
             algs = RECOMMEND_ALGS_CFG.get()
         else:
             algs = [options.algorithm]
-
-        opt = options.to_dict()
-        payloads_userdata = []
-        add_payload_segment(payloads_userdata, user_data)
-
         for alg in algs:
-            payloads = []
+            opt = options.to_dict()
             opt['algorithm'] = alg
-            data = {
-                'region': opt['region'],
-                'options': opt,
-            }
-            add_payload_segment(payloads, dumps_json(data).encode('utf-8'))
-            payload = build_multiparts_payload(payloads + payloads_userdata)
-
-            tasks.append(request_recommend(i, payload))
+            data = { 'region': opt['region'], 'options': opt, }
+            tasks.append(request_recommend(i, data))
 
     with Timer("deckrec:request", logger):
         results_list: list[tuple[int, dict]] = await asyncio.gather(*tasks)
