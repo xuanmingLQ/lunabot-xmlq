@@ -7,6 +7,7 @@ from .resbox import get_res_box_info, get_res_icon
 from .profile import (
     get_detailed_profile,
     get_detailed_profile_card,
+    get_detailed_profile_card_filter,
     get_player_avatar_info_by_detailed_profile,
     get_detailed_profile_card_filter,
 )

@@ -11,6 +11,7 @@ from .profile import (
     get_detailed_profile, 
     get_detailed_profile_card_filter,
     get_detailed_profile_card, 
+    get_detailed_profile_card_filter,
     get_card_full_thumbnail,
 )
 from .education import get_user_challenge_live_info

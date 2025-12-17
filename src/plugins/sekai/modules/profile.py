@@ -621,7 +621,7 @@ async def get_detailed_profile(
             return None, str(e)
         
     return profile, ""
-# 获取玩家详细信息的简单卡片控件所需要的filter
+# 获取包含了玩家详细信息的简单卡片控件所需要的filter
 def get_detailed_profile_card_filter(*s: str) -> set[str]:
     return {'userGamedata', 'userDecks', 'upload_time', 'userCards', *s}
 
@@ -1361,13 +1361,10 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
     uid = get_player_bind_id(ctx)
     if 'snowy' in args:
-        if ctx.region == 'cn':
-            return await ctx.asend_reply_msg(await get_image_cq(
-                await get_sekaiprofile_image(ctx.region, uid),
-                low_quality=True, quality=95,
-            ))
-        else:
-            return await ctx.asend_reply_msg("snowy 目前只支持cn服")
+        return await ctx.asend_reply_msg(await get_image_cq(
+            await get_sekaiprofile_image(ctx.region, uid),
+            low_quality=True, quality=95,
+        ))
     vertical = None
     if '横屏' in args:
         vertical = False
