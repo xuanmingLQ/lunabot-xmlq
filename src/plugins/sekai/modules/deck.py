@@ -1057,7 +1057,7 @@ async def do_deck_recommend_batch(
 
     # 通用请求函数
     async def req(payload: bytes, url: str) -> dict:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
             async with session.post(url, data=payload) as resp:
                 if resp.status != 200:
                     msg = f"{resp.status}: "

@@ -143,7 +143,7 @@ class Worker:
             self.log(f"组卡任务#{seq}: {self._deckrec_options_to_str(userdata_hash, options)}")
 
             start_time = datetime.now()
-            res =  self.recommender.recommend(options)
+            res = self.recommender.recommend(options)
             cost_time = datetime.now() - start_time
 
             self.log(f"组卡任务#{seq}完成，耗时 {cost_time.total_seconds():.3f} 秒")
