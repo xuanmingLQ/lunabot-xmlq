@@ -59,7 +59,10 @@ async def get_user_challenge_live_info(ctx: SekaiHandlerContext, profile: dict) 
 
 # 合成挑战live详情图片
 async def compose_challenge_live_detail_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
-    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True)
+    profile, err_msg = await get_detailed_profile(
+        ctx, qid, 
+        filter=get_detailed_profile_card_filter('userChallengeLiveSoloResults','userChallengeLiveSoloStages','userChallengeLiveSoloHighScoreRewards'), 
+        raise_exc=True)
 
     challenge_info = await get_user_challenge_live_info(ctx, profile)
 
@@ -195,8 +198,11 @@ async def get_user_power_bonus(ctx: SekaiHandlerContext, profile: dict) -> Dict[
 
 # 合成加成详情图片
 async def compose_power_bonus_detail_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
-    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True)
-
+    profile, err_msg = await get_detailed_profile(ctx, 
+                                                  qid, 
+                                                  filter=get_detailed_profile_card_filter('userAreas','userCharacters','userMysekaiFixtureGameCharacterPerformanceBonuses','userMysekaiGates'), 
+                                                  raise_exc=True)
+ 
     bonus = await get_user_power_bonus(ctx, profile)
     chara_bonus = bonus['chara']
     unit_bonus = bonus['unit']
@@ -246,7 +252,11 @@ async def compose_power_bonus_detail_image(ctx: SekaiHandlerContext, qid: int) -
 async def compose_area_item_upgrade_materials_image(ctx: SekaiHandlerContext, qid: int, filter: AreaItemFilter) -> Image.Image:
     profile = None
     if qid:
-        profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True, ignore_hide=True)
+        profile, pmsg = await get_detailed_profile(ctx, 
+                                                   qid, 
+                                                   filter=get_detailed_profile_card_filter('userMaterials','userGamedata','userAreas',),
+                                                   raise_exc=True, 
+                                                   ignore_hide=True)
 
     COIN_ID = -1
     user_materials: dict[int, int] = {}
@@ -445,7 +455,7 @@ async def compose_area_item_upgrade_materials_image(ctx: SekaiHandlerContext, qi
 
 # 合成羁绊等级图片
 async def compose_bonds_image(ctx: SekaiHandlerContext, qid: int, cid: int | None) -> Image.Image:
-    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True, filter=get_detailed_profile_card_filter(['userBonds']))
+    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True, filter=get_detailed_profile_card_filter('userBonds'))
     user_bonds = profile.get('userBonds')
     assert_and_reply(user_bonds, "你的Suite数据来源没有提供userBonds数据")
 
@@ -566,7 +576,7 @@ async def compose_bonds_image(ctx: SekaiHandlerContext, qid: int, cid: int | Non
 
 # 合成队长次数图片
 async def compose_leader_count_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
-    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True, filter=['userCharacterMissionV2s', 'userCharacterMissionV2Statuses', 'userGamedata', 'userDecks', 'upload_time', 'userCards'])
+    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True, filter=get_detailed_profile_card_filter('userCharacterMissionV2s', 'userCharacterMissionV2Statuses', 'userGamedata', 'userDecks', 'upload_time', 'userCards'))
 
     ucms = profile.get('userCharacterMissionV2s')
     ucm_ss = profile.get('userCharacterMissionV2Statuses')
