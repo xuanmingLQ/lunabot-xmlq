@@ -17,6 +17,7 @@ from .profile import (
     get_user_data_mode,
     get_detailed_profile,
     get_detailed_profile_card,
+    get_detailed_profile_card_filter,
     process_hide_uid,
     get_player_frames,
     get_avatar_widget_with_frame,
@@ -1376,7 +1377,11 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
 
     profile = None
     if qid:
-        profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True, ignore_hide=True)
+        profile, pmsg = await get_detailed_profile(
+            ctx, 
+            qid, 
+            filter=get_detailed_profile_card_filter('userMysekaiMaterials','userMysekaiGates',),
+            raise_exc=True, ignore_hide=True)
 
     # 获取玩家的材料
     user_materials = {}
@@ -1672,7 +1677,11 @@ async def compose_mysekai_talk_list_image(
         chara_icon = await get_character_sd_image(cuid)
 
         if not show_all_talks:
-            profile, pmsg = await get_detailed_profile(ctx, qid, raise_exc=True)
+            profile, pmsg = await get_detailed_profile(
+                ctx, 
+                qid, 
+                filter=get_detailed_profile_card_filter('userMysekaiCharacterTalks'),
+                raise_exc=True)
             assert_and_reply('userMysekaiCharacterTalks' in profile, "你的Suite抓包数据来源没有提供角色家具对话数据")
             user_character_talks = profile['userMysekaiCharacterTalks']
         else:
