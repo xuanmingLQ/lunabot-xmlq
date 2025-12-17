@@ -947,8 +947,8 @@ def set_profile_bg_settings(
             os.remove(image_path)
     elif image:
         w, h = image.size
-        w1, h1 = config.get('profile_bg_image_size.horizontal')
-        w2, h2 = config.get('profile_bg_image_size.vertical')
+        w1, h1 = config.get('profile.bg_image_size.horizontal')
+        w2, h2 = config.get('profile.bg_image_size.vertical')
         scale = -1
         if w > w1 and h > h1:
             scale = max(scale, w1 / w, h1 / h)
@@ -961,7 +961,7 @@ def set_profile_bg_settings(
         image = image.convert('RGB')
         if image.width > target_w:
             image = image.resize((target_w, target_h), Image.LANCZOS)
-        save_kwargs = config.get('profile_bg_image_save_kwargs', {})
+        save_kwargs = config.get('profile.bg_image_save_kwargs', {})
         create_parent_folder(image_path)
         image.save(image_path, **save_kwargs)
         settings.setdefault(uid, {})['vertical'] = target_w < target_h
@@ -1105,10 +1105,27 @@ async def get_avatar_widget_with_frame(ctx: SekaiHandlerContext, avatar_img: Ima
             frame_img = await get_player_frame_image(ctx, frame['playerFrameId'], avatar_w + 5)
     except:
         pass
+
+    # 期间限定框
+    term_limit_frame_img: Image.Image = None
+    for limited_time_frame in config.get('profile.limited_time_custom_frames', []):
+        now = datetime.now()
+        for period in limited_time_frame.get('periods', []):
+            start = datetime.strptime(period[0], '%m-%d %H:%M').replace(year=now.year)
+            end = datetime.strptime(period[1], '%m-%d %H:%M').replace(year=now.year)
+            if start <= now <= end:
+                term_limit_frame_img = ctx.static_imgs.get(limited_time_frame['path'])
+                term_limit_frame_img = resize_keep_ratio(term_limit_frame_img, avatar_w, scale=limited_time_frame.get('scale', 1.0))
+                break
+        if term_limit_frame_img:
+            break
+
     with Frame().set_size((avatar_w, avatar_w)).set_content_align('c').set_allow_draw_outside(True) as ret:
         ImageBox(avatar_img, size=(avatar_w, avatar_w), use_alphablend=False, shadow=True)
         if frame_img:
             ImageBox(frame_img, use_alphablend=True, shadow=True)
+        if term_limit_frame_img:
+            ImageBox(term_limit_frame_img, use_alphablend=True, shadow=True)
     return ret
 
 
