@@ -60,7 +60,7 @@ async def get_user_challenge_live_info(ctx: SekaiHandlerContext, profile: dict) 
 
 # 合成挑战live详情图片
 async def compose_challenge_live_detail_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
-     profile, err_msg = await get_detailed_profile(
+    profile, err_msg = await get_detailed_profile(
         ctx, qid, 
         filter=get_detailed_profile_card_filter('userChallengeLiveSoloResults','userChallengeLiveSoloStages','userChallengeLiveSoloHighScoreRewards'), 
         raise_exc=True)
