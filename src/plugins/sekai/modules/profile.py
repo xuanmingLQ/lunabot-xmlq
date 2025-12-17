@@ -1108,17 +1108,21 @@ async def get_avatar_widget_with_frame(ctx: SekaiHandlerContext, avatar_img: Ima
 
     # 期间限定框
     term_limit_frame_img: Image.Image = None
-    for limited_time_frame in config.get('profile.limited_time_custom_frames', []):
-        now = datetime.now()
-        for period in limited_time_frame.get('periods', []):
-            start = datetime.strptime(period[0], '%m-%d %H:%M').replace(year=now.year)
-            end = datetime.strptime(period[1], '%m-%d %H:%M').replace(year=now.year)
-            if start <= now <= end:
-                term_limit_frame_img = ctx.static_imgs.get(limited_time_frame['path'])
-                term_limit_frame_img = resize_keep_ratio(term_limit_frame_img, avatar_w, scale=limited_time_frame.get('scale', 1.0))
+    try:
+        for limited_time_frame in config.get('profile.limited_time_custom_frames', []):
+            now = datetime.now()
+            for period in limited_time_frame.get('periods', []):
+                start = datetime.strptime(period[0], '%m-%d %H:%M').replace(year=now.year)
+                end = datetime.strptime(period[1], '%m-%d %H:%M').replace(year=now.year)
+                if start <= now <= end:
+                    term_limit_frame_img = ctx.static_imgs.get(limited_time_frame['path'])
+                    term_limit_frame_img = resize_keep_ratio(term_limit_frame_img, avatar_w, scale=limited_time_frame.get('scale', 1.0))
+                    break
+            if term_limit_frame_img:
                 break
-        if term_limit_frame_img:
-            break
+    except Exception as e:
+        logger.warning(f"获取期间限定头像框失败: {get_exc_desc(e)}")
+        term_limit_frame_img = None
 
     with Frame().set_size((avatar_w, avatar_w)).set_content_align('c').set_allow_draw_outside(True) as ret:
         ImageBox(avatar_img, size=(avatar_w, avatar_w), use_alphablend=False, shadow=True)
