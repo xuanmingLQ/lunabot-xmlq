@@ -1099,7 +1099,6 @@ async def do_deck_recommend_batch(
             userdata_hash = res.get('userdata_hash')
         except Exception as e:
             logger.warning(f"组卡用户数据缓存请求 {url} 失败: {get_exc_desc(e)}")
-            return url, None
     
         # 向该后端发送组卡请求
         try:
