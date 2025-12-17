@@ -1880,10 +1880,10 @@ async def _(ctx: HandlerContext):
         msg = f"用户{qid}当前绑定:\n"
         for region in ALL_SERVER_REGIONS:
             region_ctx = SekaiHandlerContext.from_region(region)
-            main_uid = get_player_bind_id(region_ctx, ctx.user_id, check_bind=False)
+            main_uid = get_player_bind_id(region_ctx, qid, check_bind=False)
             lines = []
-            for i in range(get_player_bind_count(region_ctx, ctx.user_id)):
-                uid = get_player_bind_id(region_ctx, ctx.user_id, index=i)
+            for i in range(get_player_bind_count(region_ctx, qid)):
+                uid = get_player_bind_id(region_ctx, qid, index=i)
                 is_main = (uid == main_uid)
                 line = f"[{i+1}] {uid}"
                 if is_main:
