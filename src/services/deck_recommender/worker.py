@@ -210,8 +210,9 @@ class WorkerContext:
             cls.available_workers.put_nowait(w)
         cls.thread_pool = ThreadPoolExecutor(max_workers=worker_num)
         
-    def __init__(self) -> None:
+    def __init__(self, task_timeout: float = 60) -> None:
         self.worker: Worker | None = None
+        self.task_timeout = task_timeout
 
     async def __aenter__(self):
         if not self.available_workers:
@@ -229,15 +230,27 @@ class WorkerContext:
             ctx.worker = w
             yield ctx
 
+    async def _get_result(self):
+        try:
+            return await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(
+                    self.thread_pool, 
+                    self.result_queues[self.worker.worker_id].get,
+                ),
+                timeout=self.task_timeout,
+            )
+        except asyncio.TimeoutError:
+            self.task_queues[self.worker.worker_id] = mp.get_context('spawn').Queue()
+            self.result_queues[self.worker.worker_id] = mp.get_context('spawn').Queue()
+            raise RuntimeError("Worker任务超时，队列已重置")
+
     async def cache_userdata(self, userdata_bytes: bytes) -> dict:
         self.task_queues[self.worker.worker_id].put(('cache_userdata', (userdata_bytes,), {},))
-        result = await asyncio.get_event_loop().run_in_executor(self.thread_pool, self.result_queues[self.worker.worker_id].get)
-        return result
+        return await self._get_result()
     
     async def recommend(self, region: str, options: dict, userdata_hash: str) -> dict:
         self.task_queues[self.worker.worker_id].put(('recommend', (region, options, userdata_hash,), {},))
-        result = await asyncio.get_event_loop().run_in_executor(self.thread_pool, self.result_queues[self.worker.worker_id].get)
-        return result
+        return await self._get_result()
 
 
 
