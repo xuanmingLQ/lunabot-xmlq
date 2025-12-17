@@ -6,6 +6,7 @@ from ..draw import *
 from .honor import compose_full_honor_image
 from .resbox import get_res_box_info, get_res_icon
 from ...utils.safety import *
+from ...imgtool import shrink_image
 
 
 SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
@@ -1044,6 +1045,11 @@ async def get_player_frame_image(ctx: SekaiHandlerContext, frame_id: int, frame_
             lt = await ctx.rip.img(asset_path + "vertical/frame_lefttop.png", allow_error=False)
             rb = await ctx.rip.img(asset_path + "vertical/frame_rightbottom.png", allow_error=False)
             rt = await ctx.rip.img(asset_path + "vertical/frame_righttop.png", allow_error=False)
+
+            try:
+                ct = await run_in_pool(shrink_image, ct, 10, 0)
+            except Exception as e:
+                logger.warning(f"合成playerFrame_{frame_id}时为ct执行shrink失败（可能导致错位）: {get_exc_desc(e)}")
             
             ct = resize_keep_ratio(ct, scale, mode='scale')
             lt = resize_keep_ratio(lt, scale, mode='scale')
