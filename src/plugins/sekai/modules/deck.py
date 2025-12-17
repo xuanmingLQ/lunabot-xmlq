@@ -1096,13 +1096,7 @@ async def do_deck_recommend_batch(
         # 向该后端缓存用户数据段
         try:
             res = await req(userdata_payload, url + "/cache_userdata")
-            userdata_hash = res.get('userdata_hash')
-        except Exception as e:
-            logger.warning(f"组卡用户数据缓存请求 {url} 失败: {get_exc_desc(e)}")
-    
-        # 向该后端发送组卡请求
-        try:
-            recommend_data['userdata_hash'] = userdata_hash
+            recommend_data['userdata_hash'] = res.get('userdata_hash')
             payload = []
             add_payload_segment(payload, dumps_json(recommend_data, indent=False).encode('utf-8'))
             with Timer("deckrec:request", logger):
