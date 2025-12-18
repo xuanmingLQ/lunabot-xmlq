@@ -96,6 +96,7 @@ class ApiProvider:
                     nums = [d[k], '1']
                 nums = [float(num) for num in nums]
                 d[k] = nums[0] / nums[1]
+            self.models = []
             for model_config in self.config.get('models', []):
                 parse_price(model_config, 'input_pricing')
                 parse_price(model_config, 'output_pricing')

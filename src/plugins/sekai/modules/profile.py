@@ -625,7 +625,7 @@ async def get_detailed_profile(
     raise_exc=False, 
     mode=None, 
     ignore_hide=False, 
-    filter: list[str]=None,
+    filter: list[str] | set[str] | None=None,
 ) -> Tuple[dict, str]:
     cache_path = None
     try:

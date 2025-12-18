@@ -1,7 +1,7 @@
 from utils import *
 from config import *
 
-from sekai_deck_recommend import (
+from sekai_deck_recommend_cpp import (
     SekaiDeckRecommend, 
     DeckRecommendOptions, 
     DeckRecommendCardConfig, 
