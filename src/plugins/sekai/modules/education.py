@@ -9,7 +9,6 @@ from .profile import (
     get_detailed_profile_card,
     get_detailed_profile_card_filter,
     get_player_avatar_info_by_detailed_profile,
-    get_detailed_profile_card_filter,
 )
 
 @dataclass
@@ -577,7 +576,11 @@ async def compose_bonds_image(ctx: SekaiHandlerContext, qid: int, cid: int | Non
 
 # 合成队长次数图片
 async def compose_leader_count_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
-    profile, err_msg = await get_detailed_profile(ctx, qid, raise_exc=True, filter=get_detailed_profile_card_filter('userCharacterMissionV2s', 'userCharacterMissionV2Statuses', 'userGamedata', 'userDecks', 'upload_time', 'userCards'))
+    profile, err_msg = await get_detailed_profile(
+        ctx, 
+        qid, 
+        filter=get_detailed_profile_card_filter('userCharacterMissionV2s', 'userCharacterMissionV2Statuses'),
+        raise_exc=True)
 
     ucms = profile.get('userCharacterMissionV2s')
     ucm_ss = profile.get('userCharacterMissionV2Statuses')
