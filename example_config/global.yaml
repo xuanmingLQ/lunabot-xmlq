@@ -40,7 +40,7 @@ exception_mail:   # 发送异常消息邮件的配置
 default_thread_pool_size: 8
 
 # web_driver_num: 2 # 替换成轻量的context
-playwright_context_num: 2
+playwright_context_num: 4
 
 safety_check:
   secret_id: xxx
