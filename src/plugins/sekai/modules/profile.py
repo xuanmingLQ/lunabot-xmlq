@@ -622,7 +622,7 @@ async def get_detailed_profile(
     raise_exc=False, 
     mode=None, 
     ignore_hide=False, 
-    filter: list[str]=None,
+    filter: list[str] | set[str] | None=None,
 ) -> Tuple[dict, str]:
     cache_path = None
     try:
@@ -692,6 +692,10 @@ async def get_detailed_profile(
             return None, str(e)
         
     return profile, ""
+
+# 获取包含了玩家详细信息的简单卡片控件所需要的filter
+def get_detailed_profile_card_filter(*s: str) -> set[str]:
+    return {'userGamedata', 'userDecks', 'upload_time', 'userCards', *s}
 
 # 从玩家详细信息获取该玩家头像的PlayerAvatarInfo
 async def get_player_avatar_info_by_detailed_profile(ctx: SekaiHandlerContext, detail_profile: dict) -> PlayerAvatarInfo:
