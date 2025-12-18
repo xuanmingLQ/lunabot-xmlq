@@ -294,10 +294,7 @@ async def _(ctx: HandlerContext):
         if query_text.strip().startswith("/"):
             return
 
-        # 仅当群聊并且文本中有@时，才获取bot名称，减少API调用
-        bot_name = "No@BotName"
-        if is_group_msg(event) and '@' in query_text:
-            bot_name = await get_group_member_name(bot, event.group_id, bot.self_id)
+        bot_name = await get_group_member_name(bot, event.group_id, bot.self_id)
 
         # 空消息不回复
         if query_text.replace(f"@{bot_name}", "").strip() == "" or query_text is None:
