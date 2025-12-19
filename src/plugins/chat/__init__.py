@@ -753,6 +753,8 @@ async def _(ctx: HandlerContext):
     else:
         qid = qids[0]
 
+    nickname = await get_group_member_name(ctx.bot, ctx.group_id, qid)
+
     um = None
     path = f"data/chat/autochat/memory_{ctx.group_id}.json"
     if os.path.exists(path):
@@ -760,6 +762,6 @@ async def _(ctx: HandlerContext):
         um = mem.get("ums", {}).get(str(qid), {}).get("text", None)
     
     if not um:
-        return await ctx.asend_reply_msg(f"bot对@{qid}的印象: 无")
+        return await ctx.asend_reply_msg(f"对@{nickname}的印象: 无")
 
-    return await ctx.asend_reply_msg(f"bot对@{qid}的印象:\n{um}")
+    return await ctx.asend_reply_msg(f"对@{nickname}的印象:\n{um}")
