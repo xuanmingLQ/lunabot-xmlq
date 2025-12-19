@@ -43,6 +43,16 @@ async def image_safety_check(image: Union[Image.Image, str]) -> SafetyCheckResul
     """
     图片安全检查
     """
+    enabled = global_config.get('safety_check.enabled')
+    if not enabled:
+        return SafetyCheckResult(
+            suggestion=SUGGEST_PASS,
+            label='Normal',
+            sub_label='',
+            score=100,
+            message='安全检查未启用，默认通过'
+        )
+
     try:
         def check():
             data = { 'BizType': 'bot' }
