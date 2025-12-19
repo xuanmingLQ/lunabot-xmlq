@@ -886,14 +886,14 @@ class PlaywrightPage:
         await _context_semaphore.acquire()
         try:
             self.context = await _playwright_browser.new_context(**self.context_options)
-        except PlaywrightError as e:# 在新建context时就发生异常，可以认为playwright本身出了问题，重启一下
+        except PlaywrightError as pe:# 在新建context时就发生异常，可以认为playwright本身出了问题，重启一下
             try:
                 _playwright_browser.close()
             except Exception as e:
                 utils_logger.error(f"关闭 Playwright Browser 失败 {get_exc_desc(e)}")
             _playwright_browser = None
             _context_semaphore.release()
-            raise
+            raise pe
         except: # 出现异常时释放信号
             _context_semaphore.release()
             raise
