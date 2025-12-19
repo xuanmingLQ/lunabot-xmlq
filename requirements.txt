@@ -47,4 +47,5 @@ rembg
 qrcode
 pyzbar
 scikit-learn
+sekaiworld.scores
 # easyocr   # optional for llm.translator

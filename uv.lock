@@ -1139,6 +1139,7 @@ dependencies = [
     { name = "requests" },
     { name = "scikit-learn" },
     { name = "sekai-deck-recommend-cpp" },
+    { name = "sekaiworld-scores" },
     { name = "setproctitle" },
     { name = "tenacity" },
     { name = "tencentcloud-sdk-python" },
@@ -1192,6 +1193,7 @@ requires-dist = [
     { name = "requests" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "sekai-deck-recommend-cpp" },
+    { name = "sekaiworld-scores", specifier = ">=0.1.10" },
     { name = "setproctitle" },
     { name = "tenacity" },
     { name = "tencentcloud-sdk-python" },
@@ -2693,6 +2695,18 @@ wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/aa/02/89676e32151452a06d7236dbca4b64461114f478d66536ce570cf40c5568/sekai_deck_recommend_cpp-0.2.19-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:c1ae44067dcb10b110f5283985287aa6e28653f85b0dac6735efc50ec1410c25" },
     { url = "https://mirrors.aliyun.com/pypi/packages/78/09/9ebaaffc2c984ed62f7aada2d7ae438159a159dacb9cbf4cf33cb06f6b8d/sekai_deck_recommend_cpp-0.2.19-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:0d85e6e896548cbc27f790ae134dc16f5dc539b8505d199531215a1cf2a0752a" },
     { url = "https://mirrors.aliyun.com/pypi/packages/f6/b1/422c183197b2dc18501c25931eeb1d527d19d51a65a682e890aa42758ace/sekai_deck_recommend_cpp-0.2.19-cp314-cp314t-win_amd64.whl", hash = "sha256:478e8b1e4b6f3870b5af5110efc59e843e129d0d231b14a0c95f5ae40e531b55" },
+]
+
+[[package]]
+name = "sekaiworld-scores"
+version = "0.1.10"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
+dependencies = [
+    { name = "svgwrite" },
+]
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/70/fd/ecee814e517bf4ce3417a470ffc9c88d813c1a8cf4840059b3cb137b1a82/sekaiworld_scores-0.1.10.tar.gz", hash = "sha256:f8ca2b1c6acecc23264962d7ea9443cc45fe06812e571d0029fe5a3f488c55bd" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/de/f2/488b37c3276cdacc923bae2196aa9819631c5dfe6385d39d1172e851c54c/sekaiworld.scores-0.1.10-py3-none-any.whl", hash = "sha256:cccf58e51ea2e56a4529744133828e200e5e401a6aa13e5866e996d4d30553ce" },
 ]
 
 [[package]]

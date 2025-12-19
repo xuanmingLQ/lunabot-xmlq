@@ -45,6 +45,7 @@ dependencies = [
     "requests",
     "scikit-learn>=1.8.0",
     "sekai-deck-recommend-cpp",
+    "sekaiworld-scores>=0.1.10",
     "setproctitle",
     "tenacity",
     "tencentcloud-sdk-python",
