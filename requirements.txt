@@ -29,4 +29,5 @@ zhon
 zstandard
 colour-science
 pandas
-sekai-deck-recommend-cpp
+sekai-deck-recommend-cpp>=0.2.19
+scipy

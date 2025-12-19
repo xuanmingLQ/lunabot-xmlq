@@ -1,10 +1,45 @@
 [project]
-name = "lunabot-sekai"
+name = "lunabot-nonebot"
 version = "0.1.0"
-description = "lunabot-sekai"
+description = "luanbot的docker版"
 readme = "README.md"
-requires-python = ">=3.9, <4.0"
-
+requires-python = ">=3.13"
+dependencies = [
+    "aiohttp",
+    "aiosmtplib",
+    "aiosqlite",
+    "bs4",
+    "colour-science",
+    "emoji==2.0.0",
+    "ffmpeg",
+    "matplotlib",
+    "mistune",
+    "nonebot-adapter-onebot",
+    "nonebot-plugin-apscheduler",
+    "nonebot-plugin-htmlrender",
+    "nonebot-plugin-picstatus",
+    "nonebot2[fastapi]",
+    "opencv-python-headless",
+    "orjson",
+    "pandas",
+    "pillow",
+    "pilmoji[requests]==2.0.4",
+    "pydub",
+    "python-dotenv",
+    "pyyaml",
+    "rapidfuzz",
+    "requests",
+    "scipy",
+    "sekai-deck-recommend-cpp>=0.2.19",
+    "sekaiworld-scores",
+    "setproctitle",
+    "tenacity",
+    "uvloop",
+    "zhconv",
+    "zhon",
+    "zstandard",
+]
+# nonebot相关配置
 [tool.nonebot]
 adapters = [
     { name = "OneBot V11", module_name = "nonebot.adapters.onebot.v11" }

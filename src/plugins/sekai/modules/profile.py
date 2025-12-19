@@ -564,8 +564,8 @@ async def get_detailed_profile(
     qid: int, 
     raise_exc=False, 
     mode=None, 
-    ignore_hide=False, 
-    filter: tuple[str]|list[str]|set[str]|None=None,
+    ignore_hide=False,
+    filter: tuple[str]|list[str]|set[str]|None=None
 ) -> Tuple[dict, str]:
     cache_path = None
     try:
