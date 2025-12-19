@@ -1168,7 +1168,8 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
                 ax2.axhline(y=f.final_score, color=color, linestyle='--', linewidth=0.8, alpha=0.7)
                 score = round(f.final_score / 10000) * 10000
                 final_score_texts.append(f"{name}: {get_board_score_str(score, precise=False)}")
-                final_score_ys.append(f.final_score)
+                # final_score_ys.append(f.final_score)
+                final_score_ys.append(max_score + f.final_score / 10000)
                 final_score_colors.append(color)
             # 预测历史
             if config.get(f'sk.forecast.{source}.show_history') and f.history_final_score:
