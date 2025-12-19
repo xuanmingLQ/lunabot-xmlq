@@ -401,7 +401,7 @@ def swap_player_bind_id(ctx: SekaiHandlerContext, qid: str, index1: int, index2:
 
 
 # 验证用户游戏帐号
-async def verify_user_game_account(ctx: SekaiHandlerContext):
+async def verify_user_game_account(ctx: SekaiHandlerContext, triggered_by_not_verified: bool = False):
     verified_uids = get_user_verified_uids(ctx)
     uid = get_player_bind_id(ctx)
     assert_and_reply(uid not in verified_uids, f"你当前绑定的{get_region_name(ctx.region)}帐号已经验证过")
@@ -431,12 +431,16 @@ async def verify_user_game_account(ctx: SekaiHandlerContext):
             err_msg = f"你的上次验证已过期\n"
         if info.uid != uid:
             err_msg = f"开始验证时绑定的帐号与当前绑定帐号不一致\n"
-        if err_msg:
-            _region_qid_verify_codes[ctx.region].pop(qid, None)
-            info = None
+
+    if triggered_by_not_verified:
+        err_msg = f"该功能需要验证你的游戏账号\n"
+
+    if err_msg:
+        _region_qid_verify_codes[ctx.region].pop(qid, None)
+        info = None
     
+    # 首次验证
     if not info:
-        # 首次验证
         info = VerifyCode(
             region=ctx.region,
             qid=qid,
@@ -446,9 +450,9 @@ async def verify_user_game_account(ctx: SekaiHandlerContext):
         )
         _region_qid_verify_codes[ctx.region][qid] = info
         raise ReplyException(f"""
-{err_msg}请在你当前绑定的{get_region_name(ctx.region)}帐号({process_hide_uid(ctx, info.uid, keep=6)})的游戏名片的简介(word)的末尾输入该验证码(不要去掉斜杠):
+{err_msg}请在你当前绑定的{get_region_name(ctx.region)}帐号的名片简介末尾输入验证码(不要去掉斜杠):
 {info.verify_code}
-编辑后需要退出名片界面以保存，然后在{get_readable_timedelta(VERIFY_CODE_EXPIRE_TIME)}内重新发送一次\"{ctx.original_trigger_cmd}\"以完成验证
+编辑后退出名片界面保存，然后在{get_readable_timedelta(VERIFY_CODE_EXPIRE_TIME)}内发送\"/{ctx.region}pjsk验证\"完成验证
 """.strip())
     
     profile = await get_basic_profile(ctx, info.uid, use_cache=False, use_remote_cache=False)
@@ -472,11 +476,14 @@ def get_user_verified_uids(ctx: SekaiHandlerContext) -> List[str]:
     return profile_db.get(f"verify_accounts_{ctx.region}", {}).get(str(ctx.user_id), [])
 
 # 获取游戏id并检查用户是否验证过当前的游戏id，失败抛出异常
-def get_uid_and_check_verified(ctx: SekaiHandlerContext, force: bool = False) -> str:
+async def get_uid_and_check_verified(ctx: SekaiHandlerContext, force: bool = False) -> str:
     uid = get_player_bind_id(ctx)
     if not force:
         verified_uids = get_user_verified_uids(ctx)
-        assert_and_reply(uid in verified_uids, f"""
+        if uid not in verified_uids:
+            await verify_user_game_account(ctx, triggered_by_not_verified=True)
+            # 正常情况下不会往下走
+            assert_and_reply(uid in verified_uids, f"""
 该功能需要验证你的游戏帐号
 请使用"/{ctx.region}pjsk验证"进行验证，使用"/{ctx.region}pjsk验证列表"查看你验证过的游戏ID
 """.strip())
@@ -953,7 +960,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
     return await canvas.get_img(1.5)
 
 # 个人信息背景设置
-def set_profile_bg_settings(
+async def set_profile_bg_settings(
     ctx: SekaiHandlerContext,
     image: Optional[Image.Image] = None,
     remove_image: bool = False,
@@ -962,7 +969,7 @@ def set_profile_bg_settings(
     vertical: Optional[bool] = None,
     force: bool = False
 ):
-    uid = get_uid_and_check_verified(ctx, force)
+    uid = await get_uid_and_check_verified(ctx, force)
     region = ctx.region
     image_path = PROFILE_BG_IMAGE_PATH.format(region=region, uid=uid)
 
@@ -1686,13 +1693,13 @@ async def _(ctx: SekaiHandlerContext):
         force = True
         args = args.replace('force', '').strip()
 
-    uid = get_uid_and_check_verified(ctx, force)
+    uid = await get_uid_and_check_verified(ctx, force)
     img_url = await ctx.aget_image_urls(return_first=True)
     res = await image_safety_check(img_url)
     if res.suggest_block():
         raise ReplyException(f"图片审核结果: {res.message}")
     img = await download_image(img_url)
-    set_profile_bg_settings(ctx, image=img, force=force)
+    await set_profile_bg_settings(ctx, image=img, force=force)
 
     msg = f"背景设置成功，使用\"/{ctx.region}调整个人信息\"可以调整界面方向、模糊、透明度\n"
     if res.suggest_review():
@@ -1731,7 +1738,7 @@ async def _(ctx: SekaiHandlerContext):
         force = True
         args = args.replace('force', '').strip()
 
-    set_profile_bg_settings(ctx, remove_image=True, force=force)
+    await set_profile_bg_settings(ctx, remove_image=True, force=force)
     return await ctx.asend_reply_msg(f"已清空{get_region_name(ctx.region)}个人信息背景图片")
 
 
@@ -1751,7 +1758,7 @@ async def _(ctx: SekaiHandlerContext):
         force = True
         args = args.replace('force', '').strip()
 
-    uid = get_uid_and_check_verified(ctx, force)
+    uid = await get_uid_and_check_verified(ctx, force)
     HELP = f"""
 调整横屏/竖屏:
 {ctx.original_trigger_cmd} 竖屏
@@ -1823,7 +1830,7 @@ async def _(ctx: SekaiHandlerContext):
     if alpha is not None:
         assert_and_reply(0 <= alpha <= 255, "透明度必须在0到100之间")
     
-    set_profile_bg_settings(ctx, vertical=vertical, blur=blur, alpha=alpha, force=force)
+    await set_profile_bg_settings(ctx, vertical=vertical, blur=blur, alpha=alpha, force=force)
     settings = get_profile_bg_settings(ctx)
 
     msg = f"当前设置: {'竖屏' if settings.vertical else '横屏'} 透明度{100 - int(settings.alpha * 100 / 255)} 模糊度{settings.blur}\n"
