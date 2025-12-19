@@ -33,7 +33,7 @@ pjsekai.scores
 setproctitle
 bypy
 colour-science
-opencv-python
+opencv-python-headless
 zstandard
 google-genai
 aiosqlite
@@ -41,5 +41,10 @@ rapidfuzz
 sekai_deck_recommend_cpp
 pydub
 audioop-lts
-
+zhconv
+mistune
+rembg
+qrcode
+pyzbar
+scikit-learn
 # easyocr   # optional for llm.translator
