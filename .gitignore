@@ -148,3 +148,4 @@ sandbox/
 config/
 debug/
 cache/
+uv.lock
