@@ -1130,7 +1130,6 @@ dependencies = [
     { name = "pdf2image" },
     { name = "picimagesearch" },
     { name = "pilmoji", extra = ["requests"] },
-    { name = "pjsekai-scores" },
     { name = "pydub" },
     { name = "pyzbar" },
     { name = "qrcode" },
@@ -1184,7 +1183,6 @@ requires-dist = [
     { name = "pdf2image" },
     { name = "picimagesearch" },
     { name = "pilmoji", extras = ["requests"] },
-    { name = "pjsekai-scores" },
     { name = "pydub" },
     { name = "pyzbar", specifier = ">=0.1.9" },
     { name = "qrcode", specifier = ">=8.2" },
@@ -1930,18 +1928,6 @@ wheels = [
 [package.optional-dependencies]
 requests = [
     { name = "requests" },
-]
-
-[[package]]
-name = "pjsekai-scores"
-version = "0.1.10"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
-dependencies = [
-    { name = "svgwrite" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/4d/c2/27ec5cbf9fa976ee5f21be6b8a039972f9b02e57917b0c9999bd166b9e46/pjsekai.scores-0.1.10.tar.gz", hash = "sha256:13e83d31fde7314f4ee643cca1529d144eccc8ab508bbc24ee270ede80756834" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/d2/58/2694c09014c6278474837e978f8ea60389c91c7643e5db2dccfa5d603b6b/pjsekai.scores-0.1.10-py3-none-any.whl", hash = "sha256:b47d3af0123badea77858cb3ec1ff3814d7468286f654eb8fb1a47954a0f7edf" },
 ]
 
 [[package]]

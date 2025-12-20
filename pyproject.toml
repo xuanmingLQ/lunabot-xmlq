@@ -36,7 +36,6 @@ dependencies = [
     "pdf2image",
     "picimagesearch",
     "pilmoji[requests]",
-    "pjsekai-scores",
     "pydub",
     "pyzbar>=0.1.9",
     "qrcode>=8.2",
