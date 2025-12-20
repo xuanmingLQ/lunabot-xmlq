@@ -39,9 +39,10 @@ exception_mail:   # 发送异常消息邮件的配置
 
 default_thread_pool_size: 8
 
-playwright_context_num: 4 # 同时运行的浏览器context数量
+playwright_context_num: 8 # 同时运行的浏览器context数量
 
 safety_check:
+  enabled: false
   secret_id: xxx
   secret_key: xxx
   endpoint: ims.tencentcloudapi.com
