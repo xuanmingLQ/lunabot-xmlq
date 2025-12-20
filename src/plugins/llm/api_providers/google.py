@@ -79,7 +79,7 @@ class GenaiCompletions:
         thinking_config = {}
         if include_thoughts is not None: 
             thinking_config['include_thoughts'] = include_thoughts
-        if include_thoughts != False:
+        if include_thoughts != False and 'lite' not in model:
             if '3' in model:
                 thinking_config['thinking_level'] = 'high' if high_thinking_level else 'low'
             else:
