@@ -739,3 +739,29 @@ async def _(ctx: HandlerContext):
     except Exception as e:
         raise Exception(f"翻译失败: {e}")
 
+
+# 查询autochat用户记忆
+autochat_usermemory = CmdHandler([
+    "/autochat um", "/um", "/autochat usermemory", "/usermemory"
+], logger)
+autochat_usermemory.check_cdrate(chat_cd).check_wblist(autochat_gwl)
+@autochat_usermemory.handle()
+async def _(ctx: HandlerContext):
+    qids = ctx.get_at_qids()
+    if not qids:
+        qid = ctx.user_id
+    else:
+        qid = qids[0]
+
+    nickname = await get_group_member_name(ctx.bot, ctx.group_id, qid)
+
+    um = None
+    path = get_data_path(f"chat/autochat/memory_{ctx.group_id}.json")
+    if os.path.exists(path):
+        mem = load_json(path)
+        um = mem.get("ums", {}).get(str(qid), {}).get("text", None)
+    
+    if not um:
+        return await ctx.asend_reply_msg(f"对@{nickname}的印象: 无")
+
+    return await ctx.asend_reply_msg(f"对@{nickname}的印象:\n{um}")

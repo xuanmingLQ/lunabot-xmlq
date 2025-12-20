@@ -42,6 +42,7 @@ default_thread_pool_size: 8
 playwright_context_num: 8
 
 safety_check:
+  enabled: false
   secret_id: xxx
   secret_key: xxx
   endpoint: ims.tencentcloudapi.com

@@ -539,21 +539,49 @@ async def chat(msg: Message):
 
 # ================ 主循环 ================= #
 
+group_queues: dict[int, asyncio.Queue] = {}
+
+
+async def group_message_worker(group_id: int, queue: asyncio.Queue):
+    while True:
+        try:
+            msg = await asyncio.wait_for(queue.get(), timeout=3*60*60)
+            try:
+                await chat(msg)
+            except Exception as e:
+                error(f"群 {group_id} 消息处理异常: {get_exc_desc(e)}")
+            finally:
+                queue.task_done()
+        except asyncio.TimeoutError:
+            if group_id in group_queues:
+                del group_queues[group_id]
+            info(f"群 {group_id} 闲置超时，Worker 退出")
+            break
+
+
 async def main():
     asyncio.create_task(rpc_session.run(reconnect=True))
     await asyncio.sleep(1)
     info("开始监听新消息")
 
     while True:
-        await asyncio.sleep(2)
+        await asyncio.sleep(3)
+        
+        msgs = []
         try:
             msgs = await rpc_get_new_msgs()
         except Exception as e:
             warning(f"获取新消息失败: {get_exc_desc(e)}")
             continue
+            
         for msg in msgs:
-            await chat(msg)
+            group_id = msg.group_id
+            if group_id not in group_queues:
+                queue = asyncio.Queue()
+                group_queues[group_id] = queue
+                asyncio.create_task(group_message_worker(group_id, queue))
+            group_queues[group_id].put_nowait(msg)
+
 
 if __name__ == '__main__':
-    import asyncio
     asyncio.run(main())
