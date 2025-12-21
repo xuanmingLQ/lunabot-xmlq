@@ -105,7 +105,10 @@ async def search_single_card(ctx: SekaiHandlerContext, args: str) -> dict:
                 assert_and_reply(-seq <= len(chara_cards), f"角色{nickname}只有{len(chara_cards)}张卡")
                 card = chara_cards[seq]
                 return card
-    assert_and_reply(args.isdigit(), SEARCH_SINGLE_CARD_HELP)
+    assert_and_reply(
+        args.isdigit(), 
+        f"无法解析的参数: {args}\n" + SEARCH_SINGLE_CARD_HELP,
+    )
     card = await ctx.md.cards.find_by_id(int(args))
     assert_and_reply(card, f"找不到卡牌{ctx.region.upper()}-{args}")
     return card
