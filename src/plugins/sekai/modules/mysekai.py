@@ -1926,9 +1926,9 @@ def update_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str:
 
 # 查询mysekai资源
 pjsk_mysekai_res = SekaiCmdHandler([
-    "/pjsk mysekai res", "/pjsk_mysekai_res", "/mysekai res", "/mysekai_res", 
-    "/msr", "/mysekai资源", "/mysekai 资源", "/msa",
-], regions=MYSEKAI_REGIONS)
+    "/pjsk mysekai res", "/msr", "/msmap", "/msa",
+    "/mysekai 资源", 
+], regions=MYSEKAI_REGIONS, priority=101)
 pjsk_mysekai_res.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_res.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -1946,8 +1946,8 @@ async def _(ctx: SekaiHandlerContext):
 
 # 查询mysekai蓝图
 pjsk_mysekai_blueprint = SekaiCmdHandler([
-    "/pjsk mysekai blueprint", "/pjsk_mysekai_blueprint", "/mysekai blueprint", "/mysekai_blueprint", 
-    "/msb", "/mysekai蓝图", "/mysekai 蓝图"
+    "/pjsk mysekai blueprint", "/mysekai blueprint",
+    "/msb", "/mysekai 蓝图",
 ], regions=MYSEKAI_REGIONS)
 pjsk_mysekai_blueprint.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_blueprint.handle()
@@ -1987,9 +1987,8 @@ async def _(ctx: SekaiHandlerContext):
 
 # 查询mysekai家具列表/家具
 pjsk_mysekai_furniture = SekaiCmdHandler([
-    "/pjsk mysekai furniture", "/pjsk_mysekai_furniture", "/mysekai furniture", "/mysekai_furniture", 
-    "/pjsk mysekai fixture", "/pjsk_mysekai_fixture", "/mysekai fixture", "/mysekai_fixture", 
-    "/msf", "/mysekai家具", "/mysekai 家具"
+    "/pjsk mysekai furniture", "/pjsk mysekai fixture", 
+    "/msf", "/mysekai 家具", "/家具列表",
 ], regions=MYSEKAI_REGIONS)
 pjsk_mysekai_furniture.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_furniture.handle()
@@ -2035,9 +2034,8 @@ async def _(ctx: SekaiHandlerContext):
 
 # 下载mysekai照片
 pjsk_mysekai_photo = SekaiCmdHandler([
-    "/pjsk mysekai photo", "/pjsk_mysekai_photo", "/mysekai photo", "/mysekai_photo",
-    "/pjsk mysekai picture", "/pjsk_mysekai_picture", "/mysekai picture", "/mysekai_picture",
-    "/msp", "/mysekai照片", "/mysekai 照片" 
+    "/pjsk mysekai photo", "/pjsk mysekai picture", 
+    "/msp", "/mysekai 照片" ,
 ], regions=MYSEKAI_REGIONS)
 pjsk_mysekai_photo.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_photo.handle()
@@ -2054,7 +2052,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # 查询烤森抓包数据
 pjsk_check_mysekai_data = SekaiCmdHandler([
-    "/pjsk check mysekai data", "/pjsk_check_mysekai_data", 
+    "/pjsk check mysekai data",
     "/pjsk烤森抓包数据", "/pjsk烤森抓包", "/烤森抓包", "/烤森抓包数据",
     "/msd",
 ], regions=MYSEKAI_REGIONS)
@@ -2104,8 +2102,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # 查询烤森门升级数据
 pjsk_mysekai_gate = SekaiCmdHandler([
-    "/pjsk mysekai gate", "/pjsk_mysekai_gate", 
-    "/msg",
+    "/pjsk mysekai gate",  "/msg", "/msgate",
 ], regions=MYSEKAI_REGIONS)
 pjsk_mysekai_gate.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_gate.handle()
@@ -2131,8 +2128,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # 查询烤森唱片数据
 pjsk_mysekai_musicrecord = SekaiCmdHandler([
-    "/pjsk mysekai musicrecord", "/pjsk_mysekai_musicrecord",
-    "/msm", "/mss",
+    "/pjsk mysekai musicrecord", "/msm", "/mss", "/mssong", 
 ], regions=MYSEKAI_REGIONS)
 pjsk_mysekai_musicrecord.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_musicrecord.handle()
@@ -2160,6 +2156,9 @@ msr_change_bind = SekaiCmdHandler([
 msr_change_bind.check_cdrate(cd).check_wblist(gbl)
 @msr_change_bind.handle()
 async def _(ctx: SekaiHandlerContext):
+    args = ctx.get_args().strip()
+    assert_and_reply(not args, "该指令用于切换MSR查询限制ID为你当前绑定的ID，不需要添加参数。请你确认要更换的ID为你当前绑定的ID")
+
     next_times = bd_msr_bind_db.get(f"{ctx.region}_next_time", {})
     qid = str(ctx.user_id)
     next_time = next_times.get(qid, 0)
