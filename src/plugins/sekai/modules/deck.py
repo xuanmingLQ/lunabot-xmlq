@@ -614,7 +614,7 @@ def extract_multilive_options(args: str, options: DeckRecommendOptions) -> str:
                 value = seg.replace(keyword, "").strip()
                 try:
                     options.multi_live_teammate_power = parse_number(value)
-                    args = args.replace(seg, "").strip()
+                    args = args.replace(seg, "", 1).strip()
                     break
                 except:
                     raise ReplyException(f"无法解析指定的队友综合力\"{value}\"")
@@ -623,7 +623,7 @@ def extract_multilive_options(args: str, options: DeckRecommendOptions) -> str:
                 value = seg.replace(keyword, "").strip()
                 try:
                     options.multi_live_teammate_score_up = int(value)
-                    args = args.replace(seg, "").strip()
+                    args = args.replace(seg, "", 1).strip()
                     break
                 except:
                     raise ReplyException(f"无法解析指定的队友实效\"{value}\"")
@@ -632,7 +632,8 @@ def extract_multilive_options(args: str, options: DeckRecommendOptions) -> str:
                 value = seg.replace(keyword, "").strip()
                 if value.isdigit():
                     options.multi_live_score_up_lower_bound = int(value)
-                    args = args.replace(seg, "").strip()
+                    options.multi_live_teammate_score_up = int(value)
+                    args = args.replace(seg, "", 1).strip()
                     break
 
     return args.strip()
