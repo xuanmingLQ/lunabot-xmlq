@@ -12,6 +12,7 @@ dependencies = [
     "ascii-magic",
     "asteval",
     "audioop-lts",
+    "bs4>=0.0.2",
     "bypy",
     "colour-science",
     "emoji==2.0.0",
