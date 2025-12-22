@@ -1942,6 +1942,8 @@ pjsk_mysekai_blueprint = SekaiCmdHandler([
 pjsk_mysekai_blueprint.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_blueprint.handle()
 async def _(ctx: SekaiHandlerContext):
+    if ctx.region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(ctx.region, ctx.group_id): 
+        raise ReplyException(f"不支持{get_region_name(ctx.region)}的烤森查询")
     args = ctx.get_args().strip()
     show_id = False
     if 'id' in args:
@@ -2011,6 +2013,8 @@ async def _(ctx: SekaiHandlerContext):
             only_craftable=False, 
         )
     else:
+        if ctx.region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(ctx.region, ctx.group_id): 
+            raise ReplyException(f"不支持{get_region_name(ctx.region)}的msr查询")
         img = await compose_mysekai_talk_list_image(
             ctx, 
             qid=ctx.user_id, 
@@ -2032,6 +2036,8 @@ pjsk_mysekai_photo = SekaiCmdHandler([
 pjsk_mysekai_photo.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_photo.handle()
 async def _(ctx: SekaiHandlerContext):
+    if ctx.region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(ctx.region, ctx.group_id): 
+        raise ReplyException(f"不支持{get_region_name(ctx.region)}的烤森查询")
     args = ctx.get_args().strip()
     try: seq = int(args)
     except: raise Exception("请输入正确的照片编号（从1或-1开始）")
@@ -2051,6 +2057,8 @@ pjsk_check_mysekai_data = SekaiCmdHandler([
 pjsk_check_mysekai_data.check_cdrate(cd).check_wblist(gbl)
 @pjsk_check_mysekai_data.handle()
 async def _(ctx: SekaiHandlerContext):
+    if ctx.region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(ctx.region, ctx.group_id): 
+        raise ReplyException(f"不支持{get_region_name(ctx.region)}的烤森查询")
     cqs = extract_cq_code(ctx.get_msg())
     qid = int(cqs['at'][0]['qq']) if 'at' in cqs else ctx.user_id
     uid = get_player_bind_id(ctx)
@@ -2110,6 +2118,8 @@ pjsk_mysekai_musicrecord = SekaiCmdHandler([
 pjsk_mysekai_musicrecord.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_musicrecord.handle()
 async def _(ctx: SekaiHandlerContext):
+    if ctx.region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(ctx.region, ctx.group_id): 
+        raise ReplyException(f"不支持{get_region_name(ctx.region)}的msr查询")
     args = ctx.get_args().strip()
     show_id = False
     if 'id' in args:
