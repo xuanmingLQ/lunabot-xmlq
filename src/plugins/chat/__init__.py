@@ -38,7 +38,6 @@ TOOLS_TRIGGER_WORDS_PATH = "config/chat/tools_trigger_words.txt"
 SYSTEM_PROMPT_PYTHON_RET = "config/chat/system_prompt_python_ret.txt"
 
 CLEANCHAT_TRIGGER_WORDS = ["cleanchat", "clean_chat", "cleanmode", "clean_mode"]
-NOTHINK_TRIGGER_WORDS = ['nothink', 'noreason']
 IMAGE_RESPONSE_TRIGGER_WORDS = ['生成图片', '图片生成', 'imagen', 'Imagen', 'IMAGEN']
 
 
@@ -86,7 +85,7 @@ async def get_image_caption(mdata: dict, model_name: str, timeout: int, use_llm:
             img = await download_image_to_b64(url)
             session = ChatSession()
             session.append_user_content(prompt, imgs=[img], verbose=False)
-            resp = await session.get_response(model_name=model_name, enable_reasoning=False, timeout=timeout)
+            resp = await session.get_response(model_name=model_name, timeout=timeout)
             caption = truncate(resp.result.strip(), 512)
             assert caption, "图片总结为空"
 
@@ -368,14 +367,6 @@ async def _(ctx: HandlerContext):
                     current_date=datetime.now().strftime("%Y-%m-%d")
                 )
 
-        # 是否关闭思考
-        enable_reasoning = True
-        if any([word in query_text for word in NOTHINK_TRIGGER_WORDS]):
-            for word in NOTHINK_TRIGGER_WORDS:
-                query_text = query_text.replace(word, "")
-            enable_reasoning = False
-            logger.info(f"使用关闭思考模式")
-
         # 是否生成图片
         enable_image_response = False
         if any([word in query_text for word in IMAGE_RESPONSE_TRIGGER_WORDS]):
@@ -460,7 +451,6 @@ async def _(ctx: HandlerContext):
             t = datetime.now()
             resp = await session.get_response(
                 model_name=model_name, 
-                enable_reasoning=enable_reasoning,
                 image_response=enable_image_response,
                 timeout=300,
             )
@@ -638,8 +628,6 @@ async def _(ctx: HandlerContext):
             msg += "🆓"
         if model.is_multimodal:
             msg += "🏞️"
-        if model.include_reasoning:
-            msg += "🤔"
         if model.image_response:
             msg += "🎨"
         msg += "\n"

@@ -418,7 +418,6 @@ async def chat(msg: Message):
             options={
                 'timeout': config.get('chat.llm.timeout'),
                 'max_tokens': config.get('chat.llm.max_tokens'),
-                'reasoning': config.get('chat.llm.reasoning'),
                 'json_reply': True,
                 'json_key_restraints': [
                     { 'key': 'reply', 'type': 'str' },

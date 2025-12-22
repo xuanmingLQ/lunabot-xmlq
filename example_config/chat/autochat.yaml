@@ -80,7 +80,6 @@ chat:
       - gg:gemini-2.5-flash-lite
     timeout: 120
     max_tokens: 10240
-    reasoning: False
     prompt: |
       请你扮演一个QQ群友在群聊中聊天，你需要尽量伪装成真人而不要让人发现你是AI
       你在群里的用户ID是{self_id}，昵称是"{self_name}"（没有特殊含义），人设如下:
