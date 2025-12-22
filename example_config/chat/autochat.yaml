@@ -2,8 +2,8 @@ log_level: INFO
 
 rpc:
   host: "127.0.0.1"
-  port: 123456
-  token: xxxx
+  port: 12345
+  token: xxxxx
   reconnect_interval: 5
   default_timeout: 5
 
@@ -39,18 +39,17 @@ summary:
 
 chat:
   willing:
-    limit: 2.0
-    increase_per_msg: 0.01
+    limit: 1.5
+    increase_per_msg: 0.005
     increase_per_at: 1.0
     increase_per_reply: 1.0
-    decay_after_send: 0.7
-    decrease_after_send: 0.2
-    decrease_per_minute: 0.02
+    decay_after_send: 0.6
+    decrease_after_send: 0.5
+    decrease_per_minute: 0.005
     increase_keywords:
-      "时雨": 1.0
-      "bot": 0.2
+      "bot": 0.1
     group_scale:
-      "12345678910": 100.0
+      "123455667": 100.0
 
   mem:
     short_em_num: 3
@@ -63,30 +62,37 @@ chat:
     short_em_forget_days: 3
     short_em_forget_prob: 0.1
 
-    sm_num: 3
+    sm_num: 5
     sm_keep_count: 10
 
     um_num: 3
 
   get_history_msg_delay_seconds: 5
-  history_msg_num: 10
+  history_msg_num: 20
   reply_max_length: 512
 
   llm:
     model:
-      # - gg:gemini-2.5-pro
-      - gg:gemini-2.5-flash
+      - gg:gemini-2.5-pro-high
+      - gg:gemini-3-flash
       - gg:gemini-2.5-flash
       - gg:gemini-2.5-flash-lite
     timeout: 120
     max_tokens: 10240
-    prompt: |
+    reasoning: False
+
+  prompt:
+    persona:
+      default: |
+        编写默认人设...
+      12345678: |
+        编写该群聊专用人设...
+      
+    framework: |
       请你扮演一个QQ群友在群聊中聊天，你需要尽量伪装成真人而不要让人发现你是AI
       你在群里的用户ID是{self_id}，昵称是"{self_name}"（没有特殊含义），人设如下:
       ```
-      你是一个厦门大学的大一软件工程女学生
-      你的性格比较内向高冷，但是有时又温柔关心人，说法风格比较网络化和很简短，符合2025年现代的网友，不会使用太旧的风格和梗
-      对于大部分话题你都有一定了解，但是你讨厌暴力色情和政治敏感话题。你不喜欢使用emoji和颜文字
+      {persona}
       ```
 
       下面是部分你的记忆用于参考（可能为空）:
@@ -97,6 +103,7 @@ chat:
 
       以下是聊天的要求:
       ```
+      大部分时候发比较简短的消息（可以参考群友发言长度）
       如果你要使用at一个群友，需要用[@qqid]，例如[@123]可以@qq号为123456的群友
       如果你要回复一条消息，需要用[reply=msgid]，例如[reply=123]可以回复msg_id=123的消息
       只有必要的时候才使用at或回复，否则可能会打扰到别人
@@ -114,5 +121,7 @@ chat:
         "update_um_text": "需要更新的用户记忆内容，如果没有可以去掉该字段"
       }}
       ```
-      如果没有用户记忆或者某个用户有新的值得记录的记忆（对于该用户的印象），可以附加 update_um_id 和 update_um_text 字段，否则不需要这两个字段
+      如果没有用户记忆或者某个用户有新的值得记录的记忆（对于该用户的印象，比如用户的别名、喜欢做什么、和其他人的关系等），可以附加 update_um_id 和 update_um_text 字段，否则不需要这两个字段
+      注意 update_um_text 更新的方式是直接替换旧的，所以需要保留过去的记忆内容
       如果你觉得没必要说话或者实在不适合聊天，可以将回复设为空字符串，即 {{ "reply": "" }}
+      你需要避免可能对用户造成冒犯的内容，如果无法避免，可以选择不回复

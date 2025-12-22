@@ -395,10 +395,17 @@ async def chat(msg: Message):
 {recent_text}
 ```
 """.strip()
+        
+        persona = config.get('chat.prompt.persona')
+        if msg.group_id in persona:
+            persona = persona[msg.group_id]
+        else:
+            persona = persona.get('default', '')
 
-        full_prompt: str = config.get('chat.llm.prompt').format(
+        full_prompt: str = config.get('chat.prompt.framework').format(
             self_id=self_id,
             self_name=self_name,
+            persona=persona,
             recent_text=recent_text,
             em_text=em_text,
             sm_text=sm_text,
