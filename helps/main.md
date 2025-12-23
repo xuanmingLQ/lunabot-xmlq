@@ -2,6 +2,8 @@
 
 基于 Nonebot2 框架开发的多功能个人 Bot
 
+项目链接: https://github.com/NeuraXmy/lunabot
+
 --- 
 
 点击标题进入对应各服务帮助
