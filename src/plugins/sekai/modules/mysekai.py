@@ -88,6 +88,8 @@ MSR_PUSH_CONCURRENCY_CFG = config.item('mysekai.msr_push_concurrency')
 
 bd_msr_bind_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bd_msr_bind.json", logger)
 
+harvest_point_image_offsets_cache: dict[int, Tuple[Image.Image, tuple[int, int]]] = {}
+
 
 # ======================= 处理逻辑 ======================= #
 
@@ -438,24 +440,6 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
         z = max(0, min(z, draw_h))
         return (int(x), int(z))
 
-    # 获取所有资源点的位置
-    harvest_points = []
-    for item in harvest_map['userMysekaiSiteHarvestFixtures']:
-        fid = item['mysekaiSiteHarvestFixtureId']
-        fstatus = item['userMysekaiSiteHarvestFixtureStatus']
-        if not show_harvested and fstatus != "spawned": 
-            continue
-        x, z = game_pos_to_draw_pos(item['positionX'], item['positionZ'])
-        try: 
-            harvest_fixture = (await ctx.md.mysekai_site_harvest_fixtures.find_by_id(fid))
-            asset_name = harvest_fixture['assetbundleName']
-            rarity = harvest_fixture['mysekaiSiteHarvestFixtureRarityType']
-            image = ctx.static_imgs.get(f"mysekai/harvest_fixture_icon/{rarity}/{asset_name}.png", (128, None))
-        except: 
-            image = None
-        harvest_points.append({"id": fid, 'image': image, 'x': x, 'z': z})
-    harvest_points.sort(key=lambda x: (x['z'], x['x']))
-
     # 获取资源掉落的位置
     all_res = {}
     for item in harvest_map['userMysekaiSiteHarvestResourceDrops']:
@@ -511,17 +495,74 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
             elif is_birthday_drop(item):
                 all_res[pkey][res_key]['del'] = True
 
+    # 获取所有资源点的位置
+    harvest_points = []
+    harvest_point_fid_pkeys: dict[int, str] = {}
+    for item in harvest_map['userMysekaiSiteHarvestFixtures']:
+        fid = item['mysekaiSiteHarvestFixtureId']
+        fstatus = item['userMysekaiSiteHarvestFixtureStatus']
+        if not show_harvested and fstatus != "spawned": 
+            continue
+        x, z = game_pos_to_draw_pos(item['positionX'], item['positionZ'])
+        harvest_point_fid_pkeys[fid] = f"{x}_{z}"
+        harvest_points.append({"id": fid, 'x': x, 'z': z})
+    harvest_points.sort(key=lambda x: (x['z'], x['x']))
+
+    # 获取需要的资源点图标
+    for fid, pkey in harvest_point_fid_pkeys.items():
+        if fid in harvest_point_image_offsets_cache:
+            continue
+        try: 
+            harvest_fixture = (await ctx.md.mysekai_site_harvest_fixtures.find_by_id(fid))
+            asset_name = harvest_fixture['assetbundleName']
+            ftype = harvest_fixture['mysekaiSiteHarvestFixtureType']
+
+            if ftype == 'birthday_plant':
+                # 检查该位置的掉落以判断是哪个角色的生日花
+                cid = None
+                for res_key in all_res.get(pkey, {}):
+                    res_id = int(res_key.rsplit("_", 1)[-1])
+                    if 174 <= res_id <= 199:
+                        cid = res_id - 173
+                        break
+                assert cid
+                chara_eng_name = (await ctx.md.game_characters.find_by_id(cid))['givenNameEnglish'].lower()
+                image = await ctx.rip.img(
+                    f'mysekai/birthday/{chara_eng_name}_2025/icon_refresh.png',
+                    use_img_cache=True,
+                )
+                point_img_size = 50 * scale
+                xoffset = point_img_size * 0.15
+                zoffset = 0
+                image = resize_keep_ratio(image, point_img_size)
+
+            else:
+                rarity = harvest_fixture['mysekaiSiteHarvestFixtureRarityType']
+                image = ctx.static_imgs.get(f"mysekai/harvest_fixture_icon/{rarity}/{asset_name}.png", (128, None))
+
+                point_img_size = 160 * scale
+                xoffset = 0
+                zoffset = -point_img_size * 0.3  # 道具和资源点图标整体偏上，以让资源点对齐实际位置
+                image = resize_keep_ratio(image, point_img_size)
+
+            offset = (
+                int(-point_img_size * 0.5 + xoffset),
+                int(-point_img_size * 0.5 + zoffset),
+            )
+            harvest_point_image_offsets_cache[fid] = (image, offset)
+        except Exception as e:
+            logger.warning(f"获取资源点 {fid} 图标失败: {get_exc_desc(e)}")
+        
+
     # 绘制
     with Canvas(bg=FillBg(WHITE), w=draw_w, h=draw_h) as canvas:
         ImageBox(site_image, size=(draw_w, draw_h))
 
         # 绘制资源点
-        point_img_size = 160 * scale
-        global_zoffset = -point_img_size * 0.2  # 道具和资源点图标整体偏上，以让资源点对齐实际位置
         for point in harvest_points:
-            offset = (int(point['x'] - point_img_size * 0.5), int(point['z'] - point_img_size * 0.6 + global_zoffset))
-            if point['image']:
-                ImageBox(point['image'], size=(point_img_size, point_img_size), use_alphablend=True).set_offset(offset)
+            if point['id'] in harvest_point_image_offsets_cache:
+                img, offset = harvest_point_image_offsets_cache[point['id']]
+                ImageBox(img, use_alphablend=True).set_offset((point['x'] + offset[0], point['z'] + offset[1]))
 
         # 绘制出生点
         spawn_x, spawn_z = game_pos_to_draw_pos(0, 0)
@@ -555,6 +596,8 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                 else:                   large_total += 1
             small_idx, large_idx = 0, 0
 
+            icon_zoffset = -160 * scale * 0.2
+
             for item in pres:
                 if item['del']: continue
                 if not item['image']: continue
@@ -577,12 +620,12 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                 if item['small_icon']:
                     call.size = small_size
                     call.x = int(item['x'] + 0.5 * large_size * large_total - 0.6 * small_size)
-                    call.z = int(item['z'] - 0.45 * large_size + 1.0 * small_size * small_idx + global_zoffset)
+                    call.z = int(item['z'] - 0.45 * large_size + 1.0 * small_size * small_idx + icon_zoffset)
                     small_idx += 1
                 else:
                     call.size = large_size
                     call.x = int(item['x'] - 0.5 * large_size * large_total + large_size * large_idx)
-                    call.z = int(item['z'] - 0.5 * large_size + global_zoffset)
+                    call.z = int(item['z'] - 0.5 * large_size + icon_zoffset)
                     large_idx += 1
 
                 # 对于高度可能超过的情况
