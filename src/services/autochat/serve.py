@@ -468,7 +468,7 @@ async def chat(msg: Message):
             text = truncate(text, config.get('chat.reply_max_length'))
             info(f"自动聊天生成回复{index}: {text} at_id={at_id} reply_id={reply_id}")
         
-            send_ret = await rpc_send_group_msg(msg.group_id, reply_text)
+            send_ret = await rpc_send_group_msg(msg.group_id, text)
             send_msg_id = int(send_ret['message_id'])
             send_msg_id_texts.append((send_msg_id, text))
             info(f"发送回复{index}成功: send_msg_id={send_msg_id}")
