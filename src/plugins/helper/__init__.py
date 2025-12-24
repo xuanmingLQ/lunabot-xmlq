@@ -8,7 +8,6 @@ gbl = get_group_black_list(file_db, logger, 'helper')
 cd = ColdDown(file_db, logger)
 
 
-HELP_DOCS_WEB_URL = "https://github.com/NeuraXmy/lunabot/blob/master/helps/{name}.md"
 HELP_DOCS_PATH = "helps/{name}.md"
 
 HELP_IMG_SCALE = 0.8
@@ -35,15 +34,15 @@ async def _(ctx: HandlerContext):
             pass
 
     if not args or args not in help_names:
-        msg = "【Lunabot使用帮助】\n"
-        msg += "发送 \"/help 英文服务名\" 查看各服务的详细帮助\n"
-        msg += f"例如发送 \"/help {help_names[0]}\" 查看\"{help_decs[0]}\"的帮助\n"
-        msg += "\n可查询的服务列表:\n"
+        service_list_text = ""
         for name, desc in sorted(zip(help_names, help_decs)):
-            msg += f"{name} - {desc}\n"
-        msg += f"\n或前往网页查看帮助文档:\n"
-        msg += HELP_DOCS_WEB_URL.format(name='main')
-        return await ctx.asend_fold_msg_adaptive(msg, need_reply=False)
+            service_list_text += f"{name} - {desc}\n"
+
+        template: str = config.get('template')
+        if r"{service_list}" in template:
+            template = template.format(service_list=service_list_text.strip())
+        return await ctx.asend_fold_msg_adaptive(template.strip(), need_reply=False)
+
     else:
         try:
             # 尝试从缓存读取
@@ -78,6 +77,6 @@ async def _(ctx: HandlerContext):
 
         except Exception as e:
             logger.print_exc(f"渲染 {doc_path} 帮助文档失败")
-            return await ctx.asend_reply_msg(f"帮助文档渲染失败, 前往网页获取帮助文档:\n{HELP_DOCS_WEB_URL.format(name=args)}")
+            return await ctx.asend_reply_msg(f"帮助文档渲染失败")
             
 
