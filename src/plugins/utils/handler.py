@@ -2001,6 +2001,10 @@ class CmdHandler:
 
                 if self.disabled:
                     return
+                
+                # 安全模式
+                if utils_file_db.get('safe_mode') and not check_superuser(event):
+                    return
 
                 # 禁止私聊自己的指令生效
                 if not is_group_msg(event) and event.user_id == event.self_id:
@@ -2277,3 +2281,14 @@ async def _(ctx: HandlerContext):
     for key, mtime in ret.items():
         msg += f"{key}: {mtime.strftime('%Y-%m-%d %H:%M:%S')}\n"
     return await ctx.asend_reply_msg(msg.strip())
+
+# 安全模式
+_handler = CmdHandler(['/safe'], utils_logger)
+_handler.check_superuser()
+@_handler.handle()
+async def _(ctx: HandlerContext):
+    safe_mode = utils_file_db.get("safe_mode", False)
+    safe_mode = not safe_mode
+    utils_file_db.set("safe_mode", safe_mode)
+    return await ctx.asend_reply_msg(f'已{"开启" if safe_mode else "关闭"}安全模式')
+
