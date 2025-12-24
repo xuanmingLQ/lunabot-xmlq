@@ -1308,46 +1308,57 @@ class GroupWhiteList:
         self.on_func = on_func
         self.off_func = off_func
 
+        async def get_group_id_desc(ctx: HandlerContext) -> tuple[int, str]:
+            if args := ctx.get_args().strip():
+                group = find_by(await get_group_list(ctx.bot), 'group_id', args)
+                assert_and_reply(group, f'无效群聊 {args}')
+                group_id = group['group_id']
+                group_desc = f"\"{group['group_name']}\"({group_id})"
+            else:
+                group_id = ctx.group_id
+                group_desc = f'本群'
+            return int(group_id), group_desc
+
         # 开启命令
         switch_on = CmdHandler([f'/{name} on'], utils_logger, help_command='/{服务名} on')
         switch_on.check_superuser(superuser)
         @switch_on.handle()
         async def _(ctx: HandlerContext):
-            group_id = ctx.group_id
+            group_id, group_desc = await get_group_id_desc(ctx)
             white_list = db.get(self.white_list_name, [])
             if group_id in white_list:
-                return await ctx.asend_reply_msg(f'{name}已经是开启状态')
+                return await ctx.asend_reply_msg(f'{group_desc}的{name}已经是开启状态')
             white_list.append(group_id)
             db.set(self.white_list_name, white_list)
             if self.on_func is not None: 
                 await self.on_func(ctx.group_id)
-            return await ctx.asend_reply_msg(f'{name}已开启')
+            return await ctx.asend_reply_msg(f'{group_desc}的{name}已开启')
         
         # 关闭命令
         switch_off = CmdHandler([f'/{name} off'], utils_logger, help_command='/{服务名} off')
         switch_off.check_superuser(superuser)
         @switch_off.handle()
         async def _(ctx: HandlerContext):
-            group_id = ctx.group_id
+            group_id, group_desc = await get_group_id_desc(ctx)
             white_list = db.get(self.white_list_name, [])
             if group_id not in white_list:
-                return await ctx.asend_reply_msg(f'{name}已经是关闭状态')
+                return await ctx.asend_reply_msg(f'{group_desc}的{name}已经是关闭状态')
             white_list.remove(group_id)
             db.set(self.white_list_name, white_list)
             if self.off_func is not None:  
                 await self.off_func(ctx.group_id)
-            return await ctx.asend_reply_msg(f'{name}已关闭')
+            return await ctx.asend_reply_msg(f'{group_desc}的{name}已关闭')
             
         # 查询命令
         switch_query = CmdHandler([f'/{name} status'], utils_logger, help_command='/{服务名} status')
         @switch_query.handle()
         async def _(ctx: HandlerContext):
-            group_id = ctx.group_id
+            group_id, group_desc = await get_group_id_desc(ctx)
             white_list = db.get(self.white_list_name, [])
             if group_id in white_list:
-                return await ctx.asend_reply_msg(f'本群聊的{name}开启中')
+                return await ctx.asend_reply_msg(f'{group_desc}的{name}开启中')
             else:
-                return await ctx.asend_reply_msg(f'本群聊的{name}关闭中')
+                return await ctx.asend_reply_msg(f'{group_desc}的{name}关闭中')
             
     def get(self) -> List[int]:
         """
@@ -1422,46 +1433,57 @@ class GroupBlackList:
         self.on_func = on_func
         self.off_func = off_func
 
+        async def get_group_id_desc(ctx: HandlerContext) -> tuple[int, str]:
+            if args := ctx.get_args().strip():
+                group = find_by(await get_group_list(ctx.bot), 'group_id', args)
+                assert_and_reply(group, f'无效群聊 {args}')
+                group_id = group['group_id']
+                group_desc = f"\"{group['group_name']}\"({group_id})"
+            else:
+                group_id = ctx.group_id
+                group_desc = f'本群'
+            return int(group_id), group_desc
+
         # 关闭命令
         switch_off = CmdHandler([f'/{name} off'], utils_logger, help_command='/{服务名} off')
         switch_off.check_superuser(superuser)
         @switch_off.handle()
         async def _(ctx: HandlerContext):
-            group_id = ctx.group_id
+            group_id, group_desc = await get_group_id_desc(ctx)
             black_list = db.get(self.black_list_name, [])
             if group_id in black_list:
-                return await ctx.asend_reply_msg(f'{name}已经是关闭状态')
+                return await ctx.asend_reply_msg(f'{group_desc}的{name}已经是关闭状态')
             black_list.append(group_id)
             db.set(self.black_list_name, black_list)
             if self.off_func is not None: 
                 await self.off_func(ctx.group_id)
-            return await ctx.asend_reply_msg(f'{name}已关闭')
+            return await ctx.asend_reply_msg(f'{group_desc}的{name}已关闭')
         
         # 开启命令
         switch_on = CmdHandler([f'/{name} on'], utils_logger, help_command='/{服务名} on')
         switch_on.check_superuser(superuser)
         @switch_on.handle()
         async def _(ctx: HandlerContext):
-            group_id = ctx.group_id
+            group_id, group_desc = await get_group_id_desc(ctx)
             black_list = db.get(self.black_list_name, [])
             if group_id not in black_list:
-                return await ctx.asend_reply_msg(f'{name}已经是开启状态')
+                return await ctx.asend_reply_msg(f'{group_desc}的{name}已经是开启状态')
             black_list.remove(group_id)
             db.set(self.black_list_name, black_list)
             if self.on_func is not None: 
                 await self.on_func(ctx.group_id)
-            return await ctx.asend_reply_msg(f'{name}已开启')
+            return await ctx.asend_reply_msg(f'{group_desc}的{name}已开启')
             
         # 查询命令
         switch_query = CmdHandler([f'/{name} status'], utils_logger, help_command='/{服务名} status')
         @switch_query.handle()
         async def _(ctx: HandlerContext):
-            group_id = ctx.group_id
+            group_id, group_desc = await get_group_id_desc(ctx)
             black_list = db.get(self.black_list_name, [])
             if group_id in black_list:
-                return await ctx.asend_reply_msg(f'本群聊的{name}关闭中')
+                return await ctx.asend_reply_msg(f'{group_desc}的{name}关闭中')
             else:
-                return await ctx.asend_reply_msg(f'本群聊的{name}开启中')
+                return await ctx.asend_reply_msg(f'{group_desc}的{name}开启中')
         
     def get(self) -> List[int]:
         """
