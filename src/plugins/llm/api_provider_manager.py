@@ -150,11 +150,10 @@ class ApiProviderManager:
 
         return model
         
-# DEBUG 暂时只搞了google的ai
 api_provider_mgr = ApiProviderManager([
-    # AiyydsApiProvider(),
-    # OpenrouterApiProvider(),
-    # SiliconflowApiProvider(),
+    AiyydsApiProvider(),
+    OpenrouterApiProvider(),
+    SiliconflowApiProvider(),
     GoogleApiProvider(),
-    # NewApiApiProvider(),
+    NewApiApiProvider(),
 ])
