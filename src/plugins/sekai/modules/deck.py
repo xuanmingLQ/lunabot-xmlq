@@ -1744,11 +1744,11 @@ async def compose_deck_recommend_image(
                             skill_order_text = f"技能顺序: {''.join([str(s+1) for s in skill_order])}"
 
                         if options.skill_reference_choose_strategy == 'average':
-                            skill_reference_text = "BFes花前技能吸取: 平均值"
+                            skill_reference_text = "BloomFes花前技能吸取: 平均值"
                         elif options.skill_reference_choose_strategy == 'max':
-                            skill_reference_text = "BFes花前技能吸取: 最大值"
+                            skill_reference_text = "BloomFes花前技能吸取: 最大值"
                         elif options.skill_reference_choose_strategy == 'min':
-                            skill_reference_text = "BFes花前技能吸取: 最小值"
+                            skill_reference_text = "BloomFes花前技能吸取: 最小值"
 
                         TextBox(skill_order_text + "  " + skill_reference_text, TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(70, 70, 70)))
                     
