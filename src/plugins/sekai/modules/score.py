@@ -278,8 +278,8 @@ async def compose_music_meta_image(ctx: SekaiHandlerContext, mid: int) -> Image.
                             Spacer(w=8)
                             TextBox(f"时长", style1)
                             TextBox(f" {music_time}s", style2)
-                            TextBox(f"  Note数", style1)
-                            TextBox(f" {tap_count}", style2)
+                            # TextBox(f"  Tap数", style1)
+                            # TextBox(f" {tap_count}", style2)
                         with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
                             TextBox(f"基础分数", style1)
                             TextBox(f"（单人）", style1)
