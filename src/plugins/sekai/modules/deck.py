@@ -138,9 +138,6 @@ NOCHANGE_CARD_CONFIG.master_max = False
 NOCHANGE_CARD_CONFIG.skill_max = False
 NOCHANGE_CARD_CONFIG.canvas = False
 
-DEFAULT_LIMIT = 8
-BONUS_TARGET_LIMIT = 1
-
 DEFAULT_TEAMMATE_POWER = 250000
 DEFAULT_TEAMMATE_SCOREUP = 200
 
@@ -774,7 +771,7 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = await extract_music_and_diff(ctx, args, options, "event", options.live_type, additional)
 
     # 组卡限制
-    options.limit = DEFAULT_LIMIT
+    options.limit = config.get('deck.return_deck_num.multi')
 
     # 模拟退火设置
     options.sa_options = DeckRecommendSaOptions()
@@ -834,7 +831,7 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
     args = await extract_music_and_diff(ctx, args, options, "challenge", options.live_type, additional)
 
     # 组卡限制
-    options.limit = DEFAULT_LIMIT
+    options.limit = config.get('deck.return_deck_num.challenge')
 
     # 模拟退火设置
     options.sa_options = DeckRecommendSaOptions()
@@ -876,7 +873,7 @@ async def extract_no_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = await extract_music_and_diff(ctx, args, options, "event", options.live_type, additional)
 
     # 组卡限制
-    options.limit = DEFAULT_LIMIT
+    options.limit = config.get('deck.return_deck_num.multi')
 
     # 模拟退火设置
     options.sa_options = DeckRecommendSaOptions()
@@ -921,7 +918,7 @@ async def extract_bonus_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     await extract_music_and_diff(ctx, "", options, "event", options.live_type, additional)
 
     # 组卡限制
-    options.limit = BONUS_TARGET_LIMIT
+    options.limit = config.get('deck.return_deck_num.bonus')
 
     # 目标加成
     try:
@@ -953,7 +950,7 @@ async def extract_mysekai_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     args = await extract_target_event_or_simulate_event(ctx, args, options)
 
     # 组卡限制
-    options.limit = DEFAULT_LIMIT
+    options.limit = config.get('deck.return_deck_num.mysekai')
 
     # 歌曲id和难度
     await extract_music_and_diff(ctx, "", options, "event", "multi", additional)
