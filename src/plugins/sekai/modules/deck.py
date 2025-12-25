@@ -811,10 +811,23 @@ async def extract_challenge_options(ctx: SekaiHandlerContext, args: str) -> Dict
     
     # 指定角色
     options.challenge_live_character_id = None
-    nickname, args = extract_nickname_from_args(args)
-    if nickname:
-        options.challenge_live_character_id = get_cid_by_nickname(nickname)
-
+    segs = args.split()
+    full_nickname, part_nickname = None, None
+    for seg in segs:
+        nickname, rest = extract_nickname_from_args(seg)
+        if rest.isdigit():  # 不匹配角色名+数字
+            continue
+        if not full_nickname and nickname and not rest:
+            full_nickname = nickname
+        if not part_nickname and nickname:
+            part_nickname = nickname 
+    # 优先使用完全匹配的昵称
+    if full_nickname:
+        options.challenge_live_character_id = get_cid_by_nickname(full_nickname)
+        args = args.replace(full_nickname, "", 1).strip()
+    elif part_nickname:
+        options.challenge_live_character_id = get_cid_by_nickname(part_nickname)
+        args = args.replace(part_nickname, "", 1).strip()
     ## 不指定角色情况下每个角色都组1个最强卡
 
     # 歌曲id和难度
