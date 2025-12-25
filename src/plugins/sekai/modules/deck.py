@@ -21,6 +21,8 @@ from .music import (
     extract_diff, 
     is_valid_music, 
     get_music_cover_thumb,
+    get_valid_musics,
+    get_music_diff_info,
 )
 from .mysekai import MYSEKAI_REGIONS
 from sekai_deck_recommend_cpp import (
@@ -613,13 +615,6 @@ def extract_multilive_options(args: str, options: DeckRecommendOptions) -> str:
 
     return args.strip()
 
-# 根据用户数据推荐挑战组卡歌曲
-async def recommend_challenge_music(
-    ctx: SekaiHandlerContext,
-    profile: dict,
-) -> tuple[int, str]:
-    pass
-    
 # 从args中提取歌曲和难度，返回用于匹配歌曲的参数
 async def extract_music_and_diff(
     ctx: SekaiHandlerContext, 
@@ -627,7 +622,7 @@ async def extract_music_and_diff(
     options: DeckRecommendOptions, 
     rec_type: str, 
     live_type: str, 
-    additional_args: dict
+    additional_args: dict,
 ) -> str:
     search_options = MusicSearchOptions(
         use_emb=False,
@@ -652,26 +647,34 @@ async def extract_music_and_diff(
     # 一般歌曲匹配（单首歌曲&默认判断）
     options.music_diff, args = extract_diff(args, default=None)
     args = args.strip()
-
     if args:
         search_options.diff = options.music_diff
         music = (await search_music(ctx, args, search_options)).music
         assert_and_reply(music, f"找不到歌曲\"{args}\"\n发送\"{ctx.trigger_cmd}help\"查看帮助")
         options.music_id = music['id']
 
+    # 已指定歌曲和难度
+    if options.music_id is not None and options.music_diff is not None:
+        return args
+
+    # 只指定歌曲未指定难度：默认使用master
+    if options.music_id is not None and options.music_diff is None:
+        options.music_diff = 'master'
+        return args
+    
+    # 未指定歌曲：查找默认歌曲
     default_musicdiffs = config.get('deck.default_musicdiffs')[rec_type]
     if isinstance(default_musicdiffs, dict):
         default_musicdiffs = default_musicdiffs[live_type]
     for mid, diff in default_musicdiffs:
-        if mid == 'omakase': 
-            mid = OMAKASE_MUSIC_ID
+        if mid == 'omakase': mid = OMAKASE_MUSIC_ID
         if mid == OMAKASE_MUSIC_ID or await is_valid_music(ctx, mid, leak=False, diff=diff):
-            if options.music_id is None:
-                options.music_id = mid
-            if options.music_diff is None:
-                options.music_diff = diff
-            break
-    return args
+            options.music_id = mid
+            options.music_diff = diff
+            additional_args['use_default_music'] = True
+            return args
+        
+    raise Exception("组卡未正确配置默认歌曲")
 
 # 从args中提取不在options中的参数
 def extract_addtional_options(args: str) -> Tuple[dict, str]:
@@ -1275,6 +1278,57 @@ async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
 
     return p
 
+# 根据用户数据推荐挑战组卡歌曲
+async def recommend_challenge_music(
+    ctx: SekaiHandlerContext,
+    profile: dict | None,
+) -> tuple[int, str] | None:
+    if not config.get('deck.challenge_music_auto_recommend.enabled'):
+        return None
+    if not profile or not profile.get('userMusicResults'):
+        return None
+
+    # 统计各难度各等级fc数量
+    fc_count: dict[str, dict[int, int]] = {}
+    for music in await get_valid_musics(ctx, leak=False):
+        for diff in DIFF_COLORS:
+            mid = music['id']
+            level = (await get_music_diff_info(ctx, mid)).level.get(diff)
+            if not level: 
+                continue
+            results = find_by(profile['userMusicResults'], "musicId", mid, mode='all') 
+            results = find_by(results, 'musicDifficultyType', diff, mode='all') + find_by(results, 'musicDifficulty', diff, mode='all')
+            if results:
+                full_combo, all_prefect = False, False
+                for item in results:
+                    full_combo = full_combo or item["fullComboFlg"]
+                    all_prefect = all_prefect or item["fullPerfectFlg"]
+                if full_combo or all_prefect:
+                    fc_count.setdefault(diff, {}).setdefault(level, 0)
+                    fc_count[diff][level] += 1
+    # 各等级后缀和
+    for diff in DIFF_COLORS:
+        if count := fc_count.get(diff):
+            for level in range(40, 1):
+                if level + 1 not in count:
+                    continue
+                count.setdefault(level, 0)
+                count[level] += count[level + 1]
+    # 根据规则进行推荐
+    for rule in config.get('deck.challenge_music_auto_recommend.rules'):
+        mid, diff = rule['music']
+        if not await is_valid_music(ctx, mid, leak=False, diff=diff):
+            continue
+        ok = True
+        for req_key, req_count in rule['fc_requires'].items():
+            req_diff, req_level = req_key.split('_')
+            if fc_count.get(req_diff, {}).get(int(req_level), 0) < req_count:
+                ok = False
+                break
+        if ok:
+            return (mid, diff)
+    return None
+
 
 # 合成自动组卡图片
 async def compose_deck_recommend_image(
@@ -1284,7 +1338,6 @@ async def compose_deck_recommend_image(
     last_args: str,
     additional: dict,
 ) -> Image.Image:
-    
     # ---------------------------- 判断组卡类型方便后续处理 ---------------------------- #
 
     NO_MUSIC_TYPES = ["bonus", "wl_bonus", "mysekai"]
@@ -1342,7 +1395,9 @@ async def compose_deck_recommend_image(
                     'userChallengeLiveSoloDecks',
                     'userChallengeLiveSoloHighScoreRewards',
                     'userChallengeLiveSoloStages',
-                    'userChallengeLiveSoloResults'),
+                    'userChallengeLiveSoloResults',
+                    'userMusicResults',
+                ),
                 raise_exc=True, ignore_hide=True)
             uid = profile['userGamedata']['userId']
 
@@ -1455,6 +1510,13 @@ async def compose_deck_recommend_image(
             for _, mid, diff in music_values:
                 music_diffs_to_compare.append((mid, diff, ""))
 
+    # 挑战组卡自动推荐歌曲
+    use_recommended_challenge_music = False
+    if options.live_type == "challenge" and additional.get('use_default_music'):
+        if res := await recommend_challenge_music(ctx, profile):
+            options.music_id, options.music_diff = res
+            use_recommended_challenge_music = True
+
     # ---------------------------- 调用组卡服务 ---------------------------- #
 
     options.region = ctx.region
@@ -1517,7 +1579,7 @@ async def compose_deck_recommend_image(
             music_cover = ctx.static_imgs.get('omakase.png')
         else:
             music = await ctx.md.musics.find_by_id(options.music_id)
-            music_title = music['title']
+            music_title = truncate(music['title'], 20)
             music_title += f" ({options.music_diff.upper()})"
             music_cover = await get_music_cover_thumb(ctx, options.music_id)
 
@@ -1718,6 +1780,8 @@ async def compose_deck_recommend_image(
                                 else:
                                     ImageBox(music_cover, size=(50, 50), shadow=True)
                             TextBox(music_title, TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(70, 70, 70)))
+                            if use_recommended_challenge_music:
+                                TextBox(f"*根据游玩记录自动推荐", TextStyle(font=DEFAULT_FONT, size=20, color=(70, 70, 70)))
 
                     if recommend_type not in ["bonus", "wl_bonus", "mysekai"]:
                         if options.skill_order_choose_strategy == 'average':
