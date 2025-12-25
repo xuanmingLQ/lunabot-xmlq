@@ -57,28 +57,6 @@ OMAKASE_MUSIC_DIFFS = ["master", "expert", "hard"]
 
 # ======================= 默认配置 ======================= #
 
-DEFAULT_DECK_RECOMMEND_MUSICDIFFS = {
-    "event": {
-        "multi": [
-            (OMAKASE_MUSIC_ID, "master"),
-        ],
-        "solo": [
-            (74, "expert"),
-        ],
-        "auto": [
-            (74, "expert"),
-        ],
-    },
-    "challenge": [
-        (540, "master"),
-        (104, "master"),
-    ],
-    "challenge_auto": [
-        (540, "master"),
-        (104, "master"),
-    ],
-}
-
 POWER_TARGET_KEYWORDS = ('综合力', '综合', '总合力', '总和', 'power')
 SKILL_TARGET_KEYWORDS = ('倍率', '实效', 'skill', '时效')
 
@@ -635,6 +613,13 @@ def extract_multilive_options(args: str, options: DeckRecommendOptions) -> str:
 
     return args.strip()
 
+# 根据用户数据推荐挑战组卡歌曲
+async def recommend_challenge_music(
+    ctx: SekaiHandlerContext,
+    profile: dict,
+) -> tuple[int, str]:
+    pass
+    
 # 从args中提取歌曲和难度，返回用于匹配歌曲的参数
 async def extract_music_and_diff(
     ctx: SekaiHandlerContext, 
@@ -674,10 +659,12 @@ async def extract_music_and_diff(
         assert_and_reply(music, f"找不到歌曲\"{args}\"\n发送\"{ctx.trigger_cmd}help\"查看帮助")
         options.music_id = music['id']
 
-    default_musicdiffs = DEFAULT_DECK_RECOMMEND_MUSICDIFFS[rec_type]
+    default_musicdiffs = config.get('deck.default_musicdiffs')[rec_type]
     if isinstance(default_musicdiffs, dict):
         default_musicdiffs = default_musicdiffs[live_type]
     for mid, diff in default_musicdiffs:
+        if mid == 'omakase': 
+            mid = OMAKASE_MUSIC_ID
         if mid == OMAKASE_MUSIC_ID or await is_valid_music(ctx, mid, leak=False, diff=diff):
             if options.music_id is None:
                 options.music_id = mid
