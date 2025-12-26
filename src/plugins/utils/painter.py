@@ -491,6 +491,7 @@ class RandomTriangleBgPreset:
     image_color_weights: list[float] = field(default_factory=list)
     scale: float = 1.0
     dense: float = 1.0
+    alpha: float = 1.0
     time_colors: dict[int, SingleOrGradientLch] | None = None
     main_color: SingleOrGradientLch | None = None
     gradient_start: tuple[float, float] | None = (1.0, 0.0)
@@ -1528,6 +1529,9 @@ class Painter:
                 # 随机一些特别亮的三角形
                 if random.random() < 0.05 and size > std_size_lower:
                     alpha = 255 * lightness_alpha_factor
+
+                # 预设透明度最终调整
+                alpha = alpha * preset.alpha
 
                 alpha = int(alpha)
                 if alpha <= 10:
