@@ -1502,9 +1502,19 @@ class Painter:
         dense_factor = (1.0 + (factor * factor - 1.0) * size_fixed_rate) * preset.dense
 
         def rand_tri(num, sz):
+            # 生成网格随机分布
+            positions: list[tuple[int, int]] = []
+            nx = int(math.sqrt(num))
+            ny = int(num / nx) + 1
+            dx, dy = w / nx, h / ny
+            for ix in range(nx):
+                for iy in range(ny):
+                    px = ix / nx * w + dx * 0.5 + random.uniform(-dx * 0.4, dx * 0.4)
+                    py = iy / ny * h + dy * 0.5 + random.uniform(-dy * 0.4, dy * 0.4)
+                    positions.append((px, py))
+
             for i in range(num):
-                x = random.uniform(0, w)
-                y = random.uniform(0, h)
+                x, y = positions[i]
                 if x < 0 or x >= w or y < 0 or y >= h:
                     continue
                 rot = random.uniform(0, 360)
