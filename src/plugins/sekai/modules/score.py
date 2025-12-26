@@ -119,10 +119,13 @@ class ScoreData:
     score_max: int
 
 # 查找指定歌曲基础分获取指定活动PT的所有可能分数
-def get_valid_scores(target_point: int, music_basic_score: int, max_event_bonus: int) -> List[ScoreData]:
+def get_valid_scores(target_point: int, music_basic_score: int, max_event_bonus: int, limit: int = None) -> List[ScoreData]:
     ret: List[ScoreData] = []
     for event_bonus in range(0, max_event_bonus+1):
         for boost in BOOST_BONUS_RANGE:
+            # 跳过不能整除的
+            if target_point % BOOST_BONUS_DICT[boost] != 0:
+                continue
             # 二分搜索查找calc计算出的PT为target_point的分数范围
             # 首先二分上界，顺便判断解是否存在
             left, right, find = 0, MAX_SCORE, False
@@ -150,6 +153,8 @@ def get_valid_scores(target_point: int, music_basic_score: int, max_event_bonus:
                     left = mid + 1
             score_min = left
             ret.append(ScoreData(event_bonus, boost, score_min, score_max))
+            if limit is not None and len(ret) >= limit:
+                return ret
     return ret
 
 # 合成控分图片
@@ -162,14 +167,20 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
         target_point, 
         music_basic_score,
         MAX_WL_EVENT_BONUS if wl else MAX_EVENT_BONUS,
+        MAX_SHOW_NUM,
     )
-    valid_scores.sort(key=lambda x: (x.event_bonus, x.boost))
-    valid_scores = valid_scores[:MAX_SHOW_NUM]
 
     if len(valid_scores) == 0:
         msg = "找不到符合条件的分数范围"
         if target_point > 500:
             msg += f"\n大数字的PT一般较难打出，并且数字过大计算可能存在误差，推荐以多次进行控分"
+            # 计算两次控分推荐
+            interval = 300
+            x, y = target_point // interval * interval, target_point % interval
+            if y < 120:
+                x -= 100
+                y += 100
+            msg += f"(例如{x}+{y})"
         if target_point < 100:
             msg += f"\n每次控分PT至少为100"
         raise ReplyException(msg)
