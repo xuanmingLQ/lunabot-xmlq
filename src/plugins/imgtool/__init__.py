@@ -15,7 +15,12 @@ gbl = get_group_black_list(file_db, logger, 'imgtool')
 
 # ============================= cpp程序调用 ============================= # 
 
-def execute_imgtool_cpp(image: Image.Image | List[Image.Image], command: str, *args) -> Image.Image | List[Image.Image]:
+@dataclass
+class CppImageOutput:
+    image: Image.Image | List[Image.Image]
+    extra_info: dict
+
+def execute_imgtool_cpp(image: Image.Image | List[Image.Image], command: str, *args) -> CppImageOutput:
     """
     调用imgtool-cpp程序处理图片
     """
@@ -51,19 +56,32 @@ def execute_imgtool_cpp(image: Image.Image | List[Image.Image], command: str, *a
                     frame = Image.new('RGBA', (w, h))
                     frame.frombytes(f.read(w * h * 4), 'raw', 'RGBA')
                     ret.append(frame)
-            logger.info(f"imgtool-cpp程序执行完毕，输出尺寸: {n}x{w}x{h}")
+                try:
+                    n = int.from_bytes(f.read(4), sys.byteorder)
+                    extra_info = loads_json(f.read(n)) if n > 0 else {}
+                except Exception as e:
+                    logger.warning(f"imgtool-cpp程序返回的extra_info数据解析失败: {get_exc_desc(e)}")
+                    extra_info = {}
+            logger.info(f"imgtool-cpp程序执行完毕，输出尺寸: {n}x{w}x{h}，额外返回: {extra_info}")
 
-    return ret[0] if is_single_frame else ret
+    return CppImageOutput(
+        image=ret[0] if is_single_frame else ret, 
+        extra_info=extra_info,
+    )
 
-def cutout_image(image: Image.Image | List[Image.Image], tolerance: int) -> Image.Image | List[Image.Image]:
+def cutout_image(image: Image.Image | List[Image.Image], tolerance: int) -> CppImageOutput:
     """
-    抠图，tolerance为rgb距离平方的容差
+    抠图
+    - tolerance: rgb距离平方的容差
     """
     return execute_imgtool_cpp(image, "cutout", tolerance)
 
-def shrink_image(image: Image.Image | List[Image.Image], alpha_threshold: int, edge: int) -> Image.Image | List[Image.Image]:
+def shrink_image(image: Image.Image | List[Image.Image], alpha_threshold: int, edge: int) -> CppImageOutput:
     """
-    将图片边缘的透明部分裁剪掉，alpha_threshold为alpha通道阈值，edge为裁剪后保留的边缘宽度
+    将图片边缘的透明部分裁剪掉，
+    - alpha_threshold: alpha通道阈值，
+    - edge: 裁剪后保留的边缘宽度
+    - extra_ret: 返回 { 'bbox': (x, y, w, h) }
     """
     return execute_imgtool_cpp(image, "shrink", alpha_threshold, edge)
 
@@ -1214,7 +1232,7 @@ cutout ai: 使用AI模型抠图
             frames = [img]
 
         if args['method'] == 'floodfill':
-            frames = cutout_image(frames, args['tolerance'])
+            frames = cutout_image(frames, args['tolerance']).image
         elif args['method'] == 'ai':
             from rembg import remove
             for i in range(len(frames)):
@@ -1253,7 +1271,7 @@ shrink 10 +10: 裁剪透明部分，透明度阈值为10，并在裁剪区域外
         else:
             frames = [img]
 
-        frames = shrink_image(frames, args['alpha_threshold'], args['edge'])
+        frames = shrink_image(frames, args['alpha_threshold'], args['edge']).image
 
         if is_animated(img):
             return frames_to_gif(frames, get_gif_duration(img))

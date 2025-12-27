@@ -100,6 +100,9 @@ int main(int argc, char *argv[]) {
     assert(read == n * h * w);
     fclose(fp);
 
+    // 返回的额外数据
+    std::string extra_ret{};
+
     // cutout
     if (command == "cutout") {
         int tolerance = atoi(argv[4]);
@@ -188,6 +191,13 @@ int main(int argc, char *argv[]) {
         w = nw + 2 * edge;
         delete[] img;
         img = new_img;
+
+        // 返回json格式的bbox，返回图像对应原图坐标
+        int bx = x0 - edge;
+        int by = y0 - edge;
+        int bw = nw + 2 * edge;
+        int bh = nh + 2 * edge;
+        extra_ret = "{\"bbox\":[" + std::to_string(bx) + "," + std::to_string(by) + "," + std::to_string(bw) + "," + std::to_string(bh) + "]}";
     }
     else {
         throw std::runtime_error("[imgtool-cpp] unknown command: " + command);
@@ -204,6 +214,13 @@ int main(int argc, char *argv[]) {
     fwrite(&h, sizeof(int), 1, out_fp);
     fwrite(&w, sizeof(int), 1, out_fp);
     fwrite(img, sizeof(Color), n * h * w, out_fp);
+
+    // 输出额外数据
+    int extra_ret_len = extra_ret.size();
+    fwrite(&extra_ret_len, sizeof(int), 1, out_fp);
+    if (extra_ret_len > 0) 
+        fwrite(extra_ret.data(), sizeof(char), extra_ret_len, out_fp);
+
     fclose(out_fp);
     delete[] img;
     return 0;
