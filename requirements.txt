@@ -28,7 +28,7 @@ tencentcloud-sdk-python
 ffmpeg-python
 pdf2image   # also need to install poppler-utils
 uvloop
-pjsekai.scores
+svgwrite
 setproctitle
 bypy
 colour-science
