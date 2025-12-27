@@ -4,7 +4,8 @@ from ..handler import *
 from ..asset import *
 from ..draw import *
 from .music import *
-import pjsekai.scores
+from .deck import musicmetas_json
+from src.pjsekai import scores as pjsekai_scores
 
 # ======================= 处理逻辑 ======================= #
 
@@ -30,10 +31,13 @@ async def generate_music_chart(
     style_sheet: str = 'black',
     use_cache: bool = True,
     refresh: bool = False,
+    skill: bool = False
 ) -> Image.Image:
     if use_cache:
         await ctx.block_region(f"chart_{music_id}_{difficulty}")
-    cache_path = CHART_CACHE_PATH.format(region=ctx.region, mid=music_id, diff=difficulty)
+    # 带技能与不带技能的缓存分开
+    cache_path_suffix = difficulty if not skill else f"{difficulty}_skill"
+    cache_path = CHART_CACHE_PATH.format(region=ctx.region, mid=music_id, diff=cache_path_suffix)
     create_parent_folder(cache_path)
     if use_cache and not refresh and os.path.exists(cache_path):
         return open_image(cache_path)
@@ -70,10 +74,17 @@ async def generate_music_chart(
     note_host = os.path.abspath(f'{CHART_ASSET_DIR}/notes')
 
     sus_path = await ctx.rip.get_asset_cache_path(f"music/music_score/{music_id:04d}_01_rip/{difficulty}", allow_error=False)
+    
+    # music_meta 显示技能时同时可以显示技能的加成效果和fever的效果
+    music_meta = None
+    if skill:
+        music_metas = find_by(await musicmetas_json.get(), "music_id", music_id, mode='all')
+        if music_metas:
+            music_meta = find_by(music_metas, "difficulty", difficulty)
 
     with TempFilePath('svg') as svg_path:
         def get_svg(style_sheet):
-            score = pjsekai.scores.Score.open(sus_path, encoding='UTF-8')
+            score = pjsekai_scores.Score.open(sus_path, encoding='UTF-8')
 
             if random_clip_length_rate is not None:
                 clip_len = int(len(score.notes) * random_clip_length_rate)
@@ -86,7 +97,7 @@ async def generate_music_chart(
                 score._init_notes()
                 score._init_events()    
 
-            score.meta = pjsekai.scores.score.Meta(
+            score.meta = pjsekai_scores.score.Meta(
                 title=f"[{ctx.region.upper()}-{music_id}] {music_title}",
                 artist=artist,
                 difficulty=difficulty,
@@ -95,10 +106,12 @@ async def generate_music_chart(
                 songid=str(music_id),
             )
             style_sheet = Path(f'{CHART_ASSET_DIR}/css/{style_sheet}.css').read_text()
-            drawing = pjsekai.scores.Drawing(
+            drawing = pjsekai_scores.Drawing(
                 score=score,
                 style_sheet=style_sheet,
                 note_host=f'file://{note_host}',
+                skill=skill,
+                music_meta=music_meta
             )
             drawing.svg().saveas(svg_path)
         await run_in_pool(get_svg, style_sheet)
@@ -135,7 +148,14 @@ async def _(ctx: SekaiHandlerContext):
     if 'refresh' in query:
         refresh = True
         query = query.replace('refresh', '').strip()
-
+    
+    style_sheet = 'black'
+    skill = False
+    if '技能' in query:
+        skill = True
+        # 样式中需要带技能相关css
+        style_sheet = 'white'
+        query = query.replace('技能', '').strip()
     diff, query = extract_diff(query)
     ret = await search_music(ctx, query, MusicSearchOptions(diff=diff))
 
@@ -144,7 +164,12 @@ async def _(ctx: SekaiHandlerContext):
     msg = ""
     try:
         msg = await get_image_cq(
-            await generate_music_chart(ctx, mid, diff, refresh=refresh, use_cache=True),
+            await generate_music_chart(
+                ctx,  mid,  diff, 
+                refresh=refresh, 
+                use_cache=True,
+                style_sheet=style_sheet,
+                skill=skill),
             low_quality=True,
         )
     except Exception as e:
