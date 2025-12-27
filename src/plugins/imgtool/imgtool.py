@@ -66,7 +66,7 @@ def _shrink_logic(img_array: np.ndarray, alpha_threshold: int, edge: int) -> tup
 
 # --- 业务调用接口 ---
 @dataclass
-class ImageOutput:
+class ImageToolResult:
     image: Image.Image | List[Image.Image]
     extra_info: dict
 
@@ -74,7 +74,7 @@ def execute_imgtool_py(
     image: Image.Image | List[Image.Image], 
     command: str, 
     *args
-) -> ImageOutput:
+) -> ImageToolResult:
     """
     直接输入图像并处理
     """
@@ -96,7 +96,7 @@ def execute_imgtool_py(
     
     # 4. 转回 PIL 对象
     result_images = [Image.fromarray(f) for f in processed]
-    output = ImageOutput(
+    output = ImageToolResult(
         image=result_images[0] if is_single_frame else result_images,
         extra_info=extra_info
     )
