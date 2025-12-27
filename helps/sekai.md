@@ -586,6 +586,7 @@ Project Sekai（世界计划）游戏多区服服务
 - `/谱面 虾` 查询别名为虾的歌曲的 MASTER 难度谱面
 - `/谱面 id123 expert` 查询id为123的歌曲的 EXPERT 难度谱面
 - `/谱面 id123 refresh` 查询并刷新id为123的歌曲的 MASTER 难度谱面
+- `/技能预览 虾` 查询虾 MASTER 技能预览
 
 
 ### 查询BPM
