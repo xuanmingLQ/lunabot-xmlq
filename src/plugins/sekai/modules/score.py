@@ -504,7 +504,7 @@ async def compose_music_board_image(
             skill_text = ' '.join([f'{s*100:.0f}' for s in skills])
             skill_tag = "五张卡牌的技能" if live_type != 'multi' else "五位玩家的实效"
             TextBox(
-                f"{live_text}歌曲排行 - 技能顺序: {strategy_text}情况 - {skill_tag}: {skill_text}", 
+                f"{live_text}歌曲排行 - 技能顺序: {strategy_text}情况 - {skill_tag}: {skill_text} - 数据来自33Kit", 
                 title_style,
             )
             
@@ -693,7 +693,7 @@ async def _(ctx: SekaiHandlerContext):
             strategy = 'min'
             args = args.replace(keyword, '', 1)
             break
-    for keyword in ('平均', '期望'):
+    for keyword in ('平均', '期望', '随机', '均值'):
         if keyword in args:
             strategy = 'avg'
             args = args.replace(keyword, '', 1)
