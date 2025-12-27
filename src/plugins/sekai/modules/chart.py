@@ -83,7 +83,7 @@ async def generate_music_chart(
         music_metas = find_by(await musicmetas_json.get(), "music_id", music_id, mode='all')
         if music_metas:
             music_meta = find_by(music_metas, "difficulty", difficulty)
-        assert_and_reply(music_meta, f'歌曲{music_id}难度{difficulty}暂无技能信息')
+        # assert_and_reply(music_meta, f'歌曲{music_id}难度{difficulty}暂无技能信息')
 
     with TempFilePath('svg') as svg_path:
         def get_svg(style_sheet):
