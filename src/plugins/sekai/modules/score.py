@@ -13,6 +13,7 @@ from .music import (
     get_music_diff_level,
 )
 from decimal import Decimal, ROUND_DOWN
+import pandas as pd
 
 
 # ==================== 活动点数计算 ==================== #
@@ -120,7 +121,7 @@ class ScoreData:
     score_max: int
 
 # 查找指定歌曲基础分获取指定活动PT的所有可能分数
-def get_valid_scores(target_point: int, music_basic_score: int, max_event_bonus: int, limit: int = None) -> List[ScoreData]:
+def get_valid_scores(target_point: int, event_rate: int, max_event_bonus: int, limit: int = None) -> List[ScoreData]:
     ret: List[ScoreData] = []
     for event_bonus in range(0, max_event_bonus+1):
         for boost in BOOST_BONUS_RANGE:
@@ -132,7 +133,7 @@ def get_valid_scores(target_point: int, music_basic_score: int, max_event_bonus:
             left, right, find = 0, MAX_SCORE, False
             while left <= right:
                 mid = (left + right) // 2
-                pt = calc(mid, event_bonus, music_basic_score, boost)
+                pt = calc(mid, event_bonus, event_rate, boost)
                 if pt <= target_point:
                     left = mid + 1
                     if pt == target_point:
@@ -147,7 +148,7 @@ def get_valid_scores(target_point: int, music_basic_score: int, max_event_bonus:
             left, right = 0, MAX_SCORE
             while left <= right:
                 mid = (left + right) // 2
-                pt = calc(mid, event_bonus, music_basic_score, boost)
+                pt = calc(mid, event_bonus, event_rate, boost)
                 if pt >= target_point:
                     right = mid - 1
                 else:
@@ -162,11 +163,11 @@ def get_valid_scores(target_point: int, music_basic_score: int, max_event_bonus:
 async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: int, music_id: int, wl: bool) -> Image.Image:
     meta = find_by(await musicmetas_json.get(), "music_id", music_id)
     assert_and_reply(meta, f"找不到歌曲ID={music_id}的基础分数据")
-    music_basic_score = int(meta['event_rate'])
+    event_rate = int(meta['event_rate'])
     valid_scores = await run_in_pool(
         get_valid_scores, 
         target_point, 
-        music_basic_score,
+        event_rate,
         MAX_WL_EVENT_BONUS if wl else MAX_EVENT_BONUS,
         MAX_SHOW_NUM,
     )
@@ -183,7 +184,12 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
                 y += 100
             msg += f"(例如{x}+{y})"
         if target_point < 100:
-            msg += f"\n每次控分PT至少为100"
+            # msg += f"\n每次控分PT至少为100"
+            # 转自定义房间控分
+            try:
+                return await compose_custom_room_score_control_image(ctx, target_point)
+            except ReplyException as e:
+                msg += f"\n控分PT至少为100，并且转自定义房间控分失败: {str(e)}"
         raise ReplyException(msg)
 
     music = await ctx.md.musics.find_by_id(music_id)
@@ -198,7 +204,7 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
 
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=BLACK)
     style2 = TextStyle(font=DEFAULT_FONT,      size=16, color=(50, 50, 50))
-    style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(255, 50, 50))
+    style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(200, 50, 50))
     
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
@@ -208,16 +214,17 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
                     ImageBox(music_cover, size=(20, 20), use_alphablend=False)
                     TextBox(f"【{music_id}】{music_title} (任意难度)", style1)
                 with HSplit().set_content_align('lb').set_item_align('lb').set_sep(4):
-                    TextBox(f"歌曲基础分 {music_basic_score}   目标PT: ", style1)
+                    TextBox(f"歌曲PT系数 {event_rate}   目标PT: ", style1)
                     TextBox(f" {target_point}", style3)
-                if music_basic_score != 100 and target_point > 1000:
-                    TextBox(f"基础分非100有误差风险，不推荐控较大PT", style3)
+                if event_rate != 100 and target_point > 1000:
+                    TextBox(f"PT系数非100有误差风险，不推荐控较大PT", style3)
                 if target_point > 3000:
                     TextBox(f"目标PT过大可能存在误差，推荐以多次控分", style3)
-                TextBox(f"控分教程：选取表中一个活动加成和体力", style1)
-                TextBox(f"游玩歌曲到对应分数范围内放置", style1)
+                TextBox(f"控分教程：1. 选取表中一个活动加成和体力", style1)
+                TextBox(f"2. 单人游玩歌曲到对应分数范围内放置", style1)
                 TextBox(f"友情提醒：控分前请核对加成和体力设置", style3)
                 TextBox(f"特别注意核对加成是否多了0.5", style3)
+                TextBox(f'若有上传抓包，可用"/控分组卡"加速配队', style1)
             
             # 数据
             with HSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_omit_parent_bg(True).set_item_bg(roundrect_bg()):
@@ -245,6 +252,107 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
 
     add_watermark(canvas)
     return await canvas.get_img()
+
+# 查找自定义房间控分获取指定活动PT的所有可能(pt系数,加成)
+def get_custom_room_valid_scores(target_point: int, limit: int = None) -> List[tuple[int, int]]:
+    csv_path = f"{SEKAI_DATA_DIR}/custom_room_pt.csv"
+    df = pd.read_csv(csv_path)
+    ret: List[tuple[int, int]] = []
+    # df的第一列是歌曲pt系数，之后每一列的列名是加成，值是对应的pt
+    # 遍历所有行和列查找符合target_point的(pt系数,加成)
+    for _, row in df.iterrows():
+        event_rate = int(row.iloc[0])
+        for col in df.columns[1:]:
+            event_bonus = int(col)
+            pt = int(row[col])
+            if pt == target_point:
+                ret.append((event_rate, event_bonus))
+                if limit is not None and len(ret) >= limit:
+                    return ret
+    return ret
+        
+# 合成自定义房间控分图片
+async def compose_custom_room_score_control_image(ctx: SekaiHandlerContext, target_point: int) -> Image.Image:
+    results = await run_in_pool(get_custom_room_valid_scores, target_point, MAX_SHOW_NUM)
+    if len(results) == 0:
+        if target_point > 100:
+            raise ReplyException(f"该PT无法用自定义房间控分，控大于100的PT可使用\"/控分\"指令")
+        else:
+            raise ReplyException(f"该PT无法用自定义房间控分，可能是PT过小")
+    results.sort(key=lambda x: (x[1], x[0]))
+
+    # 查找结果中出现的pt系数对应的歌曲
+    music_metas = find_by(await musicmetas_json.get(), "difficulty", "master", mode='all')
+    MUSIC_NUM_PER_EVENT_RATE = 3
+    event_rate_music_list_map: dict[int, list[dict]] = {}
+    ok_results = []
+    for event_rate, event_bonus in results:
+        if event_rate not in event_rate_music_list_map:
+            for meta in find_by(music_metas, "event_rate", event_rate, mode='all')[:MUSIC_NUM_PER_EVENT_RATE]:
+                music = await ctx.md.musics.find_by_id(meta['music_id'])
+                event_rate_music_list_map.setdefault(event_rate, []).append({
+                    'music_id': meta['music_id'],
+                    'music_title': music['title'],
+                    'music_cover': await get_music_cover_thumb(ctx, meta['music_id']),
+                })
+        if event_rate in event_rate_music_list_map:
+            ok_results.append((event_rate, event_bonus))
+    results = ok_results
+
+    style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=BLACK)
+    style2 = TextStyle(font=DEFAULT_FONT,      size=20, color=(50, 50, 50))
+    style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(200, 50, 50))
+
+    # 合成图片
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
+        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_bg(roundrect_bg()):
+            # 标题
+            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
+                with HSplit().set_content_align('lb').set_item_align('lb').set_sep(4):
+                    TextBox(f"自定义房间控分 目标PT: ", style1)
+                    TextBox(f" {target_point}", style3)
+                TextBox(f"""
+该方法用于距离目标PT不足100时补救，使用方式: 
+1. 选定表格中的一组歌曲和活动加成
+2. 自己配置好活动加成（注意检查小数），并将体力设置为0
+3. 创建自定义房间，邀请另一个玩家进入房间
+4. 选择该歌曲（任意难度），两个人均放置整首歌
+""".strip(), style2, use_real_line_count=True)
+                TextBox(f"""
+若有上传Suite抓包，使用"/控分组卡"可以更快配出队伍
+可用同PT系数的歌曲替代表中歌曲
+数据来自x@SYLVIA0x0，目前验证不足仅供参考
+""".strip(), style2, use_real_line_count=True)
+
+            # 数据
+            gh, vsep, hsep = 40, 6, 6
+            def bg_fn(i: int, w: Widget):
+                return FillBg((255, 255, 255, 200)) if i % 2 == 0 else FillBg((255, 255, 255, 100))
+            with HSplit().set_content_align('lt').set_item_align('lt').set_sep(hsep):
+                # 活动加成
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(bg_fn):
+                    TextBox("活动加成", style1).set_size((None, gh)).set_content_align('c').set_padding((8, 0))
+                    for _, event_bonus in results:
+                        TextBox(f"{event_bonus} %", style2).set_size((None, gh)).set_content_align('c').set_padding((16, 0))
+                # 歌曲
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(bg_fn):
+                    TextBox("可用歌曲", style1).set_size((None, gh)).set_content_align('c').set_padding((8, 0))
+                    for event_rate, _ in results:
+                        with HSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding((8, 0)).set_size((None, gh)):
+                            for i, music_info in enumerate(event_rate_music_list_map[event_rate]):
+                                if i > 0: TextBox(" / ", style2)
+                                ImageBox(music_info['music_cover'], size=(gh - 2, gh - 2), use_alphablend=False)
+                                TextBox(f"{truncate(music_info['music_title'], 16)}", style2)
+                # 歌曲系数
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(bg_fn):
+                    TextBox("PT系数", style1).set_size((None, gh)).set_content_align('c').set_padding((8, 0))
+                    for event_rate, _ in results:
+                        TextBox(f"{event_rate}", style2).set_size((None, gh)).set_content_align('c').set_padding((8, 0))
+
+    add_watermark(canvas)
+    return await canvas.get_img()
+    
+
 
 # 合成歌曲meta图片
 async def compose_music_meta_image(ctx: SekaiHandlerContext, mids: list[int]) -> Image.Image:
@@ -576,7 +684,7 @@ async def compose_music_board_image(
 
 # 控分
 pjsk_score_control = SekaiCmdHandler([
-    "/pjsk score", "/pjsk_score",
+    "/pjsk score",
     "/控分",
 ], regions=["jp"], prefix_args=['wl'])
 pjsk_score_control.check_cdrate(cd).check_wblist(gbl)
@@ -603,8 +711,33 @@ async def _(ctx: SekaiHandlerContext):
             await compose_score_control_image(ctx, target_pt, mid, ctx.prefix_arg == 'wl'),
             low_quality=True,
         )
+    ) 
+
+
+# 自定义房间控分
+pjsk_custom_room_score_control = SekaiCmdHandler([
+    "/pjsk custom room score", "/custom room score",
+    "/自定义房间控分", "/自定义房控分", "/自定义控分"
+], regions=["jp"], priority=101)
+pjsk_score_control.check_cdrate(cd).check_wblist(gbl)
+@pjsk_custom_room_score_control.handle()
+async def _(ctx: SekaiHandlerContext):
+    args = ctx.get_args().strip()
+    try:
+        target_pt = int(args)
+        assert 0 < target_pt
+    except:
+        raise ReplyException(f"""
+使用方式: {ctx.original_trigger_cmd} 目标PT
+""".strip())
+
+    return await ctx.asend_reply_msg(
+        await get_image_cq(
+            await compose_custom_room_score_control_image(ctx, target_pt),
+            low_quality=True,
+        )
     )
-        
+
 
 # 歌曲meta
 pjsk_music_meta = SekaiCmdHandler([
