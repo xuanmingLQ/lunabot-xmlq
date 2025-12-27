@@ -646,21 +646,8 @@ async def _(ctx: SekaiHandlerContext):
 
     SHOW_NUM = 30
 
-    HELP = f"""
-单人live歌曲排行(默认技能):
-{ctx.original_trigger_cmd} 单人
-指定技能组(多人为实效):
-{ctx.original_trigger_cmd} 单人 100 90 80 70 60
-指定技能顺序选择策略:
-{ctx.original_trigger_cmd} 单人 平均
-指定关注的歌曲:
-{ctx.original_trigger_cmd} 单人 龙ex 虾ma
-筛选难度/等级:
-{ctx.original_trigger_cmd} 单人 ex <20
-""".strip()
-
     # live类型
-    live_type = None
+    live_type = '单人'
     for keyword in ('单人', 'solo', '挑战'):
         if keyword in args:
             live_type = 'solo'
@@ -676,7 +663,6 @@ async def _(ctx: SekaiHandlerContext):
             live_type = 'auto'
             args = args.replace(keyword, '', 1)
             break
-    assert_and_reply(live_type is not None, HELP)
 
     # 策略
     match live_type:
@@ -711,7 +697,7 @@ async def _(ctx: SekaiHandlerContext):
         if seg.replace('.', '', 1).isdigit():
             number_segs.append(seg)
             numbers.append(float(seg) / 100)
-    assert_and_reply(len(numbers) in (0, 5), HELP)
+    assert_and_reply(len(numbers) in (0, 5), f"解析技能加分失败\n发送\"{ctx.trigger_cmd}help\"获取帮助")
     if len(numbers) == 5:
         skills = numbers
         for seg in number_segs:
@@ -742,7 +728,7 @@ async def _(ctx: SekaiHandlerContext):
         if not seg: continue
         diff, seg = extract_diff(seg, 'master')
         res = await search_music(ctx, seg, options=MusicSearchOptions(diff=diff, use_emb=False))
-        assert_and_reply(res.music, f"找不到歌曲: \"{seg}\"")
+        assert_and_reply(res.music, f"找不到歌曲或参数错误:\"{seg}\"\n发送\"{ctx.trigger_cmd}help\"获取帮助")
         spec_mid_diffs.append((res.music['id'], diff))
         assert_and_reply(len(spec_mid_diffs) <= SHOW_NUM, f"最多只能关注{SHOW_NUM}首歌曲")
 
