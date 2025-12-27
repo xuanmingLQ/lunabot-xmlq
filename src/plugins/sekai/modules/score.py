@@ -10,6 +10,7 @@ from .music import (
     extract_diff, 
     MusicSearchOptions,
     DIFF_COLORS,
+    get_music_diff_level,
 )
 from decimal import Decimal, ROUND_DOWN
 
@@ -351,7 +352,225 @@ async def compose_music_meta_image(ctx: SekaiHandlerContext, mids: list[int]) ->
     add_watermark(canvas)       
     return await canvas.get_img()
 
-    
+# 合成歌曲排行图片
+async def compose_music_board_image(
+    ctx: SekaiHandlerContext, 
+    live_type: str,
+    strategy: str,
+    skills: list[float],
+    music_num: int, 
+    spec_mid_diffs: list[tuple[int, str]],
+    diff_filter: list[str] | None,
+    level_filter: str | None,
+) -> Image.Image:
+    assert live_type in ('auto', 'solo', 'multi')
+    assert strategy in ('max', 'min', 'avg')
+    assert len(spec_mid_diffs) <= music_num
+    assert len(skills) == 5
+
+    level_filter_op = None
+    if level_filter:
+        level_filter_op = level_filter[0] if level_filter[1] != '=' else level_filter[:2]
+        assert level_filter_op in ('<', '>', '=', '<=' ,'>=', '==')
+        level_filter_level = int(level_filter.lstrip('<>='))
+
+    if strategy == 'max':
+        sorted_skills = sorted(skills, reverse=True)
+    elif strategy == 'min':
+        sorted_skills = sorted(skills)
+    else:
+        avg_skill = sum(skills) / len(skills)
+        sorted_skills = [avg_skill] * 5
+
+    # 获取分数信息
+    rows: list[dict] = []
+    for meta in await musicmetas_json.get():
+        mid = meta['music_id']
+        diff = meta['difficulty']
+        music_time = meta['music_time']
+        tap_count = meta['tap_count']
+        event_rate = meta['event_rate']
+        base_score = meta['base_score']
+        base_score_auto = meta['base_score_auto']
+        skill_score_solo = meta['skill_score_solo']
+        skill_score_auto = meta['skill_score_auto']
+        skill_score_multi = meta['skill_score_multi']
+        fever_score = meta['fever_score']
+
+        best_skill_order_solo = list(range(5))
+        best_skill_order_solo.sort(key=lambda x: skill_score_solo[x], reverse=True)
+        
+        solo_skill = 0.0
+        sorted_skill_score_solo = sorted(skill_score_solo[:5], reverse=True)
+        for i in range(5):
+            solo_skill += sorted_skill_score_solo[i] * sorted_skills[i]
+        solo_skill += skill_score_solo[5] * skills[0]
+
+        auto_skill = 0.0
+        sorted_skill_score_auto = sorted(skill_score_auto[:5], reverse=True)
+        for i in range(5):
+            auto_skill += sorted_skill_score_auto[i] * sorted_skills[i]
+        auto_skill += skill_score_auto[5] * skills[0]
+
+        multi_skill = 0.0
+        sorted_skill_score_multi = sorted(skill_score_multi[:5], reverse=True)
+        for i in range(5):
+            multi_skill += sorted_skill_score_multi[i] * sorted_skills[i]
+        multi_skill += skill_score_multi[5] * skills[0]
+
+        solo_score = base_score + solo_skill
+        auto_score = base_score_auto + auto_skill
+        multi_score = base_score + multi_skill + fever_score * 0.5 + 0.01875
+
+        solo_skill_account = solo_skill / solo_score
+        auto_skill_account = auto_skill / auto_score
+        multi_skill_account = multi_skill / multi_score
+
+        rows.append({
+            'music_id': mid,
+            'difficulty': diff,
+            'music_time': music_time,
+            'tap_count': tap_count,
+            'event_rate': event_rate,
+            'solo_score': solo_score,
+            'auto_score': auto_score,
+            'multi_score': multi_score,
+            'solo_skill_account': solo_skill_account,
+            'auto_skill_account': auto_skill_account,
+            'multi_skill_account': multi_skill_account,
+        })
+
+    # 排序
+    sort_key = f"{live_type}_score"
+    rows.sort(key=lambda x: x[sort_key], reverse=True)
+    for i, row in enumerate(rows):
+        row['rank'] = i + 1
+
+    # 添加指定歌曲，然后用前排补齐到music_num首
+    show_rows = []
+    spec_ranks = set()
+    for row in rows:
+        mid, diff = row['music_id'], row['difficulty']
+        if (mid, diff) in spec_mid_diffs:
+            show_rows.append(row)
+            spec_ranks.add(row['rank'])
+    for row in rows:
+        if len(show_rows) >= music_num:
+            break
+        if row['rank'] in spec_ranks:
+            continue
+        # 根据规则筛选
+        if diff_filter and row['difficulty'] not in diff_filter:
+            continue
+        row['level'] = await get_music_diff_level(ctx, row['music_id'], row['difficulty'])
+        if level_filter_op == '<' and row['level'] >= level_filter_level:
+            continue
+        elif level_filter_op == '>' and row['level'] <= level_filter_level:
+            continue
+        elif level_filter_op == '<=' and row['level'] > level_filter_level:
+            continue
+        elif level_filter_op == '>=' and row['level'] < level_filter_level:
+            continue
+        elif level_filter_op in ('=', '==') and row['level'] != level_filter_level:
+            continue
+        show_rows.append(row)
+    show_rows.sort(key=lambda x: x['rank'])
+
+    assert_and_reply(len(show_rows) > 0, "筛选后的歌曲数为零")
+
+    # 获取歌曲cover
+    music_covers = await batch_gather(*[get_music_cover_thumb(ctx, row['music_id']) for row in show_rows])
+    for i, row in enumerate(show_rows):
+        row['music_cover'] = music_covers[i]
+        row['music_title'] = (await ctx.md.musics.find_by_id(row['music_id']))['title']
+        if 'level' not in row:
+            row['level'] = await get_music_diff_level(ctx, row['music_id'], row['difficulty'])
+
+    # 合成图片
+    title_style = TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK)
+    item_style  = TextStyle(font=DEFAULT_FONT,      size=20, color=BLACK)
+
+    with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
+        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_bg(roundrect_bg()):
+            # 标题
+            match live_type:
+                case "auto": live_text = "自动LIVE"
+                case "solo": live_text = "单人LIVE"
+                case "multi": live_text = "多人LIVE"
+            match strategy:
+                case "max": strategy_text = "最优"
+                case "min": strategy_text = "最差"
+                case "avg": strategy_text = "平均"
+            skill_text = ' '.join([f'{s*100:.0f}' for s in skills])
+            skill_tag = "五张卡牌的技能" if live_type != 'multi' else "五位玩家的实效"
+            TextBox(
+                f"{live_text}歌曲排行 - 技能顺序: {strategy_text}情况 - {skill_tag}: {skill_text}", 
+                title_style,
+            )
+            
+            # 表格
+            gh, vsep, hsep = 30, 5, 5
+            def row_bg_fn(i: int, w: Widget):
+                return FillBg((255, 255, 255, 200)) if i % 2 == 0 else FillBg((255, 255, 255, 100))
+            def diff_bg_fn(i: int, w: Widget):
+                return FillBg(DIFF_COLORS[w.userdata['diff']]) if 'diff' in w.userdata else FillBg((255, 255, 255, 200))
+                
+            with HSplit().set_content_align('c').set_item_align('c').set_sep(hsep):
+                # rank
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(row_bg_fn):
+                    TextBox("排名", title_style).set_size((None, gh)).set_content_align('c')
+                    for row in show_rows:
+                        style = item_style
+                        if (row['music_id'], row['difficulty']) in spec_mid_diffs:
+                            style = TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=(255, 50, 50))
+                        TextBox(f"#{row['rank']}", style).set_size((None, gh)).set_content_align('c').set_padding((16, 0))
+                # 歌曲
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(row_bg_fn):
+                    TextBox("歌曲", title_style).set_size((None, gh)).set_content_align('c')
+                    for row in show_rows:
+                        with HSplit().set_content_align('l').set_item_align('l').set_sep(4).set_size((None, gh)).set_padding((16, 0)):
+                            ImageBox(row['music_cover'], size=(gh - 4, gh - 4), use_alphablend=False)
+                            TextBox(f"{truncate(row['music_title'], 20)}", item_style)
+                # 难度
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(diff_bg_fn):
+                    TextBox("难度", title_style).set_size((None, gh)).set_content_align('c')
+                    for row in show_rows:
+                        w = TextBox(f"{row['level']}", TextStyle(DEFAULT_BOLD_FONT, 20, WHITE)) \
+                            .set_size((None, gh)).set_content_align('c').set_padding((16, 0))
+                        w.userdata['diff'] = row['difficulty']
+                # 分数
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(row_bg_fn):
+                    TextBox("分数", title_style).set_size((None, gh)).set_content_align('c')
+                    for row in show_rows:
+                        score = row[f"{live_type}_score"]
+                        TextBox(f"{score*100:.1f}%", item_style).set_size((None, gh)).set_content_align('c').set_padding((16, 0))
+                # 技能占比
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(row_bg_fn):
+                    TextBox("技能占比", title_style).set_size((None, gh)).set_content_align('c')
+                    for row in show_rows:
+                        skill_account = row[f"{live_type}_skill_account"]
+                        TextBox(f"{skill_account*100:.1f}%", item_style).set_size((None, gh)).set_content_align('c').set_padding((16, 0))
+                # PT系数
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(row_bg_fn):
+                    TextBox("PT系数", title_style).set_size((None, gh)).set_content_align('c')
+                    for row in show_rows:
+                        event_rate = row['event_rate']
+                        TextBox(f"{event_rate:.0f}", item_style).set_size((None, gh)).set_content_align('c').set_padding((16, 0))
+                # 时长
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(row_bg_fn):
+                    TextBox("时长", title_style).set_size((None, gh)).set_content_align('c')
+                    for row in show_rows:
+                        TextBox(f"{row['music_time']:.1f}", item_style).set_size((None, gh)).set_content_align('c').set_padding((16, 0))
+                # 每秒点击
+                with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(row_bg_fn):
+                    TextBox("每秒点击", title_style).set_size((None, gh)).set_content_align('c')
+                    for row in show_rows:
+                        tps = row['tap_count'] / row['music_time']
+                        TextBox(f"{tps:.1f}", item_style).set_size((None, gh)).set_content_align('c').set_padding((16, 0))
+
+    add_watermark(canvas)
+    return await canvas.get_img()
+
 
 # ==================== 指令处理 ==================== #
 
@@ -392,6 +611,7 @@ pjsk_music_meta = SekaiCmdHandler([
     "/pjsk music meta", "/music meta",
     "/歌曲meta", 
 ], regions=["jp"], priority=101)
+pjsk_score_control.check_cdrate(cd).check_wblist(gbl)
 @pjsk_music_meta.handle()
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
@@ -403,7 +623,7 @@ async def _(ctx: SekaiHandlerContext):
 
     mids = []
     for seg in args:
-        res = await search_music(ctx, seg)
+        res = await search_music(ctx, seg, options=MusicSearchOptions(use_emb=False))
         mids.append(res.music['id'])
 
     img_cq = await get_image_cq(
@@ -413,3 +633,133 @@ async def _(ctx: SekaiHandlerContext):
 
     return await ctx.asend_reply_msg(img_cq + res.candidate_msg)
 
+
+# 歌曲排行
+pjsk_music_board = SekaiCmdHandler([
+    "/pjsk music board", "/music board",
+    "/歌曲排行", "/歌曲比较", "/歌曲排名",
+], regions=["jp"], priority=101)
+pjsk_score_control.check_cdrate(cd).check_wblist(gbl)
+@pjsk_music_board.handle()
+async def _(ctx: SekaiHandlerContext):
+    args = ctx.get_args().strip().lower()
+
+    SHOW_NUM = 30
+
+    HELP = f"""
+单人live歌曲排行(默认技能):
+{ctx.original_trigger_cmd} 单人
+指定技能组(多人为实效):
+{ctx.original_trigger_cmd} 单人 100 90 80 70 60
+指定技能顺序选择策略:
+{ctx.original_trigger_cmd} 单人 平均
+指定关注的歌曲:
+{ctx.original_trigger_cmd} 单人 龙ex 虾ma
+筛选难度/等级:
+{ctx.original_trigger_cmd} 单人 ex <20
+""".strip()
+
+    # live类型
+    live_type = None
+    for keyword in ('单人', 'solo', '挑战'):
+        if keyword in args:
+            live_type = 'solo'
+            args = args.replace(keyword, '', 1)
+            break
+    for keyword in ('多人', 'multi'):
+        if keyword in args:
+            live_type = 'multi'
+            args = args.replace(keyword, '', 1)
+            break
+    for keyword in ('自动', 'auto'):
+        if keyword in args:
+            live_type = 'auto'
+            args = args.replace(keyword, '', 1)
+            break
+    assert_and_reply(live_type is not None, HELP)
+
+    # 策略
+    match live_type:
+        case 'solo': strategy = 'max'
+        case 'multi': strategy = 'avg'
+        case 'auto': strategy = 'avg'
+    for keyword in ('最优', '最高', '最大', '最强'):
+        if keyword in args:
+            strategy = 'max'
+            args = args.replace(keyword, '', 1)
+            break
+    for keyword in ('最差', '最低', '最小', '最弱'):
+        if keyword in args:
+            strategy = 'min'
+            args = args.replace(keyword, '', 1)
+            break
+    for keyword in ('平均', '期望'):
+        if keyword in args:
+            strategy = 'avg'
+            args = args.replace(keyword, '', 1)
+            break
+
+    # 技能组
+    match live_type:
+        case 'solo': skills = [1.0] * 5
+        case 'multi': skills = [1.8] * 5
+        case 'auto': skills = [1.0] * 5
+    args = args.strip()
+    segs = args.split()
+    numbers, number_segs = [], []
+    for seg in segs:
+        if seg.replace('.', '', 1).isdigit():
+            number_segs.append(seg)
+            numbers.append(float(seg) / 100)
+    assert_and_reply(len(numbers) in (0, 5), HELP)
+    if len(numbers) == 5:
+        skills = numbers
+        for seg in number_segs:
+            args = args.replace(seg, '', 1)
+    args = args.strip()
+
+    # 等级过滤
+    level_filter = ""
+    for seg in args.split():
+        if seg.startswith(('>', '<', '=')) and seg.lstrip('<>=').isdigit():
+            level_filter = seg
+            args = args.replace(seg, '', 1)
+            break
+    args = args.strip()
+
+    # 难度过滤
+    diff_filter = []
+    for seg in args.split():
+        diff, rest = extract_diff(seg, None)
+        if diff and not rest:
+            diff_filter.append(diff)
+            args = args.replace(seg, '', 1)
+    args = args.strip()
+
+    # 关注歌曲
+    spec_mid_diffs = []
+    for seg in args.split():
+        if not seg: continue
+        diff, seg = extract_diff(seg, 'master')
+        res = await search_music(ctx, seg, options=MusicSearchOptions(diff=diff, use_emb=False))
+        assert_and_reply(res.music, f"找不到歌曲: \"{seg}\"")
+        spec_mid_diffs.append((res.music['id'], diff))
+        assert_and_reply(len(spec_mid_diffs) <= SHOW_NUM, f"最多只能关注{SHOW_NUM}首歌曲")
+
+    return await ctx.asend_reply_msg(
+        await get_image_cq(
+            await compose_music_board_image(
+                ctx=ctx,
+                live_type=live_type,
+                strategy=strategy,
+                skills=skills,
+                music_num=SHOW_NUM,
+                spec_mid_diffs=spec_mid_diffs,
+                diff_filter=diff_filter,
+                level_filter=level_filter,
+            ),
+            low_quality=True,
+        )
+    )
+
+    
