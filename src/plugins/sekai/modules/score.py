@@ -647,7 +647,7 @@ async def _(ctx: SekaiHandlerContext):
     SHOW_NUM = 30
 
     # live类型
-    live_type = '单人'
+    live_type = 'solo'
     for keyword in ('单人', 'solo', '挑战'):
         if keyword in args:
             live_type = 'solo'
