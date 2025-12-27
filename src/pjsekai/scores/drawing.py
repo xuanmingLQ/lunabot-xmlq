@@ -87,9 +87,9 @@ class Drawing:
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'css/default.css'), encoding='UTF-8') as f:
             self.style_sheet = f.read()
         # 添加技能相关样式
-        if self.skill:
-            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'css/skill.css'), encoding='UTF-8') as f:
-                self.style_sheet += '\n' + f.read() 
+        # if self.skill:
+        #     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'css/skill.css'), encoding='UTF-8') as f:
+        #         self.style_sheet += '\n' + f.read() 
         # 添加自定义样式
         self.style_sheet += '\n' + style_sheet
 
@@ -332,7 +332,7 @@ class Drawing:
             ' '.join(filter(lambda x: x, [
                 self.score.meta.difficulty and str(self.score.meta.difficulty).upper(),
                 self.score.meta.playlevel,
-                'Chart by sekai.best powered by pjsekai.moe'
+                'Code by ぷろせかもえ！(pjsekai.moe), Modified by 33 (3-3.dev & bilibili @xfl03)'
             ])),
             insert=(
                 self.meta_size + self.lane_padding * 4,
@@ -345,25 +345,6 @@ class Drawing:
         # scale['x'] = width - self.meta_size
         # scale['y'] = height + self.padding * 2
         # drawing.add(scale)
-        
-        # 来自33源码中的水印
-        drawing.add(svgwrite.text.Text(
-            'Code by ぷろせかもえ！ (pjsekai.moe)　& Unibot',
-            insert=(
-                width - 900,
-                height + self.lane_padding * 4.2,
-            ),
-            class_='themehint',
-        ))
-        drawing.add(svgwrite.text.Text(
-            'Modified by 33 (3-3.dev & bilibili @xfl03)',
-            insert=(
-                width - 770,
-                height + self.lane_padding * 5.9,
-            ),
-            class_='themehint',
-        ))
-
 
         width = 0
         for d in drawings:

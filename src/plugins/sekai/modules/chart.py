@@ -11,6 +11,7 @@ from src.pjsekai import scores as pjsekai_scores
 
 CHART_CACHE_PATH = SEKAI_ASSET_DIR + "/chart/{region}/{mid}_{diff}.png"
 CHART_ASSET_DIR = f"{SEKAI_ASSET_DIR}/chart_asset"
+CHART_CSS_DIR = "src/pjsekai/scores/css"
 
 NOTE_SIZES = {
     'easy': 2.0,
@@ -65,7 +66,8 @@ async def generate_music_chart(
 
     logger.info(f'生成谱面图片 mid={music_id} {difficulty}')
     if need_reply:
-        await ctx.asend_reply_msg(f'正在生成【{ctx.region.upper()}-{music_id}】{music_title} 的谱面图片...')
+        desc = "谱面图片" if not skill else "技能预览图片"
+        await ctx.asend_reply_msg(f'正在生成【{ctx.region.upper()}-{music_id}】{music_title} {difficulty.upper()}的{desc}...')
 
     asset_name = music['assetbundleName']
     jacket = await ctx.rip.img(f"music/jacket/{asset_name}_rip/{asset_name}.png")
@@ -81,6 +83,7 @@ async def generate_music_chart(
         music_metas = find_by(await musicmetas_json.get(), "music_id", music_id, mode='all')
         if music_metas:
             music_meta = find_by(music_metas, "difficulty", difficulty)
+        assert_and_reply(music_meta, f'歌曲{music_id}难度{difficulty}暂无技能信息')
 
     with TempFilePath('svg') as svg_path:
         def get_svg(style_sheet):
@@ -105,7 +108,7 @@ async def generate_music_chart(
                 jacket=jacket,
                 songid=str(music_id),
             )
-            style_sheet = Path(f'{CHART_ASSET_DIR}/css/{style_sheet}.css').read_text()
+            style_sheet = Path(f'{CHART_CSS_DIR}/{style_sheet}.css').read_text()
             drawing = pjsekai_scores.Drawing(
                 score=score,
                 style_sheet=style_sheet,
@@ -137,6 +140,7 @@ async def generate_music_chart(
 pjsk_chart = SekaiCmdHandler([
     "/pjsk chart",
     "/谱面查询", "/铺面查询", "/谱面预览", "/铺面预览", "/谱面", "/铺面", "/查谱面", "/查铺面", "/查谱",
+    "/技能预览", 
 ])
 pjsk_chart.check_cdrate(cd).check_wblist(gbl)
 @pjsk_chart.handle()
@@ -149,13 +153,15 @@ async def _(ctx: SekaiHandlerContext):
         refresh = True
         query = query.replace('refresh', '').strip()
     
-    style_sheet = 'black'
     skill = False
-    if '技能' in query:
+    if '技能' in ctx.trigger_cmd:
         skill = True
-        # 样式中需要带技能相关css
-        style_sheet = 'white'
-        query = query.replace('技能', '').strip()
+    for keyword in ('技能', 'skill', ):
+        if keyword in query:
+            skill = True
+            query = query.replace(keyword, '', 1).strip()
+            break
+
     diff, query = extract_diff(query)
     ret = await search_music(ctx, query, MusicSearchOptions(diff=diff))
 
@@ -168,8 +174,9 @@ async def _(ctx: SekaiHandlerContext):
                 ctx,  mid,  diff, 
                 refresh=refresh, 
                 use_cache=True,
-                style_sheet=style_sheet,
-                skill=skill),
+                style_sheet=config.get('chart.style_sheet_name'),
+                skill=skill
+            ),
             low_quality=True,
         )
     except Exception as e:

@@ -53,7 +53,7 @@
 
 .lyric-text {
     font-size: 12px;
-    font-family: "ヒラギノ角ゴ Pro W3", "Hiragino Kaku Gothic Pro", Osaka, メイリオ, Meiryo, "ＭＳ Ｐゴシック", "MS PGothic", "ＭＳ ゴシック" , "MS Gothic", "Noto Sans CJK JP", TakaoPGothic, sans-serif;
+    font-family: ヒラギノ角ゴシック;
     fill: #ffffff;
     text-anchor: start;
 }
@@ -104,7 +104,7 @@
 .title {
     font-size: 96px;
     font-weight: 900;
-    font-family: "ヒラギノ角ゴ Pro W3", "Hiragino Kaku Gothic Pro", Osaka, メイリオ, Meiryo, "ＭＳ Ｐゴシック", "MS PGothic", "ＭＳ ゴシック" , "MS Gothic", "Noto Sans CJK JP", TakaoPGothic, sans-serif;
+    font-family: ヒラギノ角ゴシック;
     fill: #ffffff;
     text-anchor: start;
 }
@@ -112,46 +112,19 @@
 .subtitle {
     font-size: 48px;
     font-weight: 700;
-    font-family: "ヒラギノ角ゴ Pro W3", "Hiragino Kaku Gothic Pro", Osaka, メイリオ, Meiryo, "ＭＳ Ｐゴシック", "MS PGothic", "ＭＳ ゴシック" , "MS Gothic", "Noto Sans CJK JP", TakaoPGothic, sans-serif;
+    font-family: ヒラギノ角ゴシック;
     fill: #ffffff;
     text-anchor: start;
 }
 
 .lane {
-    fill: #CFD8DC;
+    fill: #444;
 }
 
 .background {
-    fill: #FFFFFF;
+    fill: #000;
 }
 
 .meta {
-    fill: #FFFFFF;
-}
-
-/* skill */
-
-.skill-duration {
-    fill: #78909C;
-}
-
-.skill-perfect {
-    fill: #90A4AE;
-}
-
-.skill-great {
-    fill: #B0BEC5;
-}
-
-.skill-score {
-    font-size: 38px;
-    /*font-weight: 900;*/
-    font-family: Osaka;
-    fill: black;
-    text-anchor: start;
-    /*text-shadow: black 0.1em 0.1em 0.2em;*/
-}
-
-.fever-duration {
-    fill: #ECEFF1;
+    fill: #444;
 }
