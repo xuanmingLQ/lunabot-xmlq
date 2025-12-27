@@ -246,79 +246,108 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
     return await canvas.get_img()
 
 # 合成歌曲meta图片
-async def compose_music_meta_image(ctx: SekaiHandlerContext, mid: int) -> Image.Image:
-    music = await ctx.md.musics.find_by_id(mid)
-    music_title = music['title']
-    music_cover = await get_music_cover_thumb(ctx, mid)
-
-    style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=BLACK)
-    style2 = TextStyle(font=DEFAULT_FONT,      size=20, color=(50, 50, 50))
-    
-    metas = find_by(await musicmetas_json.get(), "music_id", mid, mode='all')
-    assert_and_reply(metas, f"找不到歌曲ID={mid}的Meta数据")
-
+async def compose_music_meta_image(ctx: SekaiHandlerContext, mids: list[int]) -> Image.Image:
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_bg(roundrect_bg()).set_padding(16):
-            # 歌曲标题
-            with HSplit().set_content_align('l').set_item_align('l').set_sep(4):
-                ImageBox(music_cover, size=(48, 48), use_alphablend=False)
-                TextBox(f"【{mid}】{music_title}", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK))
-            TextBox(f"数据以日服为基准，数据来源：33Kit", style2)
+        with HSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
+            for mid in mids:
+                music = await ctx.md.musics.find_by_id(mid)
+                music_title = music['title']
+                music_cover = await get_music_cover_thumb(ctx, mid)
 
-            # 信息
-            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
-                for meta in metas:
-                    with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(8):
-                        diff = meta['difficulty']
-                        music_time = meta['music_time']
-                        tap_count = meta['tap_count']
-                        event_rate = meta['event_rate']
-                        base_score = meta['base_score']
-                        base_score_auto = meta['base_score_auto']
-                        skill_score_solo = meta['skill_score_solo']
-                        skill_score_auto = meta['skill_score_auto']
-                        skill_score_multi = meta['skill_score_multi']
-                        fever_score = meta['fever_score']
+                style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=BLACK)
+                style2 = TextStyle(font=DEFAULT_FONT,      size=20, color=(50, 50, 50))
+                
+                metas = find_by(await musicmetas_json.get(), "music_id", mid, mode='all')
+                assert_and_reply(metas, f"找不到歌曲ID={mid}的Meta数据")
 
-                        best_skill_order_solo = list(range(5))
-                        best_skill_order_solo.sort(key=lambda x: skill_score_solo[x], reverse=True)
-                        
-                        with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
-                            TextBox(diff.upper(), TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=WHITE)) \
-                                .set_bg(RoundRectBg(DIFF_COLORS[diff], radius=6)).set_padding(4)
-                            Spacer(w=8)
-                            TextBox(f"时长", style1)
-                            TextBox(f" {music_time}s", style2)
-                            # TextBox(f"  Tap数", style1)
-                            # TextBox(f" {tap_count}", style2)
-                        with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
-                            TextBox(f"基础分数", style1)
-                            TextBox(f"（单人）", style1)
-                            TextBox(f" {base_score*100:.1f}%", style2)
-                            TextBox(f"  （AUTO）", style1)
-                            TextBox(f" {base_score_auto*100:.1f}%", style2)
-                        with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
-                            TextBox(f"Fever分数", style1)
-                            TextBox(f" {fever_score*100:.1f}%", style2)
-                            TextBox(f"  活动PT系数", style1)
-                            TextBox(f" {event_rate:.0f}", style2)
-                        with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
-                            TextBox(f"技能分数（单人）", style1)
-                            for s in skill_score_solo:
-                                TextBox(f"  {s*100:.1f}%", style2)
-                        with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
-                            TextBox(f"技能分数（多人）", style1)
-                            for s in skill_score_multi:
-                                TextBox(f"  {s*100:.1f}%", style2)
-                        with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
-                            TextBox(f"技能分数（AUTO）", style1)
-                            for s in skill_score_auto:
-                                TextBox(f"  {s*100:.1f}%", style2)
-                        with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
-                            TextBox(f"单人最优技能顺序（1-5从强到弱）", style1)
-                            for idx in best_skill_order_solo:
-                                TextBox(f" {idx+1}", style2)
-            
+                with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_bg(roundrect_bg()).set_padding(16):
+                    # 歌曲标题
+                    with HSplit().set_content_align('l').set_item_align('l').set_sep(4):
+                        ImageBox(music_cover, size=(48, 48), use_alphablend=False)
+                        TextBox(f"【{mid}】{music_title}", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK))
+                    TextBox(f"以日服为准，参考分数使用5张技能加分100%，数据来源：33Kit", 
+                            TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=BLACK))
+
+                    # 信息
+                    with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg()):
+                        for meta in metas:
+                            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(8):
+                                diff = meta['difficulty']
+                                music_time = meta['music_time']
+                                tap_count = meta['tap_count']
+                                event_rate = meta['event_rate']
+                                base_score = meta['base_score']
+                                base_score_auto = meta['base_score_auto']
+                                skill_score_solo = meta['skill_score_solo']
+                                skill_score_auto = meta['skill_score_auto']
+                                skill_score_multi = meta['skill_score_multi']
+                                fever_score = meta['fever_score']
+
+                                best_skill_order_solo = list(range(5))
+                                best_skill_order_solo.sort(key=lambda x: skill_score_solo[x], reverse=True)
+
+                                solo_skill, auto_skill, multi_skill = 1.0, 1.0, 1.8
+
+                                solo_score = base_score + sum(skill_score_solo) * solo_skill
+                                auto_score = base_score_auto + sum(skill_score_auto) * auto_skill
+                                multi_score = base_score + sum(skill_score_multi) * multi_skill + fever_score * 0.5 + 0.01875
+
+                                solo_skill_account = sum(skill_score_solo) * solo_skill / solo_score
+                                auto_skill_account = sum(skill_score_auto) * auto_skill / auto_score
+                                multi_skill_account = sum(skill_score_multi) * multi_skill / multi_score
+                                
+                                with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
+                                    TextBox(diff.upper(), TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=WHITE)) \
+                                        .set_bg(RoundRectBg(DIFF_COLORS[diff], radius=6)).set_padding(4)
+                                    Spacer(w=8)
+                                    TextBox(f"时长", style1)
+                                    TextBox(f" {music_time}s", style2)
+                                    TextBox(f"  每秒点击数", style1)
+                                    TextBox(f" {tap_count / music_time:.1f}", style2)
+                                with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
+                                    TextBox(f"基础分数", style1)
+                                    TextBox(f"（单人）", style1)
+                                    TextBox(f" {base_score*100:.1f}%", style2)
+                                    TextBox(f"  （AUTO）", style1)
+                                    TextBox(f" {base_score_auto*100:.1f}%", style2)
+                                with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
+                                    TextBox(f"Fever分数", style1)
+                                    TextBox(f" {fever_score*100:.1f}%", style2)
+                                    TextBox(f"  活动PT系数", style1)
+                                    TextBox(f" {event_rate:.0f}", style2)
+                                with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
+                                    TextBox(f"技能分数（单人）", style1)
+                                    for s in skill_score_solo:
+                                        TextBox(f"  {s*100:.1f}%", style2)
+                                with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
+                                    TextBox(f"技能分数（多人）", style1)
+                                    for s in skill_score_multi:
+                                        TextBox(f"  {s*100:.1f}%", style2)
+                                with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
+                                    TextBox(f"技能分数（AUTO）", style1)
+                                    for s in skill_score_auto:
+                                        TextBox(f"  {s*100:.1f}%", style2)
+                                with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
+                                    TextBox(f"单人最优技能顺序（1-5从强到弱）", style1)
+                                    for idx in best_skill_order_solo:
+                                        TextBox(f" {idx+1}", style2)
+                                with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
+                                    TextBox(f"参考分数", style1)
+                                    TextBox(f"（单人）", style1)
+                                    TextBox(f" {solo_score*100:.1f}%", style2)
+                                    TextBox(f"（AUTO）", style1)
+                                    TextBox(f" {auto_score*100:.1f}%", style2)
+                                    TextBox(f"（多人）", style1)
+                                    TextBox(f" {multi_score*100:.1f}%", style2)
+                                with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
+                                    TextBox(f"技能占比", style1)
+                                    TextBox(f"（单人）", style1)
+                                    TextBox(f" {solo_skill_account*100:.1f}%", style2)
+                                    TextBox(f"（AUTO）", style1)
+                                    TextBox(f" {auto_skill_account*100:.1f}%", style2)
+                                    TextBox(f"（多人）", style1)
+                                    TextBox(f" {multi_skill_account*100:.1f}%", style2)
+                    
     add_watermark(canvas)       
     return await canvas.get_img()
 
@@ -366,11 +395,21 @@ pjsk_music_meta = SekaiCmdHandler([
 @pjsk_music_meta.handle()
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
-    res = await search_music(ctx, args)
-    mid = res.music['id']
+
+    args = args.replace("/", "|")
+    args = args.split("|")
+    assert_and_reply(args, f"请至少提供一个歌曲ID或名称")
+    assert_and_reply(len(args) <= 3, f"一次最多进行3首歌曲的比较")
+
+    mids = []
+    for seg in args:
+        res = await search_music(ctx, seg)
+        mids.append(res.music['id'])
+
     img_cq = await get_image_cq(
-        await compose_music_meta_image(ctx, mid),
+        await compose_music_meta_image(ctx, mids),
         low_quality=True,
     )
+
     return await ctx.asend_reply_msg(img_cq + res.candidate_msg)
 
