@@ -35,7 +35,7 @@ async def generate_music_chart(
     skill: bool = False
 ) -> Image.Image:
     if use_cache:
-        await ctx.block_region(f"chart_{music_id}_{difficulty}")
+        await ctx.block_region(f"chart_{music_id}_{difficulty}_{skill}")
     # 带技能与不带技能的缓存分开
     cache_path_suffix = difficulty if not skill else f"{difficulty}_skill"
     cache_path = CHART_CACHE_PATH.format(region=ctx.region, mid=music_id, diff=cache_path_suffix)
@@ -114,7 +114,8 @@ async def generate_music_chart(
                 style_sheet=style_sheet,
                 note_host=f'file://{note_host}',
                 skill=skill,
-                music_meta=music_meta
+                music_meta=music_meta,
+                target_segment_seconds=config.get('chart.target_segment_seconds'),
             )
             drawing.svg().saveas(svg_path)
         await run_in_pool(get_svg, style_sheet)
@@ -124,9 +125,9 @@ async def generate_music_chart(
         if random_clip_length_rate:
             img = img.crop((0, 0, img.size[0], img.size[1] - 260))
 
-        MAX_SIZE = 2048 * 2048
-        if img.size[0] * img.size[1] > MAX_SIZE:
-            img = resize_keep_ratio(img, max_size=MAX_SIZE, mode='wxh')
+        MAX_RES = config.get('chart.max_resolution')
+        if img.size[0] * img.size[1] > MAX_RES[0] * MAX_RES[1]:
+            img = resize_keep_ratio(img, max_size=MAX_RES[0] * MAX_RES[1], mode='wxh')
         logger.info(f'生成 mid={music_id} {difficulty} 谱面图片完成')
 
         if use_cache:
@@ -171,7 +172,7 @@ async def _(ctx: SekaiHandlerContext):
     try:
         msg = await get_image_cq(
             await generate_music_chart(
-                ctx,  mid,  diff, 
+                ctx, mid, diff, 
                 refresh=refresh, 
                 use_cache=True,
                 style_sheet=config.get('chart.style_sheet_name'),

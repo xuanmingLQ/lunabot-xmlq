@@ -230,3 +230,5 @@ sk:
   
 chart:
   style_sheet_name: black
+  target_segment_seconds: 6.0
+  max_resolution: [4096, 4096]
