@@ -279,7 +279,7 @@ async def compose_custom_room_score_control_image(ctx: SekaiHandlerContext, targ
             raise ReplyException(f"该PT无法用自定义房间控分，控大于100的PT可使用\"/控分\"指令")
         else:
             raise ReplyException(f"该PT无法用自定义房间控分，可能是PT过小")
-    results.sort(key=lambda x: (x[1], x[0]))
+    results.sort(key=lambda x: (x[1], -x[0]))
 
     # 查找结果中出现的pt系数对应的歌曲
     music_metas = find_by(await musicmetas_json.get(), "difficulty", "master", mode='all')
