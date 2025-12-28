@@ -1,5 +1,5 @@
 from ..utils import *
-from nonebot import get_bot, on_notice
+from nonebot import on_notice
 from nonebot.adapters.onebot.v11 import NoticeEvent
 import asyncio
 

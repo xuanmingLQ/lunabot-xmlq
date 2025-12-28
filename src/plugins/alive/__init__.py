@@ -45,7 +45,6 @@ async def alive_check():
     global cur_state, noti_state, cur_elapsed, last_check_time, group_reported
     # 检测连接状态
     try:
-        from nonebot import get_bot
         bot = get_bot()
         new_state = CONNECT_STATE
     except:

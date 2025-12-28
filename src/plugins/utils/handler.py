@@ -1,5 +1,6 @@
 from .utils import *
-from nonebot import on_command, get_bot, get_bots
+from nonebot import on_command
+from nonebot import get_bot as nb_get_bot
 from nonebot.rule import to_me as rule_to_me
 from nonebot.message import handle_event
 from nonebot.compat import model_dump, type_validate_python
@@ -24,6 +25,13 @@ BOT_GROUP_IDS_CACHE_EXPIRE_SECONDS_CFG = global_config.item('bot_group_ids_cache
 DEFAULT_LQ_IMAGE_QUALITY_CFG = global_config.item('msg_send.low_quality_image.default_quality')
 DEFAULT_LQ_IMAGE_SUBSAMPLING_CFG = global_config.item('msg_send.low_quality_image.default_subsampling')
 DEFAULT_LQ_IMAGE_OPTIMIZE_CFG = global_config.item('msg_send.low_quality_image.default_optimize')
+
+
+def get_bot() -> Bot:
+    """
+    获取当前Bot对象
+    """
+    return nb_get_bot()
 
 
 # ============================ MonkeyPatch ============================ #
