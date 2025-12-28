@@ -8,19 +8,46 @@ logger = get_logger("WebChat")
 file_db = get_file_db("data/webchat/db.json", logger)
 
 
-# =================== Nonebot框架 Adapter =================== # 
+# =================== 常量定义 ================== #
 
 WEB_MSG_ID_START = 10**12
 WEB_USER_ID_START = 10**12
 WEB_GROUP_ID_START = 10**12
 WEB_FORWARD_ID_PREFIX = "wcforward"
 WEB_FILE_PREFIX = "wcfile://"
+WEB_BOT_ID = WEB_USER_ID_START + 1
 
+
+# =================== 客户端 =================== # 
+
+class WebChatClient:
+    def __init__(self):
+        pass
+
+    async def get_group_list(self):
+        pass
+
+    async def get_group_info(self, group_id: int):
+        pass
+
+    async def send_group_msg(self, group_id: int, user_id: int, msg: Message):
+        pass
+
+    async def get_stranger_info(self, user_id: int):
+        pass
+
+    async def get_new_msg_events(self):
+        pass
+
+client = WebChatClient()
+
+
+# =================== Nonebot框架 Adapter =================== # 
 
 class BotWrapper:
     def __init__(self, bot: Bot | None):
-        self._bot: Bot = bot
-        self.self_id: str = bot.self_id
+        self._bot: Bot = Bot
+        self.self_id = str(WEB_BOT_ID) if bot is None else str(bot.self_id)
     
     async def get_msg(self, message_id: int):
         if message_id < WEB_MSG_ID_START:
@@ -81,6 +108,19 @@ class BotWrapper:
         # 默认调用原 Bot 方法
         return await self._bot.call_api(api, **data)
 
+    async def send_group_msg(self, group_id: int, message: str):
+        if group_id >= WEB_GROUP_ID_START:
+            # TODO 发送网页端群消息
+            raise NotImplementedError()
+        return await self._bot.send_group_msg(group_id=group_id, message=message)
+    
+    async def send_private_msg(self, user_id: int, message: str):
+        if user_id >= WEB_USER_ID_START:
+            # TODO 发送网页端私聊消息
+            raise NotImplementedError()
+        return await self._bot.send_private_msg(user_id=user_id, message=message)
+
+
 @dataclass
 class HandlerContextWrapper(HandlerContext):
     def asend_msg(self, msg: str):
@@ -112,11 +152,12 @@ handler_module.get_bot = get_bot_wrapper
 handler_module.HandlerContext = HandlerContextWrapper
 
 
-def process_msg(event: GroupMessageEvent):
+def process_msg(event: GroupMessageEvent) -> None:
     """
     处理群消息事件，进行指令匹配和处理
     """
-    text = event.message.extract_plain_text()
+    bot = BotWrapper(None)
+    text = event.message.extract_plain_text().strip()
     to_me = event.is_tome()
     logger.debug(f"指令匹配: group_id={event.group_id}, user_id={event.user_id}, to_me={to_me}, text={text}")
     for handler in CmdHandler.cmd_handlers:
@@ -125,5 +166,6 @@ def process_msg(event: GroupMessageEvent):
         for cmd in handler.commands:
             if text.startswith(cmd):
                 logger.info(f"指令匹配成功: command={cmd}")
-                handler.handler_func(bot=BotWrapper(None), event=event)
+                handler.handler_func(bot=bot, event=event)
             
+
