@@ -1876,6 +1876,7 @@ class CmdHandler:
     """
     命令处理器，封装了指令的注册和处理逻辑
     """
+    cmd_handlers: list["CmdHandler"] = []
     HELP_PART_IMG_CACHE_DIR = "data/utils/help_part_img_cache/"
     help_docs: Dict[str, HelpDoc] = {}
 
@@ -1910,7 +1911,7 @@ class CmdHandler:
             else:
                 raise Exception(f'未知的指令类型 {type(cmd)}')
         self.commands = list(set(self.commands)) 
-        self.commands.sort()
+        self.commands.sort(key=lambda x: len(x), reverse=True)
             
         self.logger = logger
         self.error_reply = error_reply
@@ -1933,6 +1934,13 @@ class CmdHandler:
         if isinstance(help_trigger_condition, str):
             assert help_trigger_condition in ['contain', 'exact']
         self.help_trigger_condition = help_trigger_condition
+
+        self.priority = priority
+        self.only_to_me = only_to_me
+        self.handler_func = None
+
+        CmdHandler.cmd_handlers.append(self)
+        CmdHandler.cmd_handlers.sort(key=lambda x: x.priority, reverse=True)
         # utils_logger.info(f'注册指令 {commands[0]}')
 
     def check_group(self):
@@ -2169,7 +2177,8 @@ class CmdHandler:
                 finally:
                     for block_id in context.block_ids:
                         self.block_set.discard(block_id)
-                        
+
+            self.handler_func = func 
             return func
         return decorator
   

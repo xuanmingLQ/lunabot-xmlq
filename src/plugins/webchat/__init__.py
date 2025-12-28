@@ -1,3 +1,4 @@
+from ..utils import handler as handler_module
 from ..utils import *
 from nonebot import get_bot as nb_get_bot
 
@@ -7,18 +8,17 @@ logger = get_logger("WebChat")
 file_db = get_file_db("data/webchat/db.json", logger)
 
 
+# =================== Nonebot框架 Adapter =================== # 
+
 WEB_MSG_ID_START = 10**12
 WEB_USER_ID_START = 10**12
 WEB_GROUP_ID_START = 10**12
-WEB_FORWARD_ID_PREFIX = "webchat_forward_"
-WEB_FILE_PREFIX = "webchat_file://"
+WEB_FORWARD_ID_PREFIX = "wcforward"
+WEB_FILE_PREFIX = "wcfile://"
 
 
 class BotWrapper:
-    """
-    Bot wrapper 用于封装 AdapterBot 对象，并且提供网页端伪造 Bot 功能
-    """
-    def __init__(self, bot: Bot):
+    def __init__(self, bot: Bot | None):
         self._bot: Bot = bot
         self.self_id: str = bot.self_id
     
@@ -81,10 +81,49 @@ class BotWrapper:
         # 默认调用原 Bot 方法
         return await self._bot.call_api(api, **data)
 
+@dataclass
+class HandlerContextWrapper(HandlerContext):
+    def asend_msg(self, msg: str):
+        if self.group_id and self.group_id >= WEB_GROUP_ID_START:
+            # TODO 发送网页端群消息
+            raise NotImplementedError()
+        return super().asend_msg(msg)
+
+    def asend_reply_msg(self, msg: str):
+        if self.group_id and self.group_id >= WEB_GROUP_ID_START:
+            # TODO 发送网页端群回复消息
+            raise NotImplementedError()
+        return super().asend_reply_msg(msg)
+
+    def asend_at_msg(self, msg: str):
+        if self.group_id and self.group_id >= WEB_GROUP_ID_START:
+            # TODO 发送网页端群at消息
+            raise NotImplementedError()
+        return super().asend_at_msg(msg)
+
 
 # 覆盖 get_bot 方法
 def get_bot_wrapper() -> BotWrapper:
     bot = nb_get_bot()
     return BotWrapper(bot)
-get_bot = get_bot_wrapper
+handler_module.get_bot = get_bot_wrapper
 
+# 覆盖 HandlerContext 类型
+handler_module.HandlerContext = HandlerContextWrapper
+
+
+def process_msg(event: GroupMessageEvent):
+    """
+    处理群消息事件，进行指令匹配和处理
+    """
+    text = event.message.extract_plain_text()
+    to_me = event.is_tome()
+    logger.debug(f"指令匹配: group_id={event.group_id}, user_id={event.user_id}, to_me={to_me}, text={text}")
+    for handler in CmdHandler.cmd_handlers:
+        if handler.only_to_me and not to_me:
+            continue
+        for cmd in handler.commands:
+            if text.startswith(cmd):
+                logger.info(f"指令匹配成功: command={cmd}")
+                handler.handler_func(bot=BotWrapper(None), event=event)
+            
