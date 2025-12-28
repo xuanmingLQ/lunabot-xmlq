@@ -19,10 +19,12 @@ import requests
 
 SUPERUSER_CFG = global_config.item('superuser')
 GROUP_MEMBER_NAME_CACHE_EXPIRE_SECONDS_CFG = global_config.item('group_member_name_cache_expire_seconds')
+BOT_GROUP_IDS_CACHE_EXPIRE_SECONDS_CFG = global_config.item('bot_group_ids_cache_expire_seconds')
 
 DEFAULT_LQ_IMAGE_QUALITY_CFG = global_config.item('msg_send.low_quality_image.default_quality')
 DEFAULT_LQ_IMAGE_SUBSAMPLING_CFG = global_config.item('msg_send.low_quality_image.default_subsampling')
 DEFAULT_LQ_IMAGE_OPTIMIZE_CFG = global_config.item('msg_send.low_quality_image.default_optimize')
+
 
 # ============================ MonkeyPatch ============================ #
 
@@ -148,6 +150,13 @@ class GroupMemberNameCache:
     expire_time: datetime
 _group_member_name_cache: dict[tuple[int, int], GroupMemberNameCache] = {}
 
+@dataclass
+class BotGroupsCache:
+    group_ids: set[int]
+    expire_time: datetime
+_bot_group_cache: dict[int, BotGroupsCache] = {}
+
+
 def get_user_name_by_event(event_or_reply: MessageEvent | Reply) -> str:
     """
     通过event或reply获取发送者用户名，如果有群名片则返回群名片 否则返回昵称
@@ -181,12 +190,22 @@ async def get_group_member_name(bot: Bot, group_id: int, user_id: int) -> str:
     )
     return name
 
-async def get_group_id_list(bot: Bot) -> List[int]:
+async def get_group_ids(bot: Bot, refresh: bool = False) -> set[int]:
     """
     获取加入的所有群id
     """
+    bot_id = int(bot.self_id)
+    if bot_id in _bot_group_cache:
+        cache = _bot_group_cache[bot_id]
+        if cache.expire_time > datetime.now() and not refresh:
+            return cache.group_ids
     group_list = await bot.call_api('get_group_list')
-    return [int(group['group_id']) for group in group_list]
+    cache = BotGroupsCache(
+        group_ids=set(int(group['group_id']) for group in group_list),
+        expire_time=datetime.now() + timedelta(seconds=BOT_GROUP_IDS_CACHE_EXPIRE_SECONDS_CFG.get()),
+    )
+    _bot_group_cache[bot_id] = cache
+    return cache.group_ids
 
 async def get_group_list(bot: Bot) -> List[dict]:
     """
@@ -632,7 +651,7 @@ async def check_in_group(bot: Bot, group_id: int):
     """
     检查bot是否加入了某个群
     """
-    return int(group_id) in await get_group_id_list(bot)
+    return int(group_id) in await get_group_ids(bot)
 
 def check_in_blacklist(user_id: int):
     """
@@ -2220,7 +2239,7 @@ async def _(ctx: HandlerContext):
     enabled_msg = "【已启用的群聊】"
     disabled_msg = "【已禁用的群聊】"
     enabled_groups = utils_file_db.get("enabled_groups", [])
-    for group_id in await get_group_id_list(ctx.bot):
+    for group_id in await get_group_ids(ctx.bot):
         group_name = await get_group_name(ctx.bot, group_id)
         if group_id in enabled_groups:
             enabled_msg += f'\n{group_name} ({group_id})'

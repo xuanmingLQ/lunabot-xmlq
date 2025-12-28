@@ -3,6 +3,7 @@ superuser:
   - 12345678
 
 group_member_name_cache_expire_seconds: 60  # 群成员名称缓存过期时间（秒）
+bot_group_ids_cache_expire_seconds: 60      # bot所在群ID缓存过期时间（秒）
 
 msg_send:
   rate_limit:
