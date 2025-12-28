@@ -1508,6 +1508,8 @@ async def compose_deck_recommend_image(
                     value += item[key][i] * (1.8 if is_multi else 1.0)
                 if is_multi:
                     value += item['fever_score'] * 0.5
+                if recommend_type in ['event', 'wl', 'wl_fake', 'unit_attr'] and options.target == 'score':
+                    value *= item['event_rate'] / 100.0
                 music_values.append((value, music_id, diff))
             music_values = sorted(music_values, key=lambda x: x[0], reverse=True)[:MUSIC_COMPARE_CANDIDATE_MUSIC_NUM]
             for _, mid, diff in music_values:
