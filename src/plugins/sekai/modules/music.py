@@ -743,6 +743,11 @@ async def get_music_diff_info(ctx: SekaiHandlerContext, mid: int) -> MusicDiffIn
             ret.has_append = True
     return ret
 
+# 根据歌曲id和难度获取等级，不存在该难度返回None
+async def get_music_diff_level(ctx: SekaiHandlerContext, mid: int, diff: str) -> Optional[int]:
+    diff_info = await get_music_diff_info(ctx, mid)
+    return diff_info.level.get(diff, None)
+
 # 检查歌曲是否有某个难度
 async def check_music_has_diff(ctx: SekaiHandlerContext, mid: int, diff: str) -> bool:
     diff_info = await get_music_diff_info(ctx, mid)
@@ -1189,8 +1194,8 @@ async def get_music_chart_length(ctx: SekaiHandlerContext, music_id: int, diffic
     sus_path = await ctx.rip.get_asset_cache_path(f"music/music_score/{music_id:04d}_01_rip/{difficulty}")
     if not sus_path:
         return None
-    import sekaiworld.scores
-    score = sekaiworld.scores.Score.open(sus_path, encoding='UTF-8')
+    from src.pjsekai import scores as pjsekai_scores
+    score = pjsekai_scores.Score.open(sus_path, encoding='UTF-8')
     return timedelta(seconds=float(score.timed_events[-1][0]))
 
 # 合成简要歌曲列表图片
@@ -1617,7 +1622,7 @@ async def _(ctx: SekaiHandlerContext):
 # 查曲
 pjsk_song = SekaiCmdHandler([
     "/pjsk song", "/pjsk music", "/song", "/music",
-    "/查曲", "/查歌", "/歌曲",
+    "/查曲", "/查歌", "/歌曲", "/查歌曲",
 ])
 pjsk_song.check_cdrate(cd).check_wblist(gbl)
 @pjsk_song.handle()
@@ -1661,7 +1666,7 @@ async def _(ctx: SekaiHandlerContext):
 # 物量查询
 pjsk_note_num = SekaiCmdHandler([
     "/pjsk note num", "/pjsk note count",
-    "/物量", "/查物量"
+    "/物量", "/查物量",
 ])
 pjsk_note_num.check_cdrate(cd).check_wblist(gbl)
 @pjsk_note_num.handle()
