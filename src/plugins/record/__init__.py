@@ -68,7 +68,7 @@ async def record_message(bot: Bot, event: GroupMessageEvent):
             user_name = get_user_name_by_event(event)
         else:
             group_id = 0
-            user_name = (await get_stranger_info(bot, user_id)).get('nickname', '')
+            user_name = (await get_stranger_info(user_id)).get('nickname', '')
 
         if is_group:
             try: group_name = truncate(await get_group_name(bot, group_id), 16)
@@ -230,7 +230,7 @@ async def _(ctx: HandlerContext):
         if group_id:
             group_name = await get_group_name(ctx.bot, group_id)
             msg += f"<{group_name}({group_id})>\n"
-            user_name = await get_group_member_name(ctx.bot, group_id, user_id)
+            user_name = await get_group_member_name(group_id, user_id)
             msg += f"<{user_name}({user_id})>\n"
         else:
             user_name = context.event.sender.nickname
@@ -260,11 +260,11 @@ async def _(ctx: HandlerContext):
                 return "[转发消息(加载失败)]"
 
     # 转发聊天记录转换到文本
-    async def get_forward_msg_text(forward_seg, indent: int = 0) -> str:
+    async def get_forward_msg_text(bot, forward_seg, indent: int = 0) -> str:
         forward_id = forward_seg['data']['id']
         forward_content = forward_seg['data'].get("content")
         if not forward_content:
-            forward_msg = await get_forward_msg(get_bot(), forward_id)
+            forward_msg = await get_forward_msg(bot, forward_id)
             if not forward_msg:
                 return "[转发消息(加载失败)]"
             forward_content = forward_msg['messages']
@@ -293,7 +293,7 @@ async def _(ctx: HandlerContext):
                 elif mtype == "reply":
                     text += f"[reply={mdata['id']}]"
                 elif mtype == "forward":
-                    text += await get_forward_msg_text(seg, indent + 4)
+                    text += await get_forward_msg_text(bot, seg, indent + 4)
                 elif mtype == "json":
                     text += json_msg_to_readable_text(mdata)
             text += "\n"
@@ -308,6 +308,6 @@ async def _(ctx: HandlerContext):
             forward_seg = seg
             break
     assert_and_reply(forward_seg, "回复的消息不是聊天记录")
-    text = await get_forward_msg_text(forward_seg)
+    text = await get_forward_msg_text(ctx.bot, forward_seg)
 
     return await ctx.asend_fold_msg_adaptive(text)

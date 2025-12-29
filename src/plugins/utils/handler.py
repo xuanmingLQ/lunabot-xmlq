@@ -1,6 +1,7 @@
 from .utils import *
 from nonebot import on_command
 from nonebot import get_bot as nb_get_bot
+from nonebot import get_bots as nb_get_bots
 from nonebot.rule import to_me as rule_to_me
 from nonebot.message import handle_event
 from nonebot.compat import model_dump, type_validate_python
@@ -27,11 +28,40 @@ DEFAULT_LQ_IMAGE_SUBSAMPLING_CFG = global_config.item('msg_send.low_quality_imag
 DEFAULT_LQ_IMAGE_OPTIMIZE_CFG = global_config.item('msg_send.low_quality_image.default_optimize')
 
 
-def get_bot() -> Bot:
+def get_all_bots() -> list[Bot]:
     """
-    获取当前Bot对象
+    获取所有已连接的Bot对象列表
     """
-    return nb_get_bot()
+    return list(nb_get_bots().values())
+
+def get_bot_by_self_id(self_id: int | str) -> Bot | None:
+    """
+    通过self_id获取Bot对象
+    """
+    return nb_get_bots().get(str(self_id), None)
+
+async def aget_group_bot(group_id: int, raise_exc: bool = False) -> Bot | None:
+    """
+    通过群号获取对应的Bot对象
+    """
+    group_id = int(group_id)
+    bots = get_all_bots()
+    valid_bots: list[Bot] = []
+    for bot in bots:
+        try:
+            group_ids = await get_group_ids(bot)
+            if group_id in group_ids:
+                valid_bots.append(bot)
+        except Exception as e:
+            utils_logger.warning(f'通过群号获取对应的Bot对象时获取Bot {bot.self_id} 的群列表失败: {get_exc_desc(e)}')
+    valid_bots.sort(key=lambda x: int(x.self_id))
+    if len(valid_bots) == 0:
+        if raise_exc:
+            raise Exception(f'未找到在群 {group_id} 中的可用Bot')
+        return None
+    if len(valid_bots) > 1:
+        utils_logger.warning(f'发现多个Bot在群 {group_id}，默认返回self_id最小的Bot {valid_bots[0].self_id}')
+    return valid_bots[0]
 
 
 # ============================ MonkeyPatch ============================ #
@@ -175,7 +205,7 @@ def get_user_name_by_event(event_or_reply: MessageEvent | Reply) -> str:
         return card
     return nickname or str(event_or_reply.user_id)
     
-async def get_group_member_name(bot: Bot, group_id: int, user_id: int) -> str:
+async def get_group_member_name(group_id: int, user_id: int) -> str:
     """
     调用API获取群聊中的用户名（带缓存） 如果有群名片则返回群名片 否则返回昵称
     """
@@ -190,6 +220,7 @@ async def get_group_member_name(bot: Bot, group_id: int, user_id: int) -> str:
     if cache and cache.expire_time > datetime.now():
         return cache.name
     
+    bot = await aget_group_bot(group_id, raise_exc=True)
     info = await bot.call_api('get_group_member_info', **{'group_id': group_id, 'user_id': user_id})
     name = info.get('card') or info.get('nickname', str(user_id))
     _group_member_name_cache[(group_id, user_id)] = GroupMemberNameCache(
@@ -221,10 +252,29 @@ async def get_group_list(bot: Bot) -> List[dict]:
     """
     return await bot.call_api('get_group_list')
 
+async def get_all_bot_group_list() -> list[dict]:
+    groups = []
+    for bot in get_all_bots():
+        try:
+            bot_groups = await get_group_list(bot)
+            groups.extend(bot_groups)
+        except Exception as e:
+            utils_logger.warning(f'获取Bot {bot.self_id} 的群列表失败: {get_exc_desc(e)}')
+    # 去重
+    unique_groups = {}
+    for group in groups:
+        unique_groups[int(group['group_id'])] = group
+    return list(unique_groups.values())
+
 async def get_stranger_info(bot: Bot, user_id: int) -> dict:
     """
     获取陌生人信息
     """
+    # TODO: 多bot支持
+    return {
+        'user_id': int(user_id),
+        'nickname': f'{user_id}',
+    }
     return await bot.call_api('get_stranger_info', **{'user_id': int(user_id)})
 
 async def get_group_users(bot: Bot, group_id: int) -> List[dict]:
@@ -333,14 +383,7 @@ async def download_napcat_file(ftype: str, file: str) -> str:
     """
     下载napcat文件，返回本地路径
     """
-    bot = get_bot()
-    if ftype == 'image':
-        ret = await bot.call_api('get_image', **{'file': file})
-    elif ftype == 'record':
-        ret = await bot.call_api('get_record', **{'file': file, 'out_format': 'wav'})
-    else:
-        ret = await bot.call_api('get_file', **{'file': file})
-    return ret['file']
+    raise NotImplementedError("该函数已被弃用")
 
 class TempBotOrInternetFilePath:
     """
@@ -534,16 +577,15 @@ async def extract_special_text(msg: list[dict], group_id=None) -> str:
     """
     从消息段提取带有特殊消息的文本
     """
-    bot = get_bot()
     text = ""
     for seg in msg:
         if seg['type'] == 'text':
             text += seg['data']['text']
         elif seg['type'] == 'at':
             if group_id:
-                name = await get_group_member_name(bot, group_id, seg['data']['qq'])
+                name = await get_group_member_name(group_id, seg['data']['qq'])
             else:
-                name = await get_stranger_info(bot, seg['data']['qq'])['nickname']
+                name = await get_stranger_info(seg['data']['qq'])['nickname']
             if text: text += " "
             text += f"@{name} "
         elif seg['type'] == 'image':
@@ -846,10 +888,14 @@ async def send_at_msg(handler, event: MessageEvent, message: str):
 # -------- event外发送 -------- #
 
 @send_msg_func
-async def send_group_msg_by_bot(bot, group_id: int, content: str):
+async def send_group_msg_by_bot(group_id: int, content: str, bot: Bot = None):
     """
     在event外发送群聊消息
     """
+    if bot is None:
+        bot = await aget_group_bot(group_id)
+        if bot is None:
+            utils_logger.warning(f'取消发送消息到群 {group_id}，没有可用的bot')
     if check_group_disabled(group_id):
         utils_logger.warning(f'取消发送消息到被全局禁用的群 {group_id}')
         return
@@ -859,10 +905,13 @@ async def send_group_msg_by_bot(bot, group_id: int, content: str):
     return await bot.send_group_msg(group_id=int(group_id), message=content)
 
 @send_msg_func
-async def send_private_msg_by_bot(bot, user_id: int, content: str):
+async def send_private_msg_by_bot(user_id: int, content: str, bot: Bot = None):
     """
     在event外发送私聊消息
     """
+    if bot is None:
+        # TODO 自动选择一个bot发送私聊消息
+        raise NotImplementedError("暂不支持event外的自动检测bot私聊消息发送")
     return await bot.send_private_msg(user_id=int(user_id), message=content)
 
 # -------- 折叠消息处理 -------- #
@@ -1010,12 +1059,12 @@ async def send_fold_msg(
         if group_id and check_group_disabled(group_id):
             utils_logger.warning(f'取消发送消息到被全局禁用的群 {group_id}')
             return
-        selfname = await get_group_member_name(bot, group_id, bot.self_id)
+        selfname = await get_group_member_name(group_id, bot.self_id)
         msg_list = []
         for i in range(len(contents)):
             if i == 0 and first_is_user:
                 uid = user_id
-                nickname = await get_group_member_name(bot, group_id, user_id)
+                nickname = await get_group_member_name(group_id, user_id)
             else:
                 uid = int(bot.self_id)
                 nickname = selfname
@@ -1219,9 +1268,9 @@ class ColdDown:
                         verbose_msg = f'冷却中, 剩余时间: {get_readable_timedelta(rest_time)}'
                         if hasattr(event, 'message_id'):
                             if hasattr(event, 'group_id'):
-                                await send_group_msg_by_bot(get_bot(), event.group_id, f'[CQ:reply,id={event.message_id}] {verbose_msg}')
+                                await send_group_msg_by_bot(event.group_id, f'[CQ:reply,id={event.message_id}] {verbose_msg}')
                             else:
-                                await send_private_msg_by_bot(get_bot(), event.user_id, f'[CQ:reply,id={event.message_id}] {verbose_msg}')
+                                await send_private_msg_by_bot(event.user_id, f'[CQ:reply,id={event.message_id}] {verbose_msg}')
                 except Exception as e:
                     self.logger.print_exc(f'{self.cold_down_name}检查: {key} CD中, 发送冷却中消息失败')
             return False
@@ -1300,9 +1349,9 @@ class RateLimit:
                 try:
                     if hasattr(event, 'message_id'):
                         if hasattr(event, 'group_id'):
-                            await send_group_msg_by_bot(get_bot(), event.group_id, f'[CQ:reply,id={event.message_id}] {reply_msg}')
+                            await send_group_msg_by_bot(event.group_id, f'[CQ:reply,id={event.message_id}] {reply_msg}')
                         else:
-                            await send_private_msg_by_bot(get_bot(), event.user_id, f'[CQ:reply,id={event.message_id}] {reply_msg}')
+                            await send_private_msg_by_bot(event.user_id, f'[CQ:reply,id={event.message_id}] {reply_msg}')
                 except Exception as e:
                     self.logger.print_exc(f'{self.rate_limit_name}检查: {key} 频率超限, 发送频率超限消息失败')
             ok = False

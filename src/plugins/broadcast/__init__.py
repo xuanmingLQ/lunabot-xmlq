@@ -21,7 +21,7 @@ async def get_desc_by_guid(ctx: HandlerContext, guid: str) -> str:
         return f"[群聊]{group_info}({group_id})"
     else:
         user_id = int(guid.split('_')[1])
-        user_info = await get_stranger_info(ctx.bot, user_id).get('nickname', f'unknown')
+        user_info = await get_stranger_info(user_id).get('nickname', f'unknown')
         return f"[用户]{user_info}({user_id})"
 
 async def send_msg_to(ctx: HandlerContext, guid: str, msg: str):

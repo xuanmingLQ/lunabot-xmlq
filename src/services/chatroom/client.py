@@ -172,9 +172,9 @@ async def open_image(seg):
     if image_path:
         os.system(IMAGE_OPEN_COMMAND.format(local_image_path=image_path))
 
-async def click_to_open_image(message_id, seg_ind):
+async def click_to_open_image(group_id, message_id, seg_ind):
     try:
-        msg = await rpc_get_msg(message_id)
+        msg = await rpc_get_msg(group_id, message_id)
         # log_box.add_line(f"打开图片: {message_id} {seg_ind} {msg}")
         seg = msg['msg'][seg_ind]
         if seg['type'] != 'image':
@@ -419,7 +419,7 @@ class TextBox(urwid.ListBox):
                     if data.get('link') is not None:
                         segs.append(CustomButton(data['text'], open_image_by_url, [data['link']]))
                     else:
-                        segs.append(CustomButton(data['text'], click_to_open_image, [data['msg_id'], data['seg_ind']]))
+                        segs.append(CustomButton(data['text'], click_to_open_image, [gdata.cur_group_id, data['msg_id'], data['seg_ind']]))
 
             except Exception as exc:
                 log_box.add_line(f"TextLine {data} 解析失败:")
@@ -651,14 +651,14 @@ async def rpc_set_client_data(name, data):
     return await session.send_request('set_client_data', [name, data])
 
 @require_connected
-async def rpc_get_msg(msg_id):
+async def rpc_get_msg(group_id, msg_id):
     global session
-    return await session.send_request('get_msg', [msg_id])
+    return await session.send_request('get_msg', [group_id, msg_id])
 
 @require_connected
-async def rpc_get_forward_msg(forward_id):
+async def rpc_get_forward_msg(group_id, forward_id):
     global session
-    return await session.send_request('get_forward_msg', [forward_id])
+    return await session.send_request('get_forward_msg', [group_id, forward_id])
 
 @require_connected
 async def rpc_send_group_msg_split(group_id, msg):

@@ -1,3 +1,6 @@
+bot_ids:  # 需要监控的bot QQ号列表
+  - 123456
+
 check_interval: 3                 # 存活检测间隔（秒）
 time_threshold: 10                # 状态改变多久后才发送提醒（秒）
 notify_at_connect: False          # 恢复连线时是否发送邮件提醒
