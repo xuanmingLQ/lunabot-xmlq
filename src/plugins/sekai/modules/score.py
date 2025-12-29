@@ -394,6 +394,7 @@ async def compose_music_meta_image(ctx: SekaiHandlerContext, mids: list[int]) ->
 
                                 best_skill_order_solo = list(range(5))
                                 best_skill_order_solo.sort(key=lambda x: skill_score_solo[x], reverse=True)
+                                best_skill_order_solo = [best_skill_order_solo.index(i) for i in range(5)]
 
                                 solo_skill, auto_skill, multi_skill = 1.0, 1.0, 1.8
 
@@ -437,7 +438,7 @@ async def compose_music_meta_image(ctx: SekaiHandlerContext, mids: list[int]) ->
                                     for s in skill_score_auto:
                                         TextBox(f"  {s*100:.1f}%", style2)
                                 with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
-                                    TextBox(f"单人最优技能顺序（1-5从强到弱）", style1)
+                                    TextBox(f"单人最优技能顺序（1-5代表强到弱的卡牌）", style1)
                                     for idx in best_skill_order_solo:
                                         TextBox(f" {idx+1}", style2)
                                 with HSplit().set_content_align('lb').set_item_align('lb').set_sep(0):
