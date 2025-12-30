@@ -296,25 +296,28 @@ async def get_group(bot: Bot, group_id: int) -> dict:
     """
     return await bot.call_api('get_group_info', **{'group_id': int(group_id)})
 
-def get_avatar_url(user_id: int) -> str:
+async def get_avatar_url(bot: Bot | None, user_id: int) -> str:
     """
     获取QQ头像的url
     """
+    if bot and user_id >= 10 ** 10:
+        return await bot.call_api('get_avatar_url', **{'user_id': int(user_id)})
     return f"http://q1.qlogo.cn/g?b=qq&nk={user_id}&s=100"
 
-def get_avatar_url_large(user_id: int) -> str:
+async def get_avatar_url_large(bot: Bot | None, user_id: int) -> str:
     """
     获取QQ头像的高清url
     """
+    if bot and user_id >= 10 ** 10:
+        return await bot.call_api('get_avatar_url', **{'user_id': int(user_id)})
     return f"http://q1.qlogo.cn/g?b=qq&nk={user_id}&s=640"
 
-def download_avatar(user_id: int, circle=False) -> Image.Image:
+async def download_avatar(bot: Bot, user_id: int, circle=False) -> Image.Image:
     """
     下载QQ头像并返回PIL Image对象
     """
-    url = get_avatar_url(user_id)
-    response = requests.get(url)
-    img = Image.open(io.BytesIO(response.content))
+    url = await get_avatar_url(bot, user_id)
+    img = await download_image(url)
     if circle:
         r = img.width // 2
         circle_img = Image.new('L', (img.width, img.height), 0)

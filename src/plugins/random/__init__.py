@@ -102,7 +102,7 @@ async def _(ctx: HandlerContext):
     msg = ""
     for user in group_members[:num]:
         user_id = int(user['user_id'])
-        icon_url = get_avatar_url(user_id)
+        icon_url = await get_avatar_url(ctx.bot, user_id)
         nickname = await get_group_member_name(ctx.group_id, user_id)
         msg += f"{await get_image_cq(icon_url)}\n{nickname}({user_id})\n"
 
