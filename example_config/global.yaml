@@ -59,3 +59,6 @@ painter:
   process_num: 4  # 设置为0时在主进程使用多线程绘制
   log_operation: False
   roundrect_aa_target_radius: 32
+  emoji:
+    offset: [0, 2]
+    scale: 1.1
