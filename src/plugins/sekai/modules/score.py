@@ -11,6 +11,7 @@ from .music import (
     MusicSearchOptions,
     DIFF_COLORS,
     get_music_diff_level,
+    is_valid_music,
 )
 from decimal import Decimal, ROUND_DOWN
 import pandas as pd
@@ -179,7 +180,7 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
             # 计算两次控分推荐
             interval = 300
             x, y = target_point // interval * interval, target_point % interval
-            if y < 120:
+            if y < 150:
                 x -= 100
                 y += 100
             msg += f"(例如{x}+{y})"
@@ -289,6 +290,8 @@ async def compose_custom_room_score_control_image(ctx: SekaiHandlerContext, targ
     for event_rate, event_bonus in results:
         if event_rate not in event_rate_music_list_map:
             for meta in find_by(music_metas, "event_rate", event_rate, mode='all')[:MUSIC_NUM_PER_EVENT_RATE]:
+                if not await is_valid_music(ctx, meta['music_id'], leak=False):
+                    continue
                 music = await ctx.md.musics.find_by_id(meta['music_id'])
                 event_rate_music_list_map.setdefault(event_rate, []).append({
                     'music_id': meta['music_id'],
