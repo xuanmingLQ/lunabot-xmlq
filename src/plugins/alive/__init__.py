@@ -169,7 +169,7 @@ async def _(bot: Bot, event: NoticeEvent):
         if not imgs:
             return
         img = random.choice(imgs)
-        await send_group_msg_by_bot(bot, event.group_id, await get_image_cq(img))
+        await send_group_msg_by_bot(event.group_id, await get_image_cq(img))
 
     except:
         logger.print_exc("回复戳失败")

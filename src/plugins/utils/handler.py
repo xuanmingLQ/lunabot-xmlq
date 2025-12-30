@@ -63,6 +63,29 @@ async def aget_group_bot(group_id: int, raise_exc: bool = False) -> Bot | None:
         utils_logger.warning(f'发现多个Bot在群 {group_id}，默认返回self_id最小的Bot {valid_bots[0].self_id}')
     return valid_bots[0]
 
+async def aget_private_bot(user_id: int, raise_exc: bool = False) -> Bot | None:
+    """
+    通过用户号获取对应的Bot对象
+    """
+    user_id = int(user_id)
+    bots = get_all_bots()
+    valid_bots: list[Bot] = []
+    for bot in bots:
+        try:
+            friend_ids = await get_friend_ids(bot)
+            if user_id in friend_ids:
+                valid_bots.append(bot)
+        except Exception as e:
+            utils_logger.warning(f'通过用户号获取对应的Bot对象时获取Bot {bot.self_id} 的好友列表失败: {get_exc_desc(e)}')
+    valid_bots.sort(key=lambda x: int(x.self_id))
+    if len(valid_bots) == 0:
+        if raise_exc:
+            raise Exception(f'未找到可与用户 {user_id} 私聊的可用Bot')
+        return None
+    if len(valid_bots) > 1:
+        utils_logger.warning(f'发现多个Bot可与用户 {user_id} 私聊，默认返回self_id最小的Bot {valid_bots[0].self_id}')
+    return valid_bots[0]
+
 
 # ============================ MonkeyPatch ============================ #
 
@@ -200,6 +223,12 @@ class BotGroupsCache:
     expire_time: datetime
 _bot_group_cache: dict[int, BotGroupsCache] = {}
 
+@dataclass
+class BotFriendsCache:
+    friend_ids: set[int]
+    expire_time: datetime
+_bot_friend_cache: dict[int, BotFriendsCache] = {}
+
 
 def get_user_name_by_event(event_or_reply: MessageEvent | Reply) -> str:
     """
@@ -294,7 +323,24 @@ async def get_stranger_info(bot: Bot, user_id: int) -> dict:
         expire_time=datetime.now() + timedelta(seconds=GROUP_MEMBER_NAME_CACHE_EXPIRE_SECONDS_CFG.get())
     )
     return info
-    
+
+async def get_friend_ids(bot: Bot) -> List[int]:
+    """
+    获取好友列表id
+    """
+    bot_id = int(bot.self_id)
+    if bot_id in _bot_friend_cache:
+        cache = _bot_friend_cache[bot_id]
+        if cache.expire_time > datetime.now():
+            return list(cache.friend_ids)
+    friend_list = await bot.call_api('get_friend_list')
+    cache = BotFriendsCache(
+        friend_ids=set(int(friend['user_id']) for friend in friend_list),
+        expire_time=datetime.now() + timedelta(seconds=BOT_GROUP_IDS_CACHE_EXPIRE_SECONDS_CFG.get()),
+    )
+    _bot_friend_cache[bot_id] = cache
+    return list(cache.friend_ids)
+
 async def get_group_users(bot: Bot, group_id: int) -> List[dict]:
     """
     获取群聊中所有用户
@@ -724,6 +770,12 @@ async def check_in_group(bot: Bot, group_id: int):
     """
     return int(group_id) in await get_group_ids(bot)
 
+async def check_is_friend(bot: Bot, user_id: int):
+    """
+    检查bot是否与某个用户是好友关系
+    """
+    return int(user_id) in await get_friend_ids(bot)
+
 def check_in_blacklist(user_id: int):
     """
     检查用户是否在黑名单中
@@ -917,6 +969,7 @@ async def send_group_msg_by_bot(group_id: int, content: str, bot: Bot = None):
         bot = await aget_group_bot(group_id)
         if bot is None:
             utils_logger.warning(f'取消发送消息到群 {group_id}，没有可用的bot')
+            return
     if check_group_disabled(group_id):
         utils_logger.warning(f'取消发送消息到被全局禁用的群 {group_id}')
         return
@@ -931,8 +984,16 @@ async def send_private_msg_by_bot(user_id: int, content: str, bot: Bot = None):
     在event外发送私聊消息
     """
     if bot is None:
-        # TODO 自动选择一个bot发送私聊消息
-        raise NotImplementedError("暂不支持event外的自动检测bot私聊消息发送")
+        bot = await aget_private_bot(user_id)
+        if bot is None:
+            utils_logger.warning(f'取消发送私聊消息给用户 {user_id}，没有可用的bot')
+            return
+    if check_in_blacklist(user_id):
+        utils_logger.warning(f'取消发送私聊消息给黑名单用户 {user_id}')
+        return
+    if not await check_is_friend(bot, user_id):
+        utils_logger.warning(f'取消发送私聊消息给非好友用户 {user_id}')
+        return
     return await bot.send_private_msg(user_id=int(user_id), message=content)
 
 # -------- 折叠消息处理 -------- #
@@ -1122,8 +1183,8 @@ async def fold_msg_fallback(
         method = DEFAULT_FOLD_FALLBACK_METHOD_CFG.get()
     def send(msg: str):
         if user_id:
-            return send_private_msg_by_bot(bot, user_id, msg)
-        return send_group_msg_by_bot(bot, group_id, msg)
+            return send_private_msg_by_bot(user_id, msg)
+        return send_group_msg_by_bot(group_id, msg)
     utils_logger.warning(f'发送折叠消息失败，fallback为发送普通消息(method={method}): {get_exc_desc(e)}')
     if method == 'seperate':
         contents[0] = "（发送折叠消息失败）\n" + contents[0]
@@ -1182,10 +1243,10 @@ async def send_fold_msg_adaptive(
         ret = None
         if group_id:
             for content in contents:
-                ret = await send_group_msg_by_bot(bot, group_id, f'{reply_cq}{content}')
+                ret = await send_group_msg_by_bot(group_id, f'{reply_cq}{content}')
         else:
             for content in contents:
-                ret = await send_private_msg_by_bot(bot, user_id, f'{reply_cq}{content}')
+                ret = await send_private_msg_by_bot(user_id, f'{reply_cq}{content}')
         return ret
     else:
         # 折叠消息

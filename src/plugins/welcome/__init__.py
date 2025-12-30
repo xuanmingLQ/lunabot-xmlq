@@ -80,7 +80,7 @@ async def handle_increase(group_id, user_id, sub_type):
         else:
             msg = f"{name} 加入群聊"
 
-    await send_group_msg_by_bot(bot, group_id, msg)
+    await send_group_msg_by_bot(group_id, msg)
     await asyncio.sleep(3)
     return await update_member_info(group_id)
 
@@ -100,7 +100,7 @@ async def handle_decrease(group_id, user_id, sub_type):
     members = file_db.get(f'{group_id}_members', {})
     name = members.get(str(user_id), '')
 
-    await send_group_msg_by_bot(bot, group_id, f"{name}({user_id}) 退出群聊")
+    await send_group_msg_by_bot(group_id, f"{name}({user_id}) 退出群聊")
     await asyncio.sleep(3)
     return await update_member_info(group_id)
 

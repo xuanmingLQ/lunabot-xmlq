@@ -190,8 +190,8 @@ async def private_forward_hook(bot: Bot, event: MessageEvent):
     for forward_user_id in file_db.get('private_forward_list', []):
         if user_id == forward_user_id:
             continue
-        await send_private_msg_by_bot(bot, forward_user_id, f"来自{nickname}({user_id})的私聊消息:")
-        await send_private_msg_by_bot(bot, forward_user_id, msg)
+        await send_private_msg_by_bot(forward_user_id, f"来自{nickname}({user_id})的私聊消息:")
+        await send_private_msg_by_bot(forward_user_id, msg)
 
 
 # log各种事件消息

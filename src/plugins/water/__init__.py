@@ -430,6 +430,6 @@ async def check_auto_water(bot: Bot, event: MessageEvent):
     
     if res:
         res = f"[CQ:reply,id={event.message_id}]{res.strip()}"
-        await send_group_msg_by_bot(bot, group_id, res)
+        await send_group_msg_by_bot(group_id, res)
 
     
