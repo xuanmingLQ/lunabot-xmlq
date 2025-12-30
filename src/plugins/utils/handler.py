@@ -189,6 +189,12 @@ class GroupMemberNameCache:
 _group_member_name_cache: dict[tuple[int, int], GroupMemberNameCache] = {}
 
 @dataclass
+class StrangerNameCache:
+    name: str
+    expire_time: datetime
+_stranger_name_cache: dict[int, StrangerNameCache] = {}
+
+@dataclass
 class BotGroupsCache:
     group_ids: set[int]
     expire_time: datetime
@@ -270,13 +276,25 @@ async def get_stranger_info(bot: Bot, user_id: int) -> dict:
     """
     获取陌生人信息
     """
-    # TODO: 多bot支持
-    return {
-        'user_id': int(user_id),
-        'nickname': f'{user_id}',
-    }
-    return await bot.call_api('get_stranger_info', **{'user_id': int(user_id)})
-
+    global _stranger_name_cache
+    # 清空过期缓存
+    for key in list(_stranger_name_cache.keys()):
+        if _stranger_name_cache[key].expire_time <= datetime.now():
+            del _stranger_name_cache[key]
+    
+    user_id = int(user_id)
+    cache = _stranger_name_cache.get(user_id)
+    if cache and cache.expire_time > datetime.now():
+        return {'user_id': int, 'nickname': cache.name }
+    
+    info = await bot.call_api('get_stranger_info', **{'user_id': user_id})
+    name = info.get('nickname', str(user_id))
+    _stranger_name_cache[user_id] = StrangerNameCache(
+        name=name,
+        expire_time=datetime.now() + timedelta(seconds=GROUP_MEMBER_NAME_CACHE_EXPIRE_SECONDS_CFG.get())
+    )
+    return info
+    
 async def get_group_users(bot: Bot, group_id: int) -> List[dict]:
     """
     获取群聊中所有用户
