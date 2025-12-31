@@ -1808,7 +1808,7 @@ async def compose_deck_recommend_image(
                         if options.skill_order_choose_strategy == 'average':
                             skill_order_text = "技能顺序: ⚖️平均情况"
                         elif options.skill_order_choose_strategy == 'max':
-                            skill_order_text = "技能顺序: ⭐️最优顺序"
+                            skill_order_text = "技能顺序: 🌟最优顺序"
                         elif options.skill_order_choose_strategy == 'min':
                             skill_order_text = "技能顺序: 🥀最差顺序"
                         elif options.skill_order_choose_strategy == 'specific':
@@ -1818,7 +1818,7 @@ async def compose_deck_recommend_image(
                         if options.skill_reference_choose_strategy == 'average':
                             skill_reference_text = "BloomFes花前技能吸取: ⚖️平均值"
                         elif options.skill_reference_choose_strategy == 'max':
-                            skill_reference_text = "BloomFes花前技能吸取: ⭐️最大值"
+                            skill_reference_text = "BloomFes花前技能吸取: 🌟最大值"
                         elif options.skill_reference_choose_strategy == 'min':
                             skill_reference_text = "BloomFes花前技能吸取: 🥀最小值"
 
