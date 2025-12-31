@@ -1458,7 +1458,8 @@ async def compose_deck_recommend_image(
                 if p_card := find_by(profile['userCards'], 'cardId', bp_card['cardId']):
                     p_card.update(bp_card)
                 else:
-                    profile['userCards'].append(bp_card)
+                    # suite中没有该卡，提示需要抓包更新
+                    raise ReplyException(f"当前卡组中的卡牌 {bp_card['cardId']} 不在Suite数据中，请更新抓包数据")
 
     # 如果卡组完全固定则只需要跑一种算法，并删除profile中除固定以外的其他卡牌以减少开销
     is_deck_fixed = options.fixed_cards and len(options.fixed_cards) == 5 or use_current_deck
