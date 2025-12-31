@@ -50,18 +50,23 @@ msgs_to_insert: dict[int, list[dict]] = {}
 
 # 记录消息
 async def record_message(bot: Bot, event: GroupMessageEvent):
-    if event.message_id in message_id_set: return
-    if not is_group_msg(event) and event.user_id == event.self_id: return
+    if event.message_id in message_id_set: 
+        return
+    if not is_group_msg(event) and event.user_id == event.self_id: 
+        return
+    if on_safe_mode() and not check_superuser(event):
+        return
+    
     message_id_set.add(event.message_id)
 
     with ProfileTimer("record.total"):
         with ProfileTimer("record.hooks.before"):
             before_hook_tasks = []
             for hook in before_record_hook_funcs:
-                async def run_before_hook():
+                async def run_before_hook(hook, bot, event):
                     try: await hook(bot, event)
                     except: logger.print_exc(f"记录消息前hook {hook.__name__} 执行失败")
-                before_hook_tasks.append(run_before_hook())
+                before_hook_tasks.append(run_before_hook(hook, bot, event))
             await asyncio.gather(*before_hook_tasks)
 
         if record_msg_gbl.check(event, allow_super=False) or event.user_id == event.self_id:
@@ -104,10 +109,10 @@ async def record_message(bot: Bot, event: GroupMessageEvent):
                 ))
 
         for hook in after_record_hook_funcs:
-            async def run_after_hook():
+            async def run_after_hook(hook, bot, event):
                 try: await hook(bot, event)
                 except: logger.print_exc(f"记录消息后hook {hook.__name__} 执行失败")
-            asyncio.create_task(run_after_hook())
+            asyncio.create_task(run_after_hook(hook, bot, event))
 
 # 插入数据库消息定时任务
 @repeat_with_interval(config.get('insert_msg_loop_interval_seconds'), '插入消息到数据库', logger)

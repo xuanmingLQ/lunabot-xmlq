@@ -810,6 +810,11 @@ def check_self_reply(event: MessageEvent):
     """
     return int(event.message_id) in _bot_reply_msg_ids
 
+def on_safe_mode() -> bool:
+    """
+    检查当前是否处于安全模式
+    """
+    return utils_file_db.get('safe_mode')
 
 # ============================ 消息发送 ============================ #
 
@@ -2169,7 +2174,7 @@ class CmdHandler:
                 
                 with ProfileTimer("handler.check_privilege"):
                     # 安全模式
-                    if utils_file_db.get('safe_mode') and not check_superuser(event):
+                    if on_safe_mode() and not check_superuser(event):
                         return
 
                     # 禁止私聊自己的指令生效

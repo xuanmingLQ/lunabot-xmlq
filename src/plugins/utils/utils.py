@@ -62,7 +62,7 @@ class ProfileTimer:
         if self.name and global_config.get('timer.enable'):
             log_prefixes = global_config.get('timer.log_prefix', [])
             if log_prefixes and self.name.startswith(tuple(log_prefixes)):
-                profile_logger.profile(f"<{self.name}> cost {self.get():.3f}s ({self.start_time.strftime('%H:%M:%S')} - {self.end_time.strftime('%H:%M:%S')})")
+                profile_logger.profile(f"<{self.name}> cost {self.get():.3f}s ({self.start_time.strftime('%M:%S.%f')} - {self.end_time.strftime('%M:%S.%f')})")
 
     def __enter__(self):
         self.start()
