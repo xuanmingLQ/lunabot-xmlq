@@ -48,6 +48,25 @@ async def insert_msg(group_id, time: datetime, msg_id: int, user_id: int, nickna
     await conn.execute(insert_query, (time, msg_id, user_id, nickname, content))
     await conn.commit()
     logger.debug(f"插入消息 {msg_id} 到 {MSG_TABLE_NAME.format(group_id)} 表")
+
+# 插入多条消息到消息表
+async def insert_msgs(group_id, msgs: list):
+    conn = await get_conn(group_id)
+    insert_query = f'''
+        INSERT INTO {MSG_TABLE_NAME.format(group_id)} (time, msg_id, user_id, nickname, content)
+        VALUES (?, ?, ?, ?, ?)
+    '''
+    values = []
+    for msg in msgs:
+        time = msg['time'].timestamp()
+        msg_id = msg['msg_id']
+        user_id = msg['user_id']
+        nickname = msg['nickname']
+        content = dumps_json(msg['msg'])
+        values.append((time, msg_id, user_id, nickname, content))
+    await conn.executemany(insert_query, values)
+    await conn.commit()
+    logger.debug(f"插入多条消息 到 {MSG_TABLE_NAME.format(group_id)} 表 共 {len(msgs)} 条")
     
 # 消息表row转换为返回值
 def msg_row_to_ret(row):

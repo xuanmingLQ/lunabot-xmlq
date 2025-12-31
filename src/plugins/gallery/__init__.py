@@ -147,7 +147,7 @@ class GalleryManager:
         return True
 
     async def _async_check_duplicated(self, pic: GalleryPic, gallery: Gallery) -> int | None:
-        with Timer("check_duplicated", logger):
+        with ProfileTimer("gallery.check_duplicated"):
             def check():
                 for p in gallery.pics:
                     if pic.is_same(p):
@@ -445,11 +445,11 @@ def process_image_for_gallery(path: str, sub_type: int):
     filesize_mb = os.path.getsize(path) / (1024 * 1024)
     if filesize_mb > size_limit:
         pixels = get_image_pixels(img)
-        with Timer("limit_image_by_pixels", logger):
+        with ProfileTimer("gallery.limit_image_by_pixels"):
             img = limit_image_by_pixels(img, int(pixels * size_limit / filesize_mb))
         scaled = True
 
-    with Timer("save_image", logger):
+    with ProfileTimer("gallery.save_image"):
         if need_to_gif:
             # 转换为静态gif
             save_transparent_static_gif(img, path)

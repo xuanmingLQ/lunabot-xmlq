@@ -40,13 +40,11 @@ def get_exc_desc(e: Exception) -> str:
     if et and e: return f"{et}: {e}"
     else: return et + e
 
-class Timer:
-    def __init__(self, name: str = None, logger: 'Logger' = None, debug: bool = True):
+class ProfileTimer:
+    def __init__(self, name: str = None):
         self.name = name
-        self.logger = logger
         self.start_time = None
         self.end_time = None
-        self.debug = debug
 
     def get(self) -> float:
         if self.start_time is None:
@@ -61,11 +59,10 @@ class Timer:
     
     def end(self):
         self.end_time = datetime.now()
-        if self.logger:
-            if self.debug:
-                self.logger.debug(f"{self.name} 耗时 {self.get():.2f}秒")
-            else:
-                self.logger.info(f"{self.name} 耗时 {self.get():.2f}秒")
+        if self.name and global_config.get('timer.enable'):
+            log_prefixes = global_config.get('timer.log_prefix', [])
+            if log_prefixes and self.name.startswith(tuple(log_prefixes)):
+                profile_logger.profile(f"<{self.name}> cost {self.get():.3f}s ({self.start_time.strftime('%H:%M:%S')} - {self.end_time.strftime('%H:%M:%S')})")
 
     def __enter__(self):
         self.start()
@@ -678,11 +675,12 @@ class Logger:
     def __init__(self, name):
         self.name = name
 
-    def log(self, msg, flush=True, end='\n', level='INFO'):
-        if level not in LOG_LEVELS:
-            raise Exception(f'未知日志等级 {level}')
+    def log(self, msg, flush=True, end='\n', level='INFO', real_level=None):
+        real_level = real_level or level
+        if real_level not in LOG_LEVELS:
+            raise Exception(f'未知日志等级 {real_level}')
         log_level = global_config.get('log_level').upper()
-        if LOG_LEVELS.index(level) < LOG_LEVELS.index(log_level):
+        if LOG_LEVELS.index(real_level) < LOG_LEVELS.index(log_level):
             return
         time = datetime.now().strftime("%m-%d %H:%M:%S.%f")[:-3]
         print(f'{time} {level} [{self.name}] {msg}', flush=flush, end=end)
@@ -698,6 +696,9 @@ class Logger:
 
     def error(self, msg, flush=True, end='\n'):
         self.log(msg, flush=flush, end=end, level='ERROR')
+
+    def profile(self, msg, flush=True, end='\n'):
+        self.log(msg, flush=flush, end=end, level='PROFILE', real_level='INFO')
 
     def print_exc(self, msg=None):
         self.error(msg)
@@ -776,7 +777,7 @@ def get_logger(name: str) -> Logger:
     return _loggers[name]
 
 utils_logger = get_logger('Utils')
-
+profile_logger = get_logger('Profile')
 
 
 # ============================ 文件数据库 ============================ #
