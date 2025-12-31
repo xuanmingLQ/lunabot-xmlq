@@ -360,7 +360,8 @@ async def query_server(server: ServerData):
 @repeat_with_interval(QUERY_INTERVAL, '请求服务器', logger)
 async def query_all_servers():
     for server in servers:
-        asyncio.get_event_loop().create_task(query_server(server))
+        if server.listen_mode != 'off' and server.url:
+            asyncio.get_event_loop().create_task(query_server(server))
 
 # 消费消息队列
 @repeat_with_interval(QUEUE_CONSUME_INTERVAL, '消费消息队列', logger)

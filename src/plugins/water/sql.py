@@ -49,7 +49,7 @@ async def insert_hash(group_id: int, type: str, hash: str, msg_id: int, user_id:
         VALUES (?,?,?,?,?,?,?)
         """, (type, hash, msg_id, user_id, nickname, time, unique_id))
     await conn.commit()
-    logger.debug(f"插入hash数据 type={type} hash={hash} msg_id={msg_id} user_id={user_id} nickname={nickname} time={time} unique_id={unique_id}")
+    # logger.debug(f"插入hash数据 type={type} hash={hash} msg_id={msg_id} user_id={user_id} nickname={nickname} time={time} unique_id={unique_id}")
 
 # 插入多条hash数据
 async def insert_hashes(group_id: int, hashes: list):
@@ -59,7 +59,7 @@ async def insert_hashes(group_id: int, hashes: list):
         VALUES (?,?,?,?,?,?,?)
         """, [(hash['type'], hash['hash'], hash['msg_id'], hash['user_id'], hash['nickname'], hash['time'], hash['unique_id']) for hash in hashes])
     await conn.commit()
-    logger.debug(f"插入{len(hashes)}条hash数据")
+    # logger.debug(f"插入{len(hashes)}条hash数据")
 
 # hash row 转换为 dict
 def hash_row_to_dict(row):

@@ -2171,12 +2171,12 @@ class CmdHandler:
 
                 if self.disabled:
                     return
+
+                # 安全模式
+                if on_safe_mode() and not check_superuser(event):
+                    return
                 
                 with ProfileTimer("handler.check_privilege"):
-                    # 安全模式
-                    if on_safe_mode() and not check_superuser(event):
-                        return
-
                     # 禁止私聊自己的指令生效
                     if not is_group_msg(event) and event.user_id == event.self_id:
                         self.logger.warning(f'取消私聊自己的指令处理')
