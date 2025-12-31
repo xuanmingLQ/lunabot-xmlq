@@ -79,19 +79,18 @@ async def handle_echo_delay(cid, message, delay):
 # 获取群组列表
 @rpc_method(RPC_SERVICE, 'get_group_list')
 async def handle_get_group_list(cid):
-    bot = get_bot()
-    return await get_group_list(bot)
+    return await get_all_bot_group_list()
 
 # 获取群组信息
 @rpc_method(RPC_SERVICE, 'get_group')
 async def handle_get_group(cid, group_id):
-    bot = get_bot()
+    bot = await aget_group_bot(group_id, raise_exc=True)
     return await get_group(bot, group_id)
 
 # 发送群消息
 @rpc_method(RPC_SERVICE, 'send_group_msg')
 async def handle_send_group_msg(cid, group_id, message):
-    bot = get_bot()
+    bot = await aget_group_bot(group_id, raise_exc=True)
     if isinstance(message, str):
         message=Message(message)
     return await bot.send_group_msg(group_id=int(group_id), message=message)
@@ -132,8 +131,8 @@ async def handle_set_client_data(cid, name, data):
 
 # 获取消息
 @rpc_method(RPC_SERVICE, 'get_msg')
-async def handle_get_msg(cid, msg_id):
-    bot = get_bot()
+async def handle_get_msg(cid, group_id, msg_id):
+    bot = await aget_group_bot(group_id, raise_exc=True)
     msg_obj = await get_msg_obj_by_bot(bot, msg_id)
     return {
         'msg_id': msg_obj['message_id'],
@@ -145,8 +144,8 @@ async def handle_get_msg(cid, msg_id):
 
 # 获取转发消息
 @rpc_method(RPC_SERVICE, 'get_forward_msg')
-async def handle_get_forward_msg(cid, forward_id):
-    bot = get_bot()
+async def handle_get_forward_msg(cid, group_id, forward_id):
+    bot = await aget_group_bot(group_id, raise_exc=True)
     msgs = (await get_forward_msg(bot, forward_id))['messages']
     return [{
         'msg_id': msg['message_id'],
@@ -186,5 +185,5 @@ async def handle_send_group_msg_split(cid, group_id, md5, is_str):
         message = loads_json(message)
     else:
         message = Message(message)
-    bot = get_bot()
+    bot = await aget_group_bot(group_id, raise_exc=True)
     return await bot.send_group_msg(group_id=int(group_id), message=message)

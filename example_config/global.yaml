@@ -3,6 +3,7 @@ superuser:
   - 12345678
 
 group_member_name_cache_expire_seconds: 60  # 群成员名称缓存过期时间（秒）
+bot_group_ids_cache_expire_seconds: 60      # bot所在群ID缓存过期时间（秒）
 
 msg_send:
   rate_limit:
@@ -58,3 +59,6 @@ painter:
   process_num: 4  # 设置为0时在主进程使用多线程绘制
   log_operation: False
   roundrect_aa_target_radius: 32
+  emoji:
+    offset: [0, 2]
+    scale: 1.1

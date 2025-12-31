@@ -2203,8 +2203,6 @@ async def _(ctx: SekaiHandlerContext):
 # MSR自动推送 & MSR订阅更新
 @repeat_with_interval(2, 'MSR自动推送', logger)
 async def msr_auto_push():
-    bot = get_bot()
-
     for region in ALL_SERVER_REGIONS:
         region_name = get_region_name(region)
         ctx = SekaiHandlerContext.from_region(region)
@@ -2300,12 +2298,12 @@ async def msr_auto_push():
                     await compose_mysekai_res_image(user_ctx, qid, False, True)
                 ]
                 contents = [f"[CQ:at,qq={qid}]的{region_name}MSR推送"] + contents
-                await send_group_msg_by_bot(bot, gid, "".join(contents))
+                await send_group_msg_by_bot(gid, "".join(contents))
             except MsrIdNotMatchException as e:
                 logger.warning(f'在 {gid} 中自动推送用户 {qid} 的{region_name}Mysekai资源查询失败: 限制id不匹配')
             except Exception as e:
                 logger.print_exc(f'在 {gid} 中自动推送用户 {qid} 的{region_name}Mysekai资源查询失败')
-                try: await send_group_msg_by_bot(bot, gid, f"自动推送用户 [CQ:at,qq={qid}] 的{region_name}Mysekai资源查询失败: {get_exc_desc(e)}")
+                try: await send_group_msg_by_bot(gid, f"自动推送用户 [CQ:at,qq={qid}] 的{region_name}Mysekai资源查询失败: {get_exc_desc(e)}")
                 except: pass
 
         await batch_gather(*[push(task) for task in tasks], batch_size=MSR_PUSH_CONCURRENCY_CFG.get())

@@ -290,7 +290,7 @@ class ServerData:
 
 
 # 服务器列表  
-servers = set()
+servers: set[ServerData] = set()
 
 # 通过group_id获取服务器
 def get_server(group_id, raise_exc=True) -> ServerData:
@@ -366,13 +366,12 @@ async def query_all_servers():
 @repeat_with_interval(QUEUE_CONSUME_INTERVAL, '消费消息队列', logger)
 async def consume_queue():
     consume_queue_failed_count = 0
-    bot = get_bot()
     for server in servers:
         try:
             while len(server.queue) > 0:
                 msg = server.queue.pop(0)
                 msg = f'[Server] {msg}'
-                await send_group_msg_by_bot(bot, server.group_id, msg)
+                await send_group_msg_by_bot(server.group_id, msg)
                 consume_queue_failed_count = 0
         except Exception as e:
             if consume_queue_failed_count < 5:
@@ -541,7 +540,7 @@ async def _(ctx: HandlerContext):
     server = get_server(ctx.group_id)
     msg = '管理员列表:\n'
     for user_id in server.admin:
-        user_name = await get_group_member_name(ctx.bot, ctx.group_id, int(user_id))
+        user_name = await get_group_member_name(ctx.group_id, int(user_id))
         msg += f'{user_name}({user_id})\n'
     return await ctx.asend_reply_msg(msg.strip())
 
