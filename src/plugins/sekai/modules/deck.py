@@ -80,6 +80,7 @@ UNIT_FILTER_KEYWORDS = {
     "piapro": ["纯vs", "纯v", "仅vs", "仅v"],
 }
 MAX_PROFILE_KEYWORDS = ('顶配', '满配',)
+SUB_MAX_PROFILE_KEYWORDS = ('次顶配', '次满配', '中配',)
 CURRENT_DECK_KEYWORDS = ('当前', '目前')
 
 MUSIC_COMPARE_KEYWORDS = ('歌曲比较', '歌曲排行', '歌曲排名', '歌曲推荐',)
@@ -684,7 +685,7 @@ def extract_addtional_options(args: str) -> Tuple[dict, str]:
         for keyword in keywords:
             if keyword in args:
                 ret['unit_filter'] = unit
-                args = args.replace(keyword, "").strip()
+                args = args.replace(keyword, "", 1).strip()
                 break
 
     for names in CARD_ATTR_NAMES:
@@ -692,30 +693,36 @@ def extract_addtional_options(args: str) -> Tuple[dict, str]:
             keyword = '纯' + name
             if keyword in args:
                 ret['attr_filter'] = names[0]
-                args = args.replace(keyword, "").strip()
+                args = args.replace(keyword, "", 1).strip()
                 break
             keyword = '仅' + name
             if keyword in args:
                 ret['attr_filter'] = names[0]
-                args = args.replace(keyword, "").strip()
+                args = args.replace(keyword, "", 1).strip()
                 break
+
+    for keyword in SUB_MAX_PROFILE_KEYWORDS:
+        if keyword in args:
+            ret['sub_max_profile'] = True
+            args = args.replace(keyword, "", 1).strip()
+            break
     
     for keyword in MAX_PROFILE_KEYWORDS:
         if keyword in args:
             ret['max_profile'] = True
-            args = args.replace(keyword, "").strip()
+            args = args.replace(keyword, "", 1).strip()
             break
 
     for keyword in CURRENT_DECK_KEYWORDS:
         if keyword in args:
             ret['use_current_deck'] = True
-            args = args.replace(keyword, "").strip()
+            args = args.replace(keyword, "", 1).strip()
             break
 
     for keyword in MUSIC_COMPARE_KEYWORDS:
         if keyword in args:
             ret['music_compare'] = True
-            args = args.replace(keyword, "").strip()
+            args = args.replace(keyword, "", 1).strip()
 
     ret['excluded_cards'] = []
     segs = args.split()
@@ -725,7 +732,7 @@ def extract_addtional_options(args: str) -> Tuple[dict, str]:
                 x = int(seg[1:])
                 if 0 < x < 5000:
                     ret['excluded_cards'].append(x)
-                    args = args.replace(seg, "").strip()
+                    args = args.replace(seg, "", 1).strip()
             except ValueError:
                 pass
 
@@ -1177,7 +1184,7 @@ async def do_deck_recommend_batch(
     return ret
 
 # 构造顶配profile
-async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
+async def construct_max_profile(ctx: SekaiHandlerContext, max_area_item_level: int | None = None) -> dict:
     try: 
         await ctx.md.mysekai_gates.get()
         has_mysekai = True
@@ -1268,6 +1275,8 @@ async def construct_max_profile(ctx: SekaiHandlerContext) -> dict:
     for item in await ctx.md.area_item_levels.get():
         item_id = item['areaItemId']
         lv = item['level']
+        if max_area_item_level is not None and lv > max_area_item_level:
+            continue
         levels[item_id] = max(levels.get(item_id, 0), lv)
     p['userAreas'].append({
         "userAreaStatus": {},
@@ -1376,8 +1385,12 @@ async def compose_deck_recommend_image(
             
     # 是否是顶配租卡
     use_max_profile = additional.get('max_profile', False)
+    use_sub_max_profile = additional.get('sub_max_profile', False)
     if use_max_profile:
         profile = await construct_max_profile(ctx)
+        uid = None
+    elif use_sub_max_profile:
+        profile = await construct_max_profile(ctx, max_area_item_level=15)
         uid = None
     else:
         # 用户信息
@@ -1679,7 +1692,7 @@ async def compose_deck_recommend_image(
         
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16):
-            if not use_max_profile:
+            if uid is not None:
                 await get_detailed_profile_card(ctx, profile, pmsg)
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_padding(16).set_bg(roundrect_bg()):
@@ -1748,6 +1761,8 @@ async def compose_deck_recommend_image(
                         
                         if use_max_profile:
                             TextBox(f"({get_region_name(ctx.region)}顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
+                        if use_sub_max_profile:
+                            TextBox(f"({get_region_name(ctx.region)}次顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
 
                     if any([
                         unit_filter, attr_filter, 
@@ -1819,7 +1834,9 @@ async def compose_deck_recommend_image(
                             info_text += "如果你想指定仅包含某个团名或颜色的卡牌请用: 纯mmj 纯绿\n"
                             info_text += "如果你想组某个团名颜色加成的模拟活动请使用“/组卡”\n"
                     if use_max_profile:
-                        info_text += "“顶配”为该服截止当前的全卡满养成配置(并非基于你的卡组计算)\n"
+                        info_text += "\"顶配\"为该服截止当前的全卡满养成配置(并非基于你的卡组计算)\n"
+                    if use_sub_max_profile:
+                        info_text += "\"次顶配\"为该服截止当前的全卡满养成道具15级配置(并非基于你的卡组计算)\n"
                     if use_current_deck:
                         info_text += "活动组卡的“当前”队伍无需抓包更新，挑战组卡则需要抓包更新\n"
 
