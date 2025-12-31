@@ -46,7 +46,7 @@ def simplify_msg(msg):
 
 
 # 待插入数据库消息缓存
-msgs_to_insert: dict[int, list[dict]] = {}
+msgs_to_insert: list[dict] = []
 
 # 记录消息
 async def record_message(bot: Bot, event: GroupMessageEvent):
@@ -100,7 +100,8 @@ async def record_message(bot: Bot, event: GroupMessageEvent):
                     logger.info(f"[{msg_id}] {group_name}({group_id}) {user_name}({user_id}): {str(msg_for_log)}")
 
             if record_msg_gbl.check(event, allow_super=False):
-                msgs_to_insert.setdefault(group_id, []).append(dict(
+                msgs_to_insert.append(dict(
+                    group_id=group_id,
                     time=time,
                     msg_id=msg_id,
                     user_id=user_id,
@@ -117,14 +118,13 @@ async def record_message(bot: Bot, event: GroupMessageEvent):
 # 插入数据库消息定时任务
 @repeat_with_interval(config.get('insert_msg_loop_interval_seconds'), '插入消息到数据库', logger)
 async def insert_msg_task():
-    for group_id in list(msgs_to_insert.keys()):
-        msgs = msgs_to_insert[group_id]
-        try:
-            await insert_msgs(group_id, msgs)
-        except Exception as e:
-            logger.print_exc(f"插入 {len(msgs)} 条消息到群 {group_id} 的数据库失败")
-        del msgs_to_insert[group_id]
-
+    try:
+        if msgs_to_insert:
+            await insert_msgs(msgs_to_insert)
+    except Exception as e:
+        logger.print_exc(f"插入 {len(msgs_to_insert)} 条消息到数据库失败")
+    finally:
+        msgs_to_insert.clear()
 
 # 记录消息
 add = on_message(block=False, priority=-10000)

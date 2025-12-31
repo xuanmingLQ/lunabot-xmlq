@@ -336,55 +336,55 @@ async def _(ctx: HandlerContext):
 
 # ------------------------------------------ Hash记录 ------------------------------------------ #
 
-msgs_to_insert_num = 0
-msgs_to_insert: dict[int, list[dict]] = {}
+msgs_to_insert: list[dict] = []
 MAX_TASK_NUM = 10
 
 # 添加HASH记录任务
 @before_record_hook
 async def record_new_message(bot: Bot, event: MessageEvent):
-    global msgs_to_insert_num, msgs_to_insert
     if not gbl.check(event, allow_super=False): return
     if not is_group_msg(event): return
     group_id = event.group_id
     nickname = get_user_name_by_event(event)
-    if msgs_to_insert_num < MAX_TASK_NUM:
-        msgs_to_insert.setdefault(group_id, []).append({
-            'msg_id': event.message_id,
-            'time': event.time,
-            'user_id': event.user_id,
-            'nickname': nickname,
-            'msg': get_msg(event),
-        })
-        msgs_to_insert_num += 1
-    else:
-        logger.info(f'任务队列大小超过限制，丢弃任务')
+    msgs_to_insert.append({
+        'group_id': group_id,
+        'msg_id': event.message_id,
+        'time': event.time,
+        'user_id': event.user_id,
+        'nickname': nickname,
+        'msg': get_msg(event),
+    })
+    while len(msgs_to_insert) > MAX_TASK_NUM:
+        msgs_to_insert.pop(0)
+        logger.info(f'任务队列大小超过限制，丢弃最早的任务')
 
 # HASH记录任务任务处理
 @repeat_with_interval(config.get('insert_hashes_interval_seconds'), '插入Hash记录', logger)
 async def handle_task():
-    global msgs_to_insert_num, msgs_to_insert
-    for group_id in list(msgs_to_insert.keys()):
-        msgs = msgs_to_insert.pop(group_id)
-        msgs_to_insert_num -= len(msgs)
-        hashes = []
-        for msg in msgs:
-            try:
-                hs = await get_hash_from_msg(group_id, msg['msg'])
-                for h in hs:
-                    hashes.append({
-                        'type': h['type'],
-                        'hash': h['hash'],
-                        'msg_id': msg['msg_id'],
-                        'user_id': msg['user_id'],
-                        'nickname': msg['nickname'],
-                        'time': msg['time'],
-                        'unique_id': h.get('file_unique', ""),
-                    })
-            except Exception as e:
-                logger.print_exc(f'获取消息 {msg["msg_id"]} 的Hash失败')
-        await insert_hashes(group_id, hashes)
-        logger.debug(f'插入群聊 {group_id} 由 {len(msgs)} 条消息生成的 {len(hashes)} 条Hash记录')
+    try:
+        if msgs_to_insert:
+            hashes = []
+            for msg in msgs_to_insert:
+                try:
+                    hs = await get_hash_from_msg(msg['group_id'], msg['msg'])
+                    for h in hs:
+                        hashes.append({
+                            'group_id': msg['group_id'],
+                            'type': h['type'],
+                            'hash': h['hash'],
+                            'msg_id': msg['msg_id'],
+                            'user_id': msg['user_id'],
+                            'nickname': msg['nickname'],
+                            'time': msg['time'],
+                            'unique_id': h.get('file_unique', ""),
+                        })
+                except Exception as e:
+                    logger.print_exc(f'获取消息 {msg["msg_id"]} 的Hash失败')
+            await insert_hashes(hashes)
+            logger.debug(f'插入由 {len(msgs_to_insert)} 条消息生成的 {len(hashes)} 条Hash记录')
+    finally:
+        msgs_to_insert.clear()
+
 
 
 # ------------------------------------------ 自动水果 ------------------------------------------ #
