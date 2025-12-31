@@ -117,7 +117,7 @@ async def get_status_image_cq():
     return await get_image_cq(await render_current_template(collected=collected, bg=bg))
 
 
-status = CmdHandler(["status", "状态"], logger, only_to_me=True, block=True, priority=1000)
+status = CmdHandler(["status", "状态"], logger, only_to_me=True, block=True)
 status.check_cdrate(cd)
 @status.handle()
 async def _(ctx: HandlerContext):

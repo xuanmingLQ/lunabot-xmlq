@@ -1981,7 +1981,7 @@ def update_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str:
 pjsk_mysekai_res = SekaiCmdHandler([
     "/pjsk mysekai res", "/msr", "/msmap", "/msa",
     "/mysekai 资源", 
-], regions=MYSEKAI_REGIONS, priority=101)
+], regions=MYSEKAI_REGIONS, priority=1)
 pjsk_mysekai_res.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_res.handle()
 async def _(ctx: SekaiHandlerContext):

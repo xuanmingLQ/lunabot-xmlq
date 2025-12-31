@@ -635,7 +635,7 @@ async def _(ctx: HandlerContext):
 
 gall_alias_add = CmdHandler([
     '/gall alias add', '/gall add alias',
-], logger, priority=200)
+], logger, priority=1)
 gall_alias_add.check_cdrate(cd).check_wblist(gbl).check_superuser()
 @gall_alias_add.handle()
 async def _(ctx: HandlerContext):
@@ -1068,7 +1068,7 @@ async def _(ctx: HandlerContext):
 
 gall_download_all = CmdHandler([
     '/gall download link', '/下载图包', '/下载看', '/下载画廊',
-], logger, priority=101)
+], logger, priority=1)
 gall_download_all.check_cdrate(cd).check_wblist(gbl)
 @gall_download_all.handle()
 async def _(ctx: HandlerContext):

@@ -1998,7 +1998,7 @@ class CmdHandler:
             commands: Union[str, SegCmd, List[Union[str, SegCmd]]], 
             logger: Logger, 
             error_reply=True, 
-            priority=100, 
+            priority=0, 
             block=True, 
             only_to_me=False, 
             disabled=False, 

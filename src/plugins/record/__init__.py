@@ -127,7 +127,7 @@ async def insert_msg_task():
         msgs_to_insert.clear()
 
 # 记录消息
-add = on_message(block=False, priority=-10000)
+add = on_message(block=False, priority=-1)
 @add.handle()
 async def _(bot: Bot, event: MessageEvent):
     if not gbl.check(event, allow_private=True, allow_super=False): return

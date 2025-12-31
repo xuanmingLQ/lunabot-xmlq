@@ -255,8 +255,7 @@ query_msg_ids = set()
 # 询问
 CHAT_CMDS = ["/chat", ]
 chat_request = CmdHandler(
-    [""], logger, 
-    block=False, priority=0, 
+    [""], logger, block=False, 
     help_command="/chat", help_trigger_condition=trigger_chat_help_condition,
 )
 @chat_request.handle()
