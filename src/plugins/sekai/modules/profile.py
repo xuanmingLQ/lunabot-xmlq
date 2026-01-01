@@ -1898,7 +1898,7 @@ async def _(ctx: HandlerContext):
 # 查询绑定历史
 pjsk_bind_history = CmdHandler([
     "/pjsk bind history", "/pjsk bind his", "/绑定历史", "/绑定记录",
-], logger, priority=200)
+], logger, priority=1)
 pjsk_bind_history.check_cdrate(cd).check_wblist(gbl).check_superuser()
 @pjsk_bind_history.handle()
 async def _(ctx: HandlerContext):

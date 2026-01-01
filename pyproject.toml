@@ -51,6 +51,7 @@ dependencies = [
     "tencentcloud-sdk-python",
     "uvloop",
     "wordcloud",
+    "yappi>=1.7.3",
     "yt-dlp",
     "zhconv>=1.4.3",
     "zhon",
