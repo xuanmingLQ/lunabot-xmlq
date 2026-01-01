@@ -772,8 +772,6 @@ async def extract_event_options(ctx: SekaiHandlerContext, args: str) -> Dict:
     options.sa_options = DeckRecommendSaOptions()
     options.sa_options.max_no_improve_iter = 10000
 
-    logger.debug('finished extract_event_options')
-
     return {
         'options': options,
         'last_args': args.strip(),
@@ -1537,8 +1535,6 @@ async def compose_deck_recommend_image(
             options.music_id, options.music_diff = res
             use_recommended_challenge_music = True
 
-    logger.debug('finished processing additional deck recommend options')
-
     # ---------------------------- 调用组卡服务 ---------------------------- #
 
     options.region = ctx.region
@@ -1570,8 +1566,6 @@ async def compose_deck_recommend_image(
         # 正常组卡
         all_options = [options]
 
-    logger.debug('finished preparing deck recommend batch options')
-
     # 调用组卡并合并批次结果
     cost_times, wait_times = {}, {}
     result_decks = []
@@ -1593,8 +1587,6 @@ async def compose_deck_recommend_image(
         result_music_decks = result_music_decks[:music_compare_show_num]
         result_decks = [d for _, d in result_music_decks]
         music_diffs_to_compare = [md for md, _ in result_music_decks]
-
-    logger.debug('finished deck recommend batch')
 
     # ---------------------------- 绘图数据获取 ---------------------------- #
 
@@ -1694,8 +1686,6 @@ async def compose_deck_recommend_image(
             chara_id = (await ctx.md.cards.find_by_id(card_id))['characterId']
             _, high_score, _, _ = challenge_live_info.get(chara_id, (None, 0, None, None))
             challenge_score_dlt.append(deck.score - high_score)
-
-    logger.debug('finished gathering deck recommend drawing data')
 
     # ---------------------------- 绘图 ---------------------------- #
         
@@ -2022,12 +2012,9 @@ async def compose_deck_recommend_image(
 
     add_watermark(canvas)
 
-    logger.debug('finished layouting deck recommend canvas')
-
     with ProfileTimer("deckrec.draw"):
         img = await canvas.get_img()
 
-    logger.debug('finished drawing deck recommend image')
     return img
 
 
@@ -2042,7 +2029,6 @@ pjsk_event_deck = SekaiCmdHandler([
 pjsk_event_deck.check_cdrate(cd).check_wblist(gbl)
 @pjsk_event_deck.handle()
 async def _(ctx: SekaiHandlerContext):
-    logger.debug('enter deckrec handler')
     with ProfileTimer("deckrec.total"):
         await ctx.asend_reply_msg(await get_image_cq(
             await compose_deck_recommend_image(
@@ -2051,7 +2037,6 @@ async def _(ctx: SekaiHandlerContext):
             ),
             low_quality=True,
         ))
-        logger.debug('exit deckrec handler')
 
 
 # 挑战组卡
