@@ -805,12 +805,20 @@ class FileDB:
         self.logger.debug(f'保存数据库 {self.path}')
 
     def get(self, key: str, default: Any=None) -> Any:
+        """
+        - 获取某个key的值，找不到返回default
+        - 直接返回缓存对象，若要进行修改又不影响DB内容则必须自行deepcopy
+        """
+        assert isinstance(key, str), f'key必须是字符串，当前类型: {type(key)}'
+        return self.data.get(key, default)
+
+    def get_copy(self, key: str, default: Any=None) -> Any:
         assert isinstance(key, str), f'key必须是字符串，当前类型: {type(key)}'
         return deepcopy(self.data.get(key, default))
 
     def set(self, key: str, value: Any):
         assert isinstance(key, str), f'key必须是字符串，当前类型: {type(key)}'
-        self.logger.debug(f'设置数据库 {self.path} {key} = {truncate(str(value), 32)}')
+        self.logger.debug(f'设置数据库 {self.path} {key}')
         self.data[key] = deepcopy(value)
         self.save()
 
