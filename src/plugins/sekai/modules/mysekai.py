@@ -2220,8 +2220,8 @@ async def _(ctx: SekaiHandlerContext):
 
 # ======================= 定时任务 ======================= #
 
-# MSR自动推送 & MSR订阅更新
-@repeat_with_interval(200, 'MSR自动推送', logger)
+# MSR自动推送 & MSR订阅更新，还是关了吧
+# @repeat_with_interval(200, 'MSR自动推送', logger)
 async def msr_auto_push():
     for region in ALL_SERVER_REGIONS:
         region_name = get_region_name(region)
