@@ -473,7 +473,7 @@ async def verify_user_game_account(ctx: SekaiHandlerContext, triggered_by_not_ve
 
 # 获取用户验证过的游戏ID列表
 def get_user_verified_uids(ctx: SekaiHandlerContext) -> List[str]:
-    return profile_db.get(f"verify_accounts_{ctx.region}", {}).get(str(ctx.user_id), [])
+    return profile_db.get_copy(f"verify_accounts_{ctx.region}", {}).get(str(ctx.user_id), [])
 
 # 获取游戏id并检查用户是否验证过当前的游戏id，失败抛出异常
 async def get_uid_and_check_verified(ctx: SekaiHandlerContext, force: bool = False) -> str:

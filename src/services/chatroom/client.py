@@ -92,7 +92,16 @@ class FileDB:
         with open(self.path, 'w', encoding='utf-8') as f:
             json.dump(self.data, f, indent=4, ensure_ascii=False)
 
-    def get(self, key, default=None):
+    def get(self, key: str, default=None):
+        """
+        - 获取某个key的值，找不到返回default
+        - 直接返回缓存对象，若要进行修改又不影响DB内容则必须自行deepcopy
+        """
+        assert isinstance(key, str), f'key必须是字符串，当前类型: {type(key)}'
+        return self.data.get(key, default)
+
+    def get_copy(self, key: str, default=None):
+        assert isinstance(key, str), f'key必须是字符串，当前类型: {type(key)}'
         return deepcopy(self.data.get(key, default))
 
     def set(self, key, value):
