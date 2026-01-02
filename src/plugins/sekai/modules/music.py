@@ -1601,7 +1601,7 @@ async def compose_best30_image(ctx: SekaiHandlerContext, qid: int) -> Image.Imag
     
     # 绘图
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        with VSplit().set_content_align('l').set_item_align('l').set_sep(16):
+        with VSplit().set_content_align('c').set_item_align('c').set_sep(16):
             with HSplit().set_content_align('l').set_item_align('l').set_sep(16).set_item_bg(roundrect_bg()):
                 (await get_detailed_profile_card(ctx, profile, err_msg)).set_bg(None)
                 with VSplit().set_content_align('l').set_item_align('l').set_sep(8).set_padding(16):
