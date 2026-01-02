@@ -21,7 +21,19 @@ import math
 import io
 import time
 import zstandard
+import yappi
+
 from .config import *
+
+
+# ============================ 启动时性能分析 ============================ #
+
+if _profile_at_startup := global_config.get('profile_at_starup.enable'):
+    _profile_at_startup_clock_type = global_config.get('profile_at_starup.clock_type')
+    _profile_at_startup_seconds = global_config.get('profile_at_starup.seconds')
+    yappi.set_clock_type(_profile_at_startup_clock_type)
+    yappi.start()
+    print(f"启动时性能分析已开启 (clocktype={_profile_at_startup_clock_type}, seconds={_profile_at_startup_seconds})", flush=True)
 
 
 # ============================ 基础 ============================ #
@@ -314,7 +326,6 @@ async def batch_gather(*futs_or_coros, batch_size=32) -> List[Any]:
     for i in range(0, len(futs_or_coros), batch_size):
         results.extend(await asyncio.gather(*futs_or_coros[i:i + batch_size]))
     return results
-
 
 
 # ============================ 字符串 ============================ #
@@ -1347,3 +1358,18 @@ async def _():
                     remove_folder(file)
         except:
             utils_logger.print_exc(f'删除临时文件 {file} 失败')
+
+
+if _profile_at_startup:
+    @async_task("结束启动时性能分析", utils_logger, start_offset=_profile_at_startup_seconds)
+    async def _stop_startup_profile():
+        if not yappi.is_running():
+            return
+        yappi.stop()
+        stats = yappi.get_func_stats()
+        clock_type = yappi.get_clock_type()
+        save_path = f"data/misc/profiler/{datetime.now().strftime('%Y%m%d_%H%M%S')}_{clock_type}.prof"
+        create_parent_folder(save_path)
+        stats.save(save_path, type="pstat")
+        print(f"启动时性能分析已保存到 {save_path}")
+        yappi.clear_stats()
