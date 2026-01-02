@@ -1594,7 +1594,7 @@ async def compose_best30_image(ctx: SekaiHandlerContext, qid: int) -> Image.Imag
                 })
     constant_results.sort(key=lambda x: x['rating'], reverse=True)
     constant_results = constant_results[:30]
-    user_rating = sum([cr['rating'] for cr in constant_results]) / len(constant_results) if constant_results else 0.0
+    user_rating = sum([cr['rating'] for cr in constant_results]) / 30
     music_covers = await batch_gather(*[get_music_cover_thumb(ctx, cr['mid']) for cr in constant_results])
     for cr, cover in zip(constant_results, music_covers):
         cr['cover'] = cover
