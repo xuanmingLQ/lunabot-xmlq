@@ -23,6 +23,7 @@ Project Sekai（世界计划）游戏多区服服务
 - 烤森地图俯视图: **[MiddleRed](https://github.com/MiddleRed)**
 - 烤森家具好友码: **[8823](https://github.com/kotori8823)**
 - 部分代码参考: **[Unibot](https://github.com/watagashi-uni/Unibot)**
+- 歌曲定数表: **[auburnsummer](https://github.com/auburnsummer/pjskb30)**
 
 ---
 
