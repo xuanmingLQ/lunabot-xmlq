@@ -1,3 +1,18 @@
+from .config import *
+import yappi
+
+# ============================ 启动时性能分析 ============================ #
+
+if _profile_at_startup := global_config.get('profile_at_starup.enable'):
+    _profile_at_startup_clock_type = global_config.get('profile_at_starup.clock_type')
+    _profile_at_startup_seconds = global_config.get('profile_at_starup.seconds')
+    yappi.set_clock_type(_profile_at_startup_clock_type)
+    yappi.start()
+    print(f"启动时性能分析已开启 (clocktype={_profile_at_startup_clock_type}, seconds={_profile_at_startup_seconds})", flush=True)
+
+
+# ============================ 模块导入 ============================ #
+
 from typing import Optional, List, Tuple, Dict, Union, Any, Set, Callable
 import os
 import os.path as osp
@@ -21,19 +36,6 @@ import math
 import io
 import time
 import zstandard
-import yappi
-
-from .config import *
-
-
-# ============================ 启动时性能分析 ============================ #
-
-if _profile_at_startup := global_config.get('profile_at_starup.enable'):
-    _profile_at_startup_clock_type = global_config.get('profile_at_starup.clock_type')
-    _profile_at_startup_seconds = global_config.get('profile_at_starup.seconds')
-    yappi.set_clock_type(_profile_at_startup_clock_type)
-    yappi.start()
-    print(f"启动时性能分析已开启 (clocktype={_profile_at_startup_clock_type}, seconds={_profile_at_startup_seconds})", flush=True)
 
 
 # ============================ 基础 ============================ #
