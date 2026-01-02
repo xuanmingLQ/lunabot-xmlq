@@ -1562,14 +1562,26 @@ async def compose_best30_image(ctx: SekaiHandlerContext, qid: int) -> Image.Imag
         filter=get_detailed_profile_card_filter('userMusicResults'))
 
     # 数据获取
-    constants = get_music_constants()
-    constant_results: list[dict] = []
-    for music in await get_valid_musics(ctx, leak=False):
-        mid = music['id'] 
-        diff_info = await get_music_diff_info(ctx, mid)
-        for diff, level in diff_info.level.items():
-            results = find_by(profile['userMusicResults'], "musicId", mid, mode='all') 
-            results = find_by(results, 'musicDifficultyType', diff, mode='all') + find_by(results, 'musicDifficulty', diff, mode='all')
+    with ProfileTimer('b30.get_data'):
+        constants = get_music_constants()
+        constant_results: list[dict] = []
+
+        music_diff_infos: dict[int, MusicDiffInfo] = {}
+        music_results: dict[tuple[int, str], list] = {}
+        for result in profile['userMusicResults']:
+            mid = result['musicId']
+            diff = result.get('musicDifficultyType') or result.get('musicDifficulty')
+            music_results.setdefault((mid, diff), []).append(result)
+            if mid not in music_diff_infos:
+                music_diff_infos[mid] = await get_music_diff_info(ctx, mid)
+
+        for (mid, diff), results in music_results.items():
+            if not await is_valid_music(ctx, mid, leak=False):
+                continue
+            music = await ctx.md.musics.find_by_id(mid)
+            level = music_diff_infos[mid].level.get(diff, None)
+            if not level or not music:
+                continue
             result_type = None
             if results:
                 has_clear, full_combo, all_prefect = False, False, False
@@ -1592,9 +1604,11 @@ async def compose_best30_image(ctx: SekaiHandlerContext, qid: int) -> Image.Imag
                     'title': music['title'], 'rating': rating,
                     'result_type': result_type, 'constant_text': constant_text,
                 })
-    constant_results.sort(key=lambda x: x['rating'], reverse=True)
-    constant_results = constant_results[:30]
-    user_rating = sum([cr['rating'] for cr in constant_results]) / 30
+
+        constant_results.sort(key=lambda x: x['rating'], reverse=True)
+        constant_results = constant_results[:30]
+        user_rating = sum([cr['rating'] for cr in constant_results]) / 30
+
     music_covers = await batch_gather(*[get_music_cover_thumb(ctx, cr['mid']) for cr in constant_results])
     for cr, cover in zip(constant_results, music_covers):
         cr['cover'] = cover

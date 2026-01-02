@@ -783,7 +783,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
         texts.append((f"时速: {get_board_score_str(d['hour_speed'])}", style2))
         if 'last_20min_speed' in d:
             texts.append((f"20min×3时速: {get_board_score_str(d['last_20min_speed'])}", style2))
-        texts.append((f"本小时周回数: {len(d['pts'])}", style2))
+        texts.append((f"最近1小时Pt变化次数: {len(d['pts'])}", style2))
         if d['abnormal']:
             texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4))
         texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
@@ -800,7 +800,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             texts.append((f"{d['name']}", style1))
             texts.append((f"排名 {get_board_rank_str(d['cur_rank'])}  -  {get_board_score_str(d['cur_score'])}", style2))
             texts.append((f"时速: {get_board_score_str(d['hour_speed'])} 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
-            texts.append((f"本小时周回数: {len(d['pts'])}", style2))
+            texts.append((f"最近1小时Pt变化次数: {len(d['pts'])}", style2))
             if d['abnormal']:
                 texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4))
             texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
@@ -838,7 +838,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
     wl_cid = await get_wl_chapter_cid(ctx, eid)
 
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)
-    style2 = TextStyle(font=DEFAULT_FONT, size=24, color=BLACK)
+    style2 = TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)
     style3 = TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)
     texts: List[str, TextStyle] = []
 
@@ -863,6 +863,27 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
 
     if not ranks:
         raise ReplyException(f"找不到{format_sk_query_params(qtype, qval)}的榜线数据")
+
+    # ================== 各小时周回数据 ================== #
+
+    rankcounts: list[list[int]] = []
+    playcounts: list[list[int]] = []
+    start_date = ranks[0].time.date()
+    for i in range(len(ranks) - 1):
+        cur, nxt = ranks[i], ranks[i + 1]
+        day = (cur.time.date() - start_date).days
+        while len(rankcounts) <= day:
+            rankcounts.append([0 for _ in range(24)])
+            playcounts.append([0 for _ in range(24)])
+        hour = cur.time.hour
+        rankcounts[day][hour] += 1
+        if nxt.score > cur.score:
+            playcounts[day][hour] += 1
+
+    HEAT_COLOR_MIN = (50, 50, 50)
+    HEAT_COLOR_MAX = (150, 0, 0)
+
+    # ================== 停车区间 ================== #
 
     segs: list[tuple[Ranking, Ranking]] = []
     l, r = None, None
@@ -897,6 +918,11 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
         texts.append((f"{start} ~ {end}（{duration}）", style2))
     if len(texts) == 1:
         texts.append((f"未找到停车区间", style2))
+    else:
+        row_num = len(texts) // 2 + 1
+        first_text = texts[0]
+        left_texts = texts[1:row_num]
+        right_texts = texts[row_num:]
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg(fill=SK_TEXT_QUERY_BG_COLOR)):
@@ -911,10 +937,32 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
                     TextBox(time_to_end, TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=BLACK))
                 if wl_cid:
                     ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
+
+            with VSplit().set_content_align('lt').set_item_align('lt').set_sep(6).set_padding(16):
+                TextBox(f"T{ranks[-1].rank} \"{ranks[-1].name}\" 各小时Pt变化次数", style1)
+                with Grid(col_count=24, hsep=1, vsep=1):
+                    for i in range(0, 24):
+                        TextBox(f"{i}", TextStyle(font=DEFAULT_FONT, size=12, color=BLACK)) \
+                            .set_content_align('c').set_size((30, 30))
+                    for day in range(len(rankcounts)):
+                        for hour in range(0, 24):
+                            playcount, rankcount = playcounts[day][hour], rankcounts[day][hour]
+                            if rankcount < 10:
+                                Spacer(w=24, h=24)
+                            else:
+                                color = lerp_color(HEAT_COLOR_MIN, HEAT_COLOR_MAX, max(min((playcount - 15) / 15, 1.0), 0.0))
+                                TextBox(str(playcount), TextStyle(font=DEFAULT_FONT, size=16, color=WHITE)) \
+                                    .set_bg(RoundRectBg(color, radius=4)).set_content_align('c').set_size((30, 30)).set_offset((0, -2))
         
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(6).set_padding(16):
-                for text, style in texts:
-                    TextBox(text, style)
+                TextBox(*first_text)
+                with HSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
+                    with VSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
+                        for text in left_texts:
+                            TextBox(*text)
+                    with VSplit().set_content_align('lt').set_item_align('lt').set_sep(4):
+                        for text in right_texts:
+                            TextBox(*text)
     
     add_watermark(canvas)
     return await canvas.get_img(1.5 if len(texts) < 10 else 1.0)
