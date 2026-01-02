@@ -880,8 +880,8 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
         if nxt.score > cur.score:
             playcounts[day][hour] += 1
 
-    HEAT_COLOR_MIN = (50, 50, 50)
-    HEAT_COLOR_MAX = (150, 0, 0)
+    HEAT_COLOR_MIN = color_code_to_rgb('#B8D8FF')
+    HEAT_COLOR_MAX = color_code_to_rgb('#FFB5B5')
 
     # ================== 停车区间 ================== #
 
@@ -918,11 +918,10 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
         texts.append((f"{start} ~ {end}（{duration}）", style2))
     if len(texts) == 1:
         texts.append((f"未找到停车区间", style2))
-    else:
-        row_num = len(texts) // 2 + 1
-        first_text = texts[0]
-        left_texts = texts[1:row_num]
-        right_texts = texts[row_num:]
+    row_num = len(texts) // 2 + 1
+    first_text = texts[0]
+    left_texts = texts[1:row_num]
+    right_texts = texts[row_num:]
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg(fill=SK_TEXT_QUERY_BG_COLOR)):
@@ -951,7 +950,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
                                 Spacer(w=24, h=24)
                             else:
                                 color = lerp_color(HEAT_COLOR_MIN, HEAT_COLOR_MAX, max(min((playcount - 15) / 15, 1.0), 0.0))
-                                TextBox(str(playcount), TextStyle(font=DEFAULT_FONT, size=16, color=WHITE)) \
+                                TextBox(str(playcount), TextStyle(font=DEFAULT_FONT, size=16, color=BLACK)) \
                                     .set_bg(RoundRectBg(color, radius=4)).set_content_align('c').set_size((30, 30)).set_offset((0, -2))
         
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(6).set_padding(16):
