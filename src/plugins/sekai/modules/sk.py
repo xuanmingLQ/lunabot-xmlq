@@ -786,8 +786,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
         texts.append((f"本小时周回数: {len(d['pts'])}", style2))
         if d['abnormal']:
             texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4))
-        texts.append((f"数据开始于: {get_readable_datetime(d['start_time'], show_original_time=False)}", style4))
-        texts.append((f"数据更新于: {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
+        texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
     else:
         # 多个
         ds = [calc(ranks) for ranks in ranks_list]
