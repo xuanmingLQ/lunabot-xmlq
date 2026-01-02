@@ -34,7 +34,6 @@ bypy
 colour-science
 opencv-python
 zstandard
-google-genai
 aiosqlite
 rapidfuzz
 sekai_deck_recommend_cpp
