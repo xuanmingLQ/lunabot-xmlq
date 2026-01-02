@@ -615,6 +615,7 @@ async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)
     style2 = TextStyle(font=DEFAULT_FONT, size=24, color=BLACK)
     style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=BLACK)
+    style4 = TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50))
     texts: List[str, TextStyle] = []
 
     latest_ranks = await get_latest_ranking(ctx, eid, ALL_RANKS)
@@ -641,7 +642,7 @@ async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     if len(ret_ranks) == 1:
         rank = ret_ranks[0]
         texts.append((f"{truncate(rank.name, 40)}", style2))
-        texts.append((f"排名 {get_board_rank_str(rank.rank)} - {get_board_score_str(rank.score)}", style3))
+        texts.append((f"排名 {get_board_rank_str(rank.rank)}  -  {get_board_score_str(rank.score)}", style3))
         skl_ranks = [r for r in latest_ranks if r.rank in list(range(1, 10)) + SKL_QUERY_RANKS]
         if prev_rank := find_prev_ranking(skl_ranks, rank.rank):
             dlt_score = prev_rank.score - rank.score
@@ -649,13 +650,13 @@ async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
         if next_rank := find_next_ranking(skl_ranks, rank.rank):
             dlt_score = rank.score - next_rank.score
             texts.append((f"{next_rank.rank}名分数: {get_board_score_str(next_rank.score)}  ↓{get_board_score_str(dlt_score)}", style2))
-        texts.append((f"RT: {get_readable_datetime(rank.time, show_original_time=False)}", style2))
+        texts.append((f"RT: {get_readable_datetime(rank.time, show_original_time=False)}", style4))
     # 查询多个
     else:
         for rank in ret_ranks:
             texts.append((truncate(rank.name, 40), style1))
-            texts.append((f"排名 {get_board_rank_str(rank.rank)} - {get_board_score_str(rank.score)}", style2))
-            texts.append((f"RT: {get_readable_datetime(rank.time, show_original_time=False)}", style2))
+            texts.append((f"排名 {get_board_rank_str(rank.rank)}  -  {get_board_score_str(rank.score)}", style2))
+            texts.append((f"RT: {get_readable_datetime(rank.time, show_original_time=False)}", style4))
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg(fill=SK_TEXT_QUERY_BG_COLOR)):
@@ -692,6 +693,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)
     style2 = TextStyle(font=DEFAULT_FONT, size=24, color=BLACK)
     style3 = TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)
+    style4 = TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50))
     texts: List[str, TextStyle] = []
 
     ranks, ranks_list = [], None
@@ -771,7 +773,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
         assert_and_reply(d['status'] != 'no_found', f"找不到{format_sk_query_params(qtype, qval)}的榜线数据")
         assert_and_reply(d['status'] != 'no_enough', f"{format_sk_query_params(qtype, qval)}的最近游玩次数少于1，无法查询")
         texts.append((f"{d['name']}", style1))
-        texts.append((f"排名 {get_board_rank_str(d['cur_rank'])} - {get_board_score_str(d['cur_score'])}", style2))
+        texts.append((f"排名 {get_board_rank_str(d['cur_rank'])}  -  {get_board_score_str(d['cur_score'])}", style2))
         if 'prev_rank' in d:
             texts.append((f"{d['prev_rank']}名分数: {get_board_score_str(d['prev_score'])}  ↑{get_board_score_str(d['prev_dlt'])}", style3))
         if 'next_rank' in d:
@@ -783,9 +785,9 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             texts.append((f"20min×3时速: {get_board_score_str(d['last_20min_speed'])}", style2))
         texts.append((f"本小时周回数: {len(d['pts'])}", style2))
         if d['abnormal']:
-            texts.append((f"记录时间内有数据空缺，周回数仅供参考", style2))
-        texts.append((f"数据开始于: {get_readable_datetime(d['start_time'], show_original_time=False)}", style2))
-        texts.append((f"数据更新于: {get_readable_datetime(d['end_time'], show_original_time=False)}", style2))
+            texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4))
+        texts.append((f"数据开始于: {get_readable_datetime(d['start_time'], show_original_time=False)}", style4))
+        texts.append((f"数据更新于: {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
     else:
         # 多个
         ds = [calc(ranks) for ranks in ranks_list]
@@ -797,12 +799,12 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
                 texts.append((f"{format_sk_query_params('rank', qval[i])}的最近游玩次数少于1，无法查询", style1))
                 continue
             texts.append((f"{d['name']}", style1))
-            texts.append((f"排名 {get_board_rank_str(d['cur_rank'])} - {get_board_score_str(d['cur_score'])}", style2))
-            texts.append((f"时速: {get_board_score_str(d['hour_speed'])} - 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
+            texts.append((f"排名 {get_board_rank_str(d['cur_rank'])}  -  {get_board_score_str(d['cur_score'])}", style2))
+            texts.append((f"时速: {get_board_score_str(d['hour_speed'])} 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
             texts.append((f"本小时周回数: {len(d['pts'])}", style2))
             if d['abnormal']:
-                texts.append((f"记录时间内有数据空缺，周回数仅供参考", style2))
-            texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style2))
+                texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4))
+            texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg(fill=SK_TEXT_QUERY_BG_COLOR)):
