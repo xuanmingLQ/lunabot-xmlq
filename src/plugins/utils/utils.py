@@ -787,20 +787,25 @@ class FileDB:
         self.path = path
         self.data = {}
         self.logger = logger
-        self.load()
+        self.loaded = False
 
-    def load(self):
+    def ensure_load(self):
+        if self.loaded:
+            return
         try:
             self.data = load_json(self.path)
             self.logger.debug(f'加载数据库 {self.path} 成功')
         except:
             self.logger.debug(f'加载数据库 {self.path} 失败 使用空数据')
             self.data = {}
+        self.loaded = True
 
     def keys(self) -> Set[str]:
+        self.ensure_load()
         return self.data.keys()
 
     def save(self):
+        self.ensure_load()
         dump_json(self.data, self.path)
         self.logger.debug(f'保存数据库 {self.path}')
 
@@ -809,20 +814,24 @@ class FileDB:
         - 获取某个key的值，找不到返回default
         - 直接返回缓存对象，若要进行修改又不影响DB内容则必须自行deepcopy
         """
+        self.ensure_load()
         assert isinstance(key, str), f'key必须是字符串，当前类型: {type(key)}'
         return self.data.get(key, default)
 
     def get_copy(self, key: str, default: Any=None) -> Any:
+        self.ensure_load()
         assert isinstance(key, str), f'key必须是字符串，当前类型: {type(key)}'
         return deepcopy(self.data.get(key, default))
 
     def set(self, key: str, value: Any):
+        self.ensure_load()
         assert isinstance(key, str), f'key必须是字符串，当前类型: {type(key)}'
         self.logger.debug(f'设置数据库 {self.path} {key}')
         self.data[key] = deepcopy(value)
         self.save()
 
     def delete(self, key: str):
+        self.ensure_load()
         assert isinstance(key, str), f'key必须是字符串，当前类型: {type(key)}'
         self.logger.debug(f'删除数据库 {self.path} {key}')
         if key in self.data:
