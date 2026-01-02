@@ -1043,6 +1043,13 @@ async def compose_music_list_image(
     if play_result_filter is None:
         play_result_filter = ['clear', 'not_clear', 'fc', 'ap']
 
+    if profile:
+        music_results: dict[tuple[int, str], list] = {}
+        for result in profile['userMusicResults']:
+            mid = result['musicId']
+            diff = result.get('musicDifficultyType') or result.get('musicDifficulty')
+            music_results.setdefault((mid, diff), []).append(result)
+
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
             if profile:
@@ -1070,10 +1077,7 @@ async def compose_music_list_image(
                         # 获取游玩结果
                         result_type = None
                         if profile:
-                            mid = music['id'] 
-                            results = find_by(profile['userMusicResults'], "musicId", mid, mode='all') 
-                            results = find_by(results, 'musicDifficultyType', diff, mode='all') + find_by(results, 'musicDifficulty', diff, mode='all')
-                            if results:
+                            if results := music_results.get((music['id'], diff), None):
                                 has_clear, full_combo, all_prefect = False, False, False
                                 for item in results:
                                     has_clear = has_clear or item["playResult"] != 'not_clear'
