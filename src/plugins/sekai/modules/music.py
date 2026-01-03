@@ -1045,7 +1045,7 @@ async def compose_music_list_image(
 
     if profile:
         music_results: dict[tuple[int, str], list] = {}
-        for result in profile['userMusicResults']:
+        for result in profile.get('userMusicResults', []):
             mid = result['musicId']
             diff = result.get('musicDifficultyType') or result.get('musicDifficulty')
             music_results.setdefault((mid, diff), []).append(result)
@@ -1127,21 +1127,24 @@ async def compose_play_progress_image(ctx: SekaiHandlerContext, diff: str, qid: 
         qid, 
         filter=get_detailed_profile_card_filter('userMusicResults'),
         raise_exc=True)
-    bg_unit = (await get_player_avatar_info_by_detailed_profile(ctx, profile)).unit
 
     count = { lv: PlayProgressCount() for lv in range(1, 40) }
 
+    music_results: dict[tuple[int, str], list] = {}
+    for result in profile.get('userMusicResults', []):
+        mid = result['musicId']
+        diff = result.get('musicDifficultyType') or result.get('musicDifficulty')
+        music_results.setdefault((mid, diff), []).append(result)
+
     for music in await get_valid_musics(ctx, leak=False):
         mid = music['id']
-        level = (await get_music_diff_info(ctx, mid)).level.get(diff)
+        level = await get_music_diff_level(ctx, mid, diff)
         if not level: 
             continue
         count[level].total += 1
 
         result_type = 0
-        results = find_by(profile['userMusicResults'], "musicId", mid, mode='all') 
-        results = find_by(results, 'musicDifficultyType', diff, mode='all') + find_by(results, 'musicDifficulty', diff, mode='all')
-        if results:
+        if results := music_results.get((mid, diff), None):
             has_clear, full_combo, all_prefect = False, False, False
             for item in results:
                 has_clear = has_clear or item["playResult"] != 'not_clear'
@@ -1563,7 +1566,9 @@ async def get_chart_bpm(ctx: SekaiHandlerContext, mid: int, timeout: float=5.0):
 async def compose_best30_image(ctx: SekaiHandlerContext, qid: int) -> Image.Image:
     profile, err_msg = await get_detailed_profile(
         ctx, qid, 
-        filter=get_detailed_profile_card_filter('userMusicResults'))
+        filter=get_detailed_profile_card_filter('userMusicResults'),
+        raise_exc=True,
+    )
 
     # 数据获取
     with ProfileTimer('b30.get_data'):
@@ -1572,7 +1577,7 @@ async def compose_best30_image(ctx: SekaiHandlerContext, qid: int) -> Image.Imag
 
         music_diff_infos: dict[int, MusicDiffInfo] = {}
         music_results: dict[tuple[int, str], list] = {}
-        for result in profile['userMusicResults']:
+        for result in profile.get('userMusicResults', []):
             mid = result['musicId']
             diff = result.get('musicDifficultyType') or result.get('musicDifficulty')
             music_results.setdefault((mid, diff), []).append(result)
