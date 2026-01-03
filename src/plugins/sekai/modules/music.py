@@ -1047,8 +1047,10 @@ async def compose_music_list_image(
         music_results: dict[tuple[int, str], list] = {}
         for result in profile.get('userMusicResults', []):
             mid = result['musicId']
-            diff = result.get('musicDifficultyType') or result.get('musicDifficulty')
-            music_results.setdefault((mid, diff), []).append(result)
+            result_diff = result.get('musicDifficultyType') or result.get('musicDifficulty')
+            if result_diff != diff:
+                continue
+            music_results.setdefault((mid, result_diff), []).append(result)
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
@@ -1133,8 +1135,10 @@ async def compose_play_progress_image(ctx: SekaiHandlerContext, diff: str, qid: 
     music_results: dict[tuple[int, str], list] = {}
     for result in profile.get('userMusicResults', []):
         mid = result['musicId']
-        diff = result.get('musicDifficultyType') or result.get('musicDifficulty')
-        music_results.setdefault((mid, diff), []).append(result)
+        result_diff = result.get('musicDifficultyType') or result.get('musicDifficulty')
+        if result_diff != diff:
+            continue
+        music_results.setdefault((mid, result_diff), []).append(result)
 
     for music in await get_valid_musics(ctx, leak=False):
         mid = music['id']
