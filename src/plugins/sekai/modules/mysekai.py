@@ -1,5 +1,5 @@
 from src.utils import *
-from ...llm import translate_text
+from src.llm import translate_text
 from ..common import *
 from ..handler import *
 from ..asset import *
