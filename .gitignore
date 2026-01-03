@@ -149,3 +149,5 @@ config/
 debug/
 cache/
 uv.lock
+
+src/private/
