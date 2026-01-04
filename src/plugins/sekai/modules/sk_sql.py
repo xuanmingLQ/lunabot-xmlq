@@ -68,6 +68,17 @@ class Ranking:
             rank=data["rank"],
             time=time or datetime.now(),
         )
+    
+
+def query_update_time(
+    region: str, 
+    event_id: int,
+) -> Optional[datetime]:
+    """检查表更新时间"""
+    path = DB_PATH.format(region=region, event_id=event_id)
+    if not os.path.exists(path):
+        return None
+    return datetime.fromtimestamp(os.path.getmtime(path))
 
 
 async def query_ranking(

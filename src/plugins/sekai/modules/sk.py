@@ -18,6 +18,7 @@ from .sk_sql import (
     query_ranking, 
     query_latest_ranking, 
     query_first_ranking_after,
+    query_update_time,
 )
 from .sk_forecast import (
     get_forecast_data,
@@ -56,8 +57,8 @@ ALL_RANKS = [
     *range(100000, 500001, 100000),
 ]
 
-# latest_rankings[region][event_id] = rankings
 latest_rankings_cache: Dict[str, Dict[int, List[Ranking]]] = {}
+latest_rankings_mtime: Dict[str, Dict[int, datetime]] = {}
 
 @dataclass
 class PredictWinrate:
@@ -227,15 +228,17 @@ async def parse_rankings(ctx: SekaiHandlerContext, event_id: int, data: dict, ig
 # 获取最新榜线记录
 async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_ranks: List[int] = ALL_RANKS) -> List[Ranking]:
     # 从缓存中获取
+    db_mtime = query_update_time(ctx.region, event_id)
     rankings = latest_rankings_cache.get(ctx.region, {}).get(event_id, None)
-    if rankings:
+    if rankings and latest_rankings_mtime.get(ctx.region, {}).get(event_id, 0) == db_mtime:
         logger.info(f"从缓存中获取 {ctx.region}_{event_id} 最新榜线数据")
         return [r for r in rankings if r.rank in query_ranks]
-    # 从数据库中获取
+    # 从数据库中获取，并更新缓存
     rankings = await query_latest_ranking(ctx.region, event_id, ALL_RANKS)
     if rankings:
         logger.info(f"从数据库获取 {ctx.region}_{event_id} 最新榜线数据")
         latest_rankings_cache.setdefault(ctx.region, {})[event_id] = rankings
+        latest_rankings_mtime.setdefault(ctx.region, {})[event_id] = db_mtime
         return [r for r in rankings if r.rank in query_ranks]
     # 从API获取
     url = get_gameapi_config(ctx).ranking_api_url
