@@ -790,11 +790,10 @@ class RegionRipAssetManger:
 
     async def _download_data(self, url: str, timeout: int) -> bytes:
         async def do_download():
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, verify_ssl=False) as resp:
-                    if resp.status != 200:
-                        raise Exception(f"请求失败: {resp.status}")
-                    return await resp.read()
+            async with get_client_session().get(url, verify_ssl=False) as resp:
+                if resp.status != 200:
+                    raise Exception(f"请求失败: {resp.status}")
+                return await resp.read()
         if not timeout:
             return await do_download()
         else:

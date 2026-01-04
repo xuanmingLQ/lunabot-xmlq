@@ -231,6 +231,21 @@ def remove_by_predicate(lst: List[Any], predicate: Callable):
     return [item for item in lst if not predicate(item)]
 
 
+# ============================ http session ============================ #
+
+_global_client_session: Optional[aiohttp.ClientSession] = None
+
+def get_client_session() -> aiohttp.ClientSession:
+    global _global_client_session
+    if _global_client_session is None or _global_client_session.closed:
+        _global_client_session = aiohttp.ClientSession()
+    return _global_client_session
+
+@on_shutdown()
+async def _close_session():
+    if _global_client_session is not None and not _global_client_session.closed:
+        await _global_client_session.close()
+
 
 # ============================ 异步和任务 ============================ #
 
@@ -622,12 +637,11 @@ async def download_file(url, file_path):
     """
     下载文件到指定路径
     """
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, verify_ssl=False) as resp:
-            if resp.status != 200:
-                raise Exception(f"下载文件 {truncate(url, 32)} 失败: {resp.status} {resp.reason}")
-            with open(file_path, 'wb') as f:
-                f.write(await resp.read())
+    async with get_client_session().get(url, verify_ssl=False) as resp:
+        if resp.status != 200:
+            raise Exception(f"下载文件 {truncate(url, 32)} 失败: {resp.status} {resp.reason}")
+        with open(file_path, 'wb') as f:
+            f.write(await resp.read())
 
 class TempDownloadFilePath(TempFilePath):
     def __init__(self, url, ext: str = None, remove_after: timedelta = None):
@@ -666,25 +680,24 @@ async def download_json(url: str) -> dict:
     """
     异步下载json文件
     """
-    async with aiohttp.ClientSession() as session:
-        headers = {
-            'Accept-Language': 'en',
-        }
-        async with session.get(url, headers=headers, verify_ssl=False) as resp:
-            if resp.status != 200:
-                try:
-                    detail = await resp.text()
-                    detail = loads_json(detail)['detail']
-                except:
-                    pass
-                utils_logger.error(f"下载 {url} 失败: {resp.status} {detail}")
-                raise HttpError(resp.status, detail)
-            if "text/plain" in resp.content_type:
-                return loads_json(await resp.text())
-            if "application/octet-stream" in resp.content_type:
-                import io
-                return loads_json(io.BytesIO(await resp.read()).read())
-            return await resp.json()
+    headers = {
+        'Accept-Language': 'en',
+    }
+    async with get_client_session().get(url, headers=headers, verify_ssl=False) as resp:
+        if resp.status != 200:
+            try:
+                detail = await resp.text()
+                detail = loads_json(detail)['detail']
+            except:
+                pass
+            utils_logger.error(f"下载 {url} 失败: {resp.status} {detail}")
+            raise HttpError(resp.status, detail)
+        if "text/plain" in resp.content_type:
+            return loads_json(await resp.text())
+        if "application/octet-stream" in resp.content_type:
+            import io
+            return loads_json(io.BytesIO(await resp.read()).read())
+        return await resp.json()
 
 def load_json_zstd(file_path: str) -> dict:
     with open(file_path, 'rb') as file:
@@ -1041,13 +1054,12 @@ async def download_image(image_url, force_http=True) -> Image.Image:
     """
     if force_http and image_url.startswith("https"):
         image_url = image_url.replace("https", "http")
-    async with aiohttp.ClientSession() as session:
-        async with session.get(image_url, verify_ssl=False) as resp:
-            if resp.status != 200:
-                utils_logger.error(f"下载图片 {image_url} 失败: {resp.status} {resp.reason}")
-                raise HttpError(resp.status, f"下载图片 {image_url} 失败")
-            image = await resp.read()
-            return Image.open(io.BytesIO(image))
+    async with get_client_session().get(image_url, verify_ssl=False) as resp:
+        if resp.status != 200:
+            utils_logger.error(f"下载图片 {image_url} 失败: {resp.status} {resp.reason}")
+            raise HttpError(resp.status, f"下载图片 {image_url} 失败")
+        image = await resp.read()
+        return Image.open(io.BytesIO(image))
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
 async def download_and_convert_svg(svg_url: str) -> Image.Image:
