@@ -19,6 +19,7 @@ from .sk_sql import (
     query_latest_ranking, 
     query_first_ranking_after,
     query_update_time,
+    archive_database,
 )
 from .sk_forecast import (
     get_forecast_data,
@@ -1604,19 +1605,27 @@ async def compress_ranking_data():
                 continue
 
             try:
-                event_id = int(Path(db_file).stem.split('_')[0]) % 1000
+                event_id = int(Path(db_file).stem.split('_')[0])
+                wl_cid = event_id // 1000
+                event_id = event_id % 1000
                 event = await ctx.md.events.find_by_id(event_id)
                 assert event, f"未找到活动 {event_id}"
                 end_time = datetime.fromtimestamp(event['aggregateAt'] / 1000)
 
                 # 保存已完成的榜线数据供本地预测
-                if datetime.now() > end_time:
+                if datetime.now() > end_time and not wl_cid:
                     csv_path = get_local_forecast_history_csv_path(ctx.region, event_id)
                     if not os.path.exists(csv_path):
                         await save_rankings_to_csv(ctx.region, event_id, csv_path)
 
                 # 压缩
                 if datetime.now() - end_time > timedelta(days=SK_COMPRESS_THRESHOLD_CFG.get()):
+                    # 归档数据库
+                    try:
+                        await archive_database(ctx.region, event_id)
+                    except Exception as e:
+                        logger.warning(f"尝试归档榜线数据库 {db_file} 失败: {get_exc_desc(e)}")
+
                     def do_zip():
                         with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
                             zf.write(db_file, arcname=Path(db_file).name)

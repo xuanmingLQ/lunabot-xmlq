@@ -1,7 +1,7 @@
 from .utils import *
 from .master import MasterDataManager
 from .gameapi import get_gameapi_config, request_gameapi, close_session
-from .sql import insert_rankings, Ranking
+from .sql import insert_rankings, Ranking, close_conn
 from tenacity import retry, wait_fixed, stop_after_attempt
 
 
@@ -213,9 +213,11 @@ class EventTracker:
         try:
             if not (event := get_current_event(region, fallback="prev")):
                 self.info(f"当前无进行中或已结束活动，跳过榜线更新")
+                close_conn(region)
                 return ret
             if datetime.now() > datetime.fromtimestamp(event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END_CFG.get() * 60):
                 self.info(f"当前活动 {event['id']} 已过榜线记录时间，跳过榜线更新")
+                close_conn(region)
                 return ret
         except Exception as e:
             self.warning(f"检查当前活动时失败: {get_exc_desc(e)}")

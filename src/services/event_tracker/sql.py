@@ -53,6 +53,14 @@ async def get_conn(region, event_id, create) -> Optional[aiosqlite.Connection]:
     return conn
 
 
+async def close_conn(region: str):
+    for key in list(_conns.keys()):
+        if key.startswith(DB_PATH.format(region=region, event_id="")):
+            await _conns[key].close()
+            del _conns[key]
+            info(f"关闭sqlite数据库连接 {key} 成功")
+
+
 @dataclass
 class Ranking:
     uid: str
