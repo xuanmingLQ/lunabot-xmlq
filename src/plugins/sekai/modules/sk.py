@@ -191,17 +191,22 @@ def find_next_ranking(ranks: List[Ranking], rank: int) -> Optional[Ranking]:
 
 # 从榜线数据解析Rankings
 async def parse_rankings(ctx: SekaiHandlerContext, event_id: int, data: dict, ignore_no_update: bool) -> List[Ranking]:
+    data_top100 = data.get('top100', {})
+    data_border = data.get('border', {})
+    assert data_top100, "获取榜线Top100数据失败"
+    assert data_border, "获取榜线Border数据失败"
+
     # 普通活动
     if event_id < 1000:
-        top100 = [Ranking.from_sk(item) for item in data['top100']['rankings']]
-        border = [Ranking.from_sk(item) for item in data['border']['borderRankings'] if item['rank'] != 100]
+        top100 = [Ranking.from_sk(item) for item in data_top100['rankings']]
+        border = [Ranking.from_sk(item) for item in data_border['borderRankings'] if item['rank'] != 100]
     
     # WL活动
     else:
         cid = await get_wl_chapter_cid(ctx, event_id)
-        top100_rankings = find_by(data['top100'].get('userWorldBloomChapterRankings', []), 'gameCharacterId', cid)
+        top100_rankings = find_by(data_top100.get('userWorldBloomChapterRankings', []), 'gameCharacterId', cid)
         top100 = [Ranking.from_sk(item) for item in top100_rankings['rankings']]
-        border_rankings = find_by(data['border'].get('userWorldBloomChapterRankingBorders', []), 'gameCharacterId', cid)
+        border_rankings = find_by(data_border.get('userWorldBloomChapterRankingBorders', []), 'gameCharacterId', cid)
         border = [Ranking.from_sk(item) for item in border_rankings['borderRankings'] if item['rank'] != 100]
 
     for item in top100:
