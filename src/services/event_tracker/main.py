@@ -14,7 +14,7 @@ SK_RECORD_INTERVAL_CFG = config.item('sk.record_interval_seconds')
 
 mds = MasterDataManager('data/sekai/assets/masterdata')
 
-latest_rankings_cache: dict[str, dict[int, list[Ranking]]] = {}
+latest_rankings_cache: dict[str, dict[int, dict[int, Ranking]]] = {}
 
 
 # ================================ 处理逻辑 ================================ #
@@ -57,42 +57,32 @@ def get_current_event(region: str, fallback: Optional[str] = None) -> dict:
         return next_event
     return prev_event or next_event
 
-def parse_rankings(region: str, event_id: int, data: dict, ignore_no_update: bool) -> list[Ranking]:
+def parse_rankings(region: str, event_id: int, data: dict) -> list[Ranking]:
     """从榜线数据解析Rankings"""
     data_top100 = data.get('top100', {})
     data_border = data.get('border', {})
     assert data_top100, "获取榜线Top100数据失败"
     assert data_border, "获取榜线Border数据失败"
 
+    now = datetime.now()
+
     # 普通活动
     if event_id < 1000:
-        top100 = [Ranking.from_sk(item) for item in data_top100['rankings']]
-        border = [Ranking.from_sk(item) for item in data_border['borderRankings'] if item['rank'] != 100]
+        top100 = [Ranking.from_sk(item, now) for item in data_top100['rankings']]
+        border = [Ranking.from_sk(item, now) for item in data_border['borderRankings'] if item['rank'] != 100]
     
     # WL活动
     else:
         cid = get_wl_chapter_cid(region, event_id)
         top100_rankings = find_by(data_top100.get('userWorldBloomChapterRankings', []), 'gameCharacterId', cid)
-        top100 = [Ranking.from_sk(item) for item in top100_rankings['rankings']]
+        top100 = [Ranking.from_sk(item, now) for item in top100_rankings['rankings']]
         border_rankings = find_by(data_border.get('userWorldBloomChapterRankingBorders', []), 'gameCharacterId', cid)
-        border = [Ranking.from_sk(item) for item in border_rankings['borderRankings'] if item['rank'] != 100]
+        border = [Ranking.from_sk(item, now) for item in border_rankings['borderRankings'] if item['rank'] != 100]
 
     for item in top100:
         item.uid = str(item.uid)
     for item in border:
         item.uid = str(item.uid)
-
-    if ignore_no_update:
-        # 过滤掉没有更新的border榜线
-        border_has_diff = False
-        latest_ranks = latest_rankings_cache.get(region, {}).get(event_id, [])
-        for item in border:
-            latest_item = find_by_predicate(latest_ranks, lambda x: x.rank == item.rank)
-            if not latest_item or (latest_item.score != item.score or latest_item.uid != item.uid):
-                border_has_diff = True
-                break
-        if not border_has_diff:
-            return top100
     
     return top100 + border
 
@@ -147,6 +137,7 @@ class EventTracker:
             self.error(f"请求榜线数据失败")
             return None
         
+
     async def update_rankings(self, eid: int, data: dict) -> bool:
         """
         更新总榜或WL单榜，返回是否更新成功
@@ -154,20 +145,25 @@ class EventTracker:
         region = self.region
         try:
             # 插入数据库
-            rankings = parse_rankings(region, eid, data, True)
-            await insert_rankings(region, eid, rankings)
+            rankings = parse_rankings(region, eid, data)
 
-            # 更新缓存
+            # 和缓存进行比对并更新缓存，仅插入有更新的榜线（玩家和分数都没有变化则不插入）
             if region not in latest_rankings_cache:
                 latest_rankings_cache[region] = {}
-            last_rankings = latest_rankings_cache[region].get(eid, [])
-            latest_rankings_cache[region][eid] = rankings
+            if eid not in latest_rankings_cache[region]:
+                latest_rankings_cache[region][eid] = {}
 
-            # 插回本次没有更新的榜线
-            for item in last_rankings:
-                if not find_by_predicate(rankings, lambda x: x.rank == item.rank):
-                    rankings.append(item)
-            rankings.sort(key=lambda x: x.rank)
+            rankings_to_insert: list[Ranking] = []
+            for item in rankings:
+                last_item = latest_rankings_cache[region][eid].get(item.rank, None)
+                if not last_item or last_item.score != item.score or last_item.uid != item.uid:
+                    latest_rankings_cache[region][eid][item.rank] = item
+                    rankings_to_insert.append(item)
+
+            # 插入数据库
+            if rankings_to_insert:
+                await insert_rankings(region, eid, rankings_to_insert)
+
             self.info(f"插入 {eid} 榜线数据成功，新记录数: {len(rankings)}")
             return True
 
@@ -221,6 +217,7 @@ class EventTracker:
         if not tasks: return
         await asyncio.gather(*tasks)
 
+
     async def start_track(self):
         self.info(f"榜线更新任务已启动")
         next_record_time = datetime.now()
@@ -229,13 +226,15 @@ class EventTracker:
                 while datetime.now() < next_record_time:
                     await asyncio.sleep(0.5)
                 start = datetime.now()
+                self.info(f"启动榜线更新...")
                 await self.update_region_ranking_task()
                 now = datetime.now()
                 next_record_time = start + timedelta(seconds=get_cfg_or_value(SK_RECORD_INTERVAL_CFG))
-                self.info(f"完成榜线更新检查，耗时 {(now - start).total_seconds():.2f}s，下次: {next_record_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                self.info(f"完成榜线更新 ({(now - start).total_seconds():.2f}s, next: {next_record_time.strftime('%Y-%m-%d %H:%M:%S')})")
             except asyncio.CancelledError:
                 break
         await close_session()
+
 
 
 async def main():
