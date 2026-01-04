@@ -115,112 +115,137 @@ def get_wl_events(region: str, event_id: int) -> list[dict]:
 
 # ================================ 榜线更新 ================================ #
 
-async def update_ranking():
-    
-    # =============== 当前活动检查 & 获取所有服务器的榜线数据 =============== #
+class EventTracker:
+    def __init__(self, region: str):
+        self.region = region
 
-    tasks = []
-    for region in ALL_SERVER_REGIONS:
+
+    def info(self, *args, **kwargs):
+        info(f"[{self.region.upper()}]", *args, **kwargs)
+
+    def warning(self, *args, **kwargs):
+        warning(f"[{self.region.upper()}]", *args, **kwargs)
+
+    def error(self, *args, **kwargs):
+        error(f"[{self.region.upper()}]", *args, **kwargs)
+    
+    def debug(self, *args, **kwargs):
+        debug(f"[{self.region.upper()}]", *args, **kwargs)
+
+
+    @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
+    async def request_rankings(self, eid: int, url: str) -> Optional[dict]:
+        """
+        请求榜线数据
+        """
+        try:
+            t = datetime.now().timestamp()
+            data = await request_gameapi(url.format(event_id=eid))
+            self.info(f"请求 {eid} 榜线数据成功, 耗时 {(datetime.now().timestamp() - t):.2f}s")
+            return data
+        except Exception:
+            self.error(f"请求榜线数据失败")
+            return None
+        
+    async def update_rankings(self, eid: int, data: dict) -> bool:
+        """
+        更新总榜或WL单榜，返回是否更新成功
+        """
+        region = self.region
+        try:
+            # 插入数据库
+            rankings = parse_rankings(region, eid, data, True)
+            await insert_rankings(region, eid, rankings)
+
+            # 更新缓存
+            if region not in latest_rankings_cache:
+                latest_rankings_cache[region] = {}
+            last_rankings = latest_rankings_cache[region].get(eid, [])
+            latest_rankings_cache[region][eid] = rankings
+
+            # 插回本次没有更新的榜线
+            for item in last_rankings:
+                if not find_by_predicate(rankings, lambda x: x.rank == item.rank):
+                    rankings.append(item)
+            rankings.sort(key=lambda x: x.rank)
+            self.info(f"插入 {eid} 榜线数据成功，新记录数: {len(rankings)}")
+            return True
+
+        except Exception as e:
+            self.error(f"插入 {eid} 榜线数据失败: {get_exc_desc(e)}")
+            return False
+
+
+    async def update_region_ranking_task(self):
+        """更新一次指定服务器的榜线数据"""
+        region = self.region
         url = get_gameapi_config(region).ranking_api_url
         if not url:
-            continue
-        
+            return
+            
         # 获取当前运行中的活动
         try:
             if not (event := get_current_event(region, fallback="prev")):
-                info(f"{region} 当前无进行中或已结束活动，跳过榜线更新")
-                continue
+                self.info(f"当前无进行中或已结束活动，跳过榜线更新")
+                return
             if datetime.now() > datetime.fromtimestamp(event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END_CFG.get() * 60):
-                info(f"{region} 当前活动 {event['id']} 已过榜线记录时间，跳过榜线更新")
-                continue
+                self.info(f"当前活动 {event['id']} 已过榜线记录时间，跳过榜线更新")
+                return
         except Exception as e:
-            warning(f"检查 {region} 当前活动时失败: {get_exc_desc(e)}")
-            continue
+            self.warning(f"检查当前活动时失败: {get_exc_desc(e)}")
+            return
 
         # 清空并非当前活动的缓存榜线数据
         event_id = event['id']
         for key in list(latest_rankings_cache.get(region, {}).keys()):
             if key % 1000 != event_id:
                 latest_rankings_cache[region].pop(key)
-                info(f"清除 {region} 非当前活动 {key} 的榜线缓存数据")
+                self.info(f"清除非当前活动 {key} 的榜线缓存数据")
 
-        # 获取榜线数据
-        @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
-        async def _get_ranking(region: str, eid: int, url: str):
+        data = await self.request_rankings(event_id, url)
+
+        if not data:
+            return
+
+        tasks = []
+        # 总榜
+        tasks.append(self.update_rankings(event_id, data))
+        # WL单榜
+        wl_events = get_wl_events(region, event_id)
+        if wl_events and len(wl_events) > 1:
+            for wl_event in wl_events:
+                if datetime.now() > datetime.fromtimestamp(wl_event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END_CFG.get() * 60):
+                    continue
+                tasks.append(self.update_rankings(wl_event['id'], data))
+
+        if not tasks: return
+        await asyncio.gather(*tasks)
+
+    async def start_track(self):
+        self.info(f"榜线更新任务已启动")
+        next_record_time = datetime.now()
+        while True:
             try:
-                t = datetime.now().timestamp()
-                data = await request_gameapi(url.format(event_id=eid))
-                info(f"请求 {region}_{eid} 榜线数据成功, 耗时 {(datetime.now().timestamp() - t):.2f}s")
-                return region, eid, data
-            except Exception:
-                error(f"请求 {region} 榜线数据失败")
-                return region, eid, None
-            
-        tasks.append(_get_ranking(region, event_id, url))
+                while datetime.now() < next_record_time:
+                    await asyncio.sleep(0.5)
+                start = datetime.now()
+                await self.update_region_ranking_task()
+                now = datetime.now()
+                next_record_time = start + timedelta(seconds=get_cfg_or_value(SK_RECORD_INTERVAL_CFG))
+                self.info(f"完成榜线更新检查，耗时 {(now - start).total_seconds():.2f}s，下次: {next_record_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            except asyncio.CancelledError:
+                break
+        await close_session()
 
-    if not tasks: return
-    results = await asyncio.gather(*tasks)
 
-    # =============== 处理获取到的榜线数据 =============== #
-
+async def main():
+    trackers = { region: EventTracker(region) for region in ALL_SERVER_REGIONS }
     tasks = []
-    for region, eid, data in results:
-        if data:
-            # 更新总榜或WL单榜，返回是否更新成功
-            async def update_board(region: str, eid: int, data: dict) -> bool:
-                try:
-                    # 插入数据库
-                    rankings = parse_rankings(region, eid, data, True)
-                    await insert_rankings(region, eid, rankings)
-
-                    # 更新缓存
-                    if region not in latest_rankings_cache:
-                        latest_rankings_cache[region] = {}
-                    last_rankings = latest_rankings_cache[region].get(eid, [])
-                    latest_rankings_cache[region][eid] = rankings
-
-                    # 插回本次没有更新的榜线
-                    for item in last_rankings:
-                        if not find_by_predicate(rankings, lambda x: x.rank == item.rank):
-                            rankings.append(item)
-                    rankings.sort(key=lambda x: x.rank)
-                    info(f"插入 {region}_{eid} 榜线数据成功，记录数: {len(rankings)}")
-                    return True
-
-                except Exception as e:
-                    error(f"插入 {region}_{eid} 榜线数据失败: {get_exc_desc(e)}")
-                    return False
-
-            # 总榜
-            tasks.append(update_board(region, eid, data))
-            # WL单榜
-            wl_events = get_wl_events(region, eid)
-            if wl_events and len(wl_events) > 1:
-                for wl_event in wl_events:
-                    if datetime.now() > datetime.fromtimestamp(wl_event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END_CFG.get() * 60):
-                        continue
-                    tasks.append(update_board(region, wl_event['id'], data))
-
-    if not tasks: return
+    for region in ALL_SERVER_REGIONS:
+        tasks.append(trackers[region].start_track())
     await asyncio.gather(*tasks)
 
 
-async def start_track():
-    info("已启动榜线追踪")
-    next_record_time = datetime.now()
-    while True:
-        try:
-            while datetime.now() < next_record_time:
-                await asyncio.sleep(0.5)
-            start = datetime.now()
-            await update_ranking()
-            now = datetime.now()
-            next_record_time = start + timedelta(seconds=get_cfg_or_value(SK_RECORD_INTERVAL_CFG))
-            info(f"完成榜线更新检查，耗时 {(now - start).total_seconds():.2f} 秒，下次更新时间 {next_record_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        except asyncio.CancelledError:
-            break
-    await close_session()
-
-
 if __name__ == "__main__":
-    asyncio.run(start_track())
+    print("\nStarting Event Tracker...")
+    asyncio.run(main())
