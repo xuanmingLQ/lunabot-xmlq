@@ -6,7 +6,6 @@ from ..asset import *
 from ..draw import *
 from ..sub import SekaiGroupSubHelper, SekaiUserSubHelper
 from .card_extractor import CardExtractor, CardExtractResult, CardThumbnail
-from ..gameapi import get_gameapi_config, request_gameapi
 from .profile import (
     get_card_full_thumbnail, 
     get_player_bind_id,

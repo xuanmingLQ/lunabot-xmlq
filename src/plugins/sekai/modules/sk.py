@@ -4,15 +4,8 @@ from ..common import *
 from ..handler import *
 from ..asset import *
 from ..draw import *
-<<<<<<< HEAD
-from .profile import (
-    get_gameapi_config,
-    get_player_bind_id,
-)
-=======
-from ..gameapi import get_gameapi_config, request_gameapi
 from .profile import get_player_bind_id
->>>>>>> origin/master
+
 from .event import (
     get_current_event, 
     get_event_banner_img, 
@@ -1627,102 +1620,6 @@ async def _(ctx: SekaiHandlerContext):
 
 # ======================= 定时任务 ======================= #
 
-<<<<<<< HEAD
-UPDATE_RANKING_LOG_INTERVAL_CFG = config.item('sk.update_ranking_log_interval')
-RECORD_TIME_AFTER_EVENT_END_CFG = config.item('sk.record_time_after_event_end_minutes')
-ranking_update_times = { region: 0 for region in ALL_SERVER_REGIONS }
-ranking_update_failures = { region: 0 for region in ALL_SERVER_REGIONS }
-
-@repeat_with_interval(SK_RECORD_INTERVAL_CFG, '更新榜线数据', logger, every_output=False, error_limit=1)
-async def update_ranking():
-    tasks = []
-    region_failed = {}
-    
-    # 获取所有服务器的榜线数据
-    for region in ALL_SERVER_REGIONS:
-        ctx = SekaiHandlerContext.from_region(region)
-
-        # url = get_gameapi_config(ctx).ranking_api_url
-        # if not url:
-        #     continue
-        
-        # 获取当前运行中的活动
-        if not (event := await get_current_event(ctx, fallback="prev")):
-            continue
-        if datetime.now() > datetime.fromtimestamp(event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END_CFG.get() * 60):
-            continue
-
-        # 获取榜线数据
-        @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
-        async def _get_ranking(ctx: SekaiHandlerContext, eid: int):
-            try:
-                data = await get_ranking(ctx.region, eid)
-                return ctx.region, eid, data
-            except Exception as e:
-                logger.warning(f"获取 {ctx.region} 榜线数据失败: {get_exc_desc(e)}")
-                region_failed[ctx.region] = True
-                return ctx.region, eid, None
-            
-        tasks.append(_get_ranking(ctx, event['id']))
-
-    if not tasks:
-        return
-    results = await asyncio.gather(*tasks)
-
-    # 处理获取到的榜线数据
-    for region, eid, data in results:
-        ctx = SekaiHandlerContext.from_region(region)
-        ranking_update_times[region] += 1
-        if data:
-            # 更新总榜或WL单榜，返回是否更新成功
-            async def update_board(ctx: SekaiHandlerContext, eid: int, data: dict) -> bool:
-                try:
-                    # 插入数据库
-                    rankings = await parse_rankings(ctx, eid, data, True)
-                    await insert_rankings(region, eid, rankings)
-
-                    # 更新缓存
-                    if region not in latest_rankings_cache:
-                        latest_rankings_cache[region] = {}
-                    last_rankings = latest_rankings_cache[region].get(eid, [])
-                    latest_rankings_cache[region][eid] = rankings
-
-                    # 插回本次没有更新的榜线
-                    for item in last_rankings:
-                        if not find_by_predicate(rankings, lambda x: x.rank == item.rank):
-                            rankings.append(item)
-                    rankings.sort(key=lambda x: x.rank)
-                    return True
-
-                except Exception as e:
-                    logger.print_exc(f"插入 {region}_{eid} 榜线数据失败: {get_exc_desc(e)}")
-                    return False
-
-            # 总榜
-            if not await update_board(ctx, eid, data):
-                region_failed[region] = True
-            # WL单榜
-            wl_events = await get_wl_events(ctx, eid)
-            if wl_events and len(wl_events) > 1:
-                for wl_event in wl_events:
-                    if datetime.now() > datetime.fromtimestamp(wl_event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END_CFG.get() * 60):
-                        continue
-                    if not await update_board(ctx, wl_event['id'], data):
-                        region_failed[region] = True
-        
-        # 更新失败次数和日志
-        for region in ALL_SERVER_REGIONS:
-            if region_failed.get(region, False):
-                ranking_update_failures[region] += 1
-            log_interval = UPDATE_RANKING_LOG_INTERVAL_CFG.get()
-            if ranking_update_times[region] >= log_interval:
-                logger.info(f"最近 {log_interval} 次更新 {region} 榜线数据失败次数: {ranking_update_failures[region]}")
-                ranking_update_times[region] = 0
-                ranking_update_failures[region] = 0
-
-
-=======
->>>>>>> origin/master
 SK_COMPRESS_INTERVAL_CFG = config.item('sk.backup.interval_seconds')
 SK_COMPRESS_THRESHOLD_CFG = config.item('sk.backup.threshold_days')
 SK_PYBD_UPLOAD_ENABLED_CFG = config.item('sk.backup.pybd_upload')
