@@ -947,7 +947,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(6).set_padding(16):
                 TextBox(f"T{ranks[-1].rank} \"{ranks[-1].name}\" 各小时Pt变化次数", style1)
-                TextBox(f"标注*号的小时有较多数据缺失，数据可能不准确", style2)
+                TextBox(f"标注*号的小时有数据缺失，数据可能不准确", style2)
                 with Grid(col_count=24, hsep=1, vsep=1):
                     for i in range(0, 24):
                         TextBox(f"{i}", TextStyle(font=DEFAULT_FONT, size=12, color=BLACK)) \
