@@ -3,6 +3,7 @@ from .master import MasterDataManager
 from .gameapi import get_gameapi_config, request_gameapi, close_session
 from .sql import insert_rankings, Ranking
 from tenacity import retry, wait_fixed, stop_after_attempt
+from src.utils.data import get_data_path
 
 
 set_log_level('INFO')
@@ -12,7 +13,7 @@ ALL_SERVER_REGIONS = ['jp', 'cn', 'tw', 'kr', 'en']
 RECORD_TIME_AFTER_EVENT_END_CFG = config.item('sk.record_time_after_event_end_minutes')
 SK_RECORD_INTERVAL_CFG = config.item('sk.record_interval_seconds')
 
-mds = MasterDataManager('data/sekai/assets/masterdata')
+mds = MasterDataManager(get_data_path('sekai/assets/masterdata'))
 
 latest_rankings_cache: dict[str, dict[int, list[Ranking]]] = {}
 

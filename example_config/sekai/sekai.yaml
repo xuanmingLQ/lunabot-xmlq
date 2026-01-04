@@ -239,3 +239,6 @@ music:
     csv_path: ""  # 歌曲定数csv路径，需包含 id,difficulty,constant 三列
     info_text: |
       该bot的定数表未配置
+
+rpc:
+  default_timeout: 5

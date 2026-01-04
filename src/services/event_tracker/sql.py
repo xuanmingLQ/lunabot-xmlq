@@ -1,9 +1,10 @@
 from .utils import *
 import aiosqlite
+from src.utils.data import get_data_path
 
 RANKING_NAME_LEN_LIMIT = 32
 
-SEKAI_DATA_DIR = "data/sekai"
+SEKAI_DATA_DIR = get_data_path("sekai")
 DB_PATH = SEKAI_DATA_DIR + "/db/sk_{region}/{event_id}_ranking.db"
 
 _conns: dict[str, aiosqlite.Connection] = {}

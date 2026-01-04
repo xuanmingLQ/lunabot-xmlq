@@ -11,6 +11,7 @@ import asyncio
 import traceback
 import orjson
 import random
+from src.utils.env import CONFIG_DIR
 try:
     import uvloop
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
@@ -19,7 +20,6 @@ except ImportError:
 
 
 SERVICE_NAME = "lunabot-event-tracker"
-CONFIG_DIR = "config/"
 CONFIG_NAME = "sekai.sekai"
 NEED_RPC = False
 
