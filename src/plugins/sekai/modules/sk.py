@@ -39,7 +39,7 @@ plt.switch_backend('agg')
 matplotlib.rcParams['font.family'] = [FONT_NAME]
 matplotlib.rcParams['axes.unicode_minus'] = False  
 
-SK_RECORD_INTERVAL_CFG = config.item("sk.record_interval_seconds")
+SK_RECORD_TOLERANCE_CFG = config.item("sk.record_interval_tolerance")
 
 SKL_QUERY_RANKS = [
     *range(10, 51, 10),
@@ -722,13 +722,13 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
 
         pts = []
         abnormal = False
-        abnormal_time = timedelta(seconds=SK_RECORD_INTERVAL_CFG.get() * 2)
-        if ranks[0].time - cf_start_time > abnormal_time:
+        tolerance = timedelta(seconds=SK_RECORD_TOLERANCE_CFG.get())
+        if ranks[0].time - cf_start_time > tolerance:
             abnormal = True
         for i in range(len(ranks) - 1):
             if ranks[i + 1].score != ranks[i].score:
                 pts.append(ranks[i + 1].score - ranks[i].score)
-            if ranks[i + 1].time - ranks[i].time > abnormal_time:
+            if ranks[i + 1].time - ranks[i].time > tolerance:
                 abnormal = True
         
         ret = {
@@ -865,17 +865,28 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
 
     rankcounts: list[list[int]] = []
     playcounts: list[list[int]] = []
+    abnormals: list[list[bool]] = []
     start_date = ranks[0].time.date()
     for i in range(len(ranks) - 1):
         cur, nxt = ranks[i], ranks[i + 1]
+        lst = ranks[i - 1] if i - 1 >= 0 else None
         day = (cur.time.date() - start_date).days
         while len(rankcounts) <= day:
             rankcounts.append([0 for _ in range(24)])
             playcounts.append([0 for _ in range(24)])
+            abnormals.append([False for _ in range(24)])
         hour = cur.time.hour
         rankcounts[day][hour] += 1
         if nxt.score > cur.score:
             playcounts[day][hour] += 1
+        # 判断数据异常
+        tolerance = timedelta(seconds=SK_RECORD_TOLERANCE_CFG.get())
+        def check_abnormal(left: datetime, right: datetime):
+            if right - left > tolerance:
+                abnormals[day][hour] = True
+        if lst and cur.time.hour != lst.time.hour:  
+            check_abnormal(lst.time, cur.time)
+        check_abnormal(cur.time, nxt.time)
 
     HEAT_COLOR_MIN = color_code_to_rgb('#B8D8FF')
     HEAT_COLOR_MAX = color_code_to_rgb('#FFB5B5')
@@ -888,7 +899,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
         if not l: l = rank
         if not r: r = rank
         # 如果掉出100（排名大于100或数据缺失过长），提前结算当前区间
-        if rank.rank > 100 or rank.time - r.time > timedelta(seconds=SK_RECORD_INTERVAL_CFG.get() * 2):
+        if rank.rank > 100 or rank.time - r.time > timedelta(seconds=SK_RECORD_TOLERANCE_CFG.get()):
             if l != r:
                 segs.append((l, r))
             l, r = rank, None
@@ -943,13 +954,12 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
                             .set_content_align('c').set_size((30, 30))
                     for day in range(len(rankcounts)):
                         for hour in range(0, 24):
-                            playcount, rankcount = playcounts[day][hour], rankcounts[day][hour]
+                            playcount, rankcount, abnormal = playcounts[day][hour], rankcounts[day][hour], abnormals[day][hour]
                             if rankcount < 10:
                                 Spacer(w=24, h=24)
                             else:
                                 playcount_text = str(playcount)
-                                expect_rankcount = 60 * 60 // SK_RECORD_INTERVAL_CFG.get()
-                                if rankcount < expect_rankcount * 0.9:
+                                if abnormal:
                                     playcount_text += "*"
                                 color = lerp_color(HEAT_COLOR_MIN, HEAT_COLOR_MAX, max(min((playcount - 15) / 15, 1.0), 0.0))
                                 TextBox(playcount_text, TextStyle(font=DEFAULT_FONT, size=16, color=BLACK)) \
