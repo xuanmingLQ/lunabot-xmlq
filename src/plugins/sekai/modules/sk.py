@@ -740,9 +740,6 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             if ranks[i + 1].time - ranks[i].time > abnormal_time:
                 abnormal = True
         
-        if len(pts) < 1:
-            return { 'status': 'no_enough' }
-        
         ret = {
             'status': 'ok',
             'abnormal': abnormal,
@@ -753,9 +750,9 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             'start_time': ranks[0].time,
             'end_time': ranks[-1].time,
             'hour_speed': int((ranks[-1].score - ranks[0].score) / (ranks[-1].time - ranks[0].time).total_seconds() * 3600),
-            'last_pt': pts[-1],
+            'last_pt': pts[-1] if pts else 0,
             'avg_pt_n': min(10, len(pts)),
-            'avg_pt': sum(pts[-min(10, len(pts)):]) / min(10, len(pts)),
+            'avg_pt': sum(pts[-min(10, len(pts)):]) / min(10, len(pts)) if pts else 0,
             'pts': pts,
         }
         if last_20min_rank := find_by_predicate(ranks, lambda x: x.time <= ranks[-1].time - timedelta(minutes=20), mode='last'):
@@ -781,14 +778,17 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             texts.append((f"{d['prev_rank']}名分数: {get_board_score_str(d['prev_score'])}  ↑{get_board_score_str(d['prev_dlt'])}", style3))
         if 'next_rank' in d:
             texts.append((f"{d['next_rank']}名分数: {get_board_score_str(d['next_score'])}  ↓{get_board_score_str(d['next_dlt'])}", style3))
-        texts.append((f"近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
-        texts.append((f"最近一次Pt: {d['last_pt']}", style2))
-        texts.append((f"时速: {get_board_score_str(d['hour_speed'])}", style2))
-        if 'last_20min_speed' in d:
-            texts.append((f"20min×3时速: {get_board_score_str(d['last_20min_speed'])}", style2))
-        texts.append((f"最近1小时Pt变化次数: {len(d['pts'])}", style2))
+        if d['avg_pt_n'] > 0:
+            texts.append((f"近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
+            texts.append((f"最近一次Pt: {d['last_pt']}", style2))
+            texts.append((f"时速: {get_board_score_str(d['hour_speed'])}", style2))
+            if 'last_20min_speed' in d:
+                texts.append((f"20min×3时速: {get_board_score_str(d['last_20min_speed'])}", style2))
+            texts.append((f"最近一小时内Pt变化次数: {len(d['pts'])}", style2))
+        else:
+            texts.append((f"没有找到该玩家最近一小时内的游玩记录", style4.replace(color=(200, 0, 0))))
         if d['abnormal']:
-            texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4))
+            texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4.replace(color=(200, 0, 0))))
         texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
     else:
         # 多个
@@ -802,10 +802,13 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
                 continue
             texts.append((f"{d['name']}", style1))
             texts.append((f"排名 {get_board_rank_str(d['cur_rank'])}  -  {get_board_score_str(d['cur_score'])}", style2))
-            texts.append((f"时速: {get_board_score_str(d['hour_speed'])} 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
-            texts.append((f"最近1小时Pt变化次数: {len(d['pts'])}", style2))
+            if d['avg_pt_n'] > 0:
+                texts.append((f"时速: {get_board_score_str(d['hour_speed'])} 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
+                texts.append((f"最近一小时内Pt变化次数: {len(d['pts'])}", style2))
+            else:
+                texts.append((f"没有找到该玩家最近一小时内的游玩记录", style4.replace(color=(200, 0, 0))))
             if d['abnormal']:
-                texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4))
+                texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4.replace(color=(200, 0, 0))))
             texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
