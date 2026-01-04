@@ -187,7 +187,7 @@ def find_next_ranking(ranks: List[Ranking], rank: int) -> Optional[Ranking]:
     return most_next
 
 # 从榜线数据解析Rankings
-async def parse_rankings(ctx: SekaiHandlerContext, event_id: int, data: dict, ignore_no_update: bool) -> List[Ranking]:
+async def parse_rankings(ctx: SekaiHandlerContext, event_id: int, data: dict) -> List[Ranking]:
     data_top100 = data.get('top100', {})
     data_border = data.get('border', {})
     assert data_top100, "获取榜线Top100数据失败"
@@ -210,18 +210,6 @@ async def parse_rankings(ctx: SekaiHandlerContext, event_id: int, data: dict, ig
         item.uid = str(item.uid)
     for item in border:
         item.uid = str(item.uid)
-
-    if ignore_no_update:
-        # 过滤掉没有更新的border榜线
-        border_has_diff = False
-        latest_ranks = latest_rankings_cache.get(ctx.region, {}).get(event_id, [])
-        for item in border:
-            latest_item = find_by_predicate(latest_ranks, lambda x: x.rank == item.rank)
-            if not latest_item or (latest_item.score != item.score or latest_item.uid != item.uid):
-                border_has_diff = True
-                break
-        if not border_has_diff:
-            return top100
     
     return top100 + border
   
@@ -234,7 +222,7 @@ async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_rank
         logger.info(f"从缓存中获取 {ctx.region}_{event_id} 最新榜线数据")
         return [r for r in rankings if r.rank in query_ranks]
     # 从数据库中获取，并更新缓存
-    rankings = await query_latest_ranking(ctx.region, event_id, ALL_RANKS)
+    rankings = await query_latest_ranking(ctx.region, event_id)
     if rankings:
         logger.info(f"从数据库获取 {ctx.region}_{event_id} 最新榜线数据")
         latest_rankings_cache.setdefault(ctx.region, {})[event_id] = rankings
@@ -246,7 +234,7 @@ async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_rank
     data = await request_gameapi(url.format(event_id=event_id % 1000))
     assert_and_reply(data, "获取榜线数据失败")
     logger.info(f"从API获取 {ctx.region}_{event_id} 最新榜线数据")
-    return [r for r in await parse_rankings(ctx, event_id, data, False) if r.rank in query_ranks]
+    return [r for r in await parse_rankings(ctx, event_id, data) if r.rank in query_ranks]
 
 # 获取榜线分数字符串
 def get_board_score_str(score: int, width: int = None, precise: bool = True) -> str:
