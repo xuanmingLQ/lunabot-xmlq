@@ -1272,7 +1272,15 @@ def limit_image_by_pixels(image: Image.Image | list[Image.Image], max_pixels: in
 
 
 # ============================= 其他 ============================ #
-    
+
+start_async_task(Config.start_config_watcher, utils_logger, '配置文件修改监听')
+
+@on_shutdown()
+def _shutdown_process_pools():
+    from .process_pool import ProcessPool
+    ProcessPool.shutdown_all()
+
+
 class SubHelper:
     def __init__(self, name: str, db: FileDB, logger: Logger, key_fn=None, val_fn=None):
         self.name = name
@@ -1312,10 +1320,6 @@ class SubHelper:
     def clear(self):
         self.db.delete(self.key)
         self.logger.log(f'{self.name}清空订阅')
-
-
-start_async_task(Config.start_config_watcher, utils_logger, '配置文件修改监听')
-
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
 async def asend_mail(
