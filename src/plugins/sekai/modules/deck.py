@@ -666,7 +666,11 @@ async def extract_music_and_diff(
     if args:
         search_options.diff = options.music_diff
         music = (await search_music(ctx, args, search_options)).music
-        assert_and_reply(music, f"找不到歌曲\"{args}\"\n发送\"{ctx.trigger_cmd}help\"查看帮助")
+        err_msg = f"找不到歌曲\"{args}\""
+        if len(args.split()) > 1:
+            err_msg += "，如果你要对多首歌曲进行比较，请加上\"歌曲比较\""
+        err_msg += f"，发送\"{ctx.trigger_cmd}help\"查看帮助"
+        assert_and_reply(music, err_msg)
         options.music_id = music['id']
 
     # 已指定歌曲和难度
