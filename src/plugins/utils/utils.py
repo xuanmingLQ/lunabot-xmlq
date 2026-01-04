@@ -36,6 +36,30 @@ import math
 import io
 import time
 import zstandard
+from nonebot import get_driver
+
+
+# ============================ 启动/停止hook ============================ #
+
+_nonebot_driver = get_driver()
+
+def on_startup():
+    """
+    注册启动时执行的函数装饰器
+    """
+    def wrapper(func: Callable):
+        _nonebot_driver.on_startup(func)
+        return func
+    return wrapper
+
+def on_shutdown():
+    """
+    注册停止时执行的函数装饰器
+    """
+    def wrapper(func: Callable):
+        _nonebot_driver.on_shutdown(func)
+        return func
+    return wrapper
 
 
 # ============================ 基础 ============================ #
@@ -221,6 +245,11 @@ from nonebot_plugin_apscheduler import scheduler
 from concurrent.futures import ThreadPoolExecutor
 _default_pool_executor = ThreadPoolExecutor(max_workers=global_config.get('default_thread_pool_size'))
 
+_pending_startup_tasks: List[Any] = []
+
+STARTUP_TASK_MIN_DELAY = global_config.get('startup_task_delay_seconds.min')
+STARTUP_TASK_MAX_DELAY = global_config.get('startup_task_delay_seconds.max')
+
 async def run_in_pool(func, *args, pool=None):
     if pool is None:
         global _default_pool_executor
@@ -238,13 +267,15 @@ def start_repeat_with_interval(
     every_output=False, 
     error_output=True, 
     error_limit=5, 
-    start_offset=10
+    delay=None
 ):
     """
     开始重复执行某个异步任务
     """
-    @scheduler.scheduled_job("date", run_date=datetime.now() + timedelta(seconds=start_offset), misfire_grace_time=60)
-    async def _():
+    if delay is None:
+        delay = random.uniform(STARTUP_TASK_MIN_DELAY, STARTUP_TASK_MAX_DELAY)
+    async def task():
+        await asyncio.sleep(delay)
         try:
             error_count = 0
             logger.info(f'开始循环执行 {name} 任务', flush=True)
@@ -277,6 +308,7 @@ def start_repeat_with_interval(
 
         except Exception as e:
             logger.print_exc(f'循环执行 {name} 任务失败')
+    _pending_startup_tasks.append(task)
 
 def repeat_with_interval(
     interval_secs: int | ConfigItem, 
@@ -285,38 +317,37 @@ def repeat_with_interval(
     every_output=False, 
     error_output=True, 
     error_limit=5, 
-    start_offset=None
+    delay=None
 ):
     """
     重复执行某个任务的装饰器
     """
-    if start_offset is None:
-        start_offset = 5 + random.randint(0, 10)
     def wrapper(func):
-        start_repeat_with_interval(interval_secs, func, logger, name, every_output, error_output, error_limit, start_offset)
+        start_repeat_with_interval(interval_secs, func, logger, name, every_output, error_output, error_limit, delay)
         return func
     return wrapper
 
-def start_async_task(func: Callable, logger: 'Logger', name: str, start_offset=5):   
+def start_async_task(func: Callable, logger: 'Logger', name: str, delay=None):   
     """
     开始异步执行某个任务
     """
-    @scheduler.scheduled_job("date", run_date=datetime.now() + timedelta(seconds=start_offset), misfire_grace_time=60)
-    async def _():
+    if delay is None:
+        delay = random.uniform(STARTUP_TASK_MIN_DELAY, STARTUP_TASK_MAX_DELAY)
+    async def task():
+        await asyncio.sleep(delay)
         try:
             logger.info(f'开始异步执行 {name} 任务', flush=True)
             await func()
         except Exception as e:
             logger.print_exc(f'异步执行 {name} 任务失败')
+    _pending_startup_tasks.append(task)
 
-def async_task(name: str, logger: 'Logger', start_offset=None):
+def async_task(name: str, logger: 'Logger', delay=None):
     """
     异步执行某个任务的装饰器
     """
-    if start_offset is None:
-        start_offset = 5 + random.randint(0, 10)
     def wrapper(func):
-        start_async_task(func, logger, name, start_offset)
+        start_async_task(func, logger, name, delay)
         return func
     return wrapper  
 
@@ -328,6 +359,13 @@ async def batch_gather(*futs_or_coros, batch_size=32) -> List[Any]:
     for i in range(0, len(futs_or_coros), batch_size):
         results.extend(await asyncio.gather(*futs_or_coros[i:i + batch_size]))
     return results
+
+# 启动时_pending_start_tasks
+@scheduler.scheduled_job('date', run_date=datetime.now(), misfire_grace_time=60)
+async def _create_pending_startup_tasks():
+    for task in _pending_startup_tasks:
+        asyncio.create_task(task())
+    _pending_startup_tasks.clear()
 
 
 # ============================ 字符串 ============================ #
@@ -1265,6 +1303,9 @@ class SubHelper:
         self.logger.log(f'{self.name}清空订阅')
 
 
+start_async_task(Config.start_config_watcher, utils_logger, '配置文件修改监听')
+
+
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
 async def asend_mail(
     subject: str,
@@ -1363,7 +1404,7 @@ async def _():
 
 
 if _profile_at_startup:
-    @async_task("结束启动时性能分析", utils_logger, start_offset=_profile_at_startup_seconds)
+    @async_task("结束启动时性能分析", utils_logger, delay=_profile_at_startup_seconds)
     async def _stop_startup_profile():
         if not yappi.is_running():
             return
