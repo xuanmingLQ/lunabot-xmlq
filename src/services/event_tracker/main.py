@@ -58,8 +58,8 @@ def get_current_event(region: str, fallback: Optional[str] = None) -> dict:
         return next_event
     return prev_event or next_event
 
-def parse_rankings(region: str, event_id: int, data: dict) -> list[Ranking]:
-    """从榜线数据解析Rankings"""
+def parse_rankings(region: str, event_id: int, data: dict) -> tuple[list[Ranking], list[Ranking]]:
+    """从榜线数据解析Rankings，返回top100, border"""
     data_top100 = data.get('top100', {})
     data_border = data.get('border', {})
     assert data_top100, "获取榜线Top100数据失败"
@@ -85,7 +85,7 @@ def parse_rankings(region: str, event_id: int, data: dict) -> list[Ranking]:
     for item in border:
         item.uid = str(item.uid)
     
-    return top100 + border
+    return top100, border
 
 def get_wl_events(region: str, event_id: int) -> list[dict]:
     """获取event_id对应的所有wl_event（时间顺序），如果不是wl则返回空列表"""
@@ -145,27 +145,36 @@ class EventTracker:
         """
         region = self.region
         try:
-            # 插入数据库
-            rankings = parse_rankings(region, eid, data)
+            top100, borders = parse_rankings(region, eid, data)
 
-            # 和缓存进行比对并更新缓存，仅插入有更新的榜线（玩家和分数都没有变化则不插入）
+            # 和缓存进行比对并更新缓存
             if region not in latest_rankings_cache:
                 latest_rankings_cache[region] = {}
             if eid not in latest_rankings_cache[region]:
                 latest_rankings_cache[region][eid] = {}
 
-            rankings_to_insert: list[Ranking] = []
-            for item in rankings:
-                last_item = latest_rankings_cache[region][eid].get(item.rank, None)
-                if not last_item or last_item.score != item.score or last_item.uid != item.uid:
+            # 前100强制更新
+            rankings_to_insert: list[Ranking] = top100.copy()
+            for item in top100:
+                latest_rankings_cache[region][eid][item.rank] = item
+
+            # borders仅发现任意榜线有更新才更新
+            border_need_update = False
+            for item in borders:
+                last = latest_rankings_cache[region][eid].get(item.rank, None)
+                if not last or last.score != item.score or last.uid != item.uid:
+                    border_need_update = True
+                    break
+            if border_need_update:
+                rankings_to_insert.extend(borders)
+                for item in borders:
                     latest_rankings_cache[region][eid][item.rank] = item
-                    rankings_to_insert.append(item)
 
             # 插入数据库
             if rankings_to_insert:
                 await insert_rankings(region, eid, rankings_to_insert)
 
-            self.info(f"插入 {eid} 榜线数据成功，新记录数: {len(rankings)}")
+            self.info(f"插入 {eid} 榜线数据成功，新记录数: {len(rankings_to_insert)}")
             return True
 
         except Exception as e:

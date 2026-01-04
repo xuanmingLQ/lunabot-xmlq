@@ -20,10 +20,15 @@ async def get_conn(region, event_id, create) -> Optional[aiosqlite.Connection]:
     global _conns
     if _conns.get(path) is None:
         _conns[path] = await aiosqlite.connect(path)
+        await _conns[path].execute("PRAGMA journal_mode=WAL;") 
         info(f"连接sqlite数据库 {path} 成功")
 
     conn = _conns[path]
-    if not _created_table_keys.get(f"{region}_{event_id}"):
+    
+    cache_key = f"{region}_{event_id}"
+    
+    if not _created_table_keys.get(cache_key):
+        # 建表
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS ranking (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,9 +38,18 @@ async def get_conn(region, event_id, create) -> Optional[aiosqlite.Connection]:
                 rank INTEGER,
                 ts INTEGER
             )
-        """)    
+        """)
+        # 创建索引
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_ranking_rank_ts 
+            ON ranking (rank, ts)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_ranking_uid 
+            ON ranking (uid)
+        """)
         await conn.commit()
-        _created_table_keys[f"{region}_{event_id}"] = True
+        _created_table_keys[cache_key] = True
 
     return conn
 
