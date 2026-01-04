@@ -543,13 +543,14 @@ def get_float_str(value: float, precision: int = 2, remove_zero: bool = True) ->
 def get_date_str() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
+_global_zstd_cctx = zstandard.ZstdCompressor()
+_global_zstd_dctx = zstandard.ZstdDecompressor()
+
 def compress_zstd(b: bytes):
-    cctx = zstandard.ZstdCompressor()
-    return cctx.compress(b)
+    return _global_zstd_cctx.compress(b)
 
 def decompress_zstd(b: bytes):
-    dctx = zstandard.ZstdDecompressor()
-    return dctx.decompress(b, max_output_size=100*1024*1024)
+    return _global_zstd_dctx.decompress(b, max_output_size=100*1024*1024)
 
 
 # ============================ 文件 ============================ #
@@ -701,8 +702,7 @@ async def download_json(url: str) -> dict:
 
 def load_json_zstd(file_path: str) -> dict:
     with open(file_path, 'rb') as file:
-        dctx = zstandard.ZstdDecompressor()
-        data = dctx.decompress(file.read())
+        data = _global_zstd_dctx.decompress(file.read())
         return orjson.loads(data)
 
 def dump_json_zstd(data: dict, file_path: str) -> None:
@@ -710,8 +710,7 @@ def dump_json_zstd(data: dict, file_path: str) -> None:
     tmp_path = file_path + ".tmp"
     with open(tmp_path, 'wb') as file:
         buffer = orjson.dumps(data)
-        cctx = zstandard.ZstdCompressor()
-        compressed = cctx.compress(buffer)
+        compressed = _global_zstd_cctx.compress(buffer)
         file.write(compressed)
     os.replace(tmp_path, file_path)
     try: os.remove(tmp_path)
