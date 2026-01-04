@@ -72,6 +72,16 @@ SK_TEXT_QUERY_BG_COLOR = [255, 255, 255, 150]
 
 # ======================= 处理逻辑 ======================= #
 
+# 检查某个榜线记录是否属于高精度记录
+def check_ranking_is_high_res(region: str, ranking: Ranking):
+    for rank_min, rank_max in config.get('sk.high_res_record.ranks', {}).get(region, []):
+        if rank_min <= ranking.rank <= rank_max:
+            return True
+    for uid in config.get('sk.high_res_record.uids', {}).get(region, []):
+        if str(ranking.uid) == str(uid):
+            return True
+    return False
+
 # 获取用于显示的活动ID-活动名称文本
 def get_event_id_and_name_text(region: str, event_id: int, event_name: str) -> str:
     if event_id < 1000:
@@ -607,6 +617,7 @@ async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     wl_cid = await get_wl_chapter_cid(ctx, eid)
 
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)
+    style1_hr = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=LinearGradient((0, 0, 150, 255), (150, 0, 100, 255), (0, 0), (1, 1)))
     style2 = TextStyle(font=DEFAULT_FONT, size=24, color=BLACK)
     style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=BLACK)
     style4 = TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50))
@@ -635,7 +646,7 @@ async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     # 查询单个
     if len(ret_ranks) == 1:
         rank = ret_ranks[0]
-        texts.append((f"{truncate(rank.name, 40)}", style2))
+        texts.append((f"{truncate(rank.name, 40)}", style1_hr if check_ranking_is_high_res(ctx.region, rank) else style1))
         texts.append((f"排名 {get_board_rank_str(rank.rank)}  -  {get_board_score_str(rank.score)}", style3))
         skl_ranks = [r for r in latest_ranks if r.rank in list(range(1, 10)) + SKL_QUERY_RANKS]
         if prev_rank := find_prev_ranking(skl_ranks, rank.rank):
@@ -648,7 +659,7 @@ async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     # 查询多个
     else:
         for rank in ret_ranks:
-            texts.append((truncate(rank.name, 40), style1))
+            texts.append((truncate(rank.name, 40), style1_hr if check_ranking_is_high_res(ctx.region, rank) else style1))
             texts.append((f"排名 {get_board_rank_str(rank.rank)}  -  {get_board_score_str(rank.score)}", style2))
             texts.append((f"RT: {get_readable_datetime(rank.time, show_original_time=False)}", style4))
 
@@ -685,6 +696,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     wl_cid = await get_wl_chapter_cid(ctx, eid)
 
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)
+    style1_hr = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=LinearGradient((0, 0, 150, 255), (150, 0, 100, 255), (0, 0), (1, 1)))
     style2 = TextStyle(font=DEFAULT_FONT, size=24, color=BLACK)
     style3 = TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)
     style4 = TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50))
@@ -736,6 +748,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             'abnormal': abnormal,
             'name': truncate(ranks[-1].name, 40),
             'uid': ranks[-1].uid,
+            'last_rank_item': ranks[-1],
             'cur_rank': ranks[-1].rank,
             'cur_score': ranks[-1].score,
             'start_time': ranks[0].time,
@@ -763,7 +776,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
         d = calc(ranks)
         assert_and_reply(d['status'] != 'no_found', f"找不到{format_sk_query_params(qtype, qval)}的榜线数据")
         assert_and_reply(d['status'] != 'no_enough', f"{format_sk_query_params(qtype, qval)}的最近游玩次数少于1，无法查询")
-        texts.append((f"{d['name']}", style1))
+        texts.append((f"{d['name']}", style1_hr if check_ranking_is_high_res(ctx.region, ranks[-1]) else style1))
         texts.append((f"排名 {get_board_rank_str(d['cur_rank'])}  -  {get_board_score_str(d['cur_score'])}", style2))
         if 'prev_rank' in d:
             texts.append((f"{d['prev_rank']}名分数: {get_board_score_str(d['prev_score'])}  ↑{get_board_score_str(d['prev_dlt'])}", style3))
@@ -791,7 +804,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             if d['status'] == 'no_enough':
                 texts.append((f"{format_sk_query_params('rank', qval[i])}的最近游玩次数少于1，无法查询", style1))
                 continue
-            texts.append((f"{d['name']}", style1))
+            texts.append((f"{d['name']}", style1_hr if check_ranking_is_high_res(ctx.region, d['last_rank_item']) else style1))
             texts.append((f"排名 {get_board_rank_str(d['cur_rank'])}  -  {get_board_score_str(d['cur_score'])}", style2))
             if d['avg_pt_n'] > 0:
                 texts.append((f"时速: {get_board_score_str(d['hour_speed'])} 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
@@ -835,6 +848,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
     wl_cid = await get_wl_chapter_cid(ctx, eid)
 
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)
+    style1_hr = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=LinearGradient((0, 0, 150, 255), (150, 0, 100, 255), (0, 0), (1, 1)))
     style2 = TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)
     style3 = TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)
     texts: List[str, TextStyle] = []
@@ -914,7 +928,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
     if l and r:
         segs.append((l, r))
     
-    texts.append((f"T{ranks[-1].rank} \"{ranks[-1].name}\" 的停车区间", style1))
+    texts.append((f"T{ranks[-1].rank} \"{ranks[-1].name}\" 的停车区间", style1_hr if check_ranking_is_high_res(ctx.region, ranks[-1]) else style1))
     for l, r in segs:
         if l == r:
             continue
@@ -946,8 +960,8 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
                     ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(6).set_padding(16):
-                TextBox(f"T{ranks[-1].rank} \"{ranks[-1].name}\" 各小时Pt变化次数", style1)
-                TextBox(f"标注*号的小时有数据缺失，数据可能不准确", style2)
+                TextBox(f"T{ranks[-1].rank} \"{ranks[-1].name}\" 各小时Pt变化次数", style1_hr if check_ranking_is_high_res(ctx.region, ranks[-1]) else style1)
+                TextBox(f"标注*号的小时有数据缺失，周回数可能不准确", style2)
                 with Grid(col_count=24, hsep=1, vsep=1):
                     for i in range(0, 24):
                         TextBox(f"{i}", TextStyle(font=DEFAULT_FONT, size=12, color=BLACK)) \
