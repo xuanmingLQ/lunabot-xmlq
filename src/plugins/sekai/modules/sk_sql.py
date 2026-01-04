@@ -92,7 +92,13 @@ def query_update_time(
     path = DB_PATH.format(region=region, event_id=event_id)
     if not os.path.exists(path):
         return None
-    return datetime.fromtimestamp(os.path.getmtime(path))
+    ret = datetime.min
+    ret = max(ret, datetime.fromtimestamp(os.path.getmtime(path)))
+    if os.path.exists(path + "-wal"):
+        ret = max(ret, datetime.fromtimestamp(os.path.getmtime(path + "-wal")))
+    if os.path.exists(path + "-shm"):
+        ret = max(ret, datetime.fromtimestamp(os.path.getmtime(path + "-shm")))
+    return ret
 
 
 async def query_ranking(
