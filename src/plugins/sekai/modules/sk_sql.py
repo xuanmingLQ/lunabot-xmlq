@@ -70,18 +70,6 @@ class Ranking:
         )
 
 
-async def insert_rankings(region: str, event_id: int, rankings: List[Ranking]):
-    conn = await get_conn(region, event_id, create=True)
-
-    for ranking in rankings:
-        ranking.name = ranking.name[:RANKING_NAME_LEN_LIMIT]
-        await conn.execute("""
-            INSERT INTO ranking (uid, name, score, rank, ts) VALUES (?, ?, ?, ?, ?)
-        """, (ranking.uid, ranking.name, ranking.score, ranking.rank, ranking.time.timestamp()))
-
-    await conn.commit()
-
-
 async def query_ranking(
     region: str, 
     event_id: int, 

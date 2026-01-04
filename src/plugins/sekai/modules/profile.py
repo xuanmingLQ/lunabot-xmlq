@@ -3,6 +3,7 @@ from ..common import *
 from ..handler import *
 from ..asset import *
 from ..draw import *
+from ..gameapi import get_gameapi_config, request_gameapi
 from .honor import compose_full_honor_image
 from .resbox import get_res_box_info, get_res_icon
 from src.utils.safety import *
@@ -21,6 +22,7 @@ player_frame_db = get_file_db(f"{SEKAI_PROFILE_DIR}/player_frame.json", logger)
 DAILY_BIND_LIMITS = config.item('bind.daily_limits')
 TOTAL_BIND_LIMITS = config.item('bind.total_limits')
 
+<<<<<<< HEAD
 gameapi_config = Config('sekai.gameapi')
 
 @dataclass
@@ -38,6 +40,8 @@ class GameApiConfig:
     create_account_api_url: Optional[str] = None
     ad_result_update_time_api_url: Optional[str] = None
     ad_result_api_url: Optional[str] = None
+=======
+>>>>>>> origin/master
 
 @dataclass
 class PlayerAvatarInfo:
@@ -509,6 +513,7 @@ def process_sensitive_cmd_source(data):
     if data.get('local_source') == 'haruki':
         data['local_source'] = 'sync'
 
+<<<<<<< HEAD
 # 获取游戏api相关配置
 def get_gameapi_config(ctx: SekaiHandlerContext) -> GameApiConfig:
     return GameApiConfig(**(gameapi_config.get(ctx.region, {})))
@@ -549,6 +554,8 @@ async def request_gameapi(url: str, method: str = 'GET', data_type: str | None =
     except aiohttp.ClientConnectionError as e:
         raise Exception(f"连接游戏API后端失败，请稍后再试")
 
+=======
+>>>>>>> origin/master
 # 根据游戏id获取玩家基本信息
 async def get_basic_profile(ctx: SekaiHandlerContext, uid: int, use_cache=True, use_remote_cache=True, raise_when_no_found=True) -> dict:
     cache_path = f"{SEKAI_PROFILE_DIR}/profile_cache/{ctx.region}/{uid}.json"

@@ -2,7 +2,7 @@
 import os
 import os.path as osp
 from os.path import join as pjoin
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Any, Optional, Union
 from datetime import datetime, timedelta
 import yaml
@@ -10,8 +10,7 @@ from copy import deepcopy
 import asyncio
 import traceback
 import orjson
-import websockets
-from src.utils.env import CONFIG_DIR
+import random
 try:
     import uvloop
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
@@ -19,9 +18,10 @@ except ImportError:
     pass
 
 
-SERVICE_NAME = "lunabot-autochat"
-CONFIG_NAME = "chat.autochat"
-NEED_RPC = True
+SERVICE_NAME = "lunabot-event-tracker"
+CONFIG_DIR = "config/"
+CONFIG_NAME = "sekai.sekai"
+NEED_RPC = False
 
 
 import setproctitle
@@ -445,11 +445,18 @@ if CONFIG_NAME:
 
 # ========================== Log ========================== #
 
+_log_level = 'INFO'
 LOG_LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR']
 
+def set_log_level(level: str):
+    global _log_level
+    if level not in LOG_LEVELS:
+        raise ValueError(f'日志等级必须是 {LOG_LEVELS} 之一，当前: {level}')
+    _log_level = level
+
 def log(level: str, *args, **kwargs):
-    log_level = config.get('log_level').upper()
-    if LOG_LEVELS.index(log_level) > LOG_LEVELS.index(level):
+    global _log_level
+    if LOG_LEVELS.index(_log_level) > LOG_LEVELS.index(level):
         return
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f'[{timestamp}][{level}]', *args, **kwargs, flush=True)

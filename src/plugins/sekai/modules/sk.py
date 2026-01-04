@@ -4,10 +4,15 @@ from ..common import *
 from ..handler import *
 from ..asset import *
 from ..draw import *
+<<<<<<< HEAD
 from .profile import (
     get_gameapi_config,
     get_player_bind_id,
 )
+=======
+from ..gameapi import get_gameapi_config, request_gameapi
+from .profile import get_player_bind_id
+>>>>>>> origin/master
 from .event import (
     get_current_event, 
     get_event_banner_img, 
@@ -17,7 +22,6 @@ from .event import (
 )
 from .sk_sql import (
     Ranking, 
-    insert_rankings, 
     query_ranking, 
     query_latest_ranking, 
     query_first_ranking_after,
@@ -194,17 +198,22 @@ def find_next_ranking(ranks: List[Ranking], rank: int) -> Optional[Ranking]:
 
 # 从榜线数据解析Rankings
 async def parse_rankings(ctx: SekaiHandlerContext, event_id: int, data: dict, ignore_no_update: bool) -> List[Ranking]:
+    data_top100 = data.get('top100', {})
+    data_border = data.get('border', {})
+    assert data_top100, "获取榜线Top100数据失败"
+    assert data_border, "获取榜线Border数据失败"
+
     # 普通活动
     if event_id < 1000:
-        top100 = [Ranking.from_sk(item) for item in data['top100']['rankings']]
-        border = [Ranking.from_sk(item) for item in data['border']['borderRankings'] if item['rank'] != 100]
+        top100 = [Ranking.from_sk(item) for item in data_top100['rankings']]
+        border = [Ranking.from_sk(item) for item in data_border['borderRankings'] if item['rank'] != 100]
     
     # WL活动
     else:
         cid = await get_wl_chapter_cid(ctx, event_id)
-        top100_rankings = find_by(data['top100'].get('userWorldBloomChapterRankings', []), 'gameCharacterId', cid)
+        top100_rankings = find_by(data_top100.get('userWorldBloomChapterRankings', []), 'gameCharacterId', cid)
         top100 = [Ranking.from_sk(item) for item in top100_rankings['rankings']]
-        border_rankings = find_by(data['border'].get('userWorldBloomChapterRankingBorders', []), 'gameCharacterId', cid)
+        border_rankings = find_by(data_border.get('userWorldBloomChapterRankingBorders', []), 'gameCharacterId', cid)
         border = [Ranking.from_sk(item) for item in border_rankings['borderRankings'] if item['rank'] != 100]
 
     for item in top100:
@@ -233,10 +242,12 @@ async def get_latest_ranking(ctx: SekaiHandlerContext, event_id: int, query_rank
     if rankings:
         logger.info(f"从缓存中获取 {ctx.region}_{event_id} 最新榜线数据")
         return [r for r in rankings if r.rank in query_ranks]
-    rankings = await query_latest_ranking(ctx.region, event_id, query_ranks)
+    # 从数据库中获取
+    rankings = await query_latest_ranking(ctx.region, event_id, ALL_RANKS)
     if rankings:
         logger.info(f"从数据库获取 {ctx.region}_{event_id} 最新榜线数据")
-        return rankings
+        latest_rankings_cache.setdefault(ctx.region, {})[event_id] = rankings
+        return [r for r in rankings if r.rank in query_ranks]
     # 从API获取
     try:
         data = await get_ranking(ctx.region, event_id)
@@ -744,9 +755,6 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             if ranks[i + 1].time - ranks[i].time > abnormal_time:
                 abnormal = True
         
-        if len(pts) < 1:
-            return { 'status': 'no_enough' }
-        
         ret = {
             'status': 'ok',
             'abnormal': abnormal,
@@ -757,9 +765,9 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             'start_time': ranks[0].time,
             'end_time': ranks[-1].time,
             'hour_speed': int((ranks[-1].score - ranks[0].score) / (ranks[-1].time - ranks[0].time).total_seconds() * 3600),
-            'last_pt': pts[-1],
+            'last_pt': pts[-1] if pts else 0,
             'avg_pt_n': min(10, len(pts)),
-            'avg_pt': sum(pts[-min(10, len(pts)):]) / min(10, len(pts)),
+            'avg_pt': sum(pts[-min(10, len(pts)):]) / min(10, len(pts)) if pts else 0,
             'pts': pts,
         }
         if last_20min_rank := find_by_predicate(ranks, lambda x: x.time <= ranks[-1].time - timedelta(minutes=20), mode='last'):
@@ -785,14 +793,17 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             texts.append((f"{d['prev_rank']}名分数: {get_board_score_str(d['prev_score'])}  ↑{get_board_score_str(d['prev_dlt'])}", style3))
         if 'next_rank' in d:
             texts.append((f"{d['next_rank']}名分数: {get_board_score_str(d['next_score'])}  ↓{get_board_score_str(d['next_dlt'])}", style3))
-        texts.append((f"近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
-        texts.append((f"最近一次Pt: {d['last_pt']}", style2))
-        texts.append((f"时速: {get_board_score_str(d['hour_speed'])}", style2))
-        if 'last_20min_speed' in d:
-            texts.append((f"20min×3时速: {get_board_score_str(d['last_20min_speed'])}", style2))
-        texts.append((f"最近1小时Pt变化次数: {len(d['pts'])}", style2))
+        if d['avg_pt_n'] > 0:
+            texts.append((f"近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
+            texts.append((f"最近一次Pt: {d['last_pt']}", style2))
+            texts.append((f"时速: {get_board_score_str(d['hour_speed'])}", style2))
+            if 'last_20min_speed' in d:
+                texts.append((f"20min×3时速: {get_board_score_str(d['last_20min_speed'])}", style2))
+            texts.append((f"最近一小时内Pt变化次数: {len(d['pts'])}", style2))
+        else:
+            texts.append((f"没有找到该玩家最近一小时内的游玩记录", style4.replace(color=(200, 0, 0))))
         if d['abnormal']:
-            texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4))
+            texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4.replace(color=(200, 0, 0))))
         texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
     else:
         # 多个
@@ -806,10 +817,13 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
                 continue
             texts.append((f"{d['name']}", style1))
             texts.append((f"排名 {get_board_rank_str(d['cur_rank'])}  -  {get_board_score_str(d['cur_score'])}", style2))
-            texts.append((f"时速: {get_board_score_str(d['hour_speed'])} 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
-            texts.append((f"最近1小时Pt变化次数: {len(d['pts'])}", style2))
+            if d['avg_pt_n'] > 0:
+                texts.append((f"时速: {get_board_score_str(d['hour_speed'])} 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
+                texts.append((f"最近一小时内Pt变化次数: {len(d['pts'])}", style2))
+            else:
+                texts.append((f"没有找到该玩家最近一小时内的游玩记录", style4.replace(color=(200, 0, 0))))
             if d['abnormal']:
-                texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4))
+                texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4.replace(color=(200, 0, 0))))
             texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
@@ -946,6 +960,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(6).set_padding(16):
                 TextBox(f"T{ranks[-1].rank} \"{ranks[-1].name}\" 各小时Pt变化次数", style1)
+                TextBox(f"标注*号的小时有较多数据缺失，数据可能不准确", style2)
                 with Grid(col_count=24, hsep=1, vsep=1):
                     for i in range(0, 24):
                         TextBox(f"{i}", TextStyle(font=DEFAULT_FONT, size=12, color=BLACK)) \
@@ -956,8 +971,12 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
                             if rankcount < 10:
                                 Spacer(w=24, h=24)
                             else:
+                                playcount_text = str(playcount)
+                                expect_rankcount = 60 * 60 // SK_RECORD_INTERVAL_CFG.get()
+                                if rankcount < expect_rankcount * 0.9:
+                                    playcount_text += "*"
                                 color = lerp_color(HEAT_COLOR_MIN, HEAT_COLOR_MAX, max(min((playcount - 15) / 15, 1.0), 0.0))
-                                TextBox(str(playcount), TextStyle(font=DEFAULT_FONT, size=16, color=BLACK)) \
+                                TextBox(playcount_text, TextStyle(font=DEFAULT_FONT, size=16, color=BLACK)) \
                                     .set_bg(RoundRectBg(color, radius=4)).set_content_align('c').set_size((30, 30)).set_offset((0, -2))
         
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(6).set_padding(16):
@@ -1608,6 +1627,7 @@ async def _(ctx: SekaiHandlerContext):
 
 # ======================= 定时任务 ======================= #
 
+<<<<<<< HEAD
 UPDATE_RANKING_LOG_INTERVAL_CFG = config.item('sk.update_ranking_log_interval')
 RECORD_TIME_AFTER_EVENT_END_CFG = config.item('sk.record_time_after_event_end_minutes')
 ranking_update_times = { region: 0 for region in ALL_SERVER_REGIONS }
@@ -1701,6 +1721,8 @@ async def update_ranking():
                 ranking_update_failures[region] = 0
 
 
+=======
+>>>>>>> origin/master
 SK_COMPRESS_INTERVAL_CFG = config.item('sk.backup.interval_seconds')
 SK_COMPRESS_THRESHOLD_CFG = config.item('sk.backup.threshold_days')
 SK_PYBD_UPLOAD_ENABLED_CFG = config.item('sk.backup.pybd_upload')

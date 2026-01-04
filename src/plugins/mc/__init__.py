@@ -93,35 +93,32 @@ class ServerData:
 
     # 向卫星地图请求
     async def query_dynamicmap(self, ts):
-        async with aiohttp.ClientSession() as session:
-            url = f'{self.url}/up/world/world/{ts}'
-            async with session.get(url, verify_ssl=False) as resp:
-                data = await resp.text()
-                json_data = loads_json(data)
-                return json_data
+        url = f'{self.url}/up/world/world/{ts}'
+        async with get_client_session().get(url, verify_ssl=False) as resp:
+            data = await resp.text()
+            json_data = loads_json(data)
+            return json_data
 
     # 通过卫星地图发送消息
     async def send_message_by_dynamicmap(self, name, msg):
-        async with aiohttp.ClientSession() as session:
-            url = f'{self.url}/up/sendmessage'
-            payload = {
-                'name': name,
-                'message': msg
-            }
-            async with session.post(url, json=payload, verify_ssl=False) as resp:
-                return await resp.text()
+        url = f'{self.url}/up/sendmessage'
+        payload = {
+            'name': name,
+            'message': msg
+        }
+        async with get_client_session().post(url, json=payload, verify_ssl=False) as resp:
+            return await resp.text()
 
     # 通过log请求
     async def query_log(self):
         client_id = f'mybot_group_{self.group_id}'
-        async with aiohttp.ClientSession() as session:
-            url = f'{self.url}/query?client_id={client_id}'
-            async with session.get(url, verify_ssl=False) as resp:
-                data = await resp.text()
-                if resp.status != 200:
-                    raise Exception(f'{data}')
-                json_data = loads_json(data)
-                return json_data
+        url = f'{self.url}/query?client_id={client_id}'
+        async with get_client_session().get(url, verify_ssl=False) as resp:
+            data = await resp.text()
+            if resp.status != 200:
+                raise Exception(f'{data}')
+            json_data = loads_json(data)
+            return json_data
 
     # 服务器执行rcon
     async def execute_rcon(self, cmd, verbose=True):
