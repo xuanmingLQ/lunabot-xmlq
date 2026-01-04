@@ -4,15 +4,14 @@ from ..common import *
 from ..handler import *
 from ..asset import *
 from ..draw import *
+from ..gameapi import get_gameapi_config, request_gameapi
 from .profile import (
     get_card_full_thumbnail, 
-    get_gameapi_config, 
     get_player_bind_id,
     get_detailed_profile,
     get_detailed_profile_card,
     get_detailed_profile_card_filter,
     get_player_avatar_info_by_detailed_profile,
-    request_gameapi,
 )
 
 QUERY_SINGLE_EVENT_HELP = """

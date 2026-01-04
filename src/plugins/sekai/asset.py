@@ -165,9 +165,7 @@ class MasterDataManager:
                     if key not in item: 
                         continue
                     k = item[key]
-                    if k not in ind:
-                        ind[k] = []
-                    ind[k].append(item)
+                    ind.setdefault(k, []).append(item)
                 if ind:
                     self.indices[region][key] = ind
             logger.debug(f"MasterData [{region}.{self.name}] 构建索引成功")
