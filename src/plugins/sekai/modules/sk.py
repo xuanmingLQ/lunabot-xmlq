@@ -944,6 +944,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(6).set_padding(16):
                 TextBox(f"T{ranks[-1].rank} \"{ranks[-1].name}\" 各小时Pt变化次数", style1)
+                TextBox(f"标注*号的小时有较多数据缺失，数据可能不准确", style2)
                 with Grid(col_count=24, hsep=1, vsep=1):
                     for i in range(0, 24):
                         TextBox(f"{i}", TextStyle(font=DEFAULT_FONT, size=12, color=BLACK)) \
@@ -954,8 +955,12 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
                             if rankcount < 10:
                                 Spacer(w=24, h=24)
                             else:
+                                playcount_text = str(playcount)
+                                expect_rankcount = 60 * 60 // SK_RECORD_INTERVAL_CFG.get()
+                                if rankcount < expect_rankcount * 0.9:
+                                    playcount_text += "*"
                                 color = lerp_color(HEAT_COLOR_MIN, HEAT_COLOR_MAX, max(min((playcount - 15) / 15, 1.0), 0.0))
-                                TextBox(str(playcount), TextStyle(font=DEFAULT_FONT, size=16, color=BLACK)) \
+                                TextBox(playcount_text, TextStyle(font=DEFAULT_FONT, size=16, color=BLACK)) \
                                     .set_bg(RoundRectBg(color, radius=4)).set_content_align('c').set_size((30, 30)).set_offset((0, -2))
         
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(6).set_padding(16):
