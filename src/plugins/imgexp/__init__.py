@@ -122,8 +122,8 @@ async def _(ctx: HandlerContext):
 # ==================== 图片下载 ==================== #
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2), reraise=True)
-async def get_x_images(url: str) -> list[str]:
-    """从 X 帖子 URL 中提取图片链接。"""
+async def get_x_content(url: str) -> tuple[str, list[str]]:
+    """从 X 帖子 URL 中提取文本内容和图片链接。"""
     image_urls = []
 
     async def block_agressive_resources(route):
@@ -162,14 +162,11 @@ async def get_x_images(url: str) -> list[str]:
 
             # 提取图片
             photo_selector = 'div[data-testid="tweetPhoto"] img'
-            
-            # 等待图片容器出现（如果帖子确实包含图片）
             try:
                 await page.wait_for_selector(photo_selector, state="attached", timeout=3000)
             except PlaywrightTimeoutError:
                 pass
 
-            # 获取所有符合条件的元素
             img_locators = await page.locator(photo_selector).all()
             
             for locator in img_locators:
@@ -186,13 +183,26 @@ async def get_x_images(url: str) -> list[str]:
                     if clean_src not in image_urls:
                         image_urls.append(clean_src)
 
+            # 提取用户名
+            user_locator = page.locator(f'{tweet_selector} [data-testid="User-Name"]')
+            username_text = await user_locator.inner_text()
+            display_name = username_text.split('\n')[0] if username_text else "Unknown"
+
+            # 提取推文正文
+            text_locator = page.locator(f'{tweet_selector} [data-testid="tweetText"]')
+            content = ""
+            if await text_locator.count() > 0:
+                content = await text_locator.inner_text()
+
+            full_content = f"{display_name}: {content.strip()}"
+
         except Exception as e:
             # 保存调试用页面截图
             screenshot_path = f"data/imgexp/debug/x_{int(time.time())}.png"
             await page.screenshot(path=screenshot_path, full_page=True)
             raise e
 
-    return image_urls
+    return full_content, image_urls
 
 
 ximg = CmdHandler(['/x img', '/tw img', '/推图'], logger)
@@ -216,13 +226,13 @@ async def _(ctx: HandlerContext):
 """
 .strip()))
     url = args.url
-    assert url, '请提供X文章网页链接'
+    assert url, '请提供X推文网页链接'
     assert [args.vertical, args.horizontal, args.grid].count(True) <= 1, '只能选择一种拼图模式'
     concat_mode = 'v' if args.vertical else 'h' if args.horizontal else 'g' if args.grid else None
 
     try:
         logger.info(f'获取X图片链接: {url}')
-        image_urls = await get_x_images(url)
+        content, image_urls = await get_x_content(url)
         image_urls = image_urls[:16]
         logger.info(f'获取到图片链接: {image_urls}')
     except Exception as e:
@@ -238,7 +248,7 @@ async def _(ctx: HandlerContext):
         concated_image = await run_in_pool(concat_images, images, concat_mode)
         images = [concated_image]
     
-    msg = ""
+    msg = url + "\n" + truncate(content, 64)
     for img in images:
         if args.gif:
             with TempFilePath("gif", remove_after=timedelta(minutes=3)) as gif_path:
@@ -250,6 +260,6 @@ async def _(ctx: HandlerContext):
     if args.fold:
         return await ctx.asend_fold_msg(msg)
     else:
-        return await ctx.asend_reply_msg(msg)
+        return await ctx.asend_msg(msg)
 
 
