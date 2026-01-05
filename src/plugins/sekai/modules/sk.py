@@ -809,7 +809,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
                 texts.append((f"20min×3时速: {get_board_score_str(d['last_20min_speed'])}", style2))
             texts.append((f"最近一小时内Pt变化次数: {len(d['pts'])}", style2))
         else:
-            texts.append((f"没有找到该玩家最近一小时内的游玩记录", style4.replace(color=(200, 0, 0))))
+            texts.append((f"停车中💤", style2))
         if d['abnormal']:
             texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4.replace(color=(200, 0, 0))))
         texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
@@ -829,7 +829,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
                 texts.append((f"时速: {get_board_score_str(d['hour_speed'])} 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
                 texts.append((f"最近一小时内Pt变化次数: {len(d['pts'])}", style2))
             else:
-                texts.append((f"没有找到该玩家最近一小时内的游玩记录", style4.replace(color=(200, 0, 0))))
+                texts.append((f"停车中💤", style2))
             if d['abnormal']:
                 texts.append((f"记录时间内有数据空缺，周回数仅供参考", style4.replace(color=(200, 0, 0))))
             texts.append((f"RT: {get_readable_datetime(d['start_time'], show_original_time=False)} ~ {get_readable_datetime(d['end_time'], show_original_time=False)}", style4))
