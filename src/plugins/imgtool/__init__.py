@@ -84,7 +84,7 @@ def shrink_image(image: Image.Image | List[Image.Image], alpha_threshold: int, e
     - extra_ret: 返回扣完图的部分在原图中的bbox { 'bbox': (x, y, w, h) }
     """
     try:
-        execute_imgtool_cpp(image, "shrink", alpha_threshold, edge)
+        return execute_imgtool_cpp(image, "shrink", alpha_threshold, edge)
     except Exception as e:
         # 备用实现
         logger.warning(f"imgtool-cpp程序shrink命令执行失败，使用备用实现: {get_exc_desc(e)}")
