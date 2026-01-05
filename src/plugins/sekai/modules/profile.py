@@ -12,6 +12,7 @@ from ...imgtool import shrink_image
 from src.utils.safety import image_safety_check
 # 导入snowy的个人信息页面
 from .snowy import get_sekaiprofile_image
+import time
 
 SEKAI_PROFILE_DIR = f"{SEKAI_DATA_DIR}/profile"
 profile_db = get_file_db(f"{SEKAI_PROFILE_DIR}/db.json", logger)
