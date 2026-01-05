@@ -564,48 +564,53 @@ async def compose_sks_image(ctx: SekaiHandlerContext, unit: str, event: dict = N
     return await canvas.get_img()
     
 # 从文本获取sk查询参数 (类型，值) 类型: 'name' 'uid' 'rank' 'ranks'
-async def get_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str, Union[str, int, List[int]]]:
+async def parse_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str, Union[str, int, List[int]]]:
     MAX_QUERY_RANKS = 20
 
+    # 提取at
     ats = ctx.get_at_qids()
     if ats:
         uid = get_player_bind_id(ctx, ats[0], check_bind=False)
         assert_and_reply(uid, "@的用户未绑定游戏ID")
         return 'uid', uid
+    
     args = args.strip()
     if not args:
+        # 提取uid（管理员限定）
         if uid := get_player_bind_id(ctx, check_bind=False):
             return 'self', uid
     else:
-        segs = [s for s in args.split() if s]
-        if len(segs) > 1 and all(is_rank_text(s) for s in segs):
-            ranks = [get_rank_from_text(s) for s in segs]
-            assert_and_reply(len(ranks) <= MAX_QUERY_RANKS, f"查询排名过多，最多查询{MAX_QUERY_RANKS}个排名")
-            for rank in ranks:
-                if rank not in ALL_RANKS:
-                    raise ReplyException(f"不支持的排名: {rank}")
+        # 提取单个或多个多个rank
+        ranks = []
+        for seg in args.split():
+            if not seg: continue
+            if '-' in seg:
+                start, end = seg.split('-', 1)
+                start, end = get_rank_from_text(start), get_rank_from_text(end)
+                assert_and_reply(start <= end, "查询排名范围错误: 起始排名大于结束排名")
+                assert_and_reply(end - start + 1 <= MAX_QUERY_RANKS, f"最多同时查询{MAX_QUERY_RANKS}个排名")
+                for rank in range(start, end + 1):
+                    assert_and_reply(rank in ALL_RANKS, f"不支持的排名: {rank}")
+                    ranks.append(rank)
+            elif is_rank_text(seg):
+                rank = get_rank_from_text(seg)
+                assert_and_reply(rank in ALL_RANKS, f"不支持的排名: {rank}")
+                ranks.append(rank)
+        
+        ranks = sorted(set(ranks))
+        assert_and_reply(len(ranks) <= MAX_QUERY_RANKS, f"最多同时查询{MAX_QUERY_RANKS}个排名")
+        if len(ranks) > 1:
             return 'ranks', ranks
-        elif '-' in args:
-            start, end = args.split('-', 1)
-            start, end = get_rank_from_text(start), get_rank_from_text(end)
-            assert_and_reply(start <= end, "查询排名范围错误: 起始排名大于结束排名")
-            assert_and_reply(end - start + 1 <= MAX_QUERY_RANKS, f"查询排名范围过大，最多查询{MAX_QUERY_RANKS}个排名")
-            assert_and_reply(start in ALL_RANKS, f"不支持的起始排名: {start}")
-            assert_and_reply(end in ALL_RANKS, f"不支持的结束排名: {end}")
-            return 'ranks', list(range(start, end + 1))
-        elif is_rank_text(args):
-            if (rank:=get_rank_from_text(args)) in ALL_RANKS:
-                return 'rank', rank
-            else:
-                return 'uid', int(args)
+        elif len(ranks) == 1:
+            return 'rank', ranks[0]
+
     raise ReplyException(f"""
 查询指定榜线方式：
 查询自己: {ctx.original_trigger_cmd} (需要绑定游戏ID)
 查询排名: {ctx.original_trigger_cmd} 100
 查询多个排名: {ctx.original_trigger_cmd} 1 2 3
-查询UID: {ctx.original_trigger_cmd} 12345678910
 """.strip())
-
+            
 # 格式化sk查询参数
 def format_sk_query_params(qtype: str, qval: Union[str, int, List[int]]) -> str:
     if qtype == 'self':
@@ -1513,7 +1518,7 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip() + ctx.prefix_arg
     wl_event, args = await extract_wl_event(ctx, args)
 
-    qtype, qval = await get_sk_query_params(ctx, args)
+    qtype, qval = await parse_sk_query_params(ctx, args)
     return await ctx.asend_msg(await get_image_cq(
         await compose_sk_image(ctx, qtype, qval, event=wl_event),
         low_quality=True,
@@ -1530,7 +1535,7 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip() + ctx.prefix_arg
     wl_event, args = await extract_wl_event(ctx, args)
 
-    qtype, qval = await get_sk_query_params(ctx, args)
+    qtype, qval = await parse_sk_query_params(ctx, args)
     return await ctx.asend_msg(await get_image_cq(
         await compose_cf_image(ctx, qtype, qval, event=wl_event),
         low_quality=True,
@@ -1547,7 +1552,7 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip() + ctx.prefix_arg
     wl_event, args = await extract_wl_event(ctx, args)
 
-    qtype, qval = await get_sk_query_params(ctx, args)
+    qtype, qval = await parse_sk_query_params(ctx, args)
     return await ctx.asend_msg(await get_image_cq(
         await compose_csb_image(ctx, qtype, qval, event=wl_event),
         low_quality=True,
@@ -1564,7 +1569,7 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip() + ctx.prefix_arg
     wl_event, args = await extract_wl_event(ctx, args)
 
-    qtype, qval = await get_sk_query_params(ctx, args)
+    qtype, qval = await parse_sk_query_params(ctx, args)
     return await ctx.asend_msg(await get_image_cq(
         await compose_player_trace_image(ctx, qtype, qval, event=wl_event),
         low_quality=True,
