@@ -233,6 +233,8 @@ def get_player_bind_id(ctx: SekaiHandlerContext, qid: int = None, check_bind=Tru
         else:
             assert_and_reply(is_super, "仅bot管理可直接指定游戏ID")
             uid = ctx.uid_arg
+            if not validate_uid(ctx, uid):
+                raise ReplyException(f"指定的游戏ID {uid} 不是有效的{region_name}游戏ID")
 
     if check_bind and uid is None:
         region = "" if ctx.region == "jp" else ctx.region
@@ -493,11 +495,12 @@ def process_sensitive_cmd_source(data):
 async def get_basic_profile(ctx: SekaiHandlerContext, uid: int, use_cache=True, use_remote_cache=True, raise_when_no_found=True) -> dict:
     cache_path = f"{SEKAI_PROFILE_DIR}/profile_cache/{ctx.region}/{uid}.json"
     try:
+        region_name = get_region_name(ctx.region)
         url = get_gameapi_config(ctx).profile_api_url
-        assert_and_reply(url, f"暂不支持查询 {ctx.region} 服务器的玩家信息")
+        assert_and_reply(url, f"暂不支持查询{region_name}的玩家信息")
         profile = await request_gameapi(url.format(uid=uid) + f"?use_cache={use_remote_cache}")
         if raise_when_no_found:
-            assert_and_reply(profile, f"找不到ID为 {uid} 的玩家")
+            assert_and_reply(profile, f"找不到ID为 {uid} 的{region_name}玩家")
         elif not profile:
             return {}
         dump_json(profile, cache_path)
