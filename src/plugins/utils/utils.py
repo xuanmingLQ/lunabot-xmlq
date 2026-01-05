@@ -1047,7 +1047,7 @@ def plt_fig_to_image(fig, transparent=True, tight=False) -> Image.Image:
     return img
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
-async def download_image(image_url, force_http=True) -> Image.Image:
+async def download_image(image_url, force_http=False) -> Image.Image:
     """
     下载图片并返回PIL.Image对象
     """

@@ -26,7 +26,7 @@ async def download_batch_thumbnails(urls: list[str]) -> list[Image.Image]:
     async def download_nothrow(url):
         if not url: return None
         try:
-            return await download_image(url, force_http=False)
+            return await download_image(url)
         except Exception as e:
             logger.warning(f'下载缩略图 {url} 失败: {e}')
             return None
