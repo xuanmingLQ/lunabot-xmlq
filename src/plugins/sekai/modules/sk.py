@@ -19,6 +19,7 @@ from .sk_sql import (
     query_latest_ranking, 
     query_first_ranking_after,
     query_update_time,
+    archive_database,
 )
 from .sk_forecast import (
     get_forecast_data,
@@ -43,7 +44,7 @@ plt.switch_backend('agg')
 matplotlib.rcParams['font.family'] = [FONT_NAME]
 matplotlib.rcParams['axes.unicode_minus'] = False  
 
-SK_RECORD_INTERVAL_CFG = config.item("sk.record_interval_seconds")
+SK_RECORD_TOLERANCE_CFG = config.item("sk.record_interval_tolerance")
 
 SKL_QUERY_RANKS = [
     *range(10, 51, 10),
@@ -75,6 +76,29 @@ SK_TEXT_QUERY_BG_COLOR = [255, 255, 255, 150]
 
 
 # ======================= 处理逻辑 ======================= #
+
+# 检查某个榜线记录是否属于高精度记录
+def check_ranking_is_high_res(region: str, ranking: Ranking):
+    for rank_min, rank_max in config.get('sk.high_res_record.ranks', {}).get(region, []):
+        if rank_min <= ranking.rank <= rank_max:
+            return True
+    for uid in config.get('sk.high_res_record.uids', {}).get(region, []):
+        if str(ranking.uid) == str(uid):
+            return True
+    return False
+
+# 采样榜线，保证首个和最后一个记录被保留
+def sample_ranking_list(rankings: list[Ranking], limit: int) -> list[Ranking]:
+    if len(rankings) <= limit:
+        return rankings
+    step = (len(rankings) - 1) / (limit - 1)
+    sampled = []
+    for i in range(limit):
+        idx = round(i * step)
+        sampled.append(rankings[idx])
+    if sampled[-1] != rankings[-1]:
+        sampled[-1] = rankings[-1]
+    return sampled
 
 # 获取用于显示的活动ID-活动名称文本
 def get_event_id_and_name_text(region: str, event_id: int, event_name: str) -> str:
@@ -548,48 +572,53 @@ async def compose_sks_image(ctx: SekaiHandlerContext, unit: str, event: dict = N
     return await canvas.get_img()
     
 # 从文本获取sk查询参数 (类型，值) 类型: 'name' 'uid' 'rank' 'ranks'
-async def get_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str, Union[str, int, List[int]]]:
+async def parse_sk_query_params(ctx: SekaiHandlerContext, args: str) -> Tuple[str, Union[str, int, List[int]]]:
     MAX_QUERY_RANKS = 20
 
+    # 提取at
     ats = ctx.get_at_qids()
     if ats:
         uid = get_player_bind_id(ctx, ats[0], check_bind=False)
         assert_and_reply(uid, "@的用户未绑定游戏ID")
         return 'uid', uid
+    
     args = args.strip()
     if not args:
+        # 提取uid（管理员限定）
         if uid := get_player_bind_id(ctx, check_bind=False):
             return 'self', uid
     else:
-        segs = [s for s in args.split() if s]
-        if len(segs) > 1 and all(is_rank_text(s) for s in segs):
-            ranks = [get_rank_from_text(s) for s in segs]
-            assert_and_reply(len(ranks) <= MAX_QUERY_RANKS, f"查询排名过多，最多查询{MAX_QUERY_RANKS}个排名")
-            for rank in ranks:
-                if rank not in ALL_RANKS:
-                    raise ReplyException(f"不支持的排名: {rank}")
+        # 提取单个或多个多个rank
+        ranks = []
+        for seg in args.split():
+            if not seg: continue
+            if '-' in seg:
+                start, end = seg.split('-', 1)
+                start, end = get_rank_from_text(start), get_rank_from_text(end)
+                assert_and_reply(start <= end, "查询排名范围错误: 起始排名大于结束排名")
+                assert_and_reply(end - start + 1 <= MAX_QUERY_RANKS, f"最多同时查询{MAX_QUERY_RANKS}个排名")
+                for rank in range(start, end + 1):
+                    assert_and_reply(rank in ALL_RANKS, f"不支持的排名: {rank}")
+                    ranks.append(rank)
+            elif is_rank_text(seg):
+                rank = get_rank_from_text(seg)
+                assert_and_reply(rank in ALL_RANKS, f"不支持的排名: {rank}")
+                ranks.append(rank)
+        
+        ranks = sorted(set(ranks))
+        assert_and_reply(len(ranks) <= MAX_QUERY_RANKS, f"最多同时查询{MAX_QUERY_RANKS}个排名")
+        if len(ranks) > 1:
             return 'ranks', ranks
-        elif '-' in args:
-            start, end = args.split('-', 1)
-            start, end = get_rank_from_text(start), get_rank_from_text(end)
-            assert_and_reply(start <= end, "查询排名范围错误: 起始排名大于结束排名")
-            assert_and_reply(end - start + 1 <= MAX_QUERY_RANKS, f"查询排名范围过大，最多查询{MAX_QUERY_RANKS}个排名")
-            assert_and_reply(start in ALL_RANKS, f"不支持的起始排名: {start}")
-            assert_and_reply(end in ALL_RANKS, f"不支持的结束排名: {end}")
-            return 'ranks', list(range(start, end + 1))
-        elif is_rank_text(args):
-            if (rank:=get_rank_from_text(args)) in ALL_RANKS:
-                return 'rank', rank
-            else:
-                return 'uid', int(args)
+        elif len(ranks) == 1:
+            return 'rank', ranks[0]
+
     raise ReplyException(f"""
 查询指定榜线方式：
 查询自己: {ctx.original_trigger_cmd} (需要绑定游戏ID)
 查询排名: {ctx.original_trigger_cmd} 100
 查询多个排名: {ctx.original_trigger_cmd} 1 2 3
-查询UID: {ctx.original_trigger_cmd} 12345678910
 """.strip())
-
+            
 # 格式化sk查询参数
 def format_sk_query_params(qtype: str, qval: Union[str, int, List[int]]) -> str:
     if qtype == 'self':
@@ -615,6 +644,7 @@ async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     wl_cid = await get_wl_chapter_cid(ctx, eid)
 
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)
+    style1_hr = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=LinearGradient((0, 0, 150, 255), (150, 0, 100, 255), (0, 0), (1, 1)))
     style2 = TextStyle(font=DEFAULT_FONT, size=24, color=BLACK)
     style3 = TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=BLACK)
     style4 = TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50))
@@ -643,7 +673,7 @@ async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     # 查询单个
     if len(ret_ranks) == 1:
         rank = ret_ranks[0]
-        texts.append((f"{truncate(rank.name, 40)}", style2))
+        texts.append((f"{truncate(rank.name, 40)}", style1_hr if check_ranking_is_high_res(ctx.region, rank) else style1))
         texts.append((f"排名 {get_board_rank_str(rank.rank)}  -  {get_board_score_str(rank.score)}", style3))
         skl_ranks = [r for r in latest_ranks if r.rank in list(range(1, 10)) + SKL_QUERY_RANKS]
         if prev_rank := find_prev_ranking(skl_ranks, rank.rank):
@@ -656,7 +686,7 @@ async def compose_sk_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     # 查询多个
     else:
         for rank in ret_ranks:
-            texts.append((truncate(rank.name, 40), style1))
+            texts.append((truncate(rank.name, 40), style1_hr if check_ranking_is_high_res(ctx.region, rank) else style1))
             texts.append((f"排名 {get_board_rank_str(rank.rank)}  -  {get_board_score_str(rank.score)}", style2))
             texts.append((f"RT: {get_readable_datetime(rank.time, show_original_time=False)}", style4))
 
@@ -693,6 +723,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
     wl_cid = await get_wl_chapter_cid(ctx, eid)
 
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)
+    style1_hr = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=LinearGradient((0, 0, 150, 255), (150, 0, 100, 255), (0, 0), (1, 1)))
     style2 = TextStyle(font=DEFAULT_FONT, size=24, color=BLACK)
     style3 = TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)
     style4 = TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50))
@@ -730,13 +761,13 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
 
         pts = []
         abnormal = False
-        abnormal_time = timedelta(seconds=SK_RECORD_INTERVAL_CFG.get() * 2)
-        if ranks[0].time - cf_start_time > abnormal_time:
+        tolerance = timedelta(seconds=SK_RECORD_TOLERANCE_CFG.get())
+        if ranks[0].time - cf_start_time > tolerance:
             abnormal = True
         for i in range(len(ranks) - 1):
             if ranks[i + 1].score != ranks[i].score:
                 pts.append(ranks[i + 1].score - ranks[i].score)
-            if ranks[i + 1].time - ranks[i].time > abnormal_time:
+            if ranks[i + 1].time - ranks[i].time > tolerance:
                 abnormal = True
         
         ret = {
@@ -744,6 +775,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             'abnormal': abnormal,
             'name': truncate(ranks[-1].name, 40),
             'uid': ranks[-1].uid,
+            'last_rank_item': ranks[-1],
             'cur_rank': ranks[-1].rank,
             'cur_score': ranks[-1].score,
             'start_time': ranks[0].time,
@@ -771,7 +803,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
         d = calc(ranks)
         assert_and_reply(d['status'] != 'no_found', f"找不到{format_sk_query_params(qtype, qval)}的榜线数据")
         assert_and_reply(d['status'] != 'no_enough', f"{format_sk_query_params(qtype, qval)}的最近游玩次数少于1，无法查询")
-        texts.append((f"{d['name']}", style1))
+        texts.append((f"{d['name']}", style1_hr if check_ranking_is_high_res(ctx.region, ranks[-1]) else style1))
         texts.append((f"排名 {get_board_rank_str(d['cur_rank'])}  -  {get_board_score_str(d['cur_score'])}", style2))
         if 'prev_rank' in d:
             texts.append((f"{d['prev_rank']}名分数: {get_board_score_str(d['prev_score'])}  ↑{get_board_score_str(d['prev_dlt'])}", style3))
@@ -799,7 +831,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             if d['status'] == 'no_enough':
                 texts.append((f"{format_sk_query_params('rank', qval[i])}的最近游玩次数少于1，无法查询", style1))
                 continue
-            texts.append((f"{d['name']}", style1))
+            texts.append((f"{d['name']}", style1_hr if check_ranking_is_high_res(ctx.region, d['last_rank_item']) else style1))
             texts.append((f"排名 {get_board_rank_str(d['cur_rank'])}  -  {get_board_score_str(d['cur_score'])}", style2))
             if d['avg_pt_n'] > 0:
                 texts.append((f"时速: {get_board_score_str(d['hour_speed'])} 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
@@ -843,6 +875,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
     wl_cid = await get_wl_chapter_cid(ctx, eid)
 
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=BLACK)
+    style1_hr = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=LinearGradient((0, 0, 150, 255), (150, 0, 100, 255), (0, 0), (1, 1)))
     style2 = TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)
     style3 = TextStyle(font=DEFAULT_FONT, size=20, color=BLACK)
     texts: List[str, TextStyle] = []
@@ -873,17 +906,28 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
 
     rankcounts: list[list[int]] = []
     playcounts: list[list[int]] = []
+    abnormals: list[list[bool]] = []
     start_date = ranks[0].time.date()
     for i in range(len(ranks) - 1):
         cur, nxt = ranks[i], ranks[i + 1]
+        lst = ranks[i - 1] if i - 1 >= 0 else None
         day = (cur.time.date() - start_date).days
         while len(rankcounts) <= day:
             rankcounts.append([0 for _ in range(24)])
             playcounts.append([0 for _ in range(24)])
+            abnormals.append([False for _ in range(24)])
         hour = cur.time.hour
         rankcounts[day][hour] += 1
         if nxt.score > cur.score:
             playcounts[day][hour] += 1
+        # 判断数据异常
+        tolerance = timedelta(seconds=SK_RECORD_TOLERANCE_CFG.get())
+        def check_abnormal(left: datetime, right: datetime):
+            if right - left > tolerance:
+                abnormals[day][hour] = True
+        if lst and cur.time.hour != lst.time.hour:  
+            check_abnormal(lst.time, cur.time)
+        check_abnormal(cur.time, nxt.time)
 
     HEAT_COLOR_MIN = color_code_to_rgb('#B8D8FF')
     HEAT_COLOR_MAX = color_code_to_rgb('#FFB5B5')
@@ -896,7 +940,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
         if not l: l = rank
         if not r: r = rank
         # 如果掉出100（排名大于100或数据缺失过长），提前结算当前区间
-        if rank.rank > 100 or rank.time - r.time > timedelta(seconds=SK_RECORD_INTERVAL_CFG.get() * 2):
+        if rank.rank > 100 or rank.time - r.time > timedelta(seconds=SK_RECORD_TOLERANCE_CFG.get()):
             if l != r:
                 segs.append((l, r))
             l, r = rank, None
@@ -911,7 +955,7 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
     if l and r:
         segs.append((l, r))
     
-    texts.append((f"T{ranks[-1].rank} \"{ranks[-1].name}\" 的停车区间", style1))
+    texts.append((f"T{ranks[-1].rank} \"{ranks[-1].name}\" 的停车区间", style1_hr if check_ranking_is_high_res(ctx.region, ranks[-1]) else style1))
     for l, r in segs:
         if l == r:
             continue
@@ -943,21 +987,20 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
                     ImageBox(get_chara_icon_by_chara_id(wl_cid), size=(None, 50))
 
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(6).set_padding(16):
-                TextBox(f"T{ranks[-1].rank} \"{ranks[-1].name}\" 各小时Pt变化次数", style1)
-                TextBox(f"标注*号的小时有较多数据缺失，数据可能不准确", style2)
+                TextBox(f"T{ranks[-1].rank} \"{ranks[-1].name}\" 各小时Pt变化次数", style1_hr if check_ranking_is_high_res(ctx.region, ranks[-1]) else style1)
+                TextBox(f"标注*号的小时有数据缺失，周回数可能不准确", style2)
                 with Grid(col_count=24, hsep=1, vsep=1):
                     for i in range(0, 24):
                         TextBox(f"{i}", TextStyle(font=DEFAULT_FONT, size=12, color=BLACK)) \
                             .set_content_align('c').set_size((30, 30))
                     for day in range(len(rankcounts)):
                         for hour in range(0, 24):
-                            playcount, rankcount = playcounts[day][hour], rankcounts[day][hour]
+                            playcount, rankcount, abnormal = playcounts[day][hour], rankcounts[day][hour], abnormals[day][hour]
                             if rankcount < 10:
                                 Spacer(w=24, h=24)
                             else:
                                 playcount_text = str(playcount)
-                                expect_rankcount = 60 * 60 // SK_RECORD_INTERVAL_CFG.get()
-                                if rankcount < expect_rankcount * 0.9:
+                                if abnormal:
                                     playcount_text += "*"
                                 color = lerp_color(HEAT_COLOR_MIN, HEAT_COLOR_MAX, max(min((playcount - 15) / 15, 1.0), 0.0))
                                 TextBox(playcount_text, TextStyle(font=DEFAULT_FONT, size=16, color=BLACK)) \
@@ -1017,8 +1060,14 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
         raise ReplyException(f"{format_sk_query_params(qtype, qval)}的榜线记录过少，无法查询")
     if ranks2 is not None and len(ranks2) < 1:
         raise ReplyException(f"{format_sk_query_params(qtype, qval)}的榜线记录过少，无法查询")
-
+    
+    point_num_limit = config.get('sk.plot_point_num_limit')
     ranks.sort(key=lambda x: x.time)
+    ranks = sample_ranking_list(ranks, point_num_limit)
+    if ranks2 is not None:
+        ranks2.sort(key=lambda x: x.time)
+        ranks2 = sample_ranking_list(ranks2, point_num_limit)
+
     name = truncate(ranks[-1].name, 40)
     times = [rank.time for rank in ranks]
     scores = [rank.score for rank in ranks]
@@ -1119,6 +1168,9 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
         raise ReplyException(f"指定排名为{rank}榜线记录过少，无法查询")
    
     ranks.sort(key=lambda x: x.time)
+    point_num_limit = config.get('sk.plot_point_num_limit')
+    ranks = sample_ranking_list(ranks, point_num_limit)
+
     times = [rank.time for rank in ranks]
     scores = [rank.score for rank in ranks]
     uids = [rank.uid for rank in ranks]
@@ -1516,7 +1568,7 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip() + ctx.prefix_arg
     wl_event, args = await extract_wl_event(ctx, args)
 
-    qtype, qval = await get_sk_query_params(ctx, args)
+    qtype, qval = await parse_sk_query_params(ctx, args)
     return await ctx.asend_msg(await get_image_cq(
         await compose_sk_image(ctx, qtype, qval, event=wl_event),
         low_quality=True,
@@ -1533,7 +1585,7 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip() + ctx.prefix_arg
     wl_event, args = await extract_wl_event(ctx, args)
 
-    qtype, qval = await get_sk_query_params(ctx, args)
+    qtype, qval = await parse_sk_query_params(ctx, args)
     return await ctx.asend_msg(await get_image_cq(
         await compose_cf_image(ctx, qtype, qval, event=wl_event),
         low_quality=True,
@@ -1550,7 +1602,7 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip() + ctx.prefix_arg
     wl_event, args = await extract_wl_event(ctx, args)
 
-    qtype, qval = await get_sk_query_params(ctx, args)
+    qtype, qval = await parse_sk_query_params(ctx, args)
     return await ctx.asend_msg(await get_image_cq(
         await compose_csb_image(ctx, qtype, qval, event=wl_event),
         low_quality=True,
@@ -1567,7 +1619,7 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip() + ctx.prefix_arg
     wl_event, args = await extract_wl_event(ctx, args)
 
-    qtype, qval = await get_sk_query_params(ctx, args)
+    qtype, qval = await parse_sk_query_params(ctx, args)
     return await ctx.asend_msg(await get_image_cq(
         await compose_player_trace_image(ctx, qtype, qval, event=wl_event),
         low_quality=True,
@@ -1630,19 +1682,27 @@ async def compress_ranking_data():
                 continue
 
             try:
-                event_id = int(Path(db_file).stem.split('_')[0]) % 1000
+                event_id = int(Path(db_file).stem.split('_')[0])
+                wl_cid = event_id // 1000
+                event_id = event_id % 1000
                 event = await ctx.md.events.find_by_id(event_id)
                 assert event, f"未找到活动 {event_id}"
                 end_time = datetime.fromtimestamp(event['aggregateAt'] / 1000)
 
                 # 保存已完成的榜线数据供本地预测
-                if datetime.now() > end_time:
+                if datetime.now() > end_time and not wl_cid:
                     csv_path = get_local_forecast_history_csv_path(ctx.region, event_id)
                     if not os.path.exists(csv_path):
                         await save_rankings_to_csv(ctx.region, event_id, csv_path)
 
                 # 压缩
                 if datetime.now() - end_time > timedelta(days=SK_COMPRESS_THRESHOLD_CFG.get()):
+                    # 归档数据库
+                    try:
+                        await archive_database(ctx.region, event_id)
+                    except Exception as e:
+                        logger.warning(f"尝试归档榜线数据库 {db_file} 失败: {get_exc_desc(e)}")
+
                     def do_zip():
                         with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
                             zf.write(db_file, arcname=Path(db_file).name)

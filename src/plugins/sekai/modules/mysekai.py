@@ -517,7 +517,11 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                 image = await ctx.rip.img(
                     f'mysekai/birthday/{chara_eng_name}_2025/icon_refresh.png',
                     use_img_cache=True,
+                    default=None
                 )
+                if image is None:
+                    # 使用全透明图暂时替代
+                    image = Image.new('RGBA', (32, 32), (0, 0, 0, 0))
                 point_img_size = 50 * scale
                 xoffset = point_img_size * 0.15
                 zoffset = 0

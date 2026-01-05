@@ -1,6 +1,6 @@
 from .utils import *
 from .master import MasterDataManager
-from .sql import insert_rankings, Ranking
+from .sql import insert_rankings, Ranking, close_conn
 from tenacity import retry, wait_fixed, stop_after_attempt
 from src.utils.data import get_data_path
 
@@ -11,7 +11,8 @@ set_log_level('INFO')
 ALL_SERVER_REGIONS = ['jp', 'cn', 'tw', 'kr', 'en']
 
 RECORD_TIME_AFTER_EVENT_END_CFG = config.item('sk.record_time_after_event_end_minutes')
-SK_RECORD_INTERVAL_CFG = config.item('sk.record_interval_seconds')
+RECORD_INTERVAL_CFG = config.item('sk.record_interval_seconds')
+HIGH_RES_RECORD_INTERVAL_CFG = config.item('sk.high_res_record.interval_seconds')
 
 mds = MasterDataManager(get_data_path('sekai/assets/masterdata'))
 
@@ -103,6 +104,21 @@ def get_wl_events(region: str, event_id: int) -> list[dict]:
         wl_events.append(wl_event)
     return sorted(wl_events, key=lambda x: x['startAt'])
 
+def check_ranking_in_high_res(region: str, ranking: Ranking) -> bool:
+    """判断某条榜线记录是否需要高精度记录"""
+    for rank_min, rank_max in config.get('sk.high_res_record.ranks', {}).get(region, []):
+        if rank_min <= ranking.rank <= rank_max:
+            return True
+    for uid in config.get('sk.high_res_record.uids', {}).get(region, []):
+        if str(ranking.uid) == str(uid):
+            return True
+    return False
+
+def check_region_need_high_res(region: str) -> bool:
+    """判断某个服务器是否需要高精度记录"""
+    return config.get('sk.high_res_record.ranks', {}).get(region, []) or \
+        config.get('sk.high_res_record.uids', {}).get(region, [])
+
 
 # ================================ 榜线更新 ================================ #
 
@@ -125,27 +141,32 @@ class EventTracker:
 
 
     @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
-    async def request_rankings(self, eid: int) -> Optional[dict]:
+    async def request_rankings(self, eid: int) -> tuple[dict, float]:
         """
-        请求榜线数据
+        请求榜线数据，返回 (数据，耗时)
         """
         try:
             t = datetime.now().timestamp()
             data = await get_ranking(self.region, eid)
-            self.info(f"请求 {eid} 榜线数据成功, 耗时 {(datetime.now().timestamp() - t):.2f}s")
-            return data
+            return (data, datetime.now().timestamp() - t)
         except Exception:
             self.error(f"请求榜线数据失败")
-            return None
+            return (None, datetime.now().timestamp() - t)
         
 
-    async def update_rankings(self, eid: int, data: dict) -> bool:
+    async def update_rankings(self, eid: int, data: dict, is_high_res: bool) -> tuple[int, int, float]:
         """
-        更新总榜或WL单榜，返回是否更新成功
+        更新总榜或WL单榜，返回 (活动id, 插入数量, 耗时)
         """
+        t = datetime.now().timestamp()
         region = self.region
         try:
             top100, borders = parse_rankings(region, eid, data)
+
+            # 高精度记录模式：只记录必要的榜线
+            if is_high_res:
+                top100 = [item for item in top100 if check_ranking_in_high_res(region, item)]
+                borders = [item for item in borders if check_ranking_in_high_res(region, item)]
 
             # 和缓存进行比对并更新缓存
             if region not in latest_rankings_cache:
@@ -174,28 +195,30 @@ class EventTracker:
             if rankings_to_insert:
                 await insert_rankings(region, eid, rankings_to_insert)
 
-            self.info(f"插入 {eid} 榜线数据成功，新记录数: {len(rankings_to_insert)}")
-            return True
+            return (eid, len(rankings_to_insert), datetime.now().timestamp() - t)
 
         except Exception as e:
             self.error(f"插入 {eid} 榜线数据失败: {get_exc_desc(e)}")
-            return False
+            return (eid, 0, datetime.now().timestamp() - t)
 
-
-    async def update_region_ranking_task(self):
-        """更新一次指定服务器的榜线数据"""
-        region = self.region            
+          
+    async def update_region_ranking_task(self, is_high_res: bool) -> dict:
+        """更新一次指定服务器的榜线数据，返回结果信息"""
+        ret = { 'request_time': 0, 'inserts': [] }
+        region = self.region
+            
         # 获取当前运行中的活动
         try:
             if not (event := get_current_event(region, fallback="prev")):
                 self.info(f"当前无进行中或已结束活动，跳过榜线更新")
-                return
+                close_conn(region)
+                return ret
             if datetime.now() > datetime.fromtimestamp(event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END_CFG.get() * 60):
                 self.info(f"当前活动 {event['id']} 已过榜线记录时间，跳过榜线更新")
-                return
+                close_conn(region)
+                return ret
         except Exception as e:
             self.warning(f"检查当前活动时失败: {get_exc_desc(e)}")
-            return
 
         # 清空并非当前活动的缓存榜线数据
         event_id = event['id']
@@ -204,39 +227,69 @@ class EventTracker:
                 latest_rankings_cache[region].pop(key)
                 self.info(f"清除非当前活动 {key} 的榜线缓存数据")
 
-        data = await self.request_rankings(event_id)
+        data, request_time = await self.request_rankings(event_id)
+        ret['request_time'] = request_time
 
         if not data:
-            return
+            return ret
 
         tasks = []
         # 总榜
-        tasks.append(self.update_rankings(event_id, data))
+        tasks.append(self.update_rankings(event_id, data, is_high_res))
         # WL单榜
         wl_events = get_wl_events(region, event_id)
         if wl_events and len(wl_events) > 1:
             for wl_event in wl_events:
                 if datetime.now() > datetime.fromtimestamp(wl_event['aggregateAt'] / 1000 + RECORD_TIME_AFTER_EVENT_END_CFG.get() * 60):
                     continue
-                tasks.append(self.update_rankings(wl_event['id'], data))
+                tasks.append(self.update_rankings(wl_event['id'], data, is_high_res))
 
-        if not tasks: return
-        await asyncio.gather(*tasks)
+        if not tasks: 
+            return ret
+        
+        for event_id, insert_num, cost_time in  await asyncio.gather(*tasks):
+            ret['inserts'].append({
+                'event_id': event_id,
+                'insert_num': insert_num,
+                'cost_time': cost_time
+            })
+        return ret
 
 
     async def start_track(self):
         self.info(f"榜线更新任务已启动")
+
         next_record_time = datetime.now()
+        next_highres_record_time = datetime.now()
+        next_time = datetime.now()
+
         while True:
             try:
-                while datetime.now() < next_record_time:
+                while datetime.now() < next_time:
                     await asyncio.sleep(0.5)
+
+                need_high_res = check_region_need_high_res(self.region)
+
                 start = datetime.now()
-                self.info(f"启动榜线更新...")
-                await self.update_region_ranking_task()
+                is_high_res = need_high_res and datetime.now() < next_record_time
+
+                result = await self.update_region_ranking_task(is_high_res)
+
                 now = datetime.now()
-                next_record_time = start + timedelta(seconds=get_cfg_or_value(SK_RECORD_INTERVAL_CFG))
-                self.info(f"完成榜线更新 ({(now - start).total_seconds():.2f}s, next: {next_record_time.strftime('%Y-%m-%d %H:%M:%S')})")
+                if not is_high_res:
+                    next_record_time = start + timedelta(seconds=get_cfg_or_value(RECORD_INTERVAL_CFG))
+                if need_high_res:
+                    next_highres_record_time = start + timedelta(seconds=get_cfg_or_value(HIGH_RES_RECORD_INTERVAL_CFG))
+                else:
+                    next_highres_record_time = datetime.max
+                next_time = min(next_record_time, next_highres_record_time)
+
+                log_msg = f"完成{'高精度' if is_high_res else ''}更新"
+                log_msg += f" | {(now - start).total_seconds():.2f}s | next: {next_time.strftime('%H:%M:%S')} | req: {result['request_time']:.2f}s"
+                for insert_info in result.get('inserts', []):
+                    log_msg += f" | event{insert_info['event_id']} +{insert_info['insert_num']} ({insert_info['cost_time']:.2f}s)"
+                self.info(log_msg)
+
             except asyncio.CancelledError:
                 break
         # await close_session()

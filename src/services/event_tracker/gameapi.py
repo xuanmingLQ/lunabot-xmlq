@@ -1,13 +1,14 @@
 from .utils import *
-from aiohttp import ClientSession, ClientConnectionError
+from aiohttp import ClientSession, ClientConnectionError, ClientTimeout
 
+REQUEST_TIMEOUT = 5.0
 
 _session: ClientSession | None = None
 
 def get_session() -> ClientSession:
     global _session
     if _session is None or _session.closed:
-        _session = ClientSession()
+        _session = ClientSession(timeout=ClientTimeout(total=REQUEST_TIMEOUT))
     return _session
 
 async def close_session():
