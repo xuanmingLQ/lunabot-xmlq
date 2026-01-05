@@ -642,8 +642,8 @@ async def extract_music_and_diff(
 ) -> str:
     search_options = MusicSearchOptions(
         use_emb=False,
-        use_id=False,
-        use_nidx=False,
+        use_id=True,
+        use_nidx=True,
         raise_when_err=False,
     )
 
