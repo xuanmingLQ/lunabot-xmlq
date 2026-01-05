@@ -1,10 +1,10 @@
 from .utils import *
 from .master import MasterDataManager
-from .gameapi import get_gameapi_config, request_gameapi, close_session
 from .sql import insert_rankings, Ranking
 from tenacity import retry, wait_fixed, stop_after_attempt
 from src.utils.data import get_data_path
 
+from src.api.game.event import get_ranking
 
 set_log_level('INFO')
 
@@ -125,13 +125,13 @@ class EventTracker:
 
 
     @retry(wait=wait_fixed(3), stop=stop_after_attempt(3), reraise=True)
-    async def request_rankings(self, eid: int, url: str) -> Optional[dict]:
+    async def request_rankings(self, eid: int) -> Optional[dict]:
         """
         请求榜线数据
         """
         try:
             t = datetime.now().timestamp()
-            data = await request_gameapi(url.format(event_id=eid))
+            data = await get_ranking(self.region, eid)
             self.info(f"请求 {eid} 榜线数据成功, 耗时 {(datetime.now().timestamp() - t):.2f}s")
             return data
         except Exception:
@@ -184,11 +184,7 @@ class EventTracker:
 
     async def update_region_ranking_task(self):
         """更新一次指定服务器的榜线数据"""
-        region = self.region
-        url = get_gameapi_config(region).ranking_api_url
-        if not url:
-            return
-            
+        region = self.region            
         # 获取当前运行中的活动
         try:
             if not (event := get_current_event(region, fallback="prev")):
@@ -208,7 +204,7 @@ class EventTracker:
                 latest_rankings_cache[region].pop(key)
                 self.info(f"清除非当前活动 {key} 的榜线缓存数据")
 
-        data = await self.request_rankings(event_id, url)
+        data = await self.request_rankings(event_id)
 
         if not data:
             return
@@ -243,7 +239,7 @@ class EventTracker:
                 self.info(f"完成榜线更新 ({(now - start).total_seconds():.2f}s, next: {next_record_time.strftime('%Y-%m-%d %H:%M:%S')})")
             except asyncio.CancelledError:
                 break
-        await close_session()
+        # await close_session()
 
 
 
