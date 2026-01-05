@@ -355,6 +355,7 @@ def make_stamp(
     """
 
     sticker = Image.open(base_image_path).convert("RGBA")
+    sticker = _remove_blank(sticker)
     if text == "":
         return sticker
 
