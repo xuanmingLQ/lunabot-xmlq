@@ -83,6 +83,19 @@ def check_ranking_is_high_res(region: str, ranking: Ranking):
             return True
     return False
 
+# 采样榜线，保证首个和最后一个记录被保留
+def sample_ranking_list(rankings: list[Ranking], limit: int) -> list[Ranking]:
+    if len(rankings) <= limit:
+        return rankings
+    step = (len(rankings) - 1) / (limit - 1)
+    sampled = []
+    for i in range(limit):
+        idx = round(i * step)
+        sampled.append(rankings[idx])
+    if sampled[-1] != rankings[-1]:
+        sampled[-1] = rankings[-1]
+    return sampled
+
 # 获取用于显示的活动ID-活动名称文本
 def get_event_id_and_name_text(region: str, event_id: int, event_name: str) -> str:
     if event_id < 1000:
@@ -1034,8 +1047,14 @@ async def compose_player_trace_image(ctx: SekaiHandlerContext, qtype: str, qval:
         raise ReplyException(f"{format_sk_query_params(qtype, qval)}的榜线记录过少，无法查询")
     if ranks2 is not None and len(ranks2) < 1:
         raise ReplyException(f"{format_sk_query_params(qtype, qval)}的榜线记录过少，无法查询")
-
+    
+    point_num_limit = config.get('sk.plot_point_num_limit')
     ranks.sort(key=lambda x: x.time)
+    ranks = sample_ranking_list(ranks, point_num_limit)
+    if ranks2 is not None:
+        ranks2.sort(key=lambda x: x.time)
+        ranks2 = sample_ranking_list(ranks2, point_num_limit)
+
     name = truncate(ranks[-1].name, 40)
     times = [rank.time for rank in ranks]
     scores = [rank.score for rank in ranks]
@@ -1136,6 +1155,9 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
         raise ReplyException(f"指定排名为{rank}榜线记录过少，无法查询")
    
     ranks.sort(key=lambda x: x.time)
+    point_num_limit = config.get('sk.plot_point_num_limit')
+    ranks = sample_ranking_list(ranks, point_num_limit)
+
     times = [rank.time for rank in ranks]
     scores = [rank.score for rank in ranks]
     uids = [rank.uid for rank in ranks]

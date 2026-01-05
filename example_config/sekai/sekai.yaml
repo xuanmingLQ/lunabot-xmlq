@@ -179,6 +179,8 @@ sk:
       jp: ["12344532534324132"]
   record_interval_tolerance: 70  # 超过该容差认为有记录丢失
 
+  plot_point_num_limit: 5000
+
   record_time_after_event_end_minutes: 0
   update_ranking_log_interval: 30
   csb_judge_stop_threshold_minutes: 5
