@@ -1292,8 +1292,6 @@ def limit_image_by_pixels(image: Image.Image | list[Image.Image], max_pixels: in
 
 # ============================= 其他 ============================ #
 
-start_async_task(Config.start_config_watcher, utils_logger, '配置文件修改监听')
-
 @on_shutdown()
 def _shutdown_process_pools():
     from .process_pool import ProcessPool
