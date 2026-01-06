@@ -292,7 +292,7 @@ class EventTracker:
 
             except asyncio.CancelledError:
                 break
-        # await close_session()
+        await close_session()
 
 
 

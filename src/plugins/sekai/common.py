@@ -28,18 +28,18 @@ class CharacterNicknameData:
 
 _character_nickname_data = CharacterNicknameData()
 
-ALL_SERVER_REGIONS = ['jp',  'cn']
-ALL_SERVER_REGION_NAMES = ['日服', '国服']
-NEED_TRANSLATE_REGIONS = ['jp']
-TRANSLATED_REGIONS = ['cn']
+# ALL_SERVER_REGIONS = ['jp',  'cn']
+# ALL_SERVER_REGION_NAMES = ['日服', '国服']
+# NEED_TRANSLATE_REGIONS = ['jp']
+# TRANSLATED_REGIONS = ['cn']
 
-REGION_UTC_OFFSET = {
-    'jp': 9,
-    'en': -7,
-    'cn': 8,
-    'tw': 8,
-    'kr': 9,
-}
+# REGION_UTC_OFFSET = {
+#     'jp': 9,
+#     'en': -7,
+#     'cn': 8,
+#     'tw': 8,
+#     'kr': 9,
+# }
 
 UNITS = [
     "light_sound",
