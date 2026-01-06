@@ -262,13 +262,14 @@ async def update_server_log(clear_content=True):
         server_log_box.add_line("正在获取日志...")
     import aiohttp
     url = f"{SERVER_LOG_URL}?lines={SERVER_LOG_LINE_LIMIT}"
-    async with get_client_session().get(url, verify_ssl=False) as resp:
-        if resp.status != 200:
-            log_box.add_line(f"获取日志失败: {resp.status}")
-        text = await resp.text()
-        server_log_box.clear_lines()
-        for line in text.split('\n'):
-            server_log_box.add_line(line)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, verify_ssl=False) as resp:
+            if resp.status != 200:
+                log_box.add_line(f"获取日志失败: {resp.status}")
+            text = await resp.text()
+            server_log_box.clear_lines()
+            for line in text.split('\n'):
+                server_log_box.add_line(line)
 
 def get_image_cq(image_path):
     with open(image_path, 'rb') as f:

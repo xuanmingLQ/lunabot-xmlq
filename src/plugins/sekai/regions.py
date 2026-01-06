@@ -6,7 +6,8 @@ regions_config = Config("sekai.regions")
 class SekaiRegion(BaseModel):
     id:str
     name:str
-    utf_offset:int
+    utc_offset:int
+    enable:bool = True
     need_translate:bool = False
     translated:bool = False
     compact_data: bool = False
@@ -14,13 +15,13 @@ class SekaiRegion(BaseModel):
     bd_mysekai:bool = False
     fifth_anniversay:bool = False
 
-    def __eq__(self, target):
-        if isinstance(target, str):
-            return self.id == target
-        if isinstance(target, SekaiRegion):
-            return self.id == target.id
-        return False
-    def __str__(self):
-        return self.id
+    # def __eq__(self, target):
+    #     if isinstance(target, str):
+    #         return self.id == target
+    #     if isinstance(target, SekaiRegion):
+    #         return self.id == target.id
+    #     return False
+    # def __str__(self):
+    #     return self.id
 
-REGIONS = { region['id']: SekaiRegion(**region) for region in regions_config.get_all() }
+REGIONS = [SekaiRegion(**region) for region in regions_config.get_all() if region.get("enable") is not False]
