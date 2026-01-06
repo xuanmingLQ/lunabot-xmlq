@@ -18,16 +18,14 @@ search = CmdHandler(['/search', '/搜图'], logger)
 search.check_cdrate(cd).check_wblist(gbl)
 @search.handle()
 async def _(ctx: HandlerContext):
-    bot, event = ctx.bot, ctx.event
-    img_url = await ctx.aget_image_urls(return_first=True)
-    img, results = await search_image(img_url)
+    img_data = await ctx.aget_image_datas(return_first=True)
+    img, results = await search_image(img_data['url'], img_data.get('file_size', 0))
     msg = ""
     for result in results:
         if result.results:
             msg += f"来自 {result.source} 的结果:\n"
             for i, item in enumerate(result.results):
                 msg += f"#{i+1}\n{item.url}\n"
-
     return await ctx.asend_fold_msg([await get_image_cq(img), msg.strip()])
 
 
