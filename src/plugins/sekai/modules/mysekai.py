@@ -1621,7 +1621,7 @@ async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, 
                 await get_mysekai_info_card(ctx, mysekai_info, basic_profile, pmsg)
 
                 a, b = obtained_num, total_num
-                TextBox(f"总收集进度: {a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100))) \
+                TextBox(f"总收集进度: {a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(25, 25, 25))) \
                     .set_padding(16).set_bg(roundrect_bg())
 
                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
@@ -1633,9 +1633,9 @@ async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, 
                                     tag_icon = get_unit_icon(MUSIC_TAG_UNIT_MAP[tag])
                                     ImageBox(tag_icon, size=(None, 30))
                                 else:
-                                    TextBox("其他", TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(100, 100, 100)))
+                                    TextBox("其他", TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(50, 50, 50)))
                                 a, b = category_obtained_num[tag], category_total_num[tag]
-                                TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(100, 100, 100)))
+                                TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(50, 50, 50)))
 
                             # 歌曲列表
                             sz = 30
