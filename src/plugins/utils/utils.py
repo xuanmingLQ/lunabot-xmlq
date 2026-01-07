@@ -36,11 +36,14 @@ import math
 import io
 import time
 import zstandard
-from nonebot import get_driver
+
+import faulthandler
+faulthandler.enable()
 
 
 # ============================ 启动/停止hook ============================ #
 
+from nonebot import get_driver
 _nonebot_driver = get_driver()
 
 def on_startup():
@@ -562,14 +565,11 @@ def get_float_str(value: float, precision: int = 2, remove_zero: bool = True) ->
 def get_date_str() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
-_global_zstd_cctx = zstandard.ZstdCompressor()
-_global_zstd_dctx = zstandard.ZstdDecompressor()
-
 def compress_zstd(b: bytes):
-    return _global_zstd_cctx.compress(b)
+    return zstandard.ZstdCompressor().compress(b)
 
 def decompress_zstd(b: bytes):
-    return _global_zstd_dctx.decompress(b, max_output_size=100*1024*1024)
+    return zstandard.ZstdDecompressor().decompress(b, max_output_size=100*1024*1024)
 
 
 # ============================ 文件 ============================ #
