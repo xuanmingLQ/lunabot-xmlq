@@ -69,6 +69,7 @@ class PredictWinrate:
     predict_time: datetime
 
 SK_TEXT_QUERY_BG_COLOR = [255, 255, 255, 150]
+SK_PLAYCOUNT_MYSEKAI_THRESHOLD = 37
 
 
 # ======================= 处理逻辑 ======================= #
@@ -789,6 +790,9 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             ret['next_rank'] = next_rank.rank
             ret['next_dlt'] = ret['cur_score'] - next_rank.score
         return ret
+    
+    def get_ms_emoji(d):
+        return '🏡' if len(d['pts']) > SK_PLAYCOUNT_MYSEKAI_THRESHOLD else ''
 
     if ranks_list is None:
         # 单个
@@ -807,7 +811,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             texts.append((f"时速: {get_board_score_str(d['hour_speed'])}", style2))
             if 'last_20min_speed' in d:
                 texts.append((f"20min×3时速: {get_board_score_str(d['last_20min_speed'])}", style2))
-            texts.append((f"最近一小时内Pt变化次数: {len(d['pts'])}", style2))
+            texts.append((f"最近一小时内Pt变化次数: {len(d['pts'])} {get_ms_emoji(d)}", style2))
         else:
             texts.append((f"停车中💤", style2))
         if d['abnormal']:
@@ -827,7 +831,7 @@ async def compose_cf_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[str
             texts.append((f"排名 {get_board_rank_str(d['cur_rank'])}  -  {get_board_score_str(d['cur_score'])}", style2))
             if d['avg_pt_n'] > 0:
                 texts.append((f"时速: {get_board_score_str(d['hour_speed'])} 近{d['avg_pt_n']}次平均Pt: {d['avg_pt']:.0f}", style2))
-                texts.append((f"最近一小时内Pt变化次数: {len(d['pts'])}", style2))
+                texts.append((f"最近一小时内Pt变化次数: {len(d['pts'])} {get_ms_emoji(d)}", style2))
             else:
                 texts.append((f"停车中💤", style2))
             if d['abnormal']:
@@ -921,9 +925,6 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
             check_abnormal(lst.time, cur.time)
         check_abnormal(cur.time, nxt.time)
 
-    HEAT_COLOR_MIN = color_code_to_rgb('#B8D8FF')
-    HEAT_COLOR_MAX = color_code_to_rgb('#FFB5B5')
-
     # ================== 停车区间 ================== #
 
     segs: list[tuple[Ranking, Ranking]] = []
@@ -964,6 +965,10 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
     left_texts = texts[1:row_num]
     right_texts = texts[row_num:]
 
+    HEAT_COLOR_MIN = color_code_to_rgb('#B8D8FF')
+    HEAT_COLOR_MAX = color_code_to_rgb('#FFB5B5')
+    HEAT_COLOR_MYSEKAI = color_code_to_rgb('#CCFFCC')
+
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_item_bg(roundrect_bg(fill=SK_TEXT_QUERY_BG_COLOR)):
             with HSplit().set_content_align('rt').set_item_align('rt').set_padding(8).set_sep(7):
@@ -994,7 +999,10 @@ async def compose_csb_image(ctx: SekaiHandlerContext, qtype: str, qval: Union[st
                                 playcount_text = str(playcount)
                                 if abnormal:
                                     playcount_text += "*"
-                                color = lerp_color(HEAT_COLOR_MIN, HEAT_COLOR_MAX, max(min((playcount - 15) / 15, 1.0), 0.0))
+                                if playcount > SK_PLAYCOUNT_MYSEKAI_THRESHOLD:
+                                    color = HEAT_COLOR_MYSEKAI
+                                else:
+                                    color = lerp_color(HEAT_COLOR_MIN, HEAT_COLOR_MAX, max(min((playcount - 15) / 15, 1.0), 0.0))
                                 TextBox(playcount_text, TextStyle(font=DEFAULT_FONT, size=16, color=BLACK)) \
                                     .set_bg(RoundRectBg(color, radius=4)).set_content_align('c').set_size((30, 30)).set_offset((0, -2))
         
