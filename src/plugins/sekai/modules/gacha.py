@@ -667,7 +667,7 @@ async def get_gacha_by_event_id(ctx: SekaiHandlerContext, eid: int) -> Gacha:
     return await get_gacha_by_card_id(ctx, cid)
 
 # 合成抽卡记录图片
-async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int):
+async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int, spec_gids: list[int] | None = None):
     profile, err_msg = await get_detailed_profile(
         ctx, qid, raise_exc=True,
         filter=get_detailed_profile_card_filter('userCards', 'userGachas'),
@@ -681,7 +681,10 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int):
     no_spin_time = False
     for ug in profile['userGachas']:
         gacha_id, behavior_id = ug['gachaId'], ug['gachaBehaviorId']
-        count, last_spin_at = ug['count'], ug.get('lastSpinAt')
+        count, last_spin_at = ug.get('count', 0), ug.get('lastSpinAt')
+
+        if spec_gids and gacha_id not in spec_gids:
+            continue
     
         gacha: Gacha = await ctx.md.gachas.find_by_id(gacha_id)
         if not gacha:
@@ -739,8 +742,11 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int):
     gacha_logos = await batch_gather(*[get_gacha_logo(ctx, gid) for gid in gacha_ids])
     gacha_logos = { gid: banner for gid, banner in zip(gacha_ids, gacha_logos) }
 
-    style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(0, 0, 0))
-    style2 = TextStyle(font=DEFAULT_FONT, size=20, color=(50, 50, 50))
+    style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=(0, 0, 0))
+    style2 = TextStyle(font=DEFAULT_FONT, size=16, color=(50, 50, 50))
+
+    MAX_DRAW_COUNT = 50
+    draw_count = 0
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
@@ -753,14 +759,14 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int):
 
                 TextBox(msg, style2, use_real_line_count=True).set_padding(8)
 
-                for gid, gdata in sorted(records.items(), key=lambda x: x[1]['start_at'], reverse=True):
+                for gid, gdata in sorted(records.items(), key=lambda x: x[1]['end_at'], reverse=True):
                     if not any(bdata['total'] > 0 for bdata in gdata['behaviors'].values()):
                         continue
 
                     with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16):
 
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(8):
-                            ImageBox(gacha_logos.get(gid), size=(None, 100))
+                            ImageBox(gacha_logos.get(gid), size=(None, 80))
                             with VSplit().set_content_align('l').set_item_align('l').set_sep(4):
                                 TextBox(f"【{gid}】{gdata['name']}", style1, line_count=2).set_w(300)
                                 TextBox(f"S {gdata['start_at'].strftime('%Y-%m-%d %H:%M')}", style2)
@@ -785,7 +791,12 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int):
                                         TextBox(f"NEW:", style2)
                                         with Grid(col_count=min(len(card_ids), 5), vertical=True).set_sep(6, 6).set_content_align('l').set_item_align('l'):
                                             for cid in card_ids:
-                                                ImageBox(card_thumbs[cid], size=(80, 80), shadow=True)
+                                                ImageBox(card_thumbs[cid], size=(64, 64), shadow=True)
+
+                    draw_count += 1
+                    if draw_count >= MAX_DRAW_COUNT:
+                        TextBox(f"抽卡记录已达到展示上限{MAX_DRAW_COUNT}条\n可指定卡池ID查看其他记录", style2, use_real_line_count=True).set_padding(8)
+                        break
     
     add_watermark(canvas)
     return await canvas.get_img()
@@ -831,7 +842,19 @@ pjsk_gacha_record = SekaiCmdHandler([
 pjsk_gacha_record.check_cdrate(cd).check_wblist(gbl)
 @pjsk_gacha_record.handle()
 async def _(ctx: SekaiHandlerContext):
+    args = ctx.get_args().strip()
+    spec_gids: list[int] | None = None
+    if args:
+        spec_gids = []
+        for part in args.split():
+            try:
+                gid = int(part)
+            except ValueError:
+                raise ReplyException(f"卡池ID参数错误: {part}")
+            assert_and_reply(await ctx.md.gachas.find_by_id(gid), f"找不到卡池{ctx.region.upper()}-{gid}")
+            spec_gids.append(gid)
+
     return await ctx.asend_reply_msg(await get_image_cq(
-        await compose_gacha_record_image(ctx, ctx.user_id),
+        await compose_gacha_record_image(ctx, ctx.user_id, spec_gids),
         low_quality=True,
     ))

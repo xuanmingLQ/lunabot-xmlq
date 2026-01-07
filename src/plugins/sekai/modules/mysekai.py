@@ -133,7 +133,7 @@ async def get_mysekai_info(
         try:
             uid = get_player_bind_id(ctx)
         except Exception as e:
-            logger.info(f"获取 {qid} mysekai抓包数据失败: 未绑定游戏账号")
+            logger.info(f"获取 {qid} {ctx.region} mysekai抓包数据失败: 未绑定游戏账号")
             raise e
         
         # 服务器不支持
@@ -151,7 +151,7 @@ async def get_mysekai_info(
                 url += f"&filter={','.join(filter)}"
             mysekai_info = await request_gameapi(url)
         except HttpError as e:
-            logger.info(f"获取 {qid} mysekai抓包数据失败: {get_exc_desc(e)}")
+            logger.info(f"获取 {qid} {ctx.region} mysekai抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
                 local_err = e.message.get('local_err', None)
                 haruki_err = e.message.get('haruki_err', None)
@@ -162,27 +162,27 @@ async def get_mysekai_info(
             else:
                 raise e
         except Exception as e:
-            logger.info(f"获取 {qid} mysekai抓包数据失败: {get_exc_desc(e)}")
+            logger.info(f"获取 {qid} {ctx.region} mysekai抓包数据失败: {get_exc_desc(e)}")
             raise e
         
         if not mysekai_info:
-            logger.info(f"获取 {qid} mysekai抓包数据失败: 找不到ID为 {uid} 的玩家")
+            logger.info(f"获取 {qid} {ctx.region} mysekai抓包数据失败: 找不到ID为 {uid} 的玩家")
             raise ReplyException(f"找不到ID为 {uid} 的玩家")
         
         # 缓存数据（目前已不缓存）
         cache_path = f"{SEKAI_PROFILE_DIR}/mysekai_cache/{ctx.region}/{uid}.json"
         # if not upload_time_only:
         #     dump_json(mysekai_info, cache_path)
-        logger.info(f"获取 {qid} mysekai抓包数据成功，数据已缓存")
+        logger.info(f"获取 {qid} {ctx.region} mysekai抓包数据成功，数据已缓存")
 
     except Exception as e:
         # 获取失败的情况，尝试读取缓存
         if cache_path and os.path.exists(cache_path):
             mysekai_info = load_json(cache_path)
-            logger.info(f"从缓存获取 {qid} mysekai抓包数据")
+            logger.info(f"从缓存获取 {qid} {ctx.region} mysekai抓包数据")
             return mysekai_info, str(e) + "(使用先前的缓存数据)"
         else:
-            logger.info(f"未找到 {qid} 的缓存mysekai抓包数据")
+            logger.info(f"未找到 {qid} 的缓存{ctx.region} mysekai抓包数据")
 
         if raise_exc:
             raise e
