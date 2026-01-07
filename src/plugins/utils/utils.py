@@ -721,7 +721,7 @@ async def download_json(url: str) -> dict:
 
 def load_json_zstd(file_path: str) -> dict:
     with open(file_path, 'rb') as file:
-        data = _global_zstd_dctx.decompress(file.read())
+        data = zstandard.ZstdDecompressor().decompress(file.read())
         return orjson.loads(data)
 
 def dump_json_zstd(data: dict, file_path: str) -> None:
@@ -729,7 +729,7 @@ def dump_json_zstd(data: dict, file_path: str) -> None:
     tmp_path = file_path + ".tmp"
     with open(tmp_path, 'wb') as file:
         buffer = orjson.dumps(data)
-        compressed = _global_zstd_cctx.compress(buffer)
+        compressed = zstandard.ZstdCompressor().compress(buffer)
         file.write(compressed)
     os.replace(tmp_path, file_path)
     try: os.remove(tmp_path)
