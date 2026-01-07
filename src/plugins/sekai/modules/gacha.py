@@ -682,9 +682,13 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int):
     for ug in profile['userGachas']:
         gacha_id, behavior_id = ug['gachaId'], ug['gachaBehaviorId']
         count, last_spin_at = ug['count'], ug.get('lastSpinAt')
-        gacha_ids.add(gacha_id)
     
         gacha: Gacha = await ctx.md.gachas.find_by_id(gacha_id)
+        if not gacha:
+            logger.warning(f"找不到卡池{ctx.region.upper()}-{gacha_id}，跳过该抽卡记录")
+            continue
+        gacha_ids.add(gacha_id)
+
         records.setdefault(gacha_id, {
             'name': gacha.name,
             'start_at': gacha.start_at,
@@ -693,6 +697,10 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int):
         })
 
         behavior: GachaBehavior = find_by_predicate(gacha.behaviors, lambda b: b.id == behavior_id)
+        if not behavior:
+            logger.warning(f"找不到卡池{ctx.region.upper()}-{gacha_id}的抽卡行为{behavior_id}，跳过该抽卡记录")
+            continue
+
         behavior_text = get_gacha_behavior_text(behavior)
         if behavior_text not in records[gacha_id]['behaviors']:
             records[gacha_id]['behaviors'][behavior_text] = ({
@@ -746,6 +754,9 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int):
                 TextBox(msg, style2, use_real_line_count=True).set_padding(8)
 
                 for gid, gdata in sorted(records.items(), key=lambda x: x[1]['start_at'], reverse=True):
+                    if not any(bdata['total'] > 0 for bdata in gdata['behaviors'].values()):
+                        continue
+
                     with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16):
 
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(8):
@@ -756,6 +767,9 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int):
                                 TextBox(f"T {gdata['end_at'].strftime('%Y-%m-%d %H:%M')}", style2)
 
                         for btext, bdata in gdata['behaviors'].items():
+                            if bdata['total'] == 0:
+                                continue
+
                             card_ids = bdata['card_ids']
                             with VSplit().set_content_align('l').set_item_align('l').set_sep(8).set_padding(8).set_bg(roundrect_bg()):
                                 with HSplit().set_content_align('l').set_item_align('l').set_sep(4):
