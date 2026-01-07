@@ -488,13 +488,11 @@ async def get_card_story_summary(ctx: SekaiHandlerContext, card: dict, refresh: 
 
 # 合成卡牌一览图片
 async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, show_id: bool, show_box: bool, use_after_training=True):
-    pcards, bg_unit = [], None
+    pcards = []
     if qid:
         profile, pmsg = await get_detailed_profile(ctx, qid, filter=get_detailed_profile_card_filter('userCards'), raise_exc=show_box)
         if profile:
             pcards = profile['userCards']
-            avatar_info = await get_player_avatar_info_by_detailed_profile(ctx, profile)
-            bg_unit = avatar_info.unit
         
     # collect card imgs
     async def get_card_full_thumbnail_nothrow(card):
@@ -546,8 +544,19 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
         if value < best_value:
             best_height, best_value = i, value
 
+    # 计算总宽度并决定绘制卡牌的大小
+    total_width = 0
+    for _, cards in chara_cards:
+        width = math.ceil(len(cards) / best_height)
+        total_width += width
+
+    start_width, start_sz, start_sep = 7, 80, 6
+    end_width, end_sz, end_sep = 24, 48, 4
+    interp = min(1.0, max(0.0, (total_width - start_width) / (end_width - start_width)))
+    sep = int(start_sep + (end_sep - start_sep) * interp)
+    sz = int(start_sz + (end_sz - start_sz) * interp)
+
     # 绘制单张卡
-    sz = 48
     def draw_card(card):
         with Frame().set_content_align('rt'):
             ImageBox(card['img'], size=(sz, sz))
@@ -562,20 +571,20 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
             TextBox(f"{card['id']}", TextStyle(font=DEFAULT_FONT, size=12, color=BLACK)).set_w(sz)
 
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
-        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16) as vs:
+        with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16):
             if qid:
                 await get_detailed_profile_card(ctx, profile, pmsg)
             with HSplit().set_bg(roundrect_bg()).set_content_align('lt').set_item_align('lt').set_padding(16).set_sep(4):
                 for chara_id, cards in chara_cards:
-                    with VSplit().set_content_align('t').set_item_align('t').set_sep(4):
+                    with VSplit().set_content_align('t').set_item_align('t').set_sep(sep):
                         ImageBox(get_chara_icon_by_chara_id(chara_id), size=(sz, sz))
                         chara_color = color_code_to_rgb((await ctx.md.game_character_units.find_by_id(chara_id))['colorCode'])
                         col_num = max(1, len(range(0, len(cards), best_height)))
                         row_num = max(1, min(best_height, len(cards)))
-                        Spacer(w=sz * col_num + 4 * (col_num - 1), h=4).set_bg(FillBg(chara_color))
-                        with Grid(row_count=row_num, vertical=row_num > col_num).set_content_align('lt').set_item_align('lt').set_sep(4, 4):
+                        Spacer(w=sz * col_num + sep * (col_num - 1), h=sep).set_bg(FillBg(chara_color))
+                        with Grid(row_count=row_num, vertical=row_num > col_num).set_content_align('lt').set_item_align('lt').set_sep(sep, sep):
                             for card in cards:
-                                draw_card(card) 
+                                draw_card(card)
             
     add_watermark(canvas)
     return await canvas.get_img()
