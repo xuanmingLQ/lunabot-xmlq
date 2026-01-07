@@ -668,6 +668,8 @@ async def get_gacha_by_event_id(ctx: SekaiHandlerContext, eid: int) -> Gacha:
 
 # 合成抽卡记录图片
 async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int, spec_gids: list[int] | None = None):
+    raise ReplyException("由于问题较多，该功能暂时关闭")
+
     profile, err_msg = await get_detailed_profile(
         ctx, qid, raise_exc=True,
         filter=get_detailed_profile_card_filter('userCards', 'userGachas'),
