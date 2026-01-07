@@ -690,7 +690,6 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int, spec_gi
         if not gacha:
             logger.warning(f"找不到卡池{ctx.region.upper()}-{gacha_id}，跳过该抽卡记录")
             continue
-        gacha_ids.add(gacha_id)
 
         records.setdefault(gacha_id, {
             'name': gacha.name,
@@ -729,16 +728,37 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int, spec_gi
             # 该次抽卡获得的new卡牌
             cids = [uc['cardId'] for uc in find_by(ucards, "createdAt", last_spin_at, mode='all')]
             records[gacha_id]['behaviors'][behavior_text]['card_ids'].extend(cids)
-            card_ids.update(cids)
         else:
             no_spin_time = True
 
+    # 筛选抽卡
+    for gid in list(records.keys()):
+        gdata = records[gid]
+        for btext in list(gdata['behaviors'].keys()):
+            bdata = gdata['behaviors'][btext]
+            # 删除次数为0的
+            if bdata['total'] == 0: 
+                del gdata['behaviors'][btext]
+                continue
+            # 删除没有new卡的免费抽卡
+            if not bdata['card_ids'] and not any(cost['quantity'] > 0 for cost in bdata['costs'].values()):  
+                del gdata['behaviors'][btext]
+                continue
+        # 删除没有抽卡行为的卡池
+        if not any(bdata['total'] > 0 for bdata in gdata['behaviors'].values()):
+            del records[gid]
+            continue
+
     # 获取图片资源
+    card_ids = set()
+    for gdata in records.values():
+        for bdata in gdata['behaviors'].values():
+            card_ids.update(bdata['card_ids'])
     card_ids = list(card_ids)
     card_thumbs = await batch_gather(*[get_card_full_thumbnail(ctx, cid) for cid in card_ids])
     card_thumbs = { cid: thumb for cid, thumb in zip(card_ids, card_thumbs) }
     
-    gacha_ids = list(gacha_ids)
+    gacha_ids = list(records.keys())
     gacha_logos = await batch_gather(*[get_gacha_logo(ctx, gid) for gid in gacha_ids])
     gacha_logos = { gid: banner for gid, banner in zip(gacha_ids, gacha_logos) }
 
@@ -753,16 +773,13 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int, spec_gi
             await get_detailed_profile_card(ctx, profile, err_msg)
 
             with VSplit().set_content_align('l').set_item_align('l').set_sep(16).set_item_bg(roundrect_bg()):
-                msg = "抓包数据仅包含近期抽卡记录\n每次上传时进行增量更新，未上传过的记录将会丢失"
+                msg = "抓包数据仅包含近期抽卡记录\n每次上传时进行增量更新，未上传过的记录将会丢失\n未出NEW的免费抽卡(月卡单抽)不会显示"
                 if no_spin_time:
                     msg += f"\n{get_region_name(ctx.region)}抽卡记录缺少抽卡时间，无法显示获得的新卡牌"
 
                 TextBox(msg, style2, use_real_line_count=True).set_padding(8)
 
                 for gid, gdata in sorted(records.items(), key=lambda x: x[1]['end_at'], reverse=True):
-                    if not any(bdata['total'] > 0 for bdata in gdata['behaviors'].values()):
-                        continue
-
                     with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16):
 
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(8):
@@ -773,9 +790,6 @@ async def compose_gacha_record_image(ctx: SekaiHandlerContext, qid: int, spec_gi
                                 TextBox(f"T {gdata['end_at'].strftime('%Y-%m-%d %H:%M')}", style2)
 
                         for btext, bdata in gdata['behaviors'].items():
-                            if bdata['total'] == 0:
-                                continue
-
                             card_ids = bdata['card_ids']
                             with VSplit().set_content_align('l').set_item_align('l').set_sep(8).set_padding(8).set_bg(roundrect_bg()):
                                 with HSplit().set_content_align('l').set_item_align('l').set_sep(4):
