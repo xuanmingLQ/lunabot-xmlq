@@ -606,17 +606,10 @@ async def get_detailed_profile(
                 raise ReplyException(msg.strip())
             else:
                 raise
-        except ApiError as e:
-            raise ReplyException(f"获取 {qid} 抓包数据失败：{e.msg}")
         except Exception as e:
-<<<<<<< HEAD
-            logger.info(f"获取 {qid} 抓包数据失败: {get_exc_desc(e)}")
-            raise
-=======
             logger.info(f"获取 {qid} {ctx.region}抓包数据失败: {get_exc_desc(e)}")
             raise e
             
->>>>>>> origin/master
         if not profile:
             logger.info(f"获取 {qid} {ctx.region}抓包数据失败: 找不到ID为 {uid} 的玩家")
             raise ReplyException(f"找不到ID为 {uid} 的玩家")
