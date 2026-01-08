@@ -1645,7 +1645,7 @@ async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, 
                                         with Frame():
                                             ImageBox(cover, size=(sz, sz))
                                             if mid not in mid_obtained_at:
-                                                Spacer(w=sz, h=sz).set_bg(FillBg((0,0,0,120)))
+                                                Spacer(w=sz, h=sz).set_bg(FillBg((0,0,0,150)))
                                         if show_id:
                                             TextBox(f"{mid}", TextStyle(font=DEFAULT_FONT, size=10, color=(50, 50, 50)))
 
