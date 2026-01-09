@@ -43,6 +43,7 @@ suite_path: data/sekai/user_data/{region}/suite/*
 mysekai_path: data/sekai/user_data/{region}/mysekai/*
 
 story_summary:
+  output_as_image: true
   card:
     retry: 2
     timeout: 300
