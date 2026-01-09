@@ -423,8 +423,7 @@ class RegionMasterDataCollection:
     所有的MasterData资源集合
     """
     def __init__(self, region: str):
-        region = get_region_by_id(region)
-        self._region = region
+        self._region = get_region_by_id(region)
 
         self.musics                                                         = RegionMasterDataWrapper(region, "musics")
         self.music_diffs                                                    = RegionMasterDataWrapper(region, "musicDifficulties")

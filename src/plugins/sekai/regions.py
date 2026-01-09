@@ -76,6 +76,7 @@ LOCAL_REGION: SekaiRegion
 for region in REGIONS:
     if region.local:
         LOCAL_REGION = region
+        break
 else:
     LOCAL_REGION = REGIONS[0]
 
