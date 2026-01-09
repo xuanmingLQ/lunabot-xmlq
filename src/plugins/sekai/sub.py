@@ -52,7 +52,7 @@ class SekaiGroupSubHelper:
         @sub.handle()
         async def _(ctx: SekaiHandlerContext):
             self.subs[ctx.region].sub(ctx.group_id)
-            return await ctx.asend_reply_msg(f"开启本群 {self.name}({get_region_name(ctx.region)})")
+            return await ctx.asend_reply_msg(f"开启本群 {self.name}({ctx.region.name})")
         
         unsub_commands = [cmd.format(id=self.id) for cmd in GROUP_UNSUB_COMMANDS]
         unsub = SekaiCmdHandler(unsub_commands, regions=self.regions, priority=1, help_command='/pjsk取消订阅')
@@ -60,7 +60,7 @@ class SekaiGroupSubHelper:
         @unsub.handle()
         async def _(ctx: SekaiHandlerContext):
             self.subs[ctx.region].unsub(ctx.group_id)
-            return await ctx.asend_reply_msg(f"关闭本群 {self.name}({get_region_name(ctx.region)})")
+            return await ctx.asend_reply_msg(f"关闭本群 {self.name}({ctx.region.name})")
 
     def _check_region(self, region):
         if region not in self.regions:
@@ -185,12 +185,12 @@ class SekaiUserSubHelper:
                         has_other_group_sub = True
                         self.subs[ctx.region].unsub(uid, gid)
             self.subs[ctx.region].sub(ctx.user_id, ctx.group_id)
-            msg = f"成功订阅 {self.name}({get_region_name(ctx.region)})\n"
+            msg = f"成功订阅 {self.name}({ctx.region.name})\n"
             if has_other_group_sub:
                 msg += "已自动取消你在其他群聊的订阅\n"
             # 对应群聊功能未开启
             if self.related_group_sub and ctx.group_id not in self.related_group_sub.get_all(ctx.region):
-                msg += f"该订阅对应的群聊功能 {self.related_group_sub.name}({get_region_name(ctx.region)}) 在本群未开启！"
+                msg += f"该订阅对应的群聊功能 {self.related_group_sub.name}({ctx.region.name}) 在本群未开启！"
                 msg += "如需使用请联系BOT超管"
             return await ctx.asend_reply_msg(msg.strip())
         
@@ -200,7 +200,7 @@ class SekaiUserSubHelper:
         @unsub.handle()
         async def _(ctx: SekaiHandlerContext):
             self.subs[ctx.region].unsub(ctx.user_id, ctx.group_id)
-            return await ctx.asend_reply_msg(f"取消订阅 {self.name}({get_region_name(ctx.region)})")
+            return await ctx.asend_reply_msg(f"取消订阅 {self.name}({ctx.region.name})")
 
     def _check_region(self, region):
         if region not in self.regions:

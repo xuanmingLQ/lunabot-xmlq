@@ -14,6 +14,9 @@ from copy import deepcopy
 import shutil
 import traceback
 
+import faulthandler
+faulthandler.enable()
+
 
 def write_file(file_path: str, data: bytes) -> None:
     os.makedirs(os.path.dirname(file_path), exist_ok=True)

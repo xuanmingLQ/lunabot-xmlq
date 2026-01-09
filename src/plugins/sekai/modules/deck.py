@@ -1598,7 +1598,7 @@ async def compose_deck_recommend_image(
         # 检查区服还没有开放等级上限
         for item_id, lv in levels.items():
             if lv < area_item_level:
-                raise ReplyException(f"{get_region_name(ctx.region)}区域道具等级最多为{lv}")
+                raise ReplyException(f"{ctx.region.name}区域道具等级最多为{lv}")
         # 已存在的区域道具等级覆盖
         for area in profile['userAreas']:
             for area_item in area['areaItems']:
@@ -1844,9 +1844,9 @@ async def compose_deck_recommend_image(
                             ImageBox(attr_icon, size=(None, 50))
                         
                         if use_max_profile:
-                            TextBox(f"({get_region_name(ctx.region)}顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
+                            TextBox(f"({ctx.region.name}顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
                         if use_sub_max_profile:
-                            TextBox(f"({get_region_name(ctx.region)}次顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
+                            TextBox(f"({ctx.region.name}次顶配)", TextStyle(font=DEFAULT_BOLD_FONT, size=30, color=(50, 50, 50)))
 
                     if any([
                         unit_filter, attr_filter, 
@@ -2229,7 +2229,7 @@ DECKREC_DATA_UPDATE_INTERVAL_CFG = config.item('deck.data_update_interval_second
 
 @repeat_with_interval(DECKREC_DATA_UPDATE_INTERVAL_CFG, "组卡数据更新", logger)
 async def deckrec_update_data():
-    for region in ALL_SERVER_REGIONS:
+    for region in REGIONS:
         try:
             ctx = SekaiHandlerContext.from_region(region)
 

@@ -28,8 +28,8 @@ from src.api.game.user import get_mysekai,get_mysekai_photo,get_mysekai_upload_t
 from src.api.subscribe.pjsk import set_msr_sub
 from ...imgtool import shrink_image
 
-MYSEKAI_REGIONS = [region.id for region in REGIONS if region.mysekai]
-BD_MYSEKAI_REGIONS = [region.id for region in REGIONS if region.bd_mysekai]
+MYSEKAI_REGIONS = get_regions(RegionAttributes.MYSEKAI)
+BD_MYSEKAI_REGIONS = get_regions(RegionAttributes.MYSEKAI, RegionAttributes.BD_MYSEKAI)
 
 bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", BD_MYSEKAI_REGIONS)
 msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", MYSEKAI_REGIONS, only_one_group=True)
@@ -96,8 +96,8 @@ harvest_point_image_offsets_cache: dict[int, Tuple[Image.Image, tuple[int, int]]
 # 获取ms自然刷新小时
 def get_mysekai_refresh_hours(ctx: SekaiHandlerContext) -> Tuple[int, int]:
     return (
-        region_hour_to_local(ctx.region, 5),
-        region_hour_to_local(ctx.region, 17),
+        ctx.region.hour2local(5),
+        ctx.region.hour2local(17),
     )
 
 # 判断ms资源稀有等级（0, 1, 2)
@@ -140,7 +140,7 @@ async def get_mysekai_info(
         except HttpError as e:
             logger.info(f"获取 {qid} {ctx.region} mysekai抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
-                msg = f"获取你的{get_region_name(ctx.region)}Mysekai抓包数据失败，发送\"/抓包\"指令可获取帮助\n"
+                msg = f"获取你的{ctx.region.name}Mysekai抓包数据失败，发送\"/抓包\"指令可获取帮助\n"
                 # if local_err is not None: msg += f"[本地数据] {local_err}\n"
                 if  e.message is not None: msg += f"[Haruki工具箱] { e.message}\n"
                 raise ReplyException(msg.strip())
@@ -284,7 +284,7 @@ def get_mysekai_last_refresh_time_and_reason(ctx: SekaiHandlerContext, dt: datet
     else:
         last_refresh_time = now.replace(hour=h2, minute=0, second=0, microsecond=0)
     # 五周年后的生日掉落更新产生的刷新
-    if is_fifth_anniversary(ctx.region):
+    if ctx.region.fifth_anniversary:
         for cid in range(1, 27):
             dt = get_character_next_birthday_dt(ctx.region, cid, now - timedelta(days=1))
             start = dt - timedelta(days=3)
@@ -1247,9 +1247,9 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
     fname = fixture['name']
 
     translated_name = None
-    if ctx.region in NEED_TRANSLATE_REGIONS:
-        for r in TRANSLATED_REGIONS:
-            if r in MYSEKAI_REGIONS:
+    if ctx.region.need_translate:
+        for r in get_regions(RegionAttributes.translate):
+            if r.mysekai:
                 if f := await SekaiHandlerContext.from_region(r).md.mysekai_fixtures.find_by_id(fid):
                     translated_name = f['name']
                     break
@@ -1612,7 +1612,7 @@ async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, 
                 await get_mysekai_info_card(ctx, mysekai_info, basic_profile, pmsg)
 
                 a, b = obtained_num, total_num
-                TextBox(f"总收集进度: {a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(100, 100, 100))) \
+                TextBox(f"总收集进度: {a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(25, 25, 25))) \
                     .set_padding(16).set_bg(roundrect_bg())
 
                 with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
@@ -1624,9 +1624,9 @@ async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, 
                                     tag_icon = get_unit_icon(MUSIC_TAG_UNIT_MAP[tag])
                                     ImageBox(tag_icon, size=(None, 30))
                                 else:
-                                    TextBox("其他", TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(100, 100, 100)))
+                                    TextBox("其他", TextStyle(font=DEFAULT_HEAVY_FONT, size=20, color=(50, 50, 50)))
                                 a, b = category_obtained_num[tag], category_total_num[tag]
-                                TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(100, 100, 100)))
+                                TextBox(f"{a}/{b} ({a/b*100:.1f}%)", TextStyle(font=DEFAULT_BOLD_FONT, size=16, color=(50, 50, 50)))
 
                             # 歌曲列表
                             sz = 30
@@ -1636,7 +1636,7 @@ async def compose_mysekai_musicrecord_image(ctx: SekaiHandlerContext, qid: int, 
                                         with Frame():
                                             ImageBox(cover, size=(sz, sz))
                                             if mid not in mid_obtained_at:
-                                                Spacer(w=sz, h=sz).set_bg(FillBg((0,0,0,120)))
+                                                Spacer(w=sz, h=sz).set_bg(FillBg((0,0,0,150)))
                                         if show_id:
                                             TextBox(f"{mid}", TextStyle(font=DEFAULT_FONT, size=10, color=(50, 50, 50)))
 
@@ -1981,7 +1981,7 @@ pjsk_mysekai_res.check_cdrate(cd).check_wblist(gbl)
 async def _(ctx: SekaiHandlerContext):
     with ProfileTimer("msr.total"):
         if ctx.region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(ctx.region, ctx.group_id): 
-            raise ReplyException(f"不支持{get_region_name(ctx.region)}的msr查询")
+            raise ReplyException(f"不支持{ctx.region.name}的msr查询")
         await ctx.block_region(key=f"{ctx.user_id}", timeout=0, err_msg="正在处理你的msr查询，请稍候")
         args = ctx.get_args().strip()
         show_harvested = 'all' in args
@@ -2197,7 +2197,7 @@ async def _(ctx: SekaiHandlerContext):
     uid = update_bd_msr_limit_uid(ctx, ctx.user_id)
     next_times[qid] = int((datetime.now() + timedelta(days=7)).timestamp())
     bd_msr_bind_db.set(f"{ctx.region}_next_time", next_times)
-    await ctx.asend_reply_msg(f"已将你的{get_region_name(ctx.region)}MSR查询限制ID切换为当前绑定的ID: "
+    await ctx.asend_reply_msg(f"已将你的{ctx.region.name}MSR查询限制ID切换为当前绑定的ID: "
                               f"{process_hide_uid(ctx, uid, keep=6)}，一周内不可再次切换")
 
 
@@ -2206,8 +2206,8 @@ async def _(ctx: SekaiHandlerContext):
 # MSR自动推送 & MSR订阅更新
 @repeat_with_interval(config.item('mysekai.msr_push_interval_seconds'), 'MSR自动推送', logger)
 async def msr_auto_push():
-    for region in ALL_SERVER_REGIONS:
-        region_name = get_region_name(region)
+    for region in get_regions(RegionAttributes.MYSEKAI):
+        region_name = region.name
         ctx = SekaiHandlerContext.from_region(region)
 
         # get_upload_time_url = get_gameapi_config(ctx).mysekai_upload_time_api_url

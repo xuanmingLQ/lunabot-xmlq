@@ -387,7 +387,7 @@ def remove_music_alias_for_search(mid: int, alias: str):
 # 根据参数查询曲目
 async def search_music(ctx: SekaiHandlerContext, query: str, options: MusicSearchOptions = None) -> MusicSearchResult:
     global alias_mid_for_search
-    region_name = get_region_name(ctx.region)
+    region_name = ctx.region.name
 
     options = options or MusicSearchOptions()
 
@@ -1365,7 +1365,6 @@ async def compose_music_rewards_image(ctx: SekaiHandlerContext, qid: int) -> Ima
 
     # 有抓包的模式
     if profile:
-        avatar_info = await get_player_avatar_info_by_detailed_profile(ctx, profile)
         # 按照歌曲分组
         umas: Dict[int, List[int]] = { mid: [] for mid in mids }
         # 按照歌曲id分组
@@ -1801,7 +1800,7 @@ async def _(ctx: SekaiHandlerContext):
             m for m in await ctx.md.musics.get() 
             if datetime.fromtimestamp(m['publishedAt'] / 1000) > datetime.now()
         ]
-        assert_and_reply(leak_musics, f"当前{get_region_name(ctx.region)}没有leak曲目")
+        assert_and_reply(leak_musics, f"当前{ctx.region.name}没有leak曲目")
         leak_musics = sorted(leak_musics, key=lambda x: (x['publishedAt'], x['id']))
         return await ctx.asend_reply_msg(await get_image_cq(
             await compose_music_brief_list_image(ctx, leak_musics, hide_too_far=True),
@@ -2079,7 +2078,7 @@ async def new_music_notify():
     updated = False
 
     for region in ALL_SERVER_REGIONS:
-        region_name = get_region_name(region)
+        region_name = region.name
         ctx = SekaiHandlerContext.from_region(region)
         musics = await ctx.md.musics.get()
         now = datetime.now()
@@ -2166,7 +2165,7 @@ async def new_apd_notify():
     total_send = 0
 
     for region in ALL_SERVER_REGIONS:
-        region_name = get_region_name(region)
+        region_name = region.name
         ctx = SekaiHandlerContext.from_region(region)
         musics = await ctx.md.musics.get()
 
