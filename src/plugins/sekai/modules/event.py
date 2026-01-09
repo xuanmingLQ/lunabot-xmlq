@@ -539,7 +539,7 @@ async def compose_event_story_summary_image(
     chara_talk_count: list[tuple[str, int]],
 ) -> Image.Image:
     eid = event['id']
-    title = truncate(event['name'], 30)
+    title = event['name']
     banner_img = await get_event_banner_img(ctx, event)
 
     style1 = TextStyle(font=DEFAULT_BOLD_FONT, size=25, color=(0, 0, 0))
@@ -548,54 +548,57 @@ async def compose_event_story_summary_image(
     w = 720
     line_sep = 5
 
-    with Canvas(bg=SEKAI_BLUE_BG_DAY).set_padding(BG_PADDING) as canvas:
-        with VSplit().set_sep(8).set_item_align('lt').set_content_align('lt').set_item_bg(roundrect_bg()):
-            with HSplit().set_padding(16).set_sep(16).set_item_align('l').set_content_align('l'):
-                ImageBox(banner_img, size=(None, 100))
-                with VSplit().set_padding(0).set_sep(4).set_item_align('l').set_content_align('l'):
-                    TextBox(f"#{eid} {title}", style1)
-                    TextBox(f"{summary.get('title', '')} - 剧情总结", style1)
-                    TextBox("内容由AI生成，请勿转载到其他地方", style2)
+    with ProfileTimer("event_story.layout"):
+        with Canvas(bg=SEKAI_BLUE_BG_DAY).set_padding(BG_PADDING) as canvas:
+            with VSplit().set_sep(8).set_item_align('lt').set_content_align('lt').set_item_bg(roundrect_bg()):
+                with HSplit().set_padding(16).set_sep(16).set_item_align('l').set_content_align('l'):
+                    ImageBox(banner_img, size=(None, 100))
+                    with VSplit().set_padding(0).set_sep(4).set_item_align('l').set_content_align('l'):
+                        TextBox(f"#{eid} {title}", style1)
+                        TextBox(f"{summary.get('title', '')} - 剧情总结", style1)
+                        TextBox("内容由AI生成，请勿转载到其他地方", style2)
+                        
+                with VSplit().set_padding(16).set_sep(8).set_item_align('lt').set_content_align('lt'):
+                    TextBox(f"剧情概要", style1)
+                    text = summary.get('outline', '').strip()
+                    TextBox(text, style2, use_real_line_count=True, line_sep=line_sep).set_w(w)
+
+                for i, ep in enumerate(eps + no_snippet_eps, 1):
+                    with VSplit().set_padding(16).set_sep(16).set_item_align('lt').set_content_align('lt'):
+                        TextBox(f"第{i}章 {summary.get(f'ep_{i}_title', ep['title'])}", style1)
+                        with HSplit().set_padding(0).set_sep(16).set_item_align('lt').set_content_align('lt'):
+                            with VSplit().set_sep(8):
+                                ImageBox(ep['image'], size=(160, None))
+                                with Grid(col_count=5).set_sep(2, 2):
+                                    for cid in ep['cids']:
+                                        if not cid: continue
+                                        icon = get_chara_icon_by_chara_id(cid, raise_exc=False)
+                                        if not icon: continue
+                                        ImageBox(icon, size=(32, 32), use_alphablend=True)
+                            if i <= len(eps):
+                                text = summary.get(f'ep_{i}_summary', '')
+                                text = add_watermark_to_text(text, STORYSUMMARY_WATERMARK)
+                            else:
+                                text = "(章节剧情未实装)"
+                            TextBox(text, style2, use_real_line_count=True, line_sep=line_sep).set_w(w - 176)
+
+                with VSplit().set_padding(16).set_sep(8).set_item_align('lt').set_content_align('lt'):
+                    TextBox(f"剧情总结", style1)
+                    text = summary.get('summary', '').strip()
+                    TextBox(add_watermark_to_text(text, STORYSUMMARY_WATERMARK), style2, use_real_line_count=True, line_sep=line_sep).set_w(w)
+
+                with VSplit().set_padding(16).set_sep(8).set_item_align('lt').set_content_align('lt'):
+                    TextBox(f"角色对话次数", style1)
+                    chara_talk_count_text = ""
+                    for name, count in chara_talk_count:
+                        chara_talk_count_text += f"{name}: {count} | "
+                    chara_talk_count_text = chara_talk_count_text.strip().rstrip('|')
+                    TextBox(chara_talk_count_text, style2, use_real_line_count=True, line_sep=line_sep).set_w(w)
                     
-            with VSplit().set_padding(16).set_sep(8).set_item_align('lt').set_content_align('lt'):
-                TextBox(f"剧情概要", style1)
-                text = summary.get('outline', '').strip()
-                TextBox(text, style2, use_real_line_count=True, line_sep=line_sep).set_w(w)
-
-            for i, ep in enumerate(eps + no_snippet_eps, 1):
-                with VSplit().set_padding(16).set_sep(16).set_item_align('lt').set_content_align('lt'):
-                    TextBox(f"第{i}章 {summary.get(f'ep_{i}_title', ep['title'])}", style1)
-                    with HSplit().set_padding(0).set_sep(16).set_item_align('lt').set_content_align('lt'):
-                        with VSplit().set_sep(8):
-                            ImageBox(ep['image'], size=(160, None))
-                            with Grid(col_count=5).set_sep(2, 2):
-                                for cid in ep['cids']:
-                                    if not cid: continue
-                                    icon = get_chara_icon_by_chara_id(cid, raise_exc=False)
-                                    if not icon: continue
-                                    ImageBox(icon, size=(32, 32), use_alphablend=True)
-                        if i <= len(eps):
-                            text = summary.get(f'ep_{i}_summary', '')
-                            text = add_watermark_to_text(text, STORYSUMMARY_WATERMARK)
-                        else:
-                            text = "(章节剧情未实装)"
-                        TextBox(text, style2, use_real_line_count=True, line_sep=line_sep).set_w(w - 176)
-
-            with VSplit().set_padding(16).set_sep(8).set_item_align('lt').set_content_align('lt'):
-                TextBox(f"剧情总结", style1)
-                text = summary.get('summary', '').strip()
-                TextBox(add_watermark_to_text(text, STORYSUMMARY_WATERMARK), style2, use_real_line_count=True, line_sep=line_sep).set_w(w)
-
-            with VSplit().set_padding(16).set_sep(8).set_item_align('lt').set_content_align('lt'):
-                TextBox(f"角色对话次数", style1)
-                chara_talk_count_text = ""
-                for name, count in chara_talk_count:
-                    chara_talk_count_text += f"{name}: {count} | "
-                chara_talk_count_text = chara_talk_count_text.strip().rstrip('|')
-                TextBox(chara_talk_count_text, style2, use_real_line_count=True, line_sep=line_sep).set_w(w)
-        
-    add_watermark(canvas)
-    return await canvas.get_img(cache_key=f"event_story_{ctx.region}_{eid}")
+        add_watermark(canvas)
+    
+    with ProfileTimer("event_story.get_img"): 
+        return await canvas.get_img(cache_key=f"event_story_{ctx.region}_{eid}")
 
 # 获取活动剧情总结，返回待发送的消息列表或图片
 async def get_event_story_summary(ctx: SekaiHandlerContext, event: dict, refresh: bool, summary_model: List[str], save: bool) -> list[str] | Image.Image:
