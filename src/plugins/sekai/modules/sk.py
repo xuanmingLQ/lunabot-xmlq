@@ -1307,6 +1307,7 @@ async def compose_rank_trace_image(ctx: SekaiHandlerContext, rank: int, event: d
                 history_times = [x[0] for x in history]
                 history_preds = [x[1] for x in history]
                 ax2.plot(history_times, history_preds, color=color, linestyle='-', linewidth=1.0, alpha=1.0)
+                ax2.plot(history_times[-1], history_preds[-1], marker='x', color=color, markersize=6, alpha=1.0)
                 ax2.plot([], [], label=f'{name}历史', color=color, linestyle='-', linewidth=2)
         # 统一绘制最终预测线对应的文本，避免重叠
         draw_nocollide_texts(
