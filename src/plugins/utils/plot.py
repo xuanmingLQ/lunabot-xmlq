@@ -742,6 +742,8 @@ class TextBox(Widget):
         assert overflow in ('shrink', 'clip')
         self.overflow = overflow
         self.use_real_line_count = use_real_line_count
+        self.text_offset_x = 0
+        self.text_offset_y = 0
 
         if line_count is None:
             self.line_count = 99999 if use_real_line_count else 1
@@ -772,6 +774,11 @@ class TextBox(Widget):
     def set_overflow(self, overflow: str):
         assert overflow in ('shrink', 'clip')
         self.overflow = overflow
+
+    def set_text_offset(self, offset: Tuple[int, int]):
+        self.text_offset_x = offset[0]
+        self.text_offset_y = offset[1]
+        return self
 
     def _get_pil_font(self):
         return get_font(self.style.font, self.style.size)
@@ -859,6 +866,8 @@ class TextBox(Widget):
                 x += p.w - lw
             elif self.content_halign == 'c':
                 x += (p.w - lw) // 2
+            x += self.text_offset_x
+            y += self.text_offset_y
             p.move_region((x, y), (lw, self.style.size))
 
             if self.style.use_shadow:

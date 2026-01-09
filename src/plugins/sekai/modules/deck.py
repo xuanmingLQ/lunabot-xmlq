@@ -2015,10 +2015,10 @@ async def compose_deck_recommend_image(
                                                     if options.fixed_cards and card_id in options.fixed_cards \
                                                     or options.fixed_characters and character_id in options.fixed_characters:
                                                         TextBox(str(card_id), TextStyle(font=DEFAULT_FONT, size=10, color=WHITE)) \
-                                                            .set_bg(RoundRectBg((200, 50, 50, 200), 2)).set_offset((-2, 0))
+                                                            .set_bg(RoundRectBg((200, 50, 50, 200), 2)).set_offset((-2, 0)).set_text_offset((0, -2))
                                                     else:
                                                         TextBox(str(card_id), TextStyle(font=DEFAULT_FONT, size=10, color=(75, 75, 75))) \
-                                                            .set_bg(RoundRectBg((255, 255, 255, 200), 2)).set_offset((-2, 0))
+                                                            .set_bg(RoundRectBg((255, 255, 255, 200), 2)).set_offset((-2, 0)).set_text_offset((0, -2))
                                                     if card.has_canvas_bonus:
                                                         ImageBox(ctx.static_imgs.get(f"mysekai/icon_canvas.png"), size=(11, 11)) \
                                                                 .set_offset((-32, 65))
