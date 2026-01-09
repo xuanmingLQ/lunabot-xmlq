@@ -560,7 +560,7 @@ async def compose_event_story_summary_image(
             with VSplit().set_padding(16).set_sep(8).set_item_align('lt').set_content_align('lt'):
                 TextBox(f"剧情概要", style1)
                 text = summary.get('outline', '').strip()
-                TextBox(add_watermark_to_text(text, STORYSUMMARY_WATERMARK), style2, use_real_line_count=True, line_sep=line_sep).set_w(w)
+                TextBox(text, style2, use_real_line_count=True, line_sep=line_sep).set_w(w)
 
             for i, ep in enumerate(eps + no_snippet_eps, 1):
                 with VSplit().set_padding(16).set_sep(16).set_item_align('lt').set_content_align('lt'):
