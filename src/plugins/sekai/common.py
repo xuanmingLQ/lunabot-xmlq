@@ -1,6 +1,6 @@
 from src.utils import *
 from os.path import join as pjoin
-from .regions import REGIONS
+from .regions import SekaiRegion, REGIONS, RegionAttributes, get_region_by_id, get_regions, get_regions_by_ids
 
 # ======================= 基础路径 ======================= #
 
@@ -29,6 +29,7 @@ class CharacterNicknameData:
 
 _character_nickname_data = CharacterNicknameData()
 
+LOCAL_UTC_OFFSET = config.get("local_utc_offset", 8)
 ALL_SERVER_REGIONS = [region.id for region in REGIONS]
 ALL_SERVER_REGION_NAMES = {region.id: region.name for region in REGIONS}
 NEED_TRANSLATE_REGIONS = [region.id for region in REGIONS if region.need_translate]
