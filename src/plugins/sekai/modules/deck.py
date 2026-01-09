@@ -1870,9 +1870,10 @@ async def compose_deck_recommend_image(
                                 TextBox(f"禁用双技能自动切换", setting_style)
                             
                     if recommend_type in ["bonus", "wl_bonus"]:
-                        TextBox(f"友情提醒：控分前请核对加成和体力设置", TextStyle(font=DEFAULT_BOLD_FONT, size=26, color=(255, 50, 50)))
+                        TextBox(f"该功能需要输入活动加成而不是要控的PT", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(255, 50, 50)))
+                        TextBox(f"友情提醒：控分前请核对加成和体力设置", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(255, 50, 50)))
                         if recommend_type == "wl_bonus":
-                            TextBox(f"WL仅支持自动组主队，支援队请自行配置", TextStyle(font=DEFAULT_FONT, size=26, color=(50, 50, 50)))
+                            TextBox(f"WL仅支持自动组主队，支援队请自行配置", TextStyle(font=DEFAULT_FONT, size=24, color=(50, 50, 50)))
                     
                     if recommend_type not in NO_MUSIC_TYPES and not music_compare:
                         with HSplit().set_content_align('l').set_item_align('l').set_sep(16):
