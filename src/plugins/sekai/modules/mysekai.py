@@ -1835,7 +1835,7 @@ async def compose_mysekai_talk_list_image(
 
     # 绘制单个家具
     def draw_single_fid(fid: int):
-        f_sz = 30
+        f_sz = 40
         image = fixture_icons.get(fid)
         with VSplit().set_content_align('c').set_item_align('c').set_sep(2):
             with Frame():
@@ -1937,7 +1937,7 @@ async def compose_mysekai_talk_list_image(
                         for cuids in item['cuids_set']:
                             with HSplit().set_content_align('lt').set_item_align('lt').set_sep(5).set_padding(4).set_bg(roundrect_bg()):
                                 for cuid in cuids:
-                                    ImageBox(await get_chara_icon_by_chara_unit_id(ctx, cuid), size=(None, 36))
+                                    ImageBox(await get_chara_icon_by_chara_unit_id(ctx, cuid), size=(None, 45))
                 if not has_multi:
                     TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(8)
 
