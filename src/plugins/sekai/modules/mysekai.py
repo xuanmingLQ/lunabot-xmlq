@@ -1548,7 +1548,7 @@ async def compose_mysekai_door_upgrade_image(ctx: SekaiHandlerContext, qid: int,
                                     lv_color = red_color
 
                             with HSplit().set_content_align('l').set_item_align('l').set_sep(8).set_padding(8):
-                                TextBox(f"{level}", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=lv_color), overflow='clip').set_w(32)
+                                TextBox(f"{level}", TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=lv_color), overflow='clip').set_w(50)
                                 for item in items:
                                     mid, quantity, color, sum_quantity = item['mid'], item['quantity'], item['color'], item['sum_quantity']
                                     with VSplit().set_content_align('c').set_item_align('c').set_sep(4):
