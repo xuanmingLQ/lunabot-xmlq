@@ -180,14 +180,14 @@ async def get_mysekai_info(
         if cache_path and os.path.exists(cache_path):
             mysekai_info = load_json(cache_path)
             logger.info(f"从缓存获取 {qid} {ctx.region} mysekai抓包数据")
-            return mysekai_info, str(e) + "(使用先前的缓存数据)"
+            return mysekai_info, get_exc_desc(e) + "(使用先前的缓存数据)"
         else:
             logger.info(f"未找到 {qid} 的缓存{ctx.region} mysekai抓包数据")
 
         if raise_exc:
             raise e
         else:
-            return None, str(e)
+            return None, get_exc_desc(e)
     return mysekai_info, ""
 
 # 获取玩家mysekai抓包数据的简单卡片 返回 Frame

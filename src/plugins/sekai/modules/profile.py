@@ -639,14 +639,14 @@ async def get_detailed_profile(
         if cache_path and os.path.exists(cache_path):
             profile = load_json(cache_path)
             logger.info(f"从缓存获取 {qid} {ctx.region}抓包数据")
-            return profile, str(e) + "(使用先前的缓存数据)"
+            return profile, get_exc_desc(e) + "(使用先前的缓存数据)"
         else:
             logger.info(f"未找到 {qid} 的缓存{ctx.region}抓包数据")
 
         if raise_exc:
             raise e
         else:
-            return None, str(e)
+            return None, get_exc_desc(e)
         
     return profile, ""
 
