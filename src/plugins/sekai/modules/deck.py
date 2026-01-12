@@ -151,16 +151,6 @@ def build_multiparts_payload(payloads: list[bytes]) -> bytes:
 
 # ======================= 参数获取 ======================= #
 
-# 解析 20k 20w 这类数字
-def parse_number(s: str) -> Optional[int]:
-    s = s.strip().lower()
-    if s.endswith('k'):
-        return int(float(s[:-1]) * 1000)
-    elif s.endswith('w'):
-        return int(float(s[:-1]) * 10000)
-    else:
-        return int(s)
-
 # 从args中提取live类型 直接修改options 返回剩余参数
 def extract_live_type(args: str, options: DeckRecommendOptions) -> str:
     if "多人" in args or '协力' in args: 
@@ -606,7 +596,7 @@ def extract_multilive_options(args: str, options: DeckRecommendOptions) -> str:
             if keyword in seg:
                 value = seg.replace(keyword, "").strip()
                 try:
-                    options.multi_live_teammate_power = parse_number(value)
+                    options.multi_live_teammate_power = parse_large_number(value)
                     args = args.replace(seg, "", 1).strip()
                     break
                 except:
@@ -2122,8 +2112,10 @@ async def compose_deck_recommend_image(
 # 活动组卡
 pjsk_event_deck = SekaiCmdHandler([
     "/pjsk event card", "/pjsk event deck", "/pjsk deck", 
-    "/活动组卡", "/活动组队", "/活动卡组",
-    "/组卡", "/组队", "/指定属性组卡", "/指定属性组队", "/模拟组卡",
+    "/活动组卡", "/活动组队", "/活动卡组", "/活动配队",
+    "/组卡", "/组队", "/配队", 
+    "/指定属性组卡", "/指定属性组队", "/指定属性卡组", "/指定属性配队",
+    "/模拟组卡", "/模拟配队", "/模拟组队", "/模拟卡组",
 ])
 pjsk_event_deck.check_cdrate(cd).check_wblist(gbl)
 @pjsk_event_deck.handle()
@@ -2141,7 +2133,7 @@ async def _(ctx: SekaiHandlerContext):
 # 挑战组卡
 pjsk_challenge_deck = SekaiCmdHandler([
     "/pjsk challenge card", "/pjsk challenge deck",
-    "/挑战组卡", "/挑战组队", "/挑战卡组",
+    "/挑战组卡", "/挑战组队", "/挑战卡组", "/挑战配队",
 ])
 pjsk_challenge_deck.check_cdrate(cd).check_wblist(gbl)
 @pjsk_challenge_deck.handle()
@@ -2158,7 +2150,8 @@ async def _(ctx: SekaiHandlerContext):
 # 长草组卡
 pjsk_no_event_deck = SekaiCmdHandler([
     "/pjsk no event deck", "/pjsk best deck",
-    "/长草组卡", "/长草组队", "/长草卡组", "/最强卡组", "/最强组卡", "/最强组队",
+    "/长草组卡", "/长草组队", "/长草卡组", "/长草配队", 
+    "/最强卡组", "/最强组卡", "/最强组队", "/最强配队",
 ])
 pjsk_no_event_deck.check_cdrate(cd).check_wblist(gbl)
 @pjsk_no_event_deck.handle()
@@ -2175,7 +2168,8 @@ async def _(ctx: SekaiHandlerContext):
 # 加成组卡
 pjsk_bonus_deck = SekaiCmdHandler([
     "/pjsk bonus deck", "/pjsk bonus card",
-    "/加成组卡", "/加成组队", "/加成卡组", "/控分组卡", "/控分组队", "/控分卡组",
+    "/加成组卡", "/加成组队", "/加成卡组", "/加成配队",
+    "/控分组卡", "/控分组队", "/控分卡组", "/控分配队",
 ])
 pjsk_bonus_deck.check_cdrate(cd).check_wblist(gbl)
 @pjsk_bonus_deck.handle()
@@ -2192,7 +2186,8 @@ async def _(ctx: SekaiHandlerContext):
 # 烤森组卡
 mysekai_deck = SekaiCmdHandler([
     "/mysekai deck", "/pjsk mysekai deck",
-    "/烤森组卡", "/烤森组队", "/烤森卡组", "/ms组卡", "/ms组队", "/ms卡组",
+    "/烤森组卡", "/烤森组队", "/烤森卡组", "/烤森配队",
+    "/ms组卡", "/ms组队", "/ms卡组", "/ms配队",
 ])
 mysekai_deck.check_cdrate(cd).check_wblist(gbl)
 @mysekai_deck.handle()

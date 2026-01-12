@@ -169,6 +169,29 @@ STORYSUMMARY_WATERMARK = " [LunaBot生成-请勿转载] "
 
 # ======================= 通用功能 ======================= #
 
+# 参数提取器，提取文本中出现的参数，返回(参数的key, 剩余参数字符串)
+def extract_param_from_args(args: str, param_map: dict[str, list[str]], default=None) -> Tuple[Optional[str], str]:
+    param_keys: list[tuple[str, str]] = []
+    for key, names in param_map.items():
+        for name in names:
+            param_keys.append((key, name))
+    param_keys.sort(key=lambda x: len(x[1]), reverse=True)
+    for key, name in param_keys:
+        if name in args:
+            args = args.replace(name, "", 1).strip()
+            return key, args
+    return default, args
+
+# 解析 20k 20w 这类数字
+def parse_large_number(s: str) -> Optional[int]:
+    s = s.strip().lower()
+    if s.endswith('k'):
+        return int(float(s[:-1]) * 1000)
+    elif s.endswith('w'):
+        return int(float(s[:-1]) * 10000)
+    else:
+        return int(s)
+
 # 将指定区服上的小时转换为本地小时 （例如日服烤森刷新5点, 转换为本地则返回4点）
 def region_hour_to_local(region: str, hour: int) -> int:
     return hour + REGION_UTC_OFFSET['cn'] - REGION_UTC_OFFSET[region]
