@@ -528,7 +528,7 @@ async def compose_mysekai_harvest_map_image(ctx: SekaiHandlerContext, harvest_ma
                 assert cid
                 chara_eng_name = (await ctx.md.game_characters.find_by_id(cid))['givenNameEnglish'].lower()
                 image = await ctx.rip.img(
-                    f'mysekai/birthday/{chara_eng_name}_2025/icon_refresh.png',
+                    f'mysekai/birthday/{chara_eng_name}_{datetime.now().year}/icon_refresh.png',
                     use_img_cache=True,
                     default=None
                 )
