@@ -488,6 +488,11 @@ async def compose_bonds_image(ctx: SekaiHandlerContext, qid: int, cid: int | Non
         c1, c2 = extract_cid_from_bgid(item['bondsGroupId'])
         bonds[(c1, c2)] = item
 
+    # 收集用户的角色等级
+    character_ranks = {}
+    for item in profile.get('userCharacters', []):
+        character_ranks[item['characterId']] = item['characterRank']
+
     if cid is not None:
         # 只保留与cid相关的羁绊，并且调整cid在前
         for c1, c2 in list(bonds.keys()):
@@ -497,15 +502,11 @@ async def compose_bonds_image(ctx: SekaiHandlerContext, qid: int, cid: int | Non
                 bonds[(cid, c1)] = bonds.pop((c1, c2))
         bond_keys = [(cid, i) for i in range(1, 27) if i != cid]
     else:
-        # 保留羁绊等级前topk的角色
+        # 保留羁绊等级前topk的角色，并调整角色等级高的在前
         TOPK = 25
         bond_keys = sorted(bonds.keys(), key=lambda k: bonds[k]['rank'] if bonds[k] else 0, reverse=True)[:TOPK]
-        bonds = { k: bonds[k] for k in bond_keys }
-
-    # 收集用户的角色等级
-    character_ranks = {}
-    for item in profile.get('userCharacters', []):
-        character_ranks[item['characterId']] = item['characterRank']
+        bond_keys = [(x, y) if character_ranks.get(x, 0) >= character_ranks.get(y, 0) else (y, x) for x, y in bond_keys]
+        bonds = { k: bonds.get(k, bonds.get((k[1], k[0]), 0)) for k in bond_keys }
         
     header_h, row_h = 56, 48
     header_style = TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(25, 25, 25, 255))
@@ -547,24 +548,29 @@ async def compose_bonds_image(ctx: SekaiHandlerContext, qid: int, cid: int | Non
                             level_text = str(level)
                         if level == max_level:
                             need_exp_text = "MAX"
-                        else:
+                        elif level > 0:
                             exp = bonds[key]['exp'] if bonds[key] else 0
-                            if exp:
-                                level_exp = bond_level_total_exps[level + 1] - bond_level_total_exps[level]
-                                need_exp_text = str(level_exp - exp)
+                            level_exp = bond_level_total_exps[level + 1] - bond_level_total_exps[level]
+                            need_exp_text = str(level_exp - exp)
 
                     color1 = await get_chara_color(c1)
                     color2 = await get_chara_color(c2)
 
-                    chara_rank_text = f"{character_ranks.get(c1, 0)} & {character_ranks.get(c2, 0)}"
+                    crank1 = character_ranks.get(c1, 0)
+                    crank2 = character_ranks.get(c2, 0)
+                    chara_rank_text = f"{crank1} & {crank2}"
+
+                    level_color = (50, 50, 50, 255)
+                    if min(crank1, crank2) <= level and level < max_level:
+                        level_color = (150, 0, 0, 255)
 
                     with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_h(row_h).set_padding(4).set_bg(roundrect_bg(fill=bg_color)):
                         with Frame().set_w(w1).set_content_align('c'):
                             ImageBox(get_chara_icon_by_chara_id(c1),   size=(None, 40)).set_offset((-13, 0))
                             ImageBox(get_chara_icon_by_chara_id(c2),    size=(None, 40)).set_offset((13, 0))
 
-                        TextBox(chara_rank_text, text_style.replace(font=DEFAULT_BOLD_FONT)).set_w(w2).set_content_align('c')
-                        TextBox(level_text, text_style.replace(font=DEFAULT_BOLD_FONT)).set_w(w3).set_content_align('c')
+                        TextBox(chara_rank_text, text_style.replace(font=DEFAULT_BOLD_FONT, color=level_color)).set_w(w2).set_content_align('c')
+                        TextBox(level_text, text_style.replace(font=DEFAULT_BOLD_FONT, color=level_color)).set_w(w3).set_content_align('c')
 
                         with Frame().set_w(w4).set_content_align('lt'):
                             x = level
