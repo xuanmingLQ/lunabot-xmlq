@@ -28,7 +28,7 @@ from .card import get_character_sd_image
 from ...imgtool import shrink_image
 
 
-MYSEKAI_REGIONS = ['jp', 'tw', 'cn', 'kr']
+MYSEKAI_REGIONS = ['jp', 'tw', 'cn', 'kr', 'en']
 BD_MYSEKAI_REGIONS = ['cn', 'tw', 'kr']
 
 bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", BD_MYSEKAI_REGIONS)
