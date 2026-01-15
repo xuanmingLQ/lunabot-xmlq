@@ -96,7 +96,7 @@ harvest_point_image_offsets_cache: dict[int, Tuple[Image.Image, tuple[int, int]]
 # 获取ms自然刷新小时
 def get_mysekai_refresh_hours(ctx: SekaiHandlerContext) -> Tuple[int, int]:
     return (
-        region_hour_to_local(ctx.region, 5),
+        region_hour_to_local(ctx.region, 5), 
         region_hour_to_local(ctx.region, 17),
     )
 
@@ -287,6 +287,8 @@ async def get_mysekai_and_detail_profile_card(ctx: SekaiHandlerContext, mysekai_
 def get_mysekai_last_refresh_time_and_reason(ctx: SekaiHandlerContext, dt: datetime=None) -> Tuple[datetime, str]:
     # 自然刷新
     h1, h2 = get_mysekai_refresh_hours(ctx)
+    if h1 > h2:
+        h1, h2 = h2, h1
     now = dt or datetime.now()
     last_refresh_time = None
     if now.hour < h1:
@@ -739,7 +741,10 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
 
     # 判断当前天气
     current_hour = upload_time.hour
-    phenom_idx = 1 if current_hour < h1 or current_hour >= h2 else 0
+    if h1 < h2:
+        phenom_idx = 1 if current_hour < h1 or current_hour >= h2 else 0
+    else:
+        phenom_idx = 1 if h2 <= current_hour < h1 else 0
     cur_phenom_id = phenom_ids[phenom_idx]
     phenom_color_info = get_mysekai_phenomena_color_info(cur_phenom_id)
     phenom_bg = FillBg(LinearGradient(c1=phenom_color_info['sky1'], c2=phenom_color_info['sky2'], p1=(0.25, 1.0), p2=(0.75, 0.0)))

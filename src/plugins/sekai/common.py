@@ -36,7 +36,7 @@ TRANSLATED_REGIONS = ['cn', 'tw']
 
 REGION_UTC_OFFSET = {
     'jp': 9,
-    'en': -7,
+    'en': -8,
     'cn': 8,
     'tw': 8,
     'kr': 9,
@@ -192,13 +192,23 @@ def parse_large_number(s: str) -> Optional[int]:
     else:
         return int(s)
 
+# 获取指定区服UTC偏移小时数
+def get_region_utc_offset(region: str) -> int:
+    offset = REGION_UTC_OFFSET[region]
+    # 如果是en，需要考虑夏令时
+    if region == 'en':
+        now = datetime.now(timezone.utc)
+        if datetime(now.year, 3, 8) <= now.replace(tzinfo=None) < datetime(now.year, 11, 1):
+            offset += 1
+    return offset
+
 # 将指定区服上的小时转换为本地小时 （例如日服烤森刷新5点, 转换为本地则返回4点）
 def region_hour_to_local(region: str, hour: int) -> int:
-    return hour + REGION_UTC_OFFSET['cn'] - REGION_UTC_OFFSET[region]
+    return (hour + get_region_utc_offset('cn') - get_region_utc_offset(region) + 24) % 24
 
 # 将指定区服上的时间转换为本地时间 （例如日服烤森刷新5点, 转换为本地则返回4点）
 def region_dt_to_local(region: str, dt: datetime) -> datetime:
-    return dt + timedelta(hours=REGION_UTC_OFFSET['cn']) - timedelta(hours=REGION_UTC_OFFSET[region])
+    return dt + timedelta(hours=get_region_utc_offset('cn')) - timedelta(hours=get_region_utc_offset(region))
 
 # 区服是否已经五周年更新
 def is_fifth_anniversary(region: str) -> bool:
