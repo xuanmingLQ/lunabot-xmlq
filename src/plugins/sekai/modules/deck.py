@@ -1515,6 +1515,11 @@ async def compose_deck_recommend_image(
             if uc['cardId'] in options.fixed_cards
         ]
 
+    # 检查是否在未使用固定队伍情况下指定技能顺序
+    if not is_deck_fixed:
+        assert_and_reply(options.skill_order_choose_strategy != "specific", 
+                         "仅在使用固定队伍（例如添加\"当前\"参数）时可指定特定技能顺序")
+
     # 歌曲比较相关
     music_compare = False
     if additional.get('music_compare'):
