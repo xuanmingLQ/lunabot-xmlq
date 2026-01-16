@@ -1888,12 +1888,28 @@ async def _(ctx: HandlerContext):
     bind_history = bind_history_db.get("history", {})
     if uid:
         # 游戏ID查QQ号
-        msg = f"绑定过{uid}的QQ用户:\n"
+        has_any = False
+        msg = f"当前绑定游戏ID{uid}的QQ用户:\n"
+        for region in ALL_SERVER_REGIONS:
+            bind_list: Dict[str, str | list[str]] = profile_db.get("bind_list", {}).get(region, {})
+            for qid, items in bind_list.items():
+                if uid in to_list(items):
+                    msg += f"{qid}\n"
+                    has_any = True
+        if not has_any:
+            msg += "无\n"
+
+        has_any = False
+        msg += f"曾经绑定过{uid}的QQ用户:\n"
         for qid, items in bind_history.items():
             for item in items:
                 if item['uid'] == uid:
                     time = datetime.fromtimestamp(item['time'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
                     msg += f"[{time}] {qid}"
+                    has_any = True
+        if not has_any:
+            msg += "无\n"
+            
     else:
         # QQ号查游戏ID
         has_any = False
@@ -1913,13 +1929,17 @@ async def _(ctx: HandlerContext):
                 has_any = True
                 msg += f"【{get_region_name(region)}】\n" + '\n'.join(lines) + '\n'
         if not has_any:
-            msg += "当前没有绑定任何游戏ID\n"
+            msg += "无\n"
 
+        has_any = False
         msg += f"用户{qid}的绑定历史:\n"
         items = bind_history.get(qid, [])
         for item in items:
             time = datetime.fromtimestamp(item['time'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
             msg += f"[{time}]\n{item['region']} {item['uid']}\n"
+            has_any = True
+        if not has_any:
+            msg += "无\n"
 
     return await ctx.asend_fold_msg_adaptive(msg.strip())
 
