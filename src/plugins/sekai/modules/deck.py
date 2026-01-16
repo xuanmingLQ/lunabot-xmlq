@@ -2274,13 +2274,14 @@ async def deckrec_update_data():
                     ]
                     if ctx.region in MYSEKAI_REGIONS:
                         mds += [
-                            ctx.md.world_bloom_support_deck_unit_event_limited_bonuses.get_path(),
                             ctx.md.card_mysekai_canvas_bonuses.get_path(),
                             ctx.md.mysekai_fixture_game_character_groups.get_path(),
                             ctx.md.mysekai_fixture_game_character_group_performance_bonuses.get_path(),
                             ctx.md.mysekai_gates.get_path(),
                             ctx.md.mysekai_gate_levels.get_path(),
                         ]
+                    if await ctx.md.events.find_by_id(180):
+                        mds.append(ctx.md.world_bloom_support_deck_unit_event_limited_bonuses.get_path())
                     for path in await asyncio.gather(*mds):
                         with open(path, 'rb') as f:
                             add_payload_segment(payloads, os.path.basename(path).encode('utf-8'))
