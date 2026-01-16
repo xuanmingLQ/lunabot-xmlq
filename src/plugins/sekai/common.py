@@ -125,18 +125,18 @@ CARD_RARE_NAMES = [
     ("rarity_birthday", "生日", "生日卡", "bd"),
 ]
 CARD_SUPPLIES_NAMES = [
-    ("bloom_festival_limited", "新fes", "新fes限", "新fes限定", "新Fes", "新Fes限定",
-     "bfes", "bfes限", "bfes限定", "bf",),
+    ("bloom_festival_limited", "bfes", "bfes限", "bfes限定", "bf",),
+    ("colorful_festival_limited", 'cfes', 'cfes限', 'cfes限定', 'cf',),
+    ("festival_limited", "fes", "fes限", "fes限定"),
     ("unit_event_limited", "wl", "wl限", "wl限定", "worldlink", "worldlink限定", "WL"),
     ("collaboration_limited", "联动", "联动限定"),
-    ("colorful_festival_limited", 'cfes', 'cfes限定', "fes", "fes限", "fes限定", "Fes", "Fes限定"),
     ("not_limited", "非限", "非限定", '常驻',),
     ("term_limited", "期间限定", "期间"),
     ("all_limited", "限定", "限"),
 ]
 CARD_SUPPLIES_SHOW_NAMES = {
     "term_limited": "期间限定",
-    "colorful_festival_limited": "Fes限定",
+    "colorful_festival_limited": "CFes限定",
     "bloom_festival_limited": "BFes限定",
     "unit_event_limited": "WL限定",
     "collaboration_limited": "联动限定",

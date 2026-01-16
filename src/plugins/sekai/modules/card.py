@@ -115,6 +115,8 @@ async def search_single_card(ctx: SekaiHandlerContext, args: str) -> dict:
 
 # 解析查多张卡的参数 返回筛选后的cards列表和剩余参数
 async def search_multi_cards(ctx: SekaiHandlerContext, args: str, cards: List[dict]=None, contain_leak=True) -> Tuple[List[dict], str]:
+    args = args.lower().strip()
+
     if cards is None:
         cards = await ctx.md.cards.get()
 
@@ -198,7 +200,9 @@ async def search_multi_cards(ctx: SekaiHandlerContext, args: str, cards: List[di
         card["supply_show_name"] = CARD_SUPPLIES_SHOW_NAMES.get(supply_type, None)
         if supply is not None:
             search_supplies = []
-            if supply == "all_limited":
+            if supply == "festival_limited":
+                search_supplies = ["bloom_festival_limited", "colorful_festival_limited"]
+            elif supply == "all_limited":
                 search_supplies = CARD_SUPPLIES_SHOW_NAMES.keys()
             elif supply == "not_limited":
                 search_supplies = ["normal"]
