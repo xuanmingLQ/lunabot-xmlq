@@ -77,6 +77,7 @@ class EventListFilter:
     cids: List[int] = None
     banner_cid: int = None
     year: int = None
+    leak: bool = None
 
 
 # ======================= 处理逻辑 ======================= #
@@ -339,6 +340,9 @@ async def compose_event_list_image(ctx: SekaiHandlerContext, filter: EventListFi
     filtered_details: List[EventDetail] = []
     for d in details:
         if filter:
+            if filter.leak is not None:
+                if filter.leak and d.start_time <= datetime.now(): continue
+                if not filter.leak and d.start_time > datetime.now(): continue
             if filter.attr and filter.attr != d.bonus_attr: continue
             if filter.cids and any(cid not in d.bonus_cids for cid in filter.cids): continue
             if filter.banner_cid and filter.banner_cid != d.banner_cid: continue
@@ -1038,10 +1042,16 @@ async def _(ctx: SekaiHandlerContext):
 
     async def query_multi(args: str):
         filter = EventListFilter()
+
+        if 'leak' in args:
+            filter.leak = True
+            args = args.replace('leak', '', 1).strip()
+
         filter.year, args = extract_year(args)
         filter.attr, args = extract_card_attr(args)
         filter.event_type, args = extract_event_type(args)
         filter.unit, args = extract_unit(args)
+
         if any([x in args for x in ['混活', '混']]):
             assert_and_reply(not filter.unit, "查混活不能指定团名")
             filter.unit = "blend"
