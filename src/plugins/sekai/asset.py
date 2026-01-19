@@ -38,8 +38,10 @@ class RegionMasterDbSource:
         try:
             timeout = asset_config.get('default_masterdata_update_check_timeout')
             version_data = await asyncio.wait_for(download_json(self.version_url), timeout)
-            version = str(get_multi_keys(version_data, ['cdnVersion', 'data_version', 'dataVersion']))
-            self.version = version
+            version = version_data.get('cdnVersion', 0)
+            if not version:
+                version = get_multi_keys(version_data, ['data_version', 'dataVersion'])
+            self.version = str(version)
             self.asset_version = get_multi_keys(version_data, ['asset_version', 'assetVersion'])
             # logger.info(f"MasterDB [{self.name}] 的版本为 {version}")
         except asyncio.TimeoutError:
@@ -299,6 +301,9 @@ class MasterDataManager:
             db_mgr = RegionMasterDbManager.get(region)
             if get_version_order(self.version.get(region, DEFAULT_VERSION)) < get_version_order(db_mgr.source.version):
                 await self._download_from_db(region, db_mgr)
+            # 检查是否存在，如果仍然不存在则报错
+            if self.data.get(region) is None:
+                raise Exception(f"获取 MasterData [{region}.{self.name}] 的数据失败")
 
     async def get_data(self, region: str):
         """

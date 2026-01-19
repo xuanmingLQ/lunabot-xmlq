@@ -1,4 +1,6 @@
 from src.utils import *
+from datetime import datetime, timedelta, time, timezone
+from zoneinfo import ZoneInfo
 from enum import StrEnum
 
 regions_config = Config("sekai.regions")
@@ -21,7 +23,7 @@ class RegionAttributes(StrEnum):
 class SekaiRegion(str):
     id: str
     name: str
-    utc_offset: int
+    timezone: ZoneInfo
     enable: bool = True
     local: bool = False
     need_translate: bool = False
@@ -44,9 +46,7 @@ class SekaiRegion(str):
         self.name = args[0]
         if not isinstance(self.name, str):
             raise RuntimeError("第一个参数必须为服务器中文名")
-        self.utc_offset = args[1]
-        if not isinstance(self.utc_offset, int):
-            raise RuntimeError("第二个参数必须为UTC偏移量（整数）")
+        self.timezone = ZoneInfo(args[1])
         
         # 初始化其它属性
         self.enable = True
@@ -65,11 +65,15 @@ class SekaiRegion(str):
         r"""将指定区服上的小时转换为本地小时 （例如日服烤森刷新5点, 转换为本地则返回4点）"""
         if self.local:
             return hour
-        return hour + LOCAL_REGION.utc_offset - self.utc_offset
+        today = datetime.now().date()
+        source_time = datetime.combine(today, time=time(hour=hour), tzinfo=self.timezone)
+        return source_time.astimezone(LOCAL_REGION.timezone).hour
+        
     def dt2local(self, dt: datetime) -> datetime:
+        r"""将指定区服上的日期时间转换为本地时间"""
         if self.local:
             return dt
-        return dt + timedelta(hours=LOCAL_REGION.utc_offset) - timedelta(hours=self.utc_offset)
+        return dt.replace(tzinfo=self.timezone).astimezone(LOCAL_REGION.timezone).replace(tzinfo=dt.tzinfo)
 
 REGIONS = [SekaiRegion(region_id, *args) for region_id, args in regions_config.get_all().items() if 'disable' not in args]        
 LOCAL_REGION: SekaiRegion
