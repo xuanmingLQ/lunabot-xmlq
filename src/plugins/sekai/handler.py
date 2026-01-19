@@ -71,7 +71,7 @@ class SekaiCmdHandler(CmdHandler):
         parse_uid_arg: bool = True,
         **kwargs
     ):
-        self.available_regions = get_regions_by_ids(regions) or self.DEFAULT_AVAILABLE_REGIONS
+        self.available_regions = get_regions(RegionAttributes.ENABLE, ids=regions) or self.DEFAULT_AVAILABLE_REGIONS
         self.prefix_args = sorted(prefix_args or [''], key=lambda x: len(x), reverse=True)
         all_region_commands = []
         for prefix in self.prefix_args:
