@@ -1996,7 +1996,6 @@ async def _(ctx: SekaiHandlerContext):
     with ProfileTimer("msr.total"):
         if ctx.region in bd_msr_sub.regions and not bd_msr_sub.is_subbed(ctx.region, ctx.group_id): 
             raise ReplyException(f"不支持{get_region_name(ctx.region)}的msr查询")
-        await ctx.block_region(key=f"{ctx.user_id}", timeout=0, err_msg="正在处理你的msr查询，请稍候")
         args = ctx.get_args().strip()
         show_harvested = 'all' in args
         check_time = not 'force' in args
