@@ -37,8 +37,10 @@ class RegionMasterDbSource:
         try:
             timeout = asset_config.get('default_masterdata_update_check_timeout')
             version_data = await asyncio.wait_for(download_json(self.version_url), timeout)
-            version = str(get_multi_keys(version_data, ['cdnVersion', 'data_version', 'dataVersion']))
-            self.version = version
+            version = version_data.get('cdnVersion', 0)
+            if not version:
+                version = get_multi_keys(version_data, ['data_version', 'dataVersion'])
+            self.version = str(version)
             self.asset_version = get_multi_keys(version_data, ['asset_version', 'assetVersion'])
             # logger.info(f"MasterDB [{self.name}] 的版本为 {version}")
         except asyncio.TimeoutError:
