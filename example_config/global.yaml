@@ -11,6 +11,10 @@ profile_at_starup:
   clock_type: "cpu"
   seconds: 10
 
+memray_at_startup:
+  enable: false
+  seconds: 300
+
 timer:
   enable: false
   log_prefix:

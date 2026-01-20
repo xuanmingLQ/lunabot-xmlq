@@ -1,14 +1,24 @@
 from ..common.config import *
-import yappi
+from datetime import datetime, timedelta, timezone
 
 # ============================ 启动时性能分析 ============================ #
 
 if _profile_at_startup := global_config.get('profile_at_starup.enable'):
+    import yappi
     _profile_at_startup_clock_type = global_config.get('profile_at_starup.clock_type')
     _profile_at_startup_seconds = global_config.get('profile_at_starup.seconds')
     yappi.set_clock_type(_profile_at_startup_clock_type)
     yappi.start()
     print(f"启动时性能分析已开启 (clocktype={_profile_at_startup_clock_type}, seconds={_profile_at_startup_seconds})", flush=True)
+
+if _memray_at_startup := global_config.get('memray_at_startup.enable'):
+    from memray import Tracker
+    _memray_at_startup_seconds = global_config.get('memray_at_startup.seconds')
+    _memray_save_path = f"data/misc/memray/{datetime.now().strftime('%Y%m%d_%H%M%S')}_memray.bin"
+    os.makedirs(osp.dirname(_memray_save_path), exist_ok=True)
+    _memray_tracker = Tracker(_memray_save_path, native_traces=True)
+    _memray_tracker.__enter__()
+    print(f"启动时内存分析已开启 (seconds={_memray_at_startup_seconds})", flush=True)
 
 
 # ============================ 模块导入 ============================ #
@@ -23,7 +33,6 @@ import traceback
 import orjson
 import yaml
 from uuid import uuid4
-from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field, asdict
 from tenacity import retry, stop_after_attempt, wait_fixed
 import asyncio
@@ -1449,3 +1458,13 @@ if _profile_at_startup:
         stats.save(save_path, type="pstat")
         print(f"启动时性能分析已保存到 {save_path}")
         yappi.clear_stats()
+
+if _memray_at_startup:
+    @async_task("结束启动时内存分析", utils_logger, delay=_memray_at_startup_seconds)
+    async def _stop_startup_memray():
+        global _memray_tracker
+        if _memray_tracker is None:
+            return
+        _memray_tracker.__exit__(None, None, None)
+        print(f"启动时内存分析已保存到 {_memray_save_path}")
+        _memray_tracker = None
