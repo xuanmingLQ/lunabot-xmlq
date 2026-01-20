@@ -298,7 +298,7 @@ class FontCacheEntry:
     font: Font
     last_used: datetime
 
-FONT_CACHE_MAX_NUM = 128
+FONT_CACHE_MAX_NUM_CFG = global_config.item('painter.font_cache_num')
 font_cache: dict[str, FontCacheEntry] = {}
 font_std_size_cache: dict[Font, Size] = {}
 
@@ -385,7 +385,7 @@ def get_font(path: str, size: int) -> Font:
             last_used=datetime.now(),
         )
         # 清理过期的字体缓存
-        while len(font_cache) > FONT_CACHE_MAX_NUM:
+        while len(font_cache) > FONT_CACHE_MAX_NUM_CFG.get():
             oldest_key = min(font_cache, key=lambda k: font_cache[k].last_used)
             removed = font_cache.pop(oldest_key)
             font_std_size_cache.pop(removed.font, None)
