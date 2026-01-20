@@ -5,8 +5,8 @@ import contextvars
 from dataclasses import dataclass
 from copy import deepcopy
 
+from ..common.config import *
 from .painter import *
-from .config import *
 
 
 DEFAULT_PADDING = 0

@@ -23,9 +23,9 @@ import io
 import colour
 import struct
 
-from .config import *
+from ..common.config import *
+from ..common.process_pool import *
 from .img_utils import adjust_image_alpha_inplace
-from .process_pool import *
 
 
 def debug_print(*args, **kwargs):
@@ -1672,6 +1672,6 @@ class Painter:
         self.img.paste(bg, self.offset)
 
 
-if PAINTER_PROCESS_NUM > 0:
+if PAINTER_PROCESS_NUM > 0 and is_main_process():
     _painter_pool: ProcessPool = ProcessPool(PAINTER_PROCESS_NUM, name='draw')
 

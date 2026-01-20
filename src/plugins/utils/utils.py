@@ -1,4 +1,4 @@
-from .config import *
+from ..common.config import *
 import yappi
 
 # ============================ 启动时性能分析 ============================ #
@@ -1022,8 +1022,8 @@ class PlaywrightPage:
 
 # ============================ 图片处理 ============================ #
 
-from .plot import *
-from .img_utils import *
+from ..draw.plot import *
+from ..draw.img_utils import *
 import ffmpeg
 
 
@@ -1292,9 +1292,10 @@ def limit_image_by_pixels(image: Image.Image | list[Image.Image], max_pixels: in
 
 # ============================= 其他 ============================ #
 
+from ..common.process_pool import ProcessPool
+
 @on_shutdown()
 def _shutdown_process_pools():
-    from .process_pool import ProcessPool
     ProcessPool.shutdown_all()
 
 
