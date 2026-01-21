@@ -508,7 +508,7 @@ def process_msg_segs(msg: list[dict] | Message, event: MessageEvent | None = Non
     ret = []
     if event:
         if event.message_id in _reply_me_msg_ids:
-            ret.append({ 'type': 'reply', 'data': { 'id': str(event.message_id) } })
+            ret.append({ 'type': 'reply', 'data': { 'id': str(event.reply.message_id) } })
         if event.message_id in _at_me_msg_ids:
             ret.append({ 'type': 'at', 'data': { 'qq': str(event.self_id) } })
     for seg in msg:
