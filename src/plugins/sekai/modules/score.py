@@ -474,10 +474,11 @@ async def compose_music_board_image(
     level_filter: str | None,
     page_size: int = 50,
     page: int = 1,
+    ascend: bool = False,
 ) -> Image.Image:
     assert live_type in ('auto', 'solo', 'multi')
     assert strategy in ('max', 'min', 'avg')
-    assert target in ('score', 'pt', 'pt/time')
+    assert target in ('score', 'pt', 'pt/time', 'tps', 'time')
     assert len(spec_mid_diffs) < page_size
     assert len(skills) == 5
     if live_type == 'multi':    # 多人模式只支持其他人实效相同
@@ -511,6 +512,11 @@ async def compose_music_board_image(
         skill_score_auto = meta['skill_score_auto']
         skill_score_multi = meta['skill_score_multi']
         fever_score = meta['fever_score']
+
+        if target == 'time' and diff != 'master':
+            continue
+
+        tps = tap_count / music_time
 
         best_skill_order_solo = list(range(5))
         best_skill_order_solo.sort(key=lambda x: skill_score_solo[x], reverse=True)
@@ -570,7 +576,7 @@ async def compose_music_board_image(
             'music_id': mid,
             'difficulty': diff,
             'music_time': music_time,
-            'tap_count': tap_count,
+            'tps': tps,
             'event_rate': event_rate,
             'solo_score': solo_score,
             'auto_score': auto_score,
@@ -590,7 +596,9 @@ async def compose_music_board_image(
         case 'score':   sort_key = f"{live_type}_score"
         case 'pt':      sort_key = f"{live_type}_pt"
         case 'pt/time': sort_key = f"{live_type}_pt_per_hour"
-    rows.sort(key=lambda x: x[sort_key], reverse=True)
+        case 'tps':     sort_key = f"tps"
+        case 'time':    sort_key = f"music_time"
+    rows.sort(key=lambda x: x[sort_key], reverse=not ascend)
     for i, row in enumerate(rows):
         row['rank'] = i + 1
 
@@ -651,36 +659,43 @@ async def compose_music_board_image(
                 case "score":   target_text = "LIVE分数🏅"
                 case "pt":      target_text = "活动PT/体力🔥"
                 case "pt/time": target_text = "活动PT/时间⏱️"
-            match live_type:
-                case "auto": live_text = "🤖自动LIVE"
-                case "solo": live_text = "👤单人LIVE"
-                case "multi": live_text = "👥多人LIVE"
+                case "tps":     target_text = "每秒点击🎶"
+                case "time":    target_text = "歌曲时长⏳"
+            order_text = "升序" if ascend else "降序"
+
+            live_text = ""
+            if target in ('score', 'pt', 'pt/time'):
+                match live_type:
+                    case "auto": live_text = "🤖自动LIVE"
+                    case "solo": live_text = "👤单人LIVE"
+                    case "multi": live_text = "👥多人LIVE"
 
             skill_text, strategy_text, power_text, deck_bonus_text, play_interval_text = "", "", "", "", ""
             
-            if live_type != 'multi':
-                skill_text = "五张卡牌的技能: " + ' '.join([f'{s*100:.0f}' for s in skills])
-                match strategy:
-                    case "max": strategy_text = "技能顺序: 🌟最优情况"
-                    case "min": strategy_text = "技能顺序: 🥀最差情况"
-                    case "avg": strategy_text = "技能顺序: ⚖️平均情况"
-            else:
-                skill_text = f"(五人相同) 实效: {skills[0]*100:.0f}"
+            if target in ('score', 'pt', 'pt/time'):
+                if live_type != 'multi':
+                    skill_text = "五张卡牌的技能: " + ' '.join([f'{s*100:.0f}' for s in skills])
+                    match strategy:
+                        case "max": strategy_text = "技能顺序: 🌟最优情况"
+                        case "min": strategy_text = "技能顺序: 🥀最差情况"
+                        case "avg": strategy_text = "技能顺序: ⚖️平均情况"
+                else:
+                    skill_text = f"(五人相同) 实效: {skills[0]*100:.0f}"
             
-            if target != 'score':
+            if target in ('pt', 'pt/time'):
                 power_text = f"综合: {power}"
                 deck_bonus_text = f"活动加成: {deck_bonus:.0f}%"
-                if target in ('pt/time',):
-                    play_interval_text = f"游玩间隔: {play_interval:.0f}s"
+            if target in ('pt/time', 'time'):
+                play_interval_text = f"游玩间隔: {play_interval:.0f}s"
 
             texts = [s for s in (skill_text, strategy_text, power_text, deck_bonus_text, play_interval_text) if s]
+            texts = '  -  '.join(texts)
 
-            TextBox(
-                f"{live_text}歌曲排行 - {target_text} 降序 - 数据与公式来自33Kit - 第{page}页/共{page_num}页\n"
-                f"{' - '.join(texts)}\n"
-                f"添加参数: \"score\"比较live分数，\"pt\"比较歌曲的pt/火效率，\"pt/h\"比较歌曲的pt/时间效率",
-                title_style, use_real_line_count=True
-            )
+            title = f"{live_text}歌曲排行  -  {target_text} {order_text}  -  数据与公式来自33Kit  -  第{page}页/共{page_num}页\n"
+            if texts:
+                title += texts + "\n"
+            title += f"发送\"/歌曲排行help\"查看如何修改比较依据以及自定义参数"
+            TextBox(title, title_style, use_real_line_count=True)
 
             # 表格
             gh, vsep, hsep = 30, 5, 5
@@ -720,7 +735,7 @@ async def compose_music_board_image(
                             pt_per_hour = row[f"{live_type}_pt_per_hour"]
                             TextBox(f"{pt_per_hour:.0f}", item_style).set_size((None, gh)).set_content_align('c').set_padding((16, 0))
                 # 周回数
-                if target in ('pt/time',):
+                if target in ('pt/time', 'time',):
                     with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(row_bg_fn):
                         TextBox("周回/h", title_style).set_size((None, gh)).set_content_align('c')
                         for row in show_rows:
@@ -754,7 +769,7 @@ async def compose_music_board_image(
                         skill_account = row[f"{live_type}_skill_account"]
                         TextBox(f"{skill_account*100:.1f}%", item_style).set_size((None, gh)).set_content_align('c').set_padding((16, 0))
                 # PT系数
-                if target in ('pt', 'pt/time'):
+                if target in ('pt', 'pt/time', 'time',):
                     with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(row_bg_fn):
                         TextBox("PT系数", title_style).set_size((None, gh)).set_content_align('c')
                         for row in show_rows:
@@ -769,8 +784,7 @@ async def compose_music_board_image(
                 with VSplit().set_content_align('c').set_item_align('c').set_sep(vsep).set_item_bg(row_bg_fn):
                     TextBox("每秒点击", title_style).set_size((None, gh)).set_content_align('c')
                     for row in show_rows:
-                        tps = row['tap_count'] / row['music_time']
-                        TextBox(f"{tps:.1f}", item_style).set_size((None, gh)).set_content_align('c').set_padding((16, 0))
+                        TextBox(f"{row['tps']:.1f}", item_style).set_size((None, gh)).set_content_align('c').set_padding((16, 0))
 
     add_watermark(canvas)
     return await canvas.get_img()
@@ -900,10 +914,19 @@ async def _(ctx: SekaiHandlerContext):
         case 'auto':    target = 'score'
     target, args = extract_param_from_args(args, {
         'score':    ('live分数', '分数', 'score'),
-        'pt/time':  ('时间效率', 'pt/h', 'pt时间', '时速',),
+        'pt/time':  ('时间效率', 'pt/h', 'pt时间', '时速'),
         'pt':       ('火效率', 'pt/火', 'pt'),
+        'tps':      ('每秒点击', 'tps'),
+        'time':     ('时长', '时间'),
     }, default=target)
        
+    # 升序降序
+    ascend = False
+    ascend, args = extract_param_from_args(args, {
+        True:  ('升序', '从低到高', '从小到大'),
+        False: ('降序', '从高到低', '从大到小'),
+    }, default=ascend)
+
     # 策略
     match live_type:
         case 'solo': strategy = 'max'
@@ -973,7 +996,7 @@ async def _(ctx: SekaiHandlerContext):
         case 'solo': play_interval = 28.0
         case 'auto': play_interval = 28.0
         case 'multi': play_interval = 45.2
-    if target in ('pt/time',):
+    if target in ('pt/time', 'time',):
         segs = args.split()
         for seg in segs:
             if '间隔' in seg:
@@ -1035,6 +1058,7 @@ async def _(ctx: SekaiHandlerContext):
                 level_filter=level_filter,
                 page_size=PAGE_SIZE,
                 page=page,
+                ascend=ascend,
             ),
             low_quality=True,
         )
