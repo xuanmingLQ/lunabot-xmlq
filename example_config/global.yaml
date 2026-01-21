@@ -15,6 +15,9 @@ memray_at_startup:
   enable: false
   seconds: 300
 
+file_db:
+  save_interval_seconds: 5  # FileDB保存间隔时间，设为0则在修改后立刻保存
+
 timer:
   enable: false
   log_prefix:
