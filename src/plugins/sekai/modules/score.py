@@ -869,7 +869,7 @@ async def _(ctx: SekaiHandlerContext):
     SHOW_NUM = 30
 
     # live类型
-    live_type = 'auto'
+    live_type = 'solo'
     live_type, args = extract_param_from_args(args, {
         'solo':  ('单人', 'solo', '挑战'),
         'multi': ('多人', 'multi'),
