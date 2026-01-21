@@ -883,7 +883,7 @@ async def _(ctx: SekaiHandlerContext):
         case 'auto':    target = 'score'
     target, args = extract_param_from_args(args, {
         'score':    ('live分数', '分数', 'score'),
-        'pt/time':  ('时间效率', 'pt/h', 'pt时间'),
+        'pt/time':  ('时间效率', 'pt/h', 'pt时间', '时速',),
         'pt':       ('火效率', 'pt/火', 'pt'),
     }, default=target)
        
