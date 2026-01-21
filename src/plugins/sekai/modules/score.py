@@ -469,15 +469,16 @@ async def compose_music_board_image(
     power: int,
     deck_bonus: float,
     play_interval: float,
-    music_num: int, 
     spec_mid_diffs: list[tuple[int, str]],
     diff_filter: list[str] | None,
     level_filter: str | None,
+    page_size: int = 50,
+    page: int = 1,
 ) -> Image.Image:
     assert live_type in ('auto', 'solo', 'multi')
     assert strategy in ('max', 'min', 'avg')
     assert target in ('score', 'pt', 'pt/time')
-    assert len(spec_mid_diffs) <= music_num
+    assert len(spec_mid_diffs) < page_size
     assert len(skills) == 5
     if live_type == 'multi':    # 多人模式只支持其他人实效相同
         assert len(set(skills)) == 1
@@ -593,7 +594,7 @@ async def compose_music_board_image(
     for i, row in enumerate(rows):
         row['rank'] = i + 1
 
-    # 添加指定歌曲，然后用前排补齐到music_num首
+    # 添加指定歌曲
     show_rows = []
     spec_ranks = set()
     for row in rows:
@@ -601,12 +602,12 @@ async def compose_music_board_image(
         if (mid, diff) in spec_mid_diffs:
             show_rows.append(row)
             spec_ranks.add(row['rank'])
+
+    # 根据规则筛选歌曲，获取剩余的结果
+    filtered_row = []
     for row in rows:
-        if len(show_rows) >= music_num:
-            break
         if row['rank'] in spec_ranks:
             continue
-        # 根据规则筛选
         if diff_filter and row['difficulty'] not in diff_filter:
             continue
         row['level'] = await get_music_diff_level(ctx, row['music_id'], row['difficulty'])
@@ -620,9 +621,15 @@ async def compose_music_board_image(
             continue
         elif level_filter_op in ('=', '==') and row['level'] != level_filter_level:
             continue
-        show_rows.append(row)
-    show_rows.sort(key=lambda x: x['rank'])
+        filtered_row.append(row)
 
+    # 计算剩余歌曲分页，用指定页数开始的歌曲补充到page_size
+    real_page_size = page_size - len(show_rows)
+    start_idx = (page - 1) * real_page_size
+    page_num = math.ceil(len(filtered_row) / real_page_size)
+    assert_and_reply(0 <= start_idx < len(filtered_row), f"页数错误，当前筛选结果仅有{page_num}页")
+    show_rows.extend(filtered_row[start_idx:start_idx + real_page_size])
+    show_rows.sort(key=lambda x: x['rank'])
     assert_and_reply(len(show_rows) > 0, "筛选后的歌曲数为零")
 
     # 获取歌曲cover
@@ -641,22 +648,22 @@ async def compose_music_board_image(
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_bg(roundrect_bg()):
             # 标题
             match target:
-                case "score":   target_text = "LIVE分数"
-                case "pt":      target_text = "活动PT/体力"
-                case "pt/time": target_text = "活动PT/时间"
+                case "score":   target_text = "LIVE分数🏅"
+                case "pt":      target_text = "活动PT/体力🔥"
+                case "pt/time": target_text = "活动PT/时间⏱️"
             match live_type:
-                case "auto": live_text = "自动LIVE"
-                case "solo": live_text = "单人LIVE"
-                case "multi": live_text = "多人LIVE"
+                case "auto": live_text = "🤖自动LIVE"
+                case "solo": live_text = "👤单人LIVE"
+                case "multi": live_text = "👥多人LIVE"
 
             skill_text, strategy_text, power_text, deck_bonus_text, play_interval_text = "", "", "", "", ""
             
             if live_type != 'multi':
                 skill_text = "五张卡牌的技能: " + ' '.join([f'{s*100:.0f}' for s in skills])
                 match strategy:
-                    case "max": strategy_text = "技能顺序: 最优情况"
-                    case "min": strategy_text = "技能顺序: 最差情况"
-                    case "avg": strategy_text = "技能顺序: 平均情况"
+                    case "max": strategy_text = "技能顺序: 🌟最优情况"
+                    case "min": strategy_text = "技能顺序: 🥀最差情况"
+                    case "avg": strategy_text = "技能顺序: ⚖️平均情况"
             else:
                 skill_text = f"(五人相同) 实效: {skills[0]*100:.0f}"
             
@@ -669,7 +676,7 @@ async def compose_music_board_image(
             texts = [s for s in (skill_text, strategy_text, power_text, deck_bonus_text, play_interval_text) if s]
 
             TextBox(
-                f"{live_text}歌曲排行 - 排行依据: {target_text} - 数据与公式来自33Kit\n"
+                f"{live_text}歌曲排行 - {target_text} 降序 - 数据与公式来自33Kit - 第{page}页/共{page_num}页\n"
                 f"{' - '.join(texts)}\n"
                 f"添加参数: \"score\"比较live分数，\"pt\"比较歌曲的pt/火效率，\"pt/h\"比较歌曲的pt/时间效率",
                 title_style, use_real_line_count=True
@@ -866,7 +873,17 @@ pjsk_music_board.check_cdrate(cd).check_wblist(gbl)
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip().lower()
 
-    SHOW_NUM = 30
+    PAGE_SIZE = 50
+
+    # 页码
+    page = 1
+    for seg in args.split():
+        if '页' in seg or 'p' in seg:
+            rest = seg.replace('页', '', 1).replace('p', '', 1)
+            if rest.isdigit():
+                page = int(rest)
+                args = args.replace(seg, '', 1)
+                break
 
     # live类型
     live_type = 'solo'
@@ -995,12 +1012,12 @@ async def _(ctx: SekaiHandlerContext):
             diff = None
             seg = seg.replace('*', '', 1)
         else:
-            diff, seg = extract_diff(seg, 'master')
+            diff, seg = extract_diff(seg, None)
         res = await search_music(ctx, seg, options=MusicSearchOptions(diff=diff, use_emb=False))
         assert_and_reply(res.music, f"找不到歌曲或参数错误:\"{seg}\"\n发送\"{ctx.trigger_cmd}help\"获取帮助")
         diffs = [diff] if diff else list((await get_music_diff_info(ctx, res.music['id'])).level.keys())
         spec_mid_diffs.extend([(res.music['id'], diff) for diff in diffs])
-        assert_and_reply(len(spec_mid_diffs) <= SHOW_NUM, f"最多只能关注{SHOW_NUM}首歌曲")
+        assert_and_reply(len(spec_mid_diffs) <= PAGE_SIZE - 1, f"最多只能关注{PAGE_SIZE - 1}首歌曲")
 
     return await ctx.asend_reply_msg(
         await get_image_cq(
@@ -1013,10 +1030,11 @@ async def _(ctx: SekaiHandlerContext):
                 power=power,
                 deck_bonus=deck_bonus,
                 play_interval=play_interval,
-                music_num=SHOW_NUM,
                 spec_mid_diffs=spec_mid_diffs,
                 diff_filter=diff_filter,
                 level_filter=level_filter,
+                page_size=PAGE_SIZE,
+                page=page,
             ),
             low_quality=True,
         )
