@@ -399,8 +399,8 @@ def get_mysekai_phenomena_color_info(phenomena_id: int) -> dict:
     except Exception as e:
         return {
             'ground': (255, 255, 255, 255),
-            'sky1': (200, 255, 200, 255),
-            'sky2': (200, 255, 200, 255),
+            'sky1': (200, 200, 255, 255),
+            'sky2': (200, 200, 255, 255),
         }
 
 # 合成mysekai资源位置地图图片
