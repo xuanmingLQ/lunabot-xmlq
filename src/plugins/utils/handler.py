@@ -396,7 +396,7 @@ async def get_image_cq(
     quality: int | ConfigItem = DEFAULT_LQ_IMAGE_QUALITY_CFG,
     subsampling: int | ConfigItem = DEFAULT_LQ_IMAGE_SUBSAMPLING_CFG,
     optimize: bool | ConfigItem = DEFAULT_LQ_IMAGE_OPTIMIZE_CFG,
-    send_local_file_as_is: bool = False,
+    send_url_as_is: bool = False,
 ):
     """
     获取图片的cq码用于发送
@@ -405,6 +405,8 @@ async def get_image_cq(
     try:
         # 如果是远程图片
         if isinstance(image, str) and image.startswith("http"):
+            if send_url_as_is:
+                return f'[CQ:image,file={image}]'
             image = await download_image(image)
             return await get_image_cq(image, *args)
         # 如果是bytes
@@ -415,7 +417,7 @@ async def get_image_cq(
         if isinstance(image, str):
             if not os.path.exists(image):
                 raise Exception(f'图片文件不存在: {image}')
-            if send_local_file_as_is:
+            if send_url_as_is:
                 return f'[CQ:image,file=file://{os.path.abspath(image)}]'
             image = open_image(image)
             return await get_image_cq(image, *args)
