@@ -809,10 +809,12 @@ class FileDB:
         """
         assert isinstance(key, str), f'key: "{key}" 必须是字符串，当前类型: {type(key)}'
         self._ensure_load()
+        key = key.replace("\.", "&#46;")
         keys = key.split('.')
         last_dict = self.data
         last_key = keys.pop()
         for k in keys:
+            k = k.replace("&#46;", ".")
             if k not in last_dict or not isinstance(last_dict[k], dict):
                 if create_path:
                     last_dict[k] = {}

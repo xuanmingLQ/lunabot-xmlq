@@ -1083,24 +1083,30 @@ class WebJsonRes:
     def __init__(self, name: str, url: str, update_interval: timedelta = None):
         self.name = name
         self.url = url
-        self.data = None
         self.update_interval = update_interval
-        self.update_time = None
+        self.data: Any = None
+        self.update_time: datetime = None
+        self.hash: str = None
     
     async def download(self):
         self.data = await download_json(self.url)
+        self.hash = get_md5(dumps_json(self.data, indent=False).encode('utf-8'))
         self.update_time = datetime.now()
         logger.info(f"网页Json资源 [{self.name}] 更新成功")
 
-    async def get(self):
+    async def get(self, timeout: float = 5.0, raise_on_no_data: bool = True) -> Any | None:
         if not self.data or not self.update_interval or datetime.now() - self.update_time > self.update_interval:
             try:
-                await self.download()
+                await asyncio.wait_for(self.download(), timeout)
             except Exception as e:
                 if self.data:
-                    logger.error(f"更新网页Json资源 [{self.name}] 失败: {e}，继续使用旧数据")
+                    logger.warning(f"更新网页Json资源 [{self.name}] 失败: {get_exc_desc(e)}，继续使用旧数据")
                 else:
-                    raise e
+                    if raise_on_no_data:
+                        raise e
+                    else:
+                        logger.warning(f"更新网页Json资源 [{self.name}] 失败: {get_exc_desc(e)}，返回None")
+                        return None
         return self.data
     
     async def get_update_time(self) -> datetime:

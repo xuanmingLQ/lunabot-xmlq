@@ -31,6 +31,12 @@ music_name_retriever = get_text_retriever(f"music_name")
 music_cn_titles = WebJsonRes("曲名中文翻译", "https://i18n-json.sekai.best/zh-CN/music_titles.json", update_interval=timedelta(days=1))
 music_en_titles = WebJsonRes("曲名英文翻译", "https://i18n-json.sekai.best/en/music_titles.json", update_interval=timedelta(days=1))
 
+musicmetas_json = WebJsonRes(
+    name="MusicMeta", 
+    url = config.get("deck.music_meta_url"),
+    update_interval=timedelta(hours=1),
+)
+
 
 DIFF_NAMES = [
     ("easy", "Easy", "EASY", "ez", "EZ"),
@@ -677,6 +683,197 @@ def get_music_constants_info_widget(font_size: int = 20, padding: int = 16, addi
     return w
 
 
+# ======================= 歌曲分数排行榜 ======================= #
+
+_last_musicmeta_hash: str = None
+_music_leaderboard_cache: list[dict] = None
+
+# 获取歌曲分数排行榜数据
+async def get_music_leaderboard_data(
+    skills: list[float],
+    skill_strategy: str,
+    deck_bonus: float,
+    play_interval: float,
+    power: int,
+    keep_one_diff_per_music: bool,
+    ascend: bool,
+    target: str | list[str] = 'all',
+    live_type: str | list[str] = 'all',
+    cache: bool = False,
+) -> list[dict]:
+    musicmetas = await musicmetas_json.get(raise_on_no_data=False)
+    if not musicmetas:
+        return []
+
+    global _music_leaderboard_cache, _last_musicmeta_hash
+    if cache and _music_leaderboard_cache and musicmetas_json.hash and _last_musicmeta_hash == musicmetas_json.hash:
+        return _music_leaderboard_cache
+
+    ALL_TARGET_KEYS = {
+        'score': '{live_type}_score',
+        'pt': '{live_type}_pt',
+        'pt/time': '{live_type}_pt_per_hour',
+        'tps': 'tps',
+        'time': 'music_time',
+    }
+    if target == 'all':
+        target_keys = ALL_TARGET_KEYS
+    else:
+        if isinstance(target, str):
+            target = [target]
+        target_keys = {t: ALL_TARGET_KEYS[t] for t in target if t in ALL_TARGET_KEYS}
+
+    ALL_LIVE_TYPES = (
+        'solo',
+        'auto',
+        'multi',
+    )
+    if live_type == 'all':
+        live_types = ALL_LIVE_TYPES
+    else:
+        if isinstance(live_type, str):
+            live_type = [live_type]
+        live_types = [lt for lt in live_type if lt in ALL_LIVE_TYPES]
+
+    # 各难度优先级，当每首歌只保留一个难度时，如果排序键相同则保留优先级更高的难度
+    DIFF_PRIORITY = {
+        "master": 6,
+        "append": 5,
+        "expert": 4,
+        "hard": 3,
+        "normal": 2,
+        "easy": 1,
+    }
+
+    if skill_strategy == 'max':
+        sorted_skills = sorted(skills, reverse=True)
+    elif skill_strategy == 'min':
+        sorted_skills = sorted(skills)
+    elif skill_strategy == 'avg':
+        avg_skill = sum(skills) / len(skills)
+        sorted_skills = [avg_skill] * 5
+
+    # 计算各歌曲数据
+    rows: list[dict] = []
+    for meta in musicmetas:
+        mid = meta['music_id']
+        diff = meta['difficulty']
+        music_time = meta['music_time']
+        tap_count = meta['tap_count']
+        event_rate = meta['event_rate']
+        base_score = meta['base_score']
+        base_score_auto = meta['base_score_auto']
+        skill_score_solo = meta['skill_score_solo']
+        skill_score_auto = meta['skill_score_auto']
+        skill_score_multi = meta['skill_score_multi']
+        fever_score = meta['fever_score']
+
+        tps = tap_count / music_time
+
+        best_skill_order_solo = list(range(5))
+        best_skill_order_solo.sort(key=lambda x: skill_score_solo[x], reverse=True)
+        
+        solo_skill = 0.0
+        sorted_skill_score_solo = sorted(skill_score_solo[:5], reverse=True)
+        for i in range(5):
+            solo_skill += sorted_skill_score_solo[i] * sorted_skills[i]
+        solo_skill += skill_score_solo[5] * skills[0]
+
+        auto_skill = 0.0
+        sorted_skill_score_auto = sorted(skill_score_auto[:5], reverse=True)
+        for i in range(5):
+            auto_skill += sorted_skill_score_auto[i] * sorted_skills[i]
+        auto_skill += skill_score_auto[5] * skills[0]
+
+        multi_skill = 0.0
+        sorted_skill_score_multi = sorted(skill_score_multi[:5], reverse=True)
+        for i in range(5):
+            multi_skill += sorted_skill_score_multi[i] * sorted_skills[i]
+        multi_skill += skill_score_multi[5] * skills[0]
+
+        solo_score = base_score + solo_skill
+        auto_score = base_score_auto + auto_skill
+        multi_score = base_score + multi_skill + fever_score * 0.5 + 0.01875
+
+        solo_skill_account = solo_skill / solo_score
+        auto_skill_account = auto_skill / auto_score
+        multi_skill_account = multi_skill / multi_score
+
+        def calc_real_score_and_pt(d: dict, live_type: str, power: int):
+            active_bonus = 0.0
+            if live_type == 'multi':
+                active_bonus = 5 * 0.015 * power
+            d[f'{live_type}_real_score'] = int(d[f'{live_type}_score'] * power * 4 + active_bonus)
+
+            event_rate = d['event_rate'] / 100.0
+            deck_rate = deck_bonus / 100.0 + 1
+
+            match live_type:
+                case 'solo':
+                    base = 100 + int(d['solo_real_score'] / 20000)
+                    d['solo_pt'] = int(base * event_rate * deck_rate)
+                case 'auto':
+                    base = 100 + int(d['auto_real_score'] / 20000)
+                    d['auto_pt'] = int(base * event_rate * deck_rate)
+                case 'multi':
+                    other_score = d['multi_real_score'] * 4
+                    base = 110 + int(d['multi_real_score'] / 17000) + min(13, int(other_score / 340000))
+                    d['multi_pt'] = int(base * event_rate * deck_rate)
+
+            play_time = d['music_time'] + play_interval
+            d['play_count_per_hour'] = 60 * 60 / play_time
+            d[f'{live_type}_pt_per_hour'] = d[f'{live_type}_pt'] * d['play_count_per_hour']
+            
+        data = {
+            'music_id': mid,
+            'difficulty': diff,
+            'diff_priority': DIFF_PRIORITY[diff] * (-1 if ascend else 1),
+            'music_time': music_time,
+            'tps': tps,
+            'event_rate': event_rate,
+            'solo_score': solo_score,
+            'auto_score': auto_score,
+            'multi_score': multi_score,
+            'solo_skill_account': solo_skill_account,
+            'auto_skill_account': auto_skill_account,
+            'multi_skill_account': multi_skill_account,
+        }
+
+        for live_type_key in live_types:
+            calc_real_score_and_pt(data, live_type_key, power)
+        rows.append(data)
+
+    # 排序并记录排名
+    def sort_rows(target: str, live_type: str):
+        sort_key = target_keys[target]
+        if '{live_type}' in sort_key:
+            sort_key = sort_key.format(live_type=live_type)
+        rows.sort(key=lambda x: (x[sort_key], x['diff_priority']), reverse=not ascend)
+        rank_key = f"{live_type}_{target}_rank"
+        if keep_one_diff_per_music:
+            seen_mids, cur_rank = set(), 1
+            for row in rows:
+                mid = row['music_id']
+                if mid in seen_mids:
+                    row[rank_key] = None
+                else:
+                    seen_mids.add(mid)
+                    row[rank_key] = cur_rank
+                    cur_rank += 1
+        else:
+            for i, row in enumerate(rows):
+                row[rank_key] = i + 1
+
+    for live_type in live_types:
+        for target in target_keys.keys():
+            sort_rows(target, live_type)
+
+    if cache:
+        _music_leaderboard_cache = rows
+        _last_musicmeta_hash = musicmetas_json.hash
+    return rows
+
+
 # ======================= 处理逻辑 ======================= #
 
 # 获取歌曲限定时间
@@ -1231,28 +1428,32 @@ async def get_music_audio_mp3_path(ctx: SekaiHandlerContext, mid: int) -> Option
 
 # 获取歌曲长度并缓存
 async def get_music_audio_length(ctx: SekaiHandlerContext, mid: int) -> Optional[timedelta]:
-    music_audio_lengths = file_db.get("music_audio_lengths", {})
-    key = f"{ctx.region}_{mid}"
-    if key in music_audio_lengths:
-        return timedelta(seconds=music_audio_lengths[key])
-    path = await get_music_audio_mp3_path(ctx, mid)
-    if not path:
-        jp_ctx = SekaiHandlerContext.from_region("jp")
-        path = await get_music_audio_mp3_path(jp_ctx, mid)
-    if not path:
-        return None
-    # 获取音频长度
-    music = await ctx.md.musics.find_by_id(mid)
-    assert_and_reply(music, f'曲目 {mid} 不存在')
-    filler_sec = music.get('fillerSec', 0)
-    import pydub
-    audio = pydub.AudioSegment.from_mp3(path)
-    length = len(audio) / 1000 - filler_sec
-    music_audio_lengths[key] = length
-    file_db.set("music_audio_lengths", music_audio_lengths)
+    # 尝试从缓存获取
+    key = f"music_audio_lengths.jp_{mid}"
+    if length := file_db.get(key, None):
+        return timedelta(seconds=length)
+    # 尝试从music_meta获取
+    music_metas = await musicmetas_json.get(raise_on_no_data=False)
+    if music_metas and (item := find_by(music_metas, 'music_id', mid)):
+        length = item['music_time']
+    else:
+        # 尝试从音频文件获取
+        path = await get_music_audio_mp3_path(ctx, mid)
+        if not path:
+            jp_ctx = SekaiHandlerContext.from_region("jp")
+            path = await get_music_audio_mp3_path(jp_ctx, mid)
+        if not path:
+            return None
+        music = await ctx.md.musics.find_by_id(mid)
+        assert_and_reply(music, f'曲目 {mid} 不存在')
+        filler_sec = music.get('fillerSec', 0)
+        import pydub
+        audio = pydub.AudioSegment.from_mp3(path)
+        length = len(audio) / 1000 - filler_sec
+    file_db.set(key, length)
     return timedelta(seconds=length)
 
-# 获取谱面时长（还有bug）
+# 获取谱面时长
 async def get_music_chart_length(ctx: SekaiHandlerContext, music_id: int, difficulty: str) -> Optional[timedelta]:
     music = await ctx.md.musics.find_by_id(music_id)
     assert_and_reply(music, f'曲目 {music_id} 不存在')
@@ -1262,7 +1463,8 @@ async def get_music_chart_length(ctx: SekaiHandlerContext, music_id: int, diffic
         return None
     from src.pjsekai import scores as pjsekai_scores
     score = pjsekai_scores.Score.open(sus_path, encoding='UTF-8')
-    return timedelta(seconds=float(score.timed_events[-1][0]))
+    bar = max(note.bar for note in score.notes)
+    return timedelta(seconds=float(score.get_time(bar)))
 
 # 合成简要歌曲列表图片
 async def compose_music_brief_list_image(
