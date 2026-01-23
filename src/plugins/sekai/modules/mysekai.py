@@ -1324,14 +1324,17 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
     # 抄写好友码
     friendcodes, friendcode_source = await get_mysekai_fixture_friend_codes(ctx, fid)
 
+    title_style = TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(25, 25, 25))
+    text_style = TextStyle(font=DEFAULT_FONT, size=18, color=(50, 50, 50))
+
     w = 600
     with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16) as vs:
         # 标题
-        title_text = f"【{fid}】{fname}"
+        title_text = f"【{ctx.region.upper()}-{fid}】{fname}"
         if translated_name: title_text += f" ({translated_name})"
-        TextBox(title_text, TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(20, 20, 20)), use_real_line_count=True).set_padding(8).set_bg(roundrect_bg()).set_w(w+16)
+        TextBox(title_text, TextStyle(font=DEFAULT_BOLD_FONT, size=24, color=(0, 0, 0)), use_real_line_count=True).set_padding(8).set_bg(roundrect_bg()).set_w(w+16)
         # 缩略图列表
-        with Grid(col_count=5).set_content_align('c').set_item_align('c').set_sep(8, 4).set_padding(8).set_bg(roundrect_bg()).set_w(w+16):
+        with Grid(col_count=min(5, len(fcolorcodes))).set_content_align('c').set_item_align('c').set_sep(8, 4).set_padding(8).set_bg(roundrect_bg()).set_w(w+16):
             for color_code, img in zip(fcolorcodes, fimgs):
                 with VSplit().set_content_align('c').set_item_align('c').set_sep(8):
                     ImageBox(img, size=(None, 100), use_alphablend=True, shadow=True)
@@ -1343,83 +1346,82 @@ async def get_mysekai_fixture_detail_image_card(ctx: SekaiHandlerContext, fid: i
                         ))
         # 基本信息
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(8).set_bg(roundrect_bg()).set_w(w+16):
-            font_size, text_color = 18, (100, 100, 100)
-            style = TextStyle(font=DEFAULT_FONT, size=font_size, color=text_color)
             with HSplit().set_content_align('c').set_item_align('c').set_sep(2):
-                TextBox(f"【类型】", style)
-                ImageBox(main_genre_image, size=(None, font_size+2), use_alphablend=True).set_bg(RoundRectBg(fill=(150,150,150,255), radius=2))
-                TextBox(main_genre_name, style)
+                TextBox(f"【类型】", text_style)
+                ImageBox(main_genre_image, size=(None, text_style.size+2), use_alphablend=True).set_bg(RoundRectBg(fill=(150,150,150,255), radius=2))
+                TextBox(main_genre_name, text_style)
                 if sub_genre_id:
-                    TextBox(f" > ", TextStyle(font=DEFAULT_HEAVY_FONT, size=font_size, color=text_color))
-                    ImageBox(sub_genre_image, size=(None, font_size+2), use_alphablend=True).set_bg(RoundRectBg(fill=(150,150,150,255), radius=2))
-                    TextBox(sub_genre_name, style)
-                TextBox(f"【大小】长x宽x高={fsize['width']}x{fsize['depth']}x{fsize['height']}", style)
+                    TextBox(f" > ", text_style)
+                    ImageBox(sub_genre_image, size=(None, text_style.size+2), use_alphablend=True).set_bg(RoundRectBg(fill=(150,150,150,255), radius=2))
+                    TextBox(sub_genre_name, text_style)
+
+            with HSplit().set_content_align('c').set_item_align('c').set_sep(8):    
+                TextBox(f"【大小】长x宽x高={fsize['width']}x{fsize['depth']}x{fsize['height']}", text_style)
+                TextBox(f"【放置消耗】{fixture.get('firstPutCost', 0)} (首次) / {fixture.get('secondPutCost', 0)} (重复)", text_style)
             
             with HSplit().set_content_align('c').set_item_align('c').set_sep(2):
-                TextBox(f"【可制作】" if is_assemble else "【不可制作】", style)
-                TextBox(f"【可回收】" if is_disassembled else "【不可回收】", style)
-                TextBox(f"【玩家可交互】" if is_player_action else "【玩家不可交互】", style)
-                TextBox(f"【游戏角色可交互】" if is_character_action else "【游戏角色无交互】", style)
+                TextBox(f"【🔨可制作】" if is_assemble else "【❌不可制作】", text_style)
+                TextBox(f"【♻️可回收】" if is_disassembled else "【❌不可回收】", text_style)
+                TextBox(f"【👋玩家可交互】" if is_player_action else "【❌玩家不可交互】", text_style)
+                TextBox(f"【🎡角色可交互】" if is_character_action else "【❌角色无交互】", text_style)
 
             if blueprint:
                 with HSplit().set_content_align('c').set_item_align('c').set_sep(2):
-                    TextBox(f"【蓝图可抄写】" if is_sketchable else "【蓝图不可抄写】", style)
-                    TextBox(f"【蓝图可转换获得】" if can_obtain_by_convert else "【蓝图不可转换获得】", style)
-                    TextBox(f"【最多制作{craft_count_limit}次】" if craft_count_limit else "【无制作次数限制】", style)
+                    TextBox(f"【📝蓝图可抄写】" if is_sketchable else "【蓝图不可抄写】", text_style)
+                    TextBox(f"【🎁蓝图可合成】" if can_obtain_by_convert else "【蓝图不可合成】", text_style)
+                    TextBox(f"【最多制作{craft_count_limit}次】" if craft_count_limit else "【无制作次数限制】", text_style)
 
         # 制作材料
         if blueprint and cost_materials:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(12).set_bg(roundrect_bg()):
-                TextBox("制作材料", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 50, 50))).set_w(w)
+                TextBox("制作材料", title_style).set_w(w)
                 with Grid(col_count=8).set_content_align('lt').set_sep(6, 6):
                     for img, quantity in cost_materials:
                         with VSplit().set_content_align('c').set_item_align('c').set_sep(2):
                             ImageBox(img, size=(50, 50), use_alphablend=True)
-                            TextBox(f"x{quantity}", TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=(100, 100, 100)))
+                            TextBox(f"x{quantity}", TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=(25, 25, 25)))
 
         # 回收材料
         if recycle_materials:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(12).set_bg(roundrect_bg()):
-                TextBox("回收材料", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 50, 50))).set_w(w)
+                TextBox("回收材料", title_style).set_w(w)
                 with Grid(col_count=8).set_content_align('lt').set_sep(6, 6):
                     for img, quantity in recycle_materials:
                         with VSplit().set_content_align('c').set_item_align('c').set_sep(2):
                             ImageBox(img, size=(50, 50), use_alphablend=True)
-                            TextBox(f"x{quantity}", TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=(100, 100, 100)))
+                            TextBox(f"x{quantity}", TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=(25, 25, 25)))
 
         # 交互角色
         if has_chara_react:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(12).set_bg(roundrect_bg()):
-                TextBox("角色互动", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 50, 50))).set_w(w)
-                with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8):
-                    for i, chara_group_imgs in enumerate(react_chara_group_imgs):
+                TextBox("角色互动", title_style).set_w(w)
+                with Flow().set_content_align('lt').set_item_align('lt').set_sep(6, 6).set_w(w):
+                    for chara_group_imgs in react_chara_group_imgs:
                         chara_num = len(chara_group_imgs[0]) if chara_group_imgs else None
                         if not chara_num: continue
-                        col_num_dict = { 1: 10, 2: 5, 3: 4, 4: 2 }
-                        col_num = col_num_dict[chara_num]
-                        with Grid(col_count=col_num).set_content_align('c').set_sep(6, 4):
-                            for imgs in chara_group_imgs:
-                                with HSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(4).set_bg(roundrect_bg(radius=8)):
-                                    for img in imgs:
-                                        ImageBox(img, size=(40, 40), use_alphablend=True)
+                        for imgs in chara_group_imgs:
+                            with HSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(4).set_bg(roundrect_bg(radius=8)):
+                                for img in imgs:
+                                    ImageBox(img, size=(40, 40), use_alphablend=True)
 
         # 标签
         if tags:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(12).set_bg(roundrect_bg()):
-                TextBox("标签", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 50, 50))).set_w(w)
-                tag_text = ""
-                for tag in tags: tag_text += f"【{tag}】"
-                TextBox(tag_text, TextStyle(font=DEFAULT_FONT, size=18, color=(100, 100, 100)), line_count=10, use_real_line_count=True).set_w(w)
+                TextBox("标签", title_style).set_w(w)
+                with Flow().set_content_align('lt').set_item_align('lt').set_sep(2, 4).set_w(w):
+                    for tag in tags:
+                        TextBox(f"【{tag}】", text_style)
 
         # 抄写好友码
         if friendcodes and is_sketchable:
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(12).set_bg(roundrect_bg()):
                 with HSplit().set_content_align('lb').set_item_align('lb').set_sep(8).set_w(w):
                     TextBox("抄写蓝图可前往", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 50, 50)))
-                    TextBox(f"(数据来自{friendcode_source})", TextStyle(font=DEFAULT_FONT, size=14, color=(75, 75, 75)))
-                friendcodes = random.sample(friendcodes, min(2, len(friendcodes)))
-                code_text = "      ".join(friendcodes)
-                TextBox(code_text, TextStyle(font=DEFAULT_FONT, size=18, color=(100, 100, 100)), line_count=10, use_real_line_count=True).set_w(w)
+                    TextBox(f"(数据来自{friendcode_source})", TextStyle(font=DEFAULT_FONT, size=16, color=(75, 75, 75)))
+                friendcodes = random.sample(friendcodes, min(4, len(friendcodes)))
+                with Flow().set_content_align('lt').set_item_align('lt').set_sep(24, 4).set_w(w):
+                    for code in friendcodes:
+                        TextBox(code, text_style)
 
     return vs
 
