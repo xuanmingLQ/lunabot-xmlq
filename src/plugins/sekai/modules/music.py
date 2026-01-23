@@ -685,8 +685,26 @@ def get_music_constants_info_widget(font_size: int = 20, padding: int = 16, addi
 
 # ======================= 歌曲分数排行榜 ======================= #
 
-_last_musicmeta_hash: str = None
-_music_leaderboard_cache: list[dict] = None
+LEADERBOARD_TARGET_KEYS = {
+    'score': '{live_type}_score',
+    'pt': '{live_type}_pt',
+    'pt/time': '{live_type}_pt_per_hour',
+    'tps': 'tps',
+    'time': 'music_time',
+}
+LEADERBOARD_ALL_LIVE_TYPES = (
+    'solo',
+    'auto',
+    'multi',
+)
+LEADERBOARD_DIFF_PRIORITY = {
+    "master": 6,
+    "append": 5,
+    "expert": 4,
+    "hard": 3,
+    "normal": 2,
+    "easy": 1,
+}
 
 # 获取歌曲分数排行榜数据
 async def get_music_leaderboard_data(
@@ -699,51 +717,24 @@ async def get_music_leaderboard_data(
     ascend: bool,
     target: str | list[str] = 'all',
     live_type: str | list[str] = 'all',
-    cache: bool = False,
 ) -> list[dict]:
     musicmetas = await musicmetas_json.get(raise_on_no_data=False)
     if not musicmetas:
         return []
 
-    global _music_leaderboard_cache, _last_musicmeta_hash
-    if cache and _music_leaderboard_cache and musicmetas_json.hash and _last_musicmeta_hash == musicmetas_json.hash:
-        return _music_leaderboard_cache
-
-    ALL_TARGET_KEYS = {
-        'score': '{live_type}_score',
-        'pt': '{live_type}_pt',
-        'pt/time': '{live_type}_pt_per_hour',
-        'tps': 'tps',
-        'time': 'music_time',
-    }
     if target == 'all':
-        target_keys = ALL_TARGET_KEYS
+        target_keys = LEADERBOARD_TARGET_KEYS
     else:
         if isinstance(target, str):
             target = [target]
-        target_keys = {t: ALL_TARGET_KEYS[t] for t in target if t in ALL_TARGET_KEYS}
+        target_keys = {t: LEADERBOARD_TARGET_KEYS[t] for t in target if t in LEADERBOARD_TARGET_KEYS}
 
-    ALL_LIVE_TYPES = (
-        'solo',
-        'auto',
-        'multi',
-    )
     if live_type == 'all':
-        live_types = ALL_LIVE_TYPES
+        live_types = LEADERBOARD_ALL_LIVE_TYPES
     else:
         if isinstance(live_type, str):
             live_type = [live_type]
-        live_types = [lt for lt in live_type if lt in ALL_LIVE_TYPES]
-
-    # 各难度优先级，当每首歌只保留一个难度时，如果排序键相同则保留优先级更高的难度
-    DIFF_PRIORITY = {
-        "master": 6,
-        "append": 5,
-        "expert": 4,
-        "hard": 3,
-        "normal": 2,
-        "easy": 1,
-    }
+        live_types = [lt for lt in live_type if lt in LEADERBOARD_ALL_LIVE_TYPES]
 
     if skill_strategy == 'max':
         sorted_skills = sorted(skills, reverse=True)
@@ -827,7 +818,7 @@ async def get_music_leaderboard_data(
         data = {
             'music_id': mid,
             'difficulty': diff,
-            'diff_priority': DIFF_PRIORITY[diff] * (-1 if ascend else 1),
+            'diff_priority': LEADERBOARD_DIFF_PRIORITY[diff] * (-1 if ascend else 1),
             'music_time': music_time,
             'tps': tps,
             'event_rate': event_rate,
@@ -868,10 +859,19 @@ async def get_music_leaderboard_data(
         for target in target_keys.keys():
             sort_rows(target, live_type)
 
-    if cache:
-        _music_leaderboard_cache = rows
-        _last_musicmeta_hash = musicmetas_json.hash
     return rows
+
+# 用于歌曲详情中排行榜的缓存
+_last_musicmeta_hash = None
+_last_music_leaderboard_info: dict[tuple[str, str, int], dict] = {}
+
+# 用于歌曲详情中排行榜的参数
+LEADERBOARD_TARGET_NAMES = { 'score': "分数", 'pt': "PT", 'pt/time': "时速" }
+LEADERBOARD_LIVETYPE_NAMES = { 'solo': "单人", 'multi': "多人", 'auto': "AUTO" }
+LEADERBOARD_LIVETYPE_PLAY_INTERVAL = { 'solo': 28.0, 'auto': 28.0, 'multi': 45.2 }
+LEADERBOARD_LIVETYPE_SKILLS = { 'solo': [1.2] * 5, 'auto': [1.2] * 5, 'multi': [2.0] * 5 }
+LEADERBOARD_DECK_BONUS = 400.0
+LEADERBOARD_POWER = 300000
 
 
 # ======================= 处理逻辑 ======================= #
@@ -1096,7 +1096,46 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
         caption_vocals[caption].append(vocal)
 
     limited_times = await get_music_limited_times(ctx, mid)
-        
+
+    # 更新歌曲排行缓存
+    global _last_musicmeta_hash, _last_music_leaderboard_info
+    musicmeta_hash = await musicmetas_json.get_hash()
+    live_type_keys = list(LEADERBOARD_LIVETYPE_NAMES.keys())
+    target_keys = list(LEADERBOARD_TARGET_NAMES.keys())
+    if musicmeta_hash and musicmeta_hash != _last_musicmeta_hash:
+        _last_musicmeta_hash = musicmeta_hash
+        _last_music_leaderboard_info = {}
+        for live_type in live_type_keys:
+            for target in target_keys:
+                leaderboard = await get_music_leaderboard_data(
+                    skills=LEADERBOARD_LIVETYPE_SKILLS[live_type],
+                    skill_strategy='avg',
+                    deck_bonus=LEADERBOARD_DECK_BONUS,
+                    play_interval=LEADERBOARD_LIVETYPE_PLAY_INTERVAL[live_type],
+                    power=LEADERBOARD_POWER,
+                    keep_one_diff_per_music=True,
+                    ascend=False,
+                    target=target,
+                    live_type=live_type,
+                )
+                for item in leaderboard:
+                    rank = item.get(f"{live_type}_{target}_rank", None)
+                    if rank:
+                        info = { 'rank': rank, 'diff': item['difficulty'] }
+                        match target:
+                            case 'score':   info['value'] = f"{item[f'{live_type}_score']*100:.1f}%"
+                            case 'pt':      info['value'] = str(item[f'{live_type}_pt'])
+                            case 'pt/time': info['value'] = f"{item[f'{live_type}_pt_per_hour']/10000:.2f}w/h"
+                        _last_music_leaderboard_info[(live_type, target, item['music_id'])] = info
+    
+    leaderboard_music_num = len(_last_music_leaderboard_info) // (len(LEADERBOARD_LIVETYPE_NAMES) * len(LEADERBOARD_TARGET_NAMES))
+    leaderboard_matrix: list[list[dict | None]] = []
+    for live_type in live_type_keys:
+        leaderboard_matrix.append([])
+        for target in target_keys:
+            leaderboard_matrix[-1].append(_last_music_leaderboard_info.get((live_type, target, mid), None))
+            
+    # 绘图
     with Canvas(bg=SEKAI_BLUE_BG).set_padding(BG_PADDING) as canvas:
         with VSplit().set_content_align('lt').set_item_align('lt').set_sep(16).set_item_bg(roundrect_bg()):
             with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16).set_item_bg(roundrect_bg()):
@@ -1155,27 +1194,60 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                             for start, end in limited_times:
                                 TextBox(f"{start.strftime('%Y-%m-%d %H:%M')} ~ {end.strftime('%Y-%m-%d %H:%M')}", 
                                         TextStyle(font=DEFAULT_FONT, size=24, color=(70, 70, 70)))
-                    
-                # 难度等级/物量
-                hs, vs, gw = 8, 12, 180 if not has_append else 150
-                with HSplit().set_content_align('c').set_item_align('c').set_sep(vs).set_padding(32):
-                    with Grid(col_count=(6 if has_append else 5), item_size_mode='fixed').set_sep(hsep=hs, vsep=vs):
-                        # 难度等级
-                        light_diff_color = []
-                        for i, (diff, color) in enumerate(DIFF_COLORS.items()):
-                            if diff_lvs[i] is not None:
-                                t = TextBox(f"{diff.upper()} {diff_lvs[i]}", TextStyle(font=DEFAULT_BOLD_FONT, size=22, color=WHITE))
-                                t.set_bg(roundrect_bg(fill=color, radius=6)).set_size((gw, 40)).set_content_align('c').set_overflow('clip')
-                            if not isinstance(color, LinearGradient):
-                                light_diff_color.append(adjust_color(lerp_color(color, WHITE, 0.5), a=100))
-                            else:
-                                light_diff_color.append(adjust_color(lerp_color(color.c2, WHITE, 0.5), a=100))       
-                        # 物量
-                        for i, count in enumerate(diff_counts):
-                            if count is None: continue
-                            t = TextBox(f"{count} combo", TextStyle(font=DEFAULT_BOLD_FONT, size=18, color=(80, 80, 80, 255)), line_count=1)
-                            t.set_size((gw, 40)).set_content_align('c').set_bg(roundrect_bg(fill=light_diff_color[i], radius=6))        
+                
+                with HSplit().set_content_align('c').set_item_align('c').set_sep(8).set_omit_parent_bg(True).set_item_bg(roundrect_bg()):
+                    # 难度等级/物量
+                    vs = 4
+                    hs = 8 if has_append else 20
+                    with HSplit().set_content_align('c').set_item_align('c').set_sep(vs).set_padding(32):
+                        with Grid(col_count=(6 if has_append else 5), item_size_mode='fixed').set_sep(hsep=hs, vsep=vs):
+                            # 难度等级
+                            for i, (diff, color) in enumerate(DIFF_COLORS.items()):
+                                if diff_lvs[i] is not None:
+                                    t = TextBox(f"{diff_lvs[i]}", TextStyle(font=DEFAULT_BOLD_FONT, size=32, color=WHITE))
+                                    t.set_bg(roundrect_bg(fill=color, radius=12)).set_size((64, 64)).set_content_align('c').set_overflow('clip')     
+                            # 物量
+                            for i, (count, color) in enumerate(zip(diff_counts, DIFF_COLORS.values())):
+                                if count is None: continue
+                                style = TextStyle(DEFAULT_BOLD_FONT, 18, (80, 80, 80, 255), use_shadow=True, 
+                                                  shadow_offset=1, shadow_color=color.c1 if isinstance(color, LinearGradient) else color)
+                                with VSplit().set_content_align('c').set_item_align('c').set_sep(1):
+                                    TextBox(f"{count}", style).set_size((64, None)).set_content_align('c').set_overflow('clip')
+                                    TextBox("combo", style.replace(size=14)).set_size((64, None)).set_content_align('c').set_overflow('clip')
 
+                    # 排行榜
+                    with Grid(row_count=len(live_type_keys)+1, item_size_mode='flex').set_sep(4, 4).set_padding(16).set_content_align('c').set_item_align('c'):
+                        th_w, th_h = 80, 36
+                        tr_w, tr_h = 130, 36
+                        # 表头
+                        Spacer(w=th_w, h=th_h).set_bg(FillBg((255, 255, 255, 100)))
+                        for target in target_keys:
+                            TextBox(LEADERBOARD_TARGET_NAMES[target], TextStyle(DEFAULT_BOLD_FONT, 18, (50, 50, 50))) \
+                                .set_bg(FillBg((255, 255, 255, 100))).set_size((tr_w, th_h)).set_content_align('c')
+                        # 内容
+                        for i, live_type in enumerate(live_type_keys):
+                            TextBox(LEADERBOARD_LIVETYPE_NAMES[live_type], TextStyle(DEFAULT_BOLD_FONT, 18, (50, 50, 50))) \
+                                .set_bg(FillBg((255, 255, 255, 50))).set_size((th_w, th_h)).set_content_align('c')
+                            for j, target in enumerate(target_keys):
+                                info = leaderboard_matrix[i][j]
+                                if info:
+                                    rank_ratio = (info['rank'] - 1) / (leaderboard_music_num - 1)
+                                    text1, text2 = f"#{info['rank']}", info['value']
+                                    text_color = DIFF_COLORS[info['diff']]
+                                else:
+                                    rank_ratio = 0.5
+                                    text1, text2 = "-", None
+                                    text_color = (50, 50, 50)
+
+                                green, yellow, red = (200, 255, 200, 75), (255, 200, 150, 75), (255, 150, 150, 50)
+                                bg_color = lerp_color(green, yellow, rank_ratio) if rank_ratio <= 0.5 else lerp_color(yellow, red, rank_ratio - 0.5)
+
+                                with Frame().set_bg(FillBg(bg_color)).set_size((tr_w, tr_h)).set_content_align('c'):
+                                    with HSplit().set_content_align('b').set_item_align('b').set_sep(2):
+                                        TextBox(text1, TextStyle(DEFAULT_BOLD_FONT, 18, text_color, use_shadow=True))
+                                        if text2:
+                                            TextBox(text2, TextStyle(DEFAULT_FONT, 12, (50, 50, 50))).set_offset((0, -1))
+                        
                 # 别名
                 aliases = MusicAliasDB.get_instance().get_aliases(mid)
                 if aliases:
@@ -1194,7 +1266,7 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                                 Spacer(w=8)
                                 for vocal in vocals:
                                     with HSplit().set_content_align('c').set_item_align('c').set_sep(2).set_padding(4) \
-                                        .set_bg(roundrect_bg(fill=(255, 255, 255, 150), radius=8)):
+                                        .set_bg(roundrect_bg(fill=(255, 255, 255, 75), radius=8)):
                                         if vocal_name := vocal.get('vocal_name'):
                                             font_size = int(24 * min(1.0, 50 / get_str_display_length(vocal_name)))
                                             TextBox(vocal['vocal_name'], TextStyle(font=DEFAULT_FONT, size=font_size, color=(70, 70, 70)))

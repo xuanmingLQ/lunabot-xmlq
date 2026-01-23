@@ -1088,36 +1088,36 @@ class WebJsonRes:
         self.update_time: datetime = None
         self.hash: str = None
     
-    async def download(self):
+    async def _download(self):
         self.data = await download_json(self.url)
         self.hash = get_md5(dumps_json(self.data, indent=False).encode('utf-8'))
         self.update_time = datetime.now()
         logger.info(f"网页Json资源 [{self.name}] 更新成功")
-
-    async def get(self, timeout: float = 5.0, raise_on_no_data: bool = True) -> Any | None:
+    
+    async def _check_before_get(self, timeout: float, raise_on_no_data: bool):
         if not self.data or not self.update_interval or datetime.now() - self.update_time > self.update_interval:
             try:
-                await asyncio.wait_for(self.download(), timeout)
+                await asyncio.wait_for(self._download(), timeout)
             except Exception as e:
                 if self.data:
                     logger.warning(f"更新网页Json资源 [{self.name}] 失败: {get_exc_desc(e)}，继续使用旧数据")
                 else:
                     if raise_on_no_data:
-                        raise e
+                        raise Exception(f"更新网页Json资源 [{self.name}] 失败: {get_exc_desc(e)}")
                     else:
                         logger.warning(f"更新网页Json资源 [{self.name}] 失败: {get_exc_desc(e)}，返回None")
-                        return None
+                        self.data = None
+
+    async def get(self, timeout: float = 5.0, raise_on_no_data: bool = True) -> Any | None:
+        await self._check_before_get(timeout, raise_on_no_data)
         return self.data
     
-    async def get_update_time(self) -> datetime:
-        if not self.data or not self.update_interval or datetime.now() - self.update_time > self.update_interval:
-            try:
-                await self.download()
-            except Exception as e:
-                if self.data:
-                    logger.error(f"更新网页Json资源 [{self.name}] 失败: {e}，继续使用旧数据")
-                else:
-                    raise e
+    async def get_update_time(self, timeout: float = 5.0, raise_on_no_data: bool = True) -> datetime | None:
+        await self._check_before_get(timeout, raise_on_no_data)
         return self.update_time
+    
+    async def get_hash(self, timeout: float = 5.0, raise_on_no_data: bool = True) -> str | None:
+        await self._check_before_get(timeout, raise_on_no_data)
+        return self.hash
     
 

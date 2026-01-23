@@ -504,7 +504,6 @@ async def compose_music_board_image(
         ascend=ascend,
         live_type=live_type,
         target=target,
-        cache=False,
     )
     for row in rows:
         row['rank'] = row[f'{live_type}_{target}_rank']
@@ -850,9 +849,9 @@ async def _(ctx: SekaiHandlerContext):
     # 技能组
     args = args.replace('技能', '').replace('实效', '')
     match live_type:
-        case 'solo': skills = [1.0] * 5
+        case 'solo': skills = [1.2] * 5
         case 'multi': skills = [2.0] * 5
-        case 'auto': skills = [1.0] * 5
+        case 'auto': skills = [1.2] * 5
     args = args.strip()
     segs = args.split()
     numbers, number_segs = [], []
