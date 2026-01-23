@@ -1865,7 +1865,7 @@ async def _(ctx: HandlerContext):
         # 游戏ID查QQ号
         has_any = False
         msg = f"当前绑定游戏ID{uid}的QQ用户:\n"
-        for region in ALL_SERVER_REGIONS:
+        for region in get_regions(RegionAttributes.ENABLE):
             bind_list: Dict[str, str | list[str]] = profile_db.get("bind_list", {}).get(region, {})
             for qid, items in bind_list.items():
                 if uid in to_list(items):

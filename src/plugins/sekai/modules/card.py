@@ -282,7 +282,7 @@ async def compose_card_list_image(ctx: SekaiHandlerContext, cards: List[Dict], q
             if supply_name in ['期间限定', 'WL限定', '联动限定']:
                 ImageBox(ctx.static_imgs.get(f"card/term_limited.png"), size=(int(sz*0.6), None))
             elif supply_name in ['CFes限定', 'BFes限定']:
-                ImageBox(ctx.static_imgs.get(f"card/fes_limited.png"), size=(int(sz*0.6), None))
+                ImageBox(ctx.static_imgs.get(f"card/fes_limited.png"), size=(int(sz*0.35), None))
 
     with Canvas(bg=random_unit_bg(bg_unit)).set_padding(BG_PADDING) as canvas:
         with VSplit().set_sep(16).set_content_align('lt').set_item_align('lt'):
@@ -652,7 +652,7 @@ async def compose_box_image(ctx: SekaiHandlerContext, qid: int, cards: dict, sho
             if supply_name in ['期间限定', 'WL限定', '联动限定']:
                 ImageBox(ctx.static_imgs.get(f"card/term_limited.png"), size=(int(sz*0.6), None))
             elif supply_name in ['CFes限定', 'BFes限定']:
-                ImageBox(ctx.static_imgs.get(f"card/fes_limited.png"), size=(int(sz*0.6), None))
+                ImageBox(ctx.static_imgs.get(f"card/fes_limited.png"), size=(int(sz*0.35), None))
             if not card['has'] and profile:
                 Spacer(w=sz, h=sz).set_bg(RoundRectBg(fill=(0,0,0,120), radius=2))
         if show_id:
