@@ -986,39 +986,38 @@ async def compose_music_detail_image(ctx: SekaiHandlerContext, mid: int, title: 
                     font_size = max(10, 24 - get_str_display_length(alias_text) // 40 * 1)
                     with HSplit().set_content_align('l').set_item_align('l').set_sep(16).set_padding(16):
                         TextBox("歌曲别名", TextStyle(font=DEFAULT_HEAVY_FONT, size=24, color=(50, 50, 50)))
-                        aw = 800
-                        TextBox(alias_text, TextStyle(font=DEFAULT_FONT, size=font_size, color=(70, 70, 70)), use_real_line_count=True).set_w(aw)    
+                        TextBox(alias_text, TextStyle(font=DEFAULT_FONT, size=font_size, color=(70, 70, 70)), use_real_line_count=True).set_w(840)    
 
-                def draw_vocal():
+                def draw_vocal(width: int):
                     # 歌手
-                    with VSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_padding(16):
+                    with Flow().set_content_align('lt').set_item_align('lt').set_sep(8, 8).set_padding(16).set_w(width):
                         for caption, vocals in sorted(caption_vocals.items(), key=lambda x: len(x[1])):
                             with HSplit().set_padding(0).set_sep(4).set_content_align('c').set_item_align('c'):
                                 TextBox(caption + "  ver.", TextStyle(font=DEFAULT_HEAVY_FONT, size=24, color=(50, 50, 50)))
-                                Spacer(w=16)
+                                Spacer(w=8)
                                 for vocal in vocals:
-                                    with HSplit().set_content_align('c').set_item_align('c').set_sep(4).set_padding(4).set_bg(roundrect_bg(fill=(255, 255, 255, 150), radius=8)):
+                                    with HSplit().set_content_align('c').set_item_align('c').set_sep(2).set_padding(4) \
+                                        .set_bg(roundrect_bg(fill=(255, 255, 255, 150), radius=8)):
                                         if vocal_name := vocal.get('vocal_name'):
                                             font_size = int(24 * min(1.0, 50 / get_str_display_length(vocal_name)))
                                             TextBox(vocal['vocal_name'], TextStyle(font=DEFAULT_FONT, size=font_size, color=(70, 70, 70)))
                                         else:
                                             for img in vocal['chara_imgs']:
                                                 ImageBox(img, size=(32, 32), use_alphablend=True)
-                                    Spacer(w=8)
                 def draw_event():
                     # 活动
-                    with HSplit().set_sep(8):
-                        with VSplit().set_content_align('c').set_item_align('c').set_sep(8).set_padding(16):
+                    with HSplit().set_sep(8).set_content_align('c').set_item_align('c').set_padding(16):
+                        with VSplit().set_content_align('c').set_item_align('c').set_sep(8):
                             TextBox("关联活动", TextStyle(font=DEFAULT_HEAVY_FONT, size=24, color=(50, 50, 50)))
                             TextBox(f"ID: {event_id}", TextStyle(font=DEFAULT_FONT, size=24, color=(70, 70, 70)))
-                        ImageBox(event_banner, size=(None, 100)).set_padding(16)        
+                        ImageBox(event_banner, size=(None, 100))
 
                 if event:
                     with HSplit().set_omit_parent_bg(True).set_item_bg(roundrect_bg()).set_padding(0).set_sep(16):
-                        draw_vocal()
+                        draw_vocal(600)
                         draw_event()
                 else:
-                    draw_vocal()
+                    draw_vocal(964)
                     
     add_watermark(canvas)
     return await canvas.get_img()    
