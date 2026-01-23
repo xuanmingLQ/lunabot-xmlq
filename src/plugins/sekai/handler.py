@@ -19,7 +19,7 @@ def get_user_default_region(user_id: int, fallback: str) -> SekaiRegion|None:
         # 这里的region_id可能为None，而get_region_by_id在region_id位None时会报错
         # 所以用try except处理一下
         return get_region_by_id(default_regions.get(user_id, fallback))
-    except RuntimeError:
+    except SekaiRegionError:
         return None
 
 def set_user_default_region(user_id: int, region: SekaiRegion):
