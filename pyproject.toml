@@ -24,6 +24,7 @@ dependencies = [
     "mail",
     "matplotlib",
     "mcrcon",
+    "memray>=1.19.1",
     "mistune>=3.1.4",
     "nonebot-adapter-onebot",
     "nonebot-plugin-apscheduler",
