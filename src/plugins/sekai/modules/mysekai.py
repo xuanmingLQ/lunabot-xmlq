@@ -1947,8 +1947,9 @@ async def compose_mysekai_talk_list_image(
                             with HSplit().set_content_align('lt').set_item_align('lt').set_sep(5).set_padding(4).set_bg(roundrect_bg()):
                                 for cuid in cuids:
                                     ImageBox(await get_chara_icon_by_chara_unit_id(ctx, cuid), size=(None, 45))
-                if not has_multi:
-                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(8)
+
+            if not has_multi:
+                TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(16)
 
     add_watermark(canvas)
     return await canvas.get_img()
