@@ -1923,18 +1923,18 @@ async def compose_mysekai_talk_list_image(
                         for sub_genre_id in sorted(single_talk_fixtures[main_genre_id].keys()):
                             if len(single_talk_fixtures[main_genre_id][sub_genre_id]) == 0: continue
                             
-                            with Flow().set_item_align('lt').set_content_align('lt').set_sep(sep, sep).set_w(row_w):
+                            with Flow().set_item_align('lt').set_content_align('lt').set_sep(sep, sep).set_w(row_w - 16):
                                 for fids, _ in single_talk_fixtures[main_genre_id][sub_genre_id]:
                                     draw_fids(fids, fids_single_reads)   
 
                 if not has_single:
-                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(16)
+                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(12)
 
             # 多人家具
             TextBox(f"多人对话家具", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=text_color)) \
                 .set_padding(12).set_bg(roundrect_bg())    
 
-            with Flow().set_item_align('lt').set_content_align('lt').set_sep(16, 8).set_w(row_w).set_padding(8).set_bg(roundrect_bg()):
+            with Flow().set_item_align('lt').set_content_align('lt').set_sep(16, 8).set_w(row_w).set_padding(8).set_bg(roundrect_bg()) as flow:
                 has_multi = False
                 for fids, item in fids_multi_reads.items():
                     if not fids or item['total'] == item['read']:
@@ -1948,8 +1948,9 @@ async def compose_mysekai_talk_list_image(
                                 for cuid in cuids:
                                     ImageBox(await get_chara_icon_by_chara_unit_id(ctx, cuid), size=(None, 45))
 
-            if not has_multi:
-                TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(16)
+                if not has_multi:
+                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(4)
+                    flow.set_w(None).set_row_or_col_count(1)
 
     add_watermark(canvas)
     return await canvas.get_img()
