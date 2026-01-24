@@ -140,6 +140,7 @@ class Widget:
         self.offset_xanchor = 'l'
         self.offset_yanchor = 't'
         self.allow_draw_outside = False
+        self.set_size_policy('fixed', 'fixed')
 
         self._calc_w = None
         self._calc_h = None
@@ -273,6 +274,15 @@ class Widget:
         self.omit_parent_bg = omit
         return self
     
+    def set_size_policy(self, w_policy: str | None = None, h_policy: str | None = None):
+        if w_policy:
+            assert w_policy in ('fixed', 'fit')
+            self.w_size_policy = w_policy
+        if h_policy:
+            assert h_policy in ('fixed', 'fit')
+            self.h_size_policy = h_policy
+        return self
+
     def set_allow_draw_outside(self, allow: bool):
         self.allow_draw_outside = allow
         return self
@@ -293,6 +303,10 @@ class Widget:
                     content_h = min(content_h, content_h_limit)
             self._calc_w = content_w_limit + self.hmargin * 2 + self.hpadding * 2
             self._calc_h = content_h_limit + self.vmargin * 2 + self.vpadding * 2
+            if self.w_size_policy == 'fit':
+                self._calc_w = min(self._calc_w, content_w + self.hmargin * 2 + self.hpadding * 2)
+            if self.h_size_policy == 'fit':
+                self._calc_h = min(self._calc_h, content_h + self.vmargin * 2 + self.vpadding * 2)
         return (int(self._calc_w), int(self._calc_h))
 
     def _get_content_pos(self):
@@ -430,6 +444,11 @@ class HSplit(Widget):
         self.item_halign, self.item_valign = ALIGN_MAP[align]
         return self
 
+    def set_content_and_item_align(self, align: str):
+        self.set_content_align(align)
+        self.set_item_align(align)
+        return self
+
     def set_sep(self, sep: int):
         self.sep = sep  
         return self
@@ -523,6 +542,11 @@ class VSplit(Widget):
         self.item_halign, self.item_valign = ALIGN_MAP[align]
         return self
     
+    def set_content_and_item_align(self, align: str):
+        self.set_content_align(align)
+        self.set_item_align(align)
+        return self
+
     def set_sep(self, sep: int):
         self.sep = sep  
         return self
@@ -633,6 +657,11 @@ class Grid(Widget):
         if align not in ALIGN_MAP:
             raise ValueError('Invalid align')
         self.item_halign, self.item_valign = ALIGN_MAP[align]
+        return self
+
+    def set_content_and_item_align(self, align: str):
+        self.set_content_align(align)
+        self.set_item_align(align)
         return self
 
     def set_sep(self, hsep=None, vsep=None):
@@ -798,6 +827,11 @@ class Flow(Widget):
         if align not in ALIGN_MAP:
             raise ValueError('Invalid align')
         self.item_halign, self.item_valign = ALIGN_MAP[align]
+        return self
+
+    def set_content_and_item_align(self, align: str):
+        self.set_content_align(align)
+        self.set_item_align(align)
         return self
 
     def set_vertical(self, vertical: bool):

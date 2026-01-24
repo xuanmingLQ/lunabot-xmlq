@@ -230,7 +230,7 @@ def get_player_bind_id(ctx: SekaiHandlerContext, qid: int = None, check_bind=Tru
         if ctx.uid_arg.startswith('u'):
             index = int(ctx.uid_arg[1:]) - 1
             uid = get_uid_by_index(str(ctx.user_id), index)
-        if ctx.uid_arg.startswith('@'):
+        elif ctx.uid_arg.startswith('@'):
             assert_and_reply(is_super, "仅bot管理可直接@指定QQ号")
             at_qid = int(ctx.uid_arg[1:])
             uid = get_player_bind_id(ctx, at_qid, check_bind)
