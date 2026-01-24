@@ -1494,7 +1494,7 @@ class GroupWhiteList:
 
         async def get_group_id_desc(ctx: HandlerContext) -> tuple[int, str]:
             if args := ctx.get_args().strip():
-                group = find_by(await get_group_list(ctx.bot), 'group_id', args)
+                group = find_by(await get_group_list(ctx.bot), 'group_id', int(args))
                 assert_and_reply(group, f'无效群聊 {args}')
                 group_id = group['group_id']
                 group_desc = f"\"{group['group_name']}\"({group_id})"
@@ -1619,7 +1619,7 @@ class GroupBlackList:
 
         async def get_group_id_desc(ctx: HandlerContext) -> tuple[int, str]:
             if args := ctx.get_args().strip():
-                group = find_by(await get_group_list(ctx.bot), 'group_id', args)
+                group = find_by(await get_group_list(ctx.bot), 'group_id', int(args))
                 assert_and_reply(group, f'无效群聊 {args}')
                 group_id = group['group_id']
                 group_desc = f"\"{group['group_name']}\"({group_id})"
