@@ -128,6 +128,7 @@ async def get_mysekai_info(
     filter: list[str]=None, 
 ) -> Tuple[dict, str]:
     cache_path = None
+    uid = None
     try:
         # 获取绑定的玩家id
         try:
