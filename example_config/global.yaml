@@ -2,6 +2,8 @@ log_level: "INFO"
 superuser:
   - 12345678
 
+confirm_actions_timeout_seconds: 300
+
 startup_task_delay_seconds:
   min: 0
   max: 3

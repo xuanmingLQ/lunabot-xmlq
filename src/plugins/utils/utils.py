@@ -419,6 +419,15 @@ async def _create_pending_startup_tasks():
         asyncio.create_task(task())
     _pending_startup_tasks.clear()
 
+async def call_common_or_async(func: Callable, *args, **kwargs):
+    """
+    调用一个可能是异步的函数
+    """
+    if asyncio.iscoroutinefunction(func):
+        return await func(*args, **kwargs)
+    else:
+        return func(*args, **kwargs)
+
 
 # ============================ 字符串 ============================ #
 
@@ -1285,46 +1294,6 @@ from ..common.process_pool import ProcessPool
 def _shutdown_process_pools():
     ProcessPool.shutdown_all()
 
-
-class SubHelper:
-    def __init__(self, name: str, db: FileDB, logger: Logger, key_fn=None, val_fn=None):
-        self.name = name
-        self.db = db
-        self.logger = logger
-        self.key_fn = key_fn or (lambda x: str(x))
-        self.val_fn = val_fn or (lambda x: x)
-        self.key = f'{self.name}_sub_list'
-
-    def is_subbed(self, *args):
-        uid = self.key_fn(*args)
-        return uid in self.db.get(self.key, [])
-
-    def sub(self, *args):
-        uid = self.key_fn(*args)
-        lst = self.db.get(self.key, [])
-        if uid in lst:
-            return False
-        lst.append(uid)
-        self.db.set(self.key, lst)
-        self.logger.log(f'{uid}订阅{self.name}')
-        return True
-
-    def unsub(self, *args):
-        uid = self.key_fn(*args)
-        lst = self.db.get(self.key, [])
-        if uid not in lst:
-            return False
-        lst.remove(uid)
-        self.db.set(self.key, lst)
-        self.logger.log(f'{uid}取消订阅{self.name}')
-        return True
-
-    def get_all(self):
-        return [self.val_fn(item) for item in self.db.get(self.key, [])]
-
-    def clear(self):
-        self.db.delete(self.key)
-        self.logger.log(f'{self.name}清空订阅')
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
 async def asend_mail(
