@@ -2523,7 +2523,7 @@ class GroupUserSubHelper(SubHelper):
             for uid, gid in all_subs:
                 if gid not in current_groups:
                     quited_groups.append(gid)
-                if uid not in current_groups[gid].group_member_ids:
+                elif uid not in current_groups[gid].group_member_ids:
                     quited_group_users.append((gid, uid))
             return QuitedGroupUserInfo(
                 quited_group_ids=quited_groups,
