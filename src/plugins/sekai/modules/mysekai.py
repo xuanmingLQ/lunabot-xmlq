@@ -1968,17 +1968,30 @@ def get_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str | None:
     return msr_binds[qid]
 
 # 切换字节服msr限制uid为当前绑定的ID，返回绑定的ID
-def update_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str:
+async def update_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int, force: bool = False):
     assert_and_reply(ctx.region in BD_MYSEKAI_REGIONS, "指令对此区服无效")
     assert_and_reply(bd_msr_sub.is_subbed(ctx.region, ctx.group_id), "指令在此群无效")
+    qid = str(ctx.user_id)
+    next_time = bd_msr_bind_db.get(f"{ctx.region}_next_time.{qid}", 0)
+    if not force and next_time > datetime.now().timestamp():
+        raise ReplyException(f"请于{datetime.fromtimestamp(next_time).strftime('%m-%d %H:%M:%S')}后再试")
     uid = get_player_bind_id(ctx)
-    qid = str(qid)
-    msr_binds: dict[str, str] = bd_msr_bind_db.get(f"{ctx.region}_bind", {})
-    last_bind = msr_binds.get(qid)
-    assert_and_reply(last_bind != str(uid), f"你的MSR限制ID已经是当前ID，无需换绑")
-    msr_binds[qid] = str(uid)
-    bd_msr_bind_db.set(f"{ctx.region}_bind", msr_binds)
-    return uid
+    
+    async def do_update(new_ctx: HandlerContext):
+        msr_binds: dict[str, str] = bd_msr_bind_db.get(f"{ctx.region}_bind", {})
+        last_bind = msr_binds.get(qid)
+        assert_and_reply(last_bind != str(uid), f"你的MSR限制ID已经是当前ID，无需换绑")
+        msr_binds[qid] = str(uid)
+        bd_msr_bind_db.set(f"{ctx.region}_bind", msr_binds)
+
+        next_time = int((datetime.now() + timedelta(days=7)).timestamp())
+        bd_msr_bind_db.set(f"{ctx.region}_next_time.{qid}", next_time)
+        await new_ctx.asend_reply_msg(f"已将你的{get_region_name(ctx.region)}MSR查询限制ID切换为当前绑定的ID: "
+                                f"{process_hide_uid(ctx, uid, keep=6)}，一周内不可再次切换")
+        
+    await add_need_confirm_action(ctx, do_update, 
+        additional_msg=f"是否将你的{get_region_name(ctx.region)}MSR查询限制ID切换为当前绑定的ID: "
+        f"{process_hide_uid(ctx, uid, keep=6)}？一周内只能切换一次")
 
 
 
@@ -2216,19 +2229,13 @@ msr_change_bind.check_cdrate(cd).check_wblist(gbl)
 @msr_change_bind.handle()
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
+    force = False
+    if 'force' in args and check_superuser(ctx.event):
+        force = True
+        args = args.replace('force', '', 1).strip()
     assert_and_reply(not args, "该指令用于切换MSR查询限制ID为你当前绑定的ID，不需要添加参数。请你确认要更换的ID为你当前绑定的ID")
-
-    next_times = bd_msr_bind_db.get(f"{ctx.region}_next_time", {})
-    qid = str(ctx.user_id)
-    next_time = next_times.get(qid, 0)
-    if next_time > datetime.now().timestamp():
-        raise ReplyException(f"请于{datetime.fromtimestamp(next_time).strftime('%m-%d %H:%M:%S')}后再试")
-    uid = update_bd_msr_limit_uid(ctx, ctx.user_id)
-    next_times[qid] = int((datetime.now() + timedelta(days=7)).timestamp())
-    bd_msr_bind_db.set(f"{ctx.region}_next_time", next_times)
-    await ctx.asend_reply_msg(f"已将你的{get_region_name(ctx.region)}MSR查询限制ID切换为当前绑定的ID: "
-                              f"{process_hide_uid(ctx, uid, keep=6)}，一周内不可再次切换")
-
+    await update_bd_msr_limit_uid(ctx, ctx.user_id, force)
+    
 
 # ======================= 定时任务 ======================= #
 
