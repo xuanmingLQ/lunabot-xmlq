@@ -2386,15 +2386,23 @@ class QuitedGroupUserInfo:
 
 _on_collect_quit_group_handlers: list[Callable[[CurrentGroupInfoDict], QuitedGroupUserInfo]] = []
 def on_collect_quited_group(func: Callable[[CurrentGroupInfoDict], QuitedGroupUserInfo]):
-    def wrapper(current_groups: CurrentGroupInfoDict) -> list[int]:
-        return func(current_groups)
+    if asyncio.iscoroutinefunction(func):
+        async def wrapper(current_groups: CurrentGroupInfoDict) -> QuitedGroupUserInfo:
+            return await func(current_groups)
+    else:
+        def wrapper(current_groups: CurrentGroupInfoDict) -> list[int]:
+            return func(current_groups)
     _on_collect_quit_group_handlers.append(wrapper)
     return wrapper
 
 _on_clean_quit_group_handlers: list[Callable[[CurrentGroupInfoDict], Any]] = []
 def on_clean_quited_group(func: Callable[[CurrentGroupInfoDict], Any]):
-    def wrapper(current_groups: CurrentGroupInfoDict):
-        func(current_groups)
+    if asyncio.iscoroutinefunction(func):
+        async def wrapper(current_groups: CurrentGroupInfoDict):
+            await func(current_groups)
+    else:
+        def wrapper(current_groups: CurrentGroupInfoDict):
+            func(current_groups)
     _on_clean_quit_group_handlers.append(wrapper)
     return wrapper
 
@@ -2745,7 +2753,7 @@ async def _(ctx: HandlerContext):
     await ctx.asend_reply_msg("已取消最近的操作")
 
 # 清除退出群聊的订阅数据
-_handler = CmdHandler(['/clean group'], utils_logger)
+_handler = CmdHandler(['/clean group', '/清理退群'], utils_logger)
 _handler.check_superuser()
 @_handler.handle()
 async def _(ctx: HandlerContext):
