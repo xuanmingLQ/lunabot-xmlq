@@ -2519,7 +2519,7 @@ class GroupUserSubHelper(SubHelper):
             name, 
             db, 
             logger, 
-            key_fn=lambda group_id, user_id: f"{user_id}@{group_id}", 
+            key_fn=lambda user_id, group_id: f"{user_id}@{group_id}", 
             val_fn=lambda key: list(map(int, key.split('@'))),
         )
 
@@ -2543,7 +2543,7 @@ class GroupUserSubHelper(SubHelper):
             all_subs = self.get_all().copy()
             for uid, gid in all_subs:
                 if gid not in current_groups or uid not in current_groups[gid].group_member_ids:
-                    self.unsub(gid, uid)
+                    self.unsub(uid, gid)
 
     def is_subbed(self, user_id: int, group_id: int):
         return super().is_subbed(user_id, group_id)
