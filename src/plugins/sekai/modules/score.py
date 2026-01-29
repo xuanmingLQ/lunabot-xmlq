@@ -215,6 +215,9 @@ async def compose_score_control_image(ctx: SekaiHandlerContext, target_point: in
                 TextBox(f"友情提醒：控分前请核对加成和体力设置", style3)
                 TextBox(f"特别注意核对加成不能有小数", style3)
                 TextBox(f'若有上传抓包可用"/控分组卡"加速配队', style1)
+                if target_point <= 120:
+                    TextBox(f"由于待控PT太小，候选项目较少", style3)
+                    TextBox(f"可使用\"/自定义房间控分\"获取更多控分方法", style3)
             
             # 数据
             with HSplit().set_content_align('lt').set_item_align('lt').set_sep(8).set_omit_parent_bg(True).set_item_bg(roundrect_bg()) as data_hs:
