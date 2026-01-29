@@ -3,7 +3,8 @@ import chromadb
 import uuid
 import time
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
+from dataclasses import dataclass, field, asdict
 
 TEXT_EMB_DIM = config.get('text_embed_dim')
 
@@ -20,7 +21,9 @@ class EventMemory:
 
 @dataclass
 class UserMemory:
-    text: str
+    names: List[str] = field(default_factory=list)
+    profile: str = ""
+    recent_events: List[Tuple[float, str]] = field(default_factory=list)
 
 @dataclass
 class SelfMemory:
@@ -95,14 +98,14 @@ class MemorySystem:
 
     def em_query(
         self, 
-        query_embedding: List[float], 
+        query_embeddings: List[List[float]], # 修改：支持传入多个embedding
         n_results: int, 
         memory_type: str,
         time_decay_rate: float = 0.0,
     ) -> List[EventMemory]:
         """
-        查询最相关的记忆。
-
+        查询最相关的记忆，支持混合检索（同时传入摘要向量和最新消息向量）。
+        
         参数:
             query_embedding (List[float]): 用于查询的embedding向量。
             n_results (int): 希望返回的结果数量。
@@ -112,56 +115,74 @@ class MemorySystem:
         返回:
             List[EMQueryResult]: 相关记忆的查询结果列表
         """
-        if n_results <= 0:
+        if n_results <= 0 or not query_embeddings:
             return []
         
-        assert len(query_embedding) == TEXT_EMB_DIM, f"Embedding维度应为 {TEXT_EMB_DIM}，但收到 {len(query_embedding)}"
+        for emb in query_embeddings:
+            assert len(emb) == TEXT_EMB_DIM, f"Embedding维度错误"
 
         where_clause = {}
         if memory_type in ["short_term", "long_term"]:
             where_clause = {"type": memory_type}
 
-        # 对于短期记忆，我们需要先获取更多结果，然后手动计算时间衰减
-        query_n = n_results * 3 if memory_type == 'short_term' else n_results
+        # 稍微放大查询数量，以便混合去重
+        query_n = n_results * 2
 
+        # ChromaDB 支持一次查询多个向量
         results = self.em_collection.query(
-            query_embeddings=[query_embedding],
+            query_embeddings=query_embeddings,
             n_results=query_n,
             where=where_clause,
             include=["metadatas", "distances"]
         )
 
-        processed_results = []
+        # 结果去重与合并
+        # results['ids'] 是一个列表的列表 [[id1, id2], [id3, id4]]
+        unique_memories: Dict[str, EventMemory] = {}
+
+        for i in range(len(query_embeddings)): # 遍历每一次查询（摘要查询、当前消息查询）
+            ids = results['ids'][i]
+            distances = results['distances'][i]
+            metadatas = results['metadatas'][i]
+
+            for j, mem_id in enumerate(ids):
+                # 构造对象
+                created_at = metadatas[j].get('created_at', 0)
+                mem_type = metadatas[j].get('type', 'unknown')
+                raw_distance = distances[j]
+                
+                # 计算时间惩罚
+                adjusted_distance = raw_distance
+                time_penalty = 0.0
+                if mem_type == 'short_term':
+                    time_elapsed_seconds = time.time() - created_at
+                    time_elapsed_hours = time_elapsed_seconds / 3600
+                    time_penalty = time_elapsed_hours * time_decay_rate
+                    adjusted_distance += time_penalty
+
+                # 如果ID已存在，取距离更小（更相关）的那次
+                if mem_id in unique_memories:
+                    if adjusted_distance < unique_memories[mem_id].adjusted_distance:
+                        unique_memories[mem_id].distance = raw_distance
+                        unique_memories[mem_id].adjusted_distance = adjusted_distance
+                        unique_memories[mem_id].time_penalty = time_penalty
+                else:
+                    unique_memories[mem_id] = EventMemory(
+                        id=mem_id,
+                        text=metadatas[j].get('text', ''),
+                        distance=raw_distance,
+                        adjusted_distance=adjusted_distance,
+                        type=mem_type,
+                        weight=metadatas[j].get('weight', 0),
+                        created_at=created_at,
+                        time_penalty=time_penalty,
+                    )
+
+        # 转换为列表并排序
+        final_results = list(unique_memories.values())
+        final_results.sort(key=lambda x: x.adjusted_distance)
         
-        # ChromaDB返回的结果是嵌套列表，我们需要解包
-        ids = results['ids'][0]
-        distances = results['distances'][0]
-        metadatas = results['metadatas'][0]
-
-        for i in range(len(ids)):
-            res = EventMemory(
-                id=ids[i],
-                text=metadatas[i].get('text', ''),
-                distance=distances[i],
-                adjusted_distance=distances[i],
-                type=metadatas[i].get('type', 'unknown'),
-                weight=metadatas[i].get('weight', 0),
-                created_at=metadatas[i].get('created_at', 0),
-                time_penalty=0.0,
-            )
-            # 如果是短期记忆，计算时间衰减
-            if res.type == 'short_term':
-                time_elapsed_seconds = time.time() - res.created_at
-                time_elapsed_hours = time_elapsed_seconds / 3600
-                # 距离越小越相关，所以我们给旧的记忆增加一个距离惩罚
-                time_penalty = time_elapsed_hours * time_decay_rate
-                res.adjusted_distance = res.distance + time_penalty
-                res.time_penalty = time_penalty
-            processed_results.append(res)
-
-        # 根据调整后的距离进行排序
-        processed_results.sort(key=lambda x: x.adjusted_distance)
-        return processed_results[:n_results]
+        return final_results[:n_results]
 
     def em_forget(self, forget_time: float, forget_prob: float):
         """
@@ -194,32 +215,55 @@ class MemorySystem:
         else:
             info("没有短期记忆被遗忘")
 
-    def um_update(self, user_id: int, um: UserMemory):
+    def um_update(self, user_id: int, name_update: str = None, profile_update: str = None, event_update: str = None, max_events: int = 5, max_names: int = 5):
         """
-        更新用户记忆。
-
-        参数:
-            user_id (int): 用户ID。
-            um (UserMemory): 记忆对象。
+        更新用户记忆（增量更新）。
         """
         ums = self.file_db.get('ums', {})
-        ums[str(user_id)] = asdict(um)
-        self.file_db.set('ums', ums)
-        info(f"更新用户记忆 {user_id}: {um}")
+        uid_str = str(user_id)
+        
+        # 加载现有记忆或创建新的
+        if uid_str in ums:
+            current_um = UserMemory(**ums[uid_str])
+            if not isinstance(current_um.names, list): current_um.names = list(current_um.names)
+            if not isinstance(current_um.recent_events, list): current_um.recent_events = list(current_um.recent_events)
+        else:
+            current_um = UserMemory()
+
+        updated = False
+        
+        # 1. 更新名字
+        if name_update and name_update not in current_um.names:
+            current_um.names.append(name_update)
+            current_um.names = current_um.names[-max_names:]
+            updated = True
+            info(f"更新用户 {user_id} 曾用名: {name_update}")
+
+        # 2. 更新用户画像
+        if profile_update and profile_update != current_um.profile:
+            current_um.profile = profile_update
+            updated = True
+            info(f"更新用户 {user_id} 画像")
+
+        # 3. 添加新事件 
+        if event_update:
+            current_um.recent_events.append((time.time(), event_update))
+            current_um.recent_events = current_um.recent_events[-max_events:]
+            updated = True
+            info(f"更新用户 {user_id} 事件: {event_update}")
+
+        if updated:
+            ums[uid_str] = asdict(current_um)
+            self.file_db.set('ums', ums)
 
     def um_get(self, user_id: int) -> UserMemory | None:
-        """
-        获取用户记忆。
-
-        参数:
-            user_id (int): 用户ID。
-
-        返回:
-            UserMemory: 记忆对象。
-        """
         ums = self.file_db.get('ums', {})
         if str(user_id) in ums:
-            return UserMemory(**ums[str(user_id)])
+            data = ums[str(user_id)]
+            # 兼容旧数据结构（如果之前只存了text）
+            if 'text' in data and 'profile' not in data:
+                 return UserMemory(profile=data['text'])
+            return UserMemory(**data)
         return None
 
     def sm_add(self, msg_id: int, text: str, keep_count: int):
