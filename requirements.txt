@@ -39,5 +39,10 @@ rapidfuzz
 sekai_deck_recommend_cpp
 pydub
 audioop-lts
+yappi
+brotli
+scipy
+mistune
+psutil<7.0.0
 
 # easyocr   # optional for llm.translator

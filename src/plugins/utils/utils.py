@@ -964,18 +964,33 @@ class PlaywrightPage:
             if _playwright_instance is None: 
                 # 启动async_playwright实例
                 _playwright_instance = await async_playwright().start()
-                _browser_type = _playwright_instance.chromium
                 utils_logger.info("初始化 Playwright 异步 API")
                 pass
-            # 清除临时文件
-            if os.system("rm -rf /tmp/rust_mozprofile*") != 0:
-                utils_logger.error(f"清空WebDriver临时文件失败")
-            #启动浏览器
-            _playwright_browser = await _browser_type.launch(
-                headless=True,
-                args=['--no-sandbox', '--disable-setuid-sandbox'] 
-            )
-            utils_logger.info(f"启动 Playwright Browser")
+            
+            # 获取配置
+            pw_cfg = global_config.get("playwright", {})
+            remote_url :str = pw_cfg.get("remote_url", "")
+            browser_type_str = pw_cfg.get("browser_type", "chromium")
+            
+            _browser_type = getattr(_playwright_instance, browser_type_str)
+
+            if remote_url:
+                utils_logger.info(f"正在连接远程 Playwright 浏览器: {remote_url}")
+                if remote_url.startswith("ws://") or remote_url.startswith("wss://"):
+                    _playwright_browser = await _browser_type.connect(remote_url, timeout=30000)
+                else:
+                    _playwright_browser = await _browser_type.connect_over_cdp(remote_url, timeout=30000)
+                utils_logger.info(f"成功连接至远程浏览器")
+            else:
+                # 清除本地临时文件
+                if os.system("rm -rf /tmp/rust_mozprofile*") != 0:
+                    utils_logger.error(f"清空WebDriver临时文件失败")
+                # 启动浏览器
+                _playwright_browser = await _browser_type.launch(
+                    headless=True,
+                    args=['--no-sandbox', '--disable-setuid-sandbox'],
+                )
+                utils_logger.info(f"启动本地 Playwright Browser")
             pass
         # 限制context的数量
         await _context_semaphore.acquire()
