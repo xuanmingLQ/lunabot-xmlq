@@ -1363,7 +1363,7 @@ async def asend_exception_mail(title: str, content: str, logger: 'Logger'):
                 port=mail_config['port'],
                 username=mail_config['user'],
                 password=mail_config['pass'],
-                from_email=mail_config['from'],
+                from_email=mail_config.get('from', mail_config['user']),
                 logger=logger,
             )
         except Exception as e:
