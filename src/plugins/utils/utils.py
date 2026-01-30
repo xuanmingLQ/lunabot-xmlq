@@ -942,7 +942,7 @@ _playwright_instance: Playwright | None = None
 _browser_type: BrowserType | None = NotImplementedError
 _playwright_browser: Browser | None = None
 
-MAX_CONTEXTS = global_config.get("playwright_context_num")
+MAX_CONTEXTS = global_config.get("playwright.context_num")
 _context_semaphore = asyncio.Semaphore(MAX_CONTEXTS)
 
 class PlaywrightPage:

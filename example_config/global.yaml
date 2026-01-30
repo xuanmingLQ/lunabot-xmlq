@@ -67,8 +67,6 @@ exception_mail:   # 发送异常消息邮件的配置
 
 default_thread_pool_size: 8
 
-playwright_context_num: 8
-
 safety_check:
   enabled: false
   secret_id: xxx
@@ -91,7 +89,9 @@ painter:
     offset: [0, 2]
     scale: 1.1
 
-# 如使用 Docker , 请共享 data/utils/tmp/ 文件夹到与 Playwright 容器內目录一致
+
 playwright:
+  # 如使用 Docker，请共享 data/utils/tmp/ 文件夹到与 Playwright 容器内目录一致
+  context_num: 8
   remote_url: "" # 远程 Playwright WS 端点 (例如 "ws://localhost:3000")。留空则启动本地浏览器。
   browser_type: "chromium" # chromium, firefox, webkit
