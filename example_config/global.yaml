@@ -60,8 +60,9 @@ cd_verbose_interval: 30   # 间隔多少秒输出一次"当前正在冷却"提�
 exception_mail:   # 发送异常消息邮件的配置
   host: "smtp.qq.com"          # 邮箱服务器地址
   port: 587                    # 邮箱服务器端口
-  user: "xxx@qq.com"      # 邮箱发送者用户名
-  pass: "xxx"     # 邮箱密码
+  user: "xxx@qq.com"           # SMTP 认证用户名
+  pass: "xxx"                  # SMTP 认证密码
+  from: "xxx@qq.com"           # 发件邮箱 (如果使用QQ邮箱则和user一致)
   receivers:                   # 邮箱接收者列表
     - xxx@qq.com
 
