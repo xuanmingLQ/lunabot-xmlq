@@ -549,10 +549,17 @@ async def chat(msg: Message):
                     # 安全检查：只允许更新当前上下文中存在的用户，防止LLM幻觉
                     if uid not in top_user_ids and uid != msg.user_id:
                         continue
-                        
+                    new_names = []
+                    if update.get('new_name'):
+                        new_names.append(update.get('new_name'))
+                    for msg in reversed(recent_msgs):
+                        if msg.user_id == uid:
+                            new_names.append(msg.nickname)
+                            break
                     mem.um_update(
                         user_id=uid,
-                        name_update=update.get('new_name'),
+                        new_names=new_names,
+                        wrong_names=update.get('wrong_names'),
                         profile_update=update.get('profile'),
                         event_update=update.get('new_event'),
                         max_events=config.get('chat.mem.um_max_events'),

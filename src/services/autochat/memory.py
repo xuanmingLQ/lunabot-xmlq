@@ -215,7 +215,16 @@ class MemorySystem:
         else:
             info("没有短期记忆被遗忘")
 
-    def um_update(self, user_id: int, name_update: str = None, profile_update: str = None, event_update: str = None, max_events: int = 5, max_names: int = 5):
+    def um_update(
+        self, 
+        user_id: int, 
+        new_names: List[str] = None,
+        wrong_names: List[str] = None,
+        profile_update: str = None, 
+        event_update: str = None, 
+        max_events: int = 5, 
+        max_names: int = 5,
+    ):
         """
         更新用户记忆（增量更新）。
         """
@@ -233,12 +242,21 @@ class MemorySystem:
         updated = False
         
         # 1. 更新名字
-        if name_update and name_update not in current_um.names:
-            current_um.names.append(name_update)
-            current_um.names = current_um.names[-max_names:]
-            updated = True
-            info(f"更新用户 {user_id} 曾用名: {name_update}")
-
+        if wrong_names:
+            for wrong_name in wrong_names:
+                if wrong_name in current_um.names:
+                    current_um.names.remove(wrong_name)
+                    updated = True
+                    info(f"移除用户 {user_id} 错误名字: {wrong_name}")
+        if new_names:
+            for new_name in new_names:
+                if new_name in current_um.names:
+                    continue
+                current_um.names.append(new_name)
+                current_um.names = current_um.names[-max_names:]
+                updated = True
+                info(f"更新用户 {user_id} 曾用名: {new_name}")
+        
         # 2. 更新用户画像
         if profile_update and profile_update != current_um.profile:
             current_um.profile = profile_update
