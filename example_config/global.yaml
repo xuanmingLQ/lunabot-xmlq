@@ -90,3 +90,8 @@ painter:
   emoji:
     offset: [0, 2]
     scale: 1.1
+
+# 如使用 Docker , 请共享 data/utils/tmp/ 文件夹到与 Playwright 容器內目录一致
+playwright:
+  remote_url: "" # 远程 Playwright WS 端点 (例如 "ws://localhost:3000")。留空则启动本地浏览器。
+  browser_type: "chromium" # chromium, firefox, webkit
