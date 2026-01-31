@@ -90,6 +90,7 @@ bd_msr_bind_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bd_msr_bind.json", logger)
 
 harvest_point_image_offsets_cache: dict[int, Tuple[Image.Image, tuple[int, int]]] = {}
 
+MYSEKAI_ICON_CACHE_RES = 64 * 64
 
 # ======================= 处理逻辑 ======================= #
 
@@ -320,6 +321,7 @@ async def get_fixture_by_blueprint_id(ctx: SekaiHandlerContext, bid: int) -> Opt
 
 # 获取mysekai家具图标
 async def get_mysekai_fixture_icon(ctx: SekaiHandlerContext, fixture: dict, color_idx: int = 0) -> Image.Image:
+    img_cache_kwargs = {'use_img_cache': True, 'img_cache_max_res': MYSEKAI_ICON_CACHE_RES }
     ftype = fixture['mysekaiFixtureType']
     asset_name = fixture['assetbundleName']
     suface_type = fixture.get('mysekaiSettableLayoutType', None)
@@ -329,39 +331,40 @@ async def get_mysekai_fixture_icon(ctx: SekaiHandlerContext, fixture: dict, colo
 
     if ftype == "surface_appearance":
         suffix = "_1" if color_count == 1 else f"_{color_idx+1}"
-        return await ctx.rip.img(f"mysekai/thumbnail/surface_appearance/{asset_name}/tex_{asset_name}_{suface_type}{suffix}.png", use_img_cache=True)
+        return await ctx.rip.img(f"mysekai/thumbnail/surface_appearance/{asset_name}/tex_{asset_name}_{suface_type}{suffix}.png", **img_cache_kwargs)
     else:
         suffix = f"_{color_idx+1}"
-        return await ctx.rip.img(f"mysekai/thumbnail/fixture/{asset_name}{suffix}.png", use_img_cache=True)
+        return await ctx.rip.img(f"mysekai/thumbnail/fixture/{asset_name}{suffix}.png", **img_cache_kwargs)
 
 # 获取mysekai资源图标
 async def get_mysekai_res_icon(ctx: SekaiHandlerContext, key: str) -> Image.Image:
     img = UNKNOWN_IMG
+    img_cache_kwargs = {'use_img_cache': True, 'img_cache_max_res': MYSEKAI_ICON_CACHE_RES }
     try:
         res_id = int(key.split("_")[-1])
         # mysekai材料
         if key.startswith("mysekai_material"):
             name = (await ctx.md.mysekai_materials.find_by_id(res_id))['iconAssetbundleName']
-            img = await ctx.rip.img(f"mysekai/thumbnail/material/{name}.png", use_img_cache=True)
+            img = await ctx.rip.img(f"mysekai/thumbnail/material/{name}.png", **img_cache_kwargs)
         # 普通材料
         elif key.startswith("material"):
-            img = await ctx.rip.img(f"thumbnail/material_rip/material{res_id}.png", use_img_cache=True)
+            img = await ctx.rip.img(f"thumbnail/material_rip/material{res_id}.png", **img_cache_kwargs)
         # 道具
         elif key.startswith("mysekai_item"):
             name = (await ctx.md.mysekai_items.find_by_id(res_id))['iconAssetbundleName']
-            img = await ctx.rip.img(f"mysekai/thumbnail/item/{name}.png", use_img_cache=True)
+            img = await ctx.rip.img(f"mysekai/thumbnail/item/{name}.png", **img_cache_kwargs)
         # 家具（植物种子）
         elif key.startswith("mysekai_fixture"):
             name = (await ctx.md.mysekai_fixtures.find_by_id(res_id))['assetbundleName']
             try:
-                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_{res_id}_1.png", use_img_cache=True)
+                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_{res_id}_1.png", **img_cache_kwargs)
             except:
-                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_1.png", use_img_cache=True)
+                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_1.png", **img_cache_kwargs)
         # 唱片
         elif key.startswith("mysekai_music_record"):
             mid = (await ctx.md.mysekai_musicrecords.find_by_id(res_id))['externalId']
             name = (await ctx.md.musics.find_by_id(mid))['assetbundleName']
-            img = await ctx.rip.img(f"music/jacket/{name}_rip/{name}.png", use_img_cache=True)
+            img = await ctx.rip.img(f"music/jacket/{name}_rip/{name}.png", **img_cache_kwargs)
         # 蓝图
         elif key.startswith("mysekai_blueprint"):
             fixture = await get_fixture_by_blueprint_id(ctx, res_id)

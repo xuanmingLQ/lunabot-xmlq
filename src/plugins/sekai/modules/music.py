@@ -929,7 +929,7 @@ async def get_music_cover_thumb(ctx: SekaiHandlerContext, mid: int) -> Image.Ima
     music = await ctx.md.musics.find_by_id(mid)
     assert_and_reply(music, f"歌曲ID={mid}不存在")
     asset_name = music['assetbundleName']
-    return await ctx.rip.img(f"music/jacket/{asset_name}_rip/{asset_name}.png", use_img_cache=True)
+    return await ctx.rip.img(f"music/jacket/{asset_name}_rip/{asset_name}.png", use_img_cache=True, img_cache_max_res=80*80)
 
 # 获取曲目翻译名 lang in ['cn', 'en']
 async def get_music_trans_title(mid: int, lang: str, default: str=None) -> str:

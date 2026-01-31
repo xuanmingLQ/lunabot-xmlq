@@ -1037,6 +1037,8 @@ from ..draw.plot import *
 from ..draw.img_utils import *
 import ffmpeg
 
+def get_image_pixel_hash(img: Image.Image):
+    return hashlib.md5(img.tobytes()).hexdigest()
 
 def get_image_b64(image: Image.Image) -> str:
     """

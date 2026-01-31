@@ -59,6 +59,8 @@ PROFILE_VERTICAL_KEYWORDS = ('竖屏', '竖向', '竖版', '纵向',)
 
 # ======================= 卡牌逻辑（防止循环依赖） ======================= #
 
+CARD_ICON_CACHE_RES = 80 * 80
+
 # 判断卡牌是否有after_training模式
 def has_after_training(card):
     return card['cardRarityType'] in ["rarity_3", "rarity_4"]
@@ -68,11 +70,14 @@ def only_has_after_training(card):
     return card.get('initialSpecialTrainingStatus') == 'done'
 
 # 获取角色卡牌缩略图
-async def get_card_thumbnail(ctx: SekaiHandlerContext, cid: int, after_training: bool):
+async def get_card_thumbnail(ctx: SekaiHandlerContext, cid: int, after_training: bool, high_res: bool=False):
     image_type = "after_training" if after_training else "normal"
     card = await ctx.md.cards.find_by_id(cid)
     assert_and_reply(card, f"找不到ID为{cid}的卡牌")
-    return await ctx.rip.img(f"thumbnail/chara_rip/{card['assetbundleName']}_{image_type}.png", use_img_cache=True)
+    img_cache_kwargs = {}
+    if not high_res:
+        img_cache_kwargs = {'use_img_cache': True, 'img_cache_max_res': CARD_ICON_CACHE_RES }
+    return await ctx.rip.img(f"thumbnail/chara_rip/{card['assetbundleName']}_{image_type}.png", **img_cache_kwargs)
 
 # 获取角色卡牌完整缩略图（包括边框、星级等）
 async def get_card_full_thumbnail(
@@ -81,6 +86,7 @@ async def get_card_full_thumbnail(
     after_training: bool=None, 
     pcard: Dict=None, 
     custom_text: str=None,
+    high_res: bool=False,
 ):
     if isinstance(card_or_card_id, int):
         card = await ctx.md.cards.find_by_id(card_or_card_id)
@@ -103,7 +109,7 @@ async def get_card_full_thumbnail(
         try: return open_image(cache_path)
         except: pass
 
-    img = await get_card_thumbnail(ctx, cid, after_training)
+    img = await get_card_thumbnail(ctx, cid, after_training, high_res=high_res)
     ok_to_cache = (img != UNKNOWN_IMG)
     img = img.copy()
 
@@ -548,7 +554,7 @@ async def get_player_avatar_info_by_basic_profile(ctx: SekaiHandlerContext, basi
     for pcard in pcards:
         pcard['after_training'] = pcard['defaultImage'] == "special_training" and pcard['specialTrainingStatus'] == "done"
     card_id = pcards[0]['cardId']
-    avatar_img = await get_card_thumbnail(ctx, card_id, pcards[0]['after_training'])
+    avatar_img = await get_card_thumbnail(ctx, card_id, pcards[0]['after_training'], high_res=True)
     cid = (await ctx.md.cards.find_by_id(card_id))['characterId']
     unit = await get_unit_by_card_id(ctx, card_id)
     return PlayerAvatarInfo(card_id, cid, unit, avatar_img)
@@ -667,7 +673,7 @@ async def get_player_avatar_info_by_detailed_profile(ctx: SekaiHandlerContext, d
     for pcard in pcards:
         pcard['after_training'] = pcard['defaultImage'] == "special_training" and pcard['specialTrainingStatus'] == "done"
     card_id = pcards[0]['cardId']
-    avatar_img = await get_card_thumbnail(ctx, card_id, pcards[0]['after_training'])
+    avatar_img = await get_card_thumbnail(ctx, card_id, pcards[0]['after_training'], high_res=True)
     cid = (await ctx.md.cards.find_by_id(card_id))['characterId']
     unit = await get_unit_by_card_id(ctx, card_id)
     return PlayerAvatarInfo(card_id, cid, unit, avatar_img)
@@ -754,7 +760,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
             card_ids = [pcard['cardId'] for pcard in pcards]
             cards = await ctx.md.cards.collect_by_ids(card_ids)
             card_imgs = [
-                await get_card_full_thumbnail(ctx, card, pcard=pcard)
+                await get_card_full_thumbnail(ctx, card, pcard=pcard, high_res=True)
                 for card, pcard in zip(cards, pcards)
             ]
             for i in range(len(card_imgs)):
