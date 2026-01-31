@@ -1319,6 +1319,7 @@ async def asend_mail(
     port: int,
     username: str,
     password: str,
+    from_email: str,
     logger: 'Logger',
     use_tls: bool = True,
 ):
@@ -1329,7 +1330,7 @@ async def asend_mail(
     from email.message import EmailMessage
     import aiosmtplib
     message = EmailMessage()
-    message["From"] = username
+    message["From"] = from_email
     message["To"] = recipient
     message["Subject"] = subject
     message.set_content(body)
@@ -1362,6 +1363,7 @@ async def asend_exception_mail(title: str, content: str, logger: 'Logger'):
                 port=mail_config['port'],
                 username=mail_config['user'],
                 password=mail_config['pass'],
+                from_email=mail_config.get('from', mail_config['user']),
                 logger=logger,
             )
         except Exception as e:
