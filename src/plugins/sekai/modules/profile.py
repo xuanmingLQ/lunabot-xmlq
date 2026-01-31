@@ -59,7 +59,7 @@ PROFILE_VERTICAL_KEYWORDS = ('竖屏', '竖向', '竖版', '纵向',)
 
 # ======================= 卡牌逻辑（防止循环依赖） ======================= #
 
-CARD_ICON_CACHE_RES = 80 * 80
+CARD_ICON_CACHE_RES = 128 * 128
 
 # 判断卡牌是否有after_training模式
 def has_after_training(card):
@@ -111,7 +111,7 @@ async def get_card_full_thumbnail(
 
     img = await get_card_thumbnail(ctx, cid, after_training, high_res=high_res)
     ok_to_cache = (img != UNKNOWN_IMG)
-    img = img.copy()
+    img = img.resize((128, 128), Image.BICUBIC)
 
     def draw(img: Image.Image, card):
         attr = card['attr']
