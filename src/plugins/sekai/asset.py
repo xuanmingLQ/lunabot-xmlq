@@ -1047,6 +1047,17 @@ class RegionRipAssetManger:
         logger.warning(f"解析下载的 {self.region} 解包资源 {path} 为json失败: 返回默认值")
         return default
 
+
+@repeat_with_interval(10, "解包图片缓存调试信息", logger)
+def log_rip_asset_img_cache_info():
+    if asset_config.get('debug_log_img_cache', False):
+        total_imgs = len(RegionRipAssetManger._img_cache_map)
+        total_mem = 0
+        for img in RegionRipAssetManger._img_cache_map.values():
+            w, h = img.size
+            total_mem += w * h * 4
+        logger.info(f"解包图片缓存数量: {total_imgs} 张, 估计内存占用: {total_mem / 1024 / 1024:.2f} MB") 
+
         
 # ================================ 静态图片资源 ================================ #
 

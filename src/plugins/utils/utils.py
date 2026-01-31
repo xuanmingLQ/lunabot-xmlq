@@ -345,7 +345,7 @@ def start_repeat_with_interval(
                 try:
                     if every_output:
                         logger.debug(f'开始执行 {name}')
-                    await func()
+                    await call_common_or_async(func)
                     if every_output:
                         logger.info(f'执行 {name} 成功')
                     if error_output and error_count > 0:
@@ -389,7 +389,7 @@ def start_async_task(func: Callable, logger: 'Logger', name: str, delay=None):
         await asyncio.sleep(delay)
         try:
             logger.info(f'开始异步执行 {name} 任务', flush=True)
-            await func()
+            await call_common_or_async(func)
         except Exception as e:
             logger.print_exc(f'异步执行 {name} 任务失败')
     _pending_startup_tasks.append(task)
