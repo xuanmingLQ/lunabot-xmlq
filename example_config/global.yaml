@@ -66,7 +66,7 @@ exception_mail:   # 发送异常消息邮件的配置
   receivers:                   # 邮箱接收者列表
     - xxx@qq.com
 
-default_thread_pool_size: 8
+default_thread_pool_size: 4   # 默认线程池大小，较大值可能会大幅增加内存占用
 
 safety_check:
   enabled: false
