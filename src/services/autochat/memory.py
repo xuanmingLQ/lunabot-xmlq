@@ -283,6 +283,20 @@ class MemorySystem:
                  return UserMemory(profile=data['text'])
             return UserMemory(**data)
         return None
+    
+    def um_query_uid_by_name_in_message(self, message: str) -> set[int]:
+        """
+        通过消息内容中出现的名字查询用户记忆对应的用户ID。
+        """
+        ums = self.file_db.get('ums', {})
+        results = set()
+        for uid_str, data in ums.items():
+            user_memory = UserMemory(**data)
+            for name in user_memory.names:
+                if name in message:
+                    results.add(int(uid_str))
+                    break
+        return results
 
     def sm_add(self, msg_id: int, text: str, keep_count: int):
         """

@@ -382,10 +382,19 @@ async def chat(msg: Message):
             user_msg_counts = {}
             for m in recent_msgs:
                 user_msg_counts[m.user_id] = user_msg_counts.get(m.user_id, 0) + 1
-            top_users = sorted(user_msg_counts.items(), key=lambda x: x[1], reverse=True)[:um_num]
+            top_users = sorted(user_msg_counts.items(), key=lambda x: x[1], reverse=True)
+            candidate_uids = [uid for uid, _ in top_users]
+            # 包含消息中提到名称的用户（更优先）
+            full_msg = "".join(get_plain_text(m) for m in recent_msgs)
+            mentioned_uids = mem.um_query_uid_by_name_in_message(full_msg)
+            for uid in mentioned_uids:
+                if uid not in candidate_uids:
+                    candidate_uids.insert(0, uid)
+            # 限制数量
+            candidate_uids = candidate_uids[:um_num]
+            # 格式化 UserMemory
             ums_content = []
-            for user_id, _ in top_users:
-                # 格式化 UserMemory
+            for user_id in candidate_uids:
                 top_user_ids.append(user_id)
                 if um := mem.um_get(user_id):
                     u_info = f"用户ID: {user_id}\n"
