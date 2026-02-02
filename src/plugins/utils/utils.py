@@ -1323,7 +1323,7 @@ async def asend_mail(
     password: str,
     from_email: str,
     logger: 'Logger',
-    use_tls: bool = True,
+    use_tls: bool,
 ):
     """
     异步发送邮件
@@ -1366,6 +1366,7 @@ async def asend_exception_mail(title: str, content: str, logger: 'Logger'):
                 username=mail_config['user'],
                 password=mail_config['pass'],
                 from_email=mail_config.get('from', mail_config['user']),
+                use_tls=mail_config.get('use_tls', False),
                 logger=logger,
             )
         except Exception as e:

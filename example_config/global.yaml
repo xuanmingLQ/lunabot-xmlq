@@ -63,6 +63,7 @@ exception_mail:   # 发送异常消息邮件的配置
   user: "xxx@qq.com"           # SMTP 认证用户名
   pass: "xxx"                  # SMTP 认证密码
   from: "xxx@qq.com"           # 发件邮箱 (如果使用QQ邮箱则和user一致)
+  use_tls: true                # 是否使用 TLS 加密连接
   receivers:                   # 邮箱接收者列表
     - xxx@qq.com
 
