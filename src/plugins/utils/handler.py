@@ -270,7 +270,7 @@ async def get_group_member_name(group_id: int, user_id: int) -> str:
     if cache := _group_member_name_cache.get(key):
         return cache
     bot = await aget_group_bot(group_id, raise_exc=True)
-    info = await bot.call_api('get_group_member_info', **{'group_id': group_id, 'user_id': user_id})
+    info = await bot.call_api('get_group_member_info', **{'group_id': int(group_id), 'user_id': int(user_id)})
     name = info.get('card') or info.get('nickname', str(user_id))
     _group_member_name_cache.set(key, name)
     return name
