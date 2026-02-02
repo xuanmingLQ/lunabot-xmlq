@@ -778,6 +778,7 @@ async def _(ctx: SekaiHandlerContext):
     mids = []
     for seg in args:
         res = await search_music(ctx, seg, options=MusicSearchOptions(use_emb=False))
+        assert_and_reply(res.music, f"未找到匹配的歌曲: {seg}")
         mids.append(res.music['id'])
 
     img_cq = await get_image_cq(
