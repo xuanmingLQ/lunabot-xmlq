@@ -128,6 +128,7 @@ async def get_mysekai_info(
     filter: list[str]=None, 
 ) -> Tuple[dict, str]:
     cache_path = None
+    uid = None
     try:
         # 获取绑定的玩家id
         try:
@@ -138,7 +139,7 @@ async def get_mysekai_info(
         try:
             mysekai_info = await get_mysekai(ctx.region, uid, filter)
         except HttpError as e:
-            logger.info(f"获取 {qid} {ctx.region} mysekai抓包数据失败: {get_exc_desc(e)}")
+            logger.info(f"获取 {qid} {ctx.region} {uid} mysekai抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
                 msg = f"获取你的{ctx.region.name}Mysekai抓包数据失败，发送\"/抓包\"指令可获取帮助\n"
                 # if local_err is not None: msg += f"[本地数据] {local_err}\n"
@@ -149,27 +150,27 @@ async def get_mysekai_info(
         except ApiError as e:
             raise ReplyException(f"获取 {qid} mysekai抓包数据失败：{e.msg}")
         except Exception as e:
-            logger.info(f"获取 {qid} {ctx.region} mysekai抓包数据失败: {get_exc_desc(e)}")
+            logger.info(f"获取 {qid} {ctx.region} {uid} mysekai抓包数据失败: {get_exc_desc(e)}")
             raise e
 
         if not mysekai_info:
-            logger.info(f"获取 {qid} {ctx.region} mysekai抓包数据失败: 找不到ID为 {uid} 的玩家")
+            logger.info(f"获取 {qid} {ctx.region} {uid} mysekai抓包数据失败: 找不到该玩家")
             raise ReplyException(f"找不到ID为 {uid} 的玩家")
         
         # 缓存数据（目前已不缓存）
         cache_path = f"{SEKAI_PROFILE_DIR}/mysekai_cache/{ctx.region}/{uid}.json"
         # if not upload_time_only:
         #     dump_json(mysekai_info, cache_path)
-        logger.info(f"获取 {qid} {ctx.region} mysekai抓包数据成功，数据已缓存")
+        logger.info(f"获取 {qid} {ctx.region} {uid} mysekai抓包数据成功，数据已缓存")
 
     except Exception as e:
         # 获取失败的情况，尝试读取缓存
         if cache_path and os.path.exists(cache_path):
             mysekai_info = load_json(cache_path)
-            logger.info(f"从缓存获取 {qid} {ctx.region} mysekai抓包数据")
+            logger.info(f"从缓存获取 {qid} {ctx.region} {uid} mysekai抓包数据")
             return mysekai_info, get_exc_desc(e) + "(使用先前的缓存数据)"
         else:
-            logger.info(f"未找到 {qid} 的缓存{ctx.region} mysekai抓包数据")
+            logger.info(f"未找到 {qid} {ctx.region} {uid} 的缓存mysekai抓包数据")
 
         if raise_exc:
             raise e
@@ -1919,27 +1920,30 @@ async def compose_mysekai_talk_list_image(
                                     draw_fids(fids, fids_single_reads)   
 
                 if not has_single:
-                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(16)
+                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(12)
 
             # 多人家具
             TextBox(f"多人对话家具", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=text_color)) \
                 .set_padding(12).set_bg(roundrect_bg())    
 
-            with Flow().set_item_align('lt').set_content_align('lt').set_sep(16, 8).set_w(row_w).set_padding(8).set_bg(roundrect_bg()):
+            with Flow().set_item_align('l').set_content_align('l').set_sep(16, 8).set_w(row_w + 16).set_padding(8).set_bg(roundrect_bg()) as flow:
                 has_multi = False
                 for fids, item in fids_multi_reads.items():
                     if not fids or item['total'] == item['read']:
                         continue
                     has_multi = True
                     fids = list(map(int, fids.split()))
-                    with HSplit().set_content_align('lt').set_item_align('l').set_sep(6):
+                    with HSplit().set_content_and_item_align('c').set_sep(6):
                         draw_fids(fids, fids_multi_reads)
-                        for cuids in item['cuids_set']:
-                            with HSplit().set_content_align('lt').set_item_align('lt').set_sep(5).set_padding(4).set_bg(roundrect_bg()):
-                                for cuid in cuids:
-                                    ImageBox(await get_chara_icon_by_chara_unit_id(ctx, cuid), size=(None, 45))
+                        with Flow().set_content_and_item_align('l').set_sep(6, 6).set_w(row_w // 2).set_size_policy(w_policy='fit'):
+                            for cuids in item['cuids_set']:
+                                with HSplit().set_content_and_item_align('c').set_sep(5).set_padding(4).set_bg(roundrect_bg()):
+                                    for cuid in cuids:
+                                        ImageBox(await get_chara_icon_by_chara_unit_id(ctx, cuid), size=(None, 45))
+
                 if not has_multi:
-                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(8)
+                    TextBox("全部已读", TextStyle(font=DEFAULT_BOLD_FONT, size=20, color=(50, 150, 50))).set_padding(4)
+                    flow.set_w(None).set_row_or_col_count(1)
 
     add_watermark(canvas)
     return await canvas.get_img()

@@ -234,6 +234,10 @@ def get_player_bind_id(ctx: SekaiHandlerContext, qid: int = None, check_bind=Tru
         if ctx.uid_arg.startswith('u'):
             index = int(ctx.uid_arg[1:]) - 1
             uid = get_uid_by_index(str(ctx.user_id), index)
+        elif ctx.uid_arg.startswith('@'):
+            assert_and_reply(is_super, "仅bot管理可直接@指定QQ号")
+            at_qid = int(ctx.uid_arg[1:])
+            uid = get_player_bind_id(ctx, at_qid, check_bind)
         else:
             assert_and_reply(is_super, "仅bot管理可直接指定游戏ID")
             uid = ctx.uid_arg
@@ -508,7 +512,7 @@ async def get_basic_profile(ctx: SekaiHandlerContext, uid: int, use_cache=True, 
         return profile
     except Exception as e:
         if use_cache and os.path.exists(cache_path):
-            logger.print_exc(f"获取{uid}基本信息失败，使用缓存数据")
+            logger.print_exc(f"获取 {ctx.region} {uid} 基本信息失败，使用缓存数据")
             profile = load_json(cache_path)
             return profile
         raise e
@@ -583,6 +587,7 @@ async def get_detailed_profile(
     filter: list[str] | set[str] | None=None,
 ) -> Tuple[dict, str]:
     cache_path = None
+    uid = None
     try:
         # 获取绑定的游戏id
         try:
@@ -592,13 +597,13 @@ async def get_detailed_profile(
             raise e
         # 检测是否隐藏抓包信息
         if not ignore_hide and is_user_hide_suite(ctx, qid):
-            logger.info(f"获取 {qid} {ctx.region}抓包数据失败: 用户已隐藏抓包信息")
+            logger.info(f"获取 {qid} {ctx.region} {uid} 抓包数据失败: 用户已隐藏抓包信息")
             raise ReplyException(f"你已隐藏抓包信息，发送\"/{ctx.region}展示抓包\"可重新展示")
         
         try:
             profile = await get_suite(ctx.region, uid,filter)
         except HttpError as e:
-            logger.info(f"获取 {qid} {ctx.region}抓包数据失败: {get_exc_desc(e)}")
+            logger.info(f"获取 {qid} {ctx.region} {uid} 抓包数据失败: {get_exc_desc(e)}")
             if e.status_code == 404:
                 msg = f"获取你的{ctx.region.name}Suite抓包数据失败，发送\"/抓包\"指令可获取帮助\n"
                 # if local_err is not None: msg += f"[本地数据] {local_err}\n"
@@ -607,27 +612,27 @@ async def get_detailed_profile(
             else:
                 raise
         except Exception as e:
-            logger.info(f"获取 {qid} {ctx.region}抓包数据失败: {get_exc_desc(e)}")
+            logger.info(f"获取 {qid} {ctx.region} {uid} 抓包数据失败: {get_exc_desc(e)}")
             raise e
             
         if not profile:
-            logger.info(f"获取 {qid} {ctx.region}抓包数据失败: 找不到ID为 {uid} 的玩家")
+            logger.info(f"获取 {qid} {ctx.region} {uid} 抓包数据失败: 找不到该玩家")
             raise ReplyException(f"找不到ID为 {uid} 的玩家")
         
         # 缓存数据（目前已不缓存）
         cache_path = f"{SEKAI_PROFILE_DIR}/suite_cache/{ctx.region}/{uid}.json"
         # if not upload_time_only:
         #     dump_json(profile, cache_path)
-        logger.info(f"获取 {qid} {ctx.region}抓包数据成功，数据已缓存")
+        logger.info(f"获取 {qid} {ctx.region} {uid} 抓包数据成功，数据已缓存")
         
     except Exception as e:
         # 获取失败的情况，尝试读取缓存
         if cache_path and os.path.exists(cache_path):
             profile = load_json(cache_path)
-            logger.info(f"从缓存获取 {qid} {ctx.region}抓包数据")
+            logger.info(f"从缓存获取 {qid} {ctx.region} {uid} 抓包数据")
             return profile, get_exc_desc(e) + "(使用先前的缓存数据)"
         else:
-            logger.info(f"未找到 {qid} 的缓存{ctx.region}抓包数据")
+            logger.info(f"未找到 {qid} {ctx.region} {uid} 的缓存抓包数据")
 
         if raise_exc:
             raise e
