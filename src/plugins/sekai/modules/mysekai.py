@@ -90,6 +90,7 @@ bd_msr_bind_db = get_file_db(f"{SEKAI_PROFILE_DIR}/bd_msr_bind.json", logger)
 
 harvest_point_image_offsets_cache: dict[int, Tuple[Image.Image, tuple[int, int]]] = {}
 
+MYSEKAI_ICON_CACHE_RES = 64 * 64
 
 # ======================= 处理逻辑 ======================= #
 
@@ -307,6 +308,7 @@ async def get_fixture_by_blueprint_id(ctx: SekaiHandlerContext, bid: int) -> Opt
 
 # 获取mysekai家具图标
 async def get_mysekai_fixture_icon(ctx: SekaiHandlerContext, fixture: dict, color_idx: int = 0) -> Image.Image:
+    img_cache_kwargs = {'use_img_cache': True, 'img_cache_max_res': MYSEKAI_ICON_CACHE_RES }
     ftype = fixture['mysekaiFixtureType']
     asset_name = fixture['assetbundleName']
     suface_type = fixture.get('mysekaiSettableLayoutType', None)
@@ -316,39 +318,40 @@ async def get_mysekai_fixture_icon(ctx: SekaiHandlerContext, fixture: dict, colo
 
     if ftype == "surface_appearance":
         suffix = "_1" if color_count == 1 else f"_{color_idx+1}"
-        return await ctx.rip.img(f"mysekai/thumbnail/surface_appearance/{asset_name}/tex_{asset_name}_{suface_type}{suffix}.png", use_img_cache=True)
+        return await ctx.rip.img(f"mysekai/thumbnail/surface_appearance/{asset_name}/tex_{asset_name}_{suface_type}{suffix}.png", **img_cache_kwargs)
     else:
         suffix = f"_{color_idx+1}"
-        return await ctx.rip.img(f"mysekai/thumbnail/fixture/{asset_name}{suffix}.png", use_img_cache=True)
+        return await ctx.rip.img(f"mysekai/thumbnail/fixture/{asset_name}{suffix}.png", **img_cache_kwargs)
 
 # 获取mysekai资源图标
 async def get_mysekai_res_icon(ctx: SekaiHandlerContext, key: str) -> Image.Image:
     img = UNKNOWN_IMG
+    img_cache_kwargs = {'use_img_cache': True, 'img_cache_max_res': MYSEKAI_ICON_CACHE_RES }
     try:
         res_id = int(key.split("_")[-1])
         # mysekai材料
         if key.startswith("mysekai_material"):
             name = (await ctx.md.mysekai_materials.find_by_id(res_id))['iconAssetbundleName']
-            img = await ctx.rip.img(f"mysekai/thumbnail/material/{name}.png", use_img_cache=True)
+            img = await ctx.rip.img(f"mysekai/thumbnail/material/{name}.png", **img_cache_kwargs)
         # 普通材料
         elif key.startswith("material"):
-            img = await ctx.rip.img(f"thumbnail/material_rip/material{res_id}.png", use_img_cache=True)
+            img = await ctx.rip.img(f"thumbnail/material_rip/material{res_id}.png", **img_cache_kwargs)
         # 道具
         elif key.startswith("mysekai_item"):
             name = (await ctx.md.mysekai_items.find_by_id(res_id))['iconAssetbundleName']
-            img = await ctx.rip.img(f"mysekai/thumbnail/item/{name}.png", use_img_cache=True)
+            img = await ctx.rip.img(f"mysekai/thumbnail/item/{name}.png", **img_cache_kwargs)
         # 家具（植物种子）
         elif key.startswith("mysekai_fixture"):
             name = (await ctx.md.mysekai_fixtures.find_by_id(res_id))['assetbundleName']
             try:
-                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_{res_id}_1.png", use_img_cache=True)
+                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_{res_id}_1.png", **img_cache_kwargs)
             except:
-                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_1.png", use_img_cache=True)
+                img = await ctx.rip.img(f"mysekai/thumbnail/fixture/{name}_1.png", **img_cache_kwargs)
         # 唱片
         elif key.startswith("mysekai_music_record"):
             mid = (await ctx.md.mysekai_musicrecords.find_by_id(res_id))['externalId']
             name = (await ctx.md.musics.find_by_id(mid))['assetbundleName']
-            img = await ctx.rip.img(f"music/jacket/{name}_rip/{name}.png", use_img_cache=True)
+            img = await ctx.rip.img(f"music/jacket/{name}_rip/{name}.png", **img_cache_kwargs)
         # 蓝图
         elif key.startswith("mysekai_blueprint"):
             fixture = await get_fixture_by_blueprint_id(ctx, res_id)
@@ -1959,17 +1962,30 @@ def get_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str | None:
     return msr_binds[qid]
 
 # 切换字节服msr限制uid为当前绑定的ID，返回绑定的ID
-def update_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str:
+async def update_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int, force: bool = False):
     assert_and_reply(ctx.region in BD_MYSEKAI_REGIONS, "指令对此区服无效")
     assert_and_reply(bd_msr_sub.is_subbed(ctx.region, ctx.group_id), "指令在此群无效")
+    qid = str(ctx.user_id)
+    next_time = bd_msr_bind_db.get(f"{ctx.region}_next_time.{qid}", 0)
+    if not force and next_time > datetime.now().timestamp():
+        raise ReplyException(f"请于{datetime.fromtimestamp(next_time).strftime('%m-%d %H:%M:%S')}后再试")
     uid = get_player_bind_id(ctx)
-    qid = str(qid)
-    msr_binds: dict[str, str] = bd_msr_bind_db.get(f"{ctx.region}_bind", {})
-    last_bind = msr_binds.get(qid)
-    assert_and_reply(last_bind != str(uid), f"你的MSR限制ID已经是当前ID，无需换绑")
-    msr_binds[qid] = str(uid)
-    bd_msr_bind_db.set(f"{ctx.region}_bind", msr_binds)
-    return uid
+    
+    async def do_update(new_ctx: HandlerContext):
+        msr_binds: dict[str, str] = bd_msr_bind_db.get(f"{ctx.region}_bind", {})
+        last_bind = msr_binds.get(qid)
+        assert_and_reply(last_bind != str(uid), f"你的MSR限制ID已经是当前ID，无需换绑")
+        msr_binds[qid] = str(uid)
+        bd_msr_bind_db.set(f"{ctx.region}_bind", msr_binds)
+
+        next_time = int((datetime.now() + timedelta(days=7)).timestamp())
+        bd_msr_bind_db.set(f"{ctx.region}_next_time.{qid}", next_time)
+        await new_ctx.asend_reply_msg(f"已将你的{ctx.region.name}MSR查询限制ID切换为当前绑定的ID: "
+                                f"{process_hide_uid(ctx, uid, keep=6)}，一周内不可再次切换")
+        
+    await add_need_confirm_action(ctx, do_update, 
+        additional_msg=f"是否将你的{ctx.region.name}MSR查询限制ID切换为当前绑定的ID: "
+        f"{process_hide_uid(ctx, uid, keep=6)}？一周内只能切换一次")
 
 
 
@@ -2190,19 +2206,13 @@ msr_change_bind.check_cdrate(cd).check_wblist(gbl)
 @msr_change_bind.handle()
 async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
+    force = False
+    if 'force' in args and check_superuser(ctx.event):
+        force = True
+        args = args.replace('force', '', 1).strip()
     assert_and_reply(not args, "该指令用于切换MSR查询限制ID为你当前绑定的ID，不需要添加参数。请你确认要更换的ID为你当前绑定的ID")
-
-    next_times = bd_msr_bind_db.get(f"{ctx.region}_next_time", {})
-    qid = str(ctx.user_id)
-    next_time = next_times.get(qid, 0)
-    if next_time > datetime.now().timestamp():
-        raise ReplyException(f"请于{datetime.fromtimestamp(next_time).strftime('%m-%d %H:%M:%S')}后再试")
-    uid = update_bd_msr_limit_uid(ctx, ctx.user_id)
-    next_times[qid] = int((datetime.now() + timedelta(days=7)).timestamp())
-    bd_msr_bind_db.set(f"{ctx.region}_next_time", next_times)
-    await ctx.asend_reply_msg(f"已将你的{ctx.region.name}MSR查询限制ID切换为当前绑定的ID: "
-                              f"{process_hide_uid(ctx, uid, keep=6)}，一周内不可再次切换")
-
+    await update_bd_msr_limit_uid(ctx, ctx.user_id, force)
+    
 
 # ======================= 定时任务 ======================= #
 

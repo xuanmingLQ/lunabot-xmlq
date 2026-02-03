@@ -13,12 +13,10 @@ class SekaiGroupSubHelper:
         self.regions = regions
         self.hide = hide
         self.subs = {
-            region: SubHelper(
+            region: GroupSubHelper(
                 f"{name}({region.name})_群聊",
                 file_db,
                 logger,
-                key_fn=lambda gid: str(gid),
-                val_fn=lambda x: int(x)
             ) for region in regions
         }
         SekaiGroupSubHelper.all_subs.append(self)
@@ -146,12 +144,10 @@ class SekaiUserSubHelper:
         self.related_group_sub = related_group_sub
         self.hide = hide
         self.subs = {
-            region: SubHelper(
+            region: GroupUserSubHelper(
                 f"{name}({region.name})_用户",
                 file_db,
                 logger,
-                key_fn=lambda uid, gid: f"{uid}@{gid}", 
-                val_fn=lambda x: list(map(int, x.split("@")))
             ) for region in regions
         }
         self.only_one_group = only_one_group

@@ -830,7 +830,8 @@ class RegionRipAssetManger:
     区服解包资源管理器
     使用 ```get(region)``` 方法获取对应区服的实例
     """
-    _all_mgrs = {}
+    _all_mgrs: dict[str, "RegionRipAssetManger"] = {}
+    _img_cache_map: dict[str, Image.Image] = {}
 
     def __init__(self, region: SekaiRegion):
         self.region = region
@@ -998,7 +999,7 @@ class RegionRipAssetManger:
         """
         # 尝试从图片缓存加载
         if use_img_cache and path in self.cached_images:
-            return self.cached_images[path].copy()
+            return self.cached_images[path]
         data = await self.get_asset(path, use_cache, allow_error, default, cache_expire_secs, get_cfg_or_value(timeout))
         try: 
             img = open_image(io.BytesIO(data))
@@ -1009,6 +1010,12 @@ class RegionRipAssetManger:
                     if w * h > max_res:
                         scale = math.sqrt(max_res / (w * h))
                         img = resize_keep_ratio(img, scale, mode='scale')
+                img_hash = get_image_pixel_hash(img)
+                # 由于不同区服图片资源存在大量重复，使用全局缓存减少内存占用
+                if img_hash in self._img_cache_map:
+                    img = self._img_cache_map[img_hash]
+                else:
+                    self._img_cache_map[img_hash] = img
                 self.cached_images[path] = img
             return img
         except: pass
@@ -1042,6 +1049,17 @@ class RegionRipAssetManger:
             raise Exception(f"解析下载的 {self.region} 解包资源 {path} 为json失败")
         logger.warning(f"解析下载的 {self.region} 解包资源 {path} 为json失败: 返回默认值")
         return default
+
+
+@repeat_with_interval(10, "解包图片缓存调试信息", logger)
+def log_rip_asset_img_cache_info():
+    if asset_config.get('debug_log_img_cache', False):
+        total_imgs = len(RegionRipAssetManger._img_cache_map)
+        total_mem = 0
+        for img in RegionRipAssetManger._img_cache_map.values():
+            w, h = img.size
+            total_mem += w * h * 4
+        logger.info(f"解包图片缓存数量: {total_imgs} 张, 估计内存占用: {total_mem / 1024 / 1024:.2f} MB") 
 
         
 # ================================ 静态图片资源 ================================ #

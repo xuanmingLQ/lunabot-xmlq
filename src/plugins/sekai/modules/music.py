@@ -22,10 +22,10 @@ from src.api.assets.music import get_music_alias
 import pandas as pd
 
 
-music_group_sub = SekaiGroupSubHelper("music", "新曲通知", ALL_SERVER_REGIONS)
-music_user_sub = SekaiUserSubHelper("music", "新曲@提醒", ALL_SERVER_REGIONS, related_group_sub=music_group_sub)
-apd_group_sub = SekaiGroupSubHelper("apd", "新APD通知", ALL_SERVER_REGIONS)
-apd_user_sub = SekaiUserSubHelper("apd", "新APD@提醒", ALL_SERVER_REGIONS, related_group_sub=apd_group_sub)
+music_group_sub = SekaiGroupSubHelper("music", "新曲通知", get_regions(RegionAttributes.ENABLE))
+music_user_sub = SekaiUserSubHelper("music", "新曲@提醒", get_regions(RegionAttributes.ENABLE), related_group_sub=music_group_sub)
+apd_group_sub = SekaiGroupSubHelper("apd", "新APD通知", get_regions(RegionAttributes.ENABLE))
+apd_user_sub = SekaiUserSubHelper("apd", "新APD@提醒", get_regions(RegionAttributes.ENABLE), related_group_sub=apd_group_sub)
 
 music_name_retriever = get_text_retriever(f"music_name") 
 
@@ -917,7 +917,7 @@ async def get_valid_musics(ctx: SekaiHandlerContext, leak=False) -> List[Dict]:
 
 # 在所有服务器根据id检索歌曲（优先在ctx.region)
 async def find_music_by_id_all_region(ctx: SekaiHandlerContext, mid: int) -> Optional[Dict]:
-    regions = ALL_SERVER_REGIONS.copy()
+    regions = get_regions(RegionAttributes.ENABLE)
     regions.remove(ctx.region)
     regions.insert(0, ctx.region)
     for region in regions:
@@ -931,7 +931,7 @@ async def get_music_cover_thumb(ctx: SekaiHandlerContext, mid: int) -> Image.Ima
     music = await ctx.md.musics.find_by_id(mid)
     assert_and_reply(music, f"歌曲ID={mid}不存在")
     asset_name = music['assetbundleName']
-    return await ctx.rip.img(f"music/jacket/{asset_name}_rip/{asset_name}.png", use_img_cache=True)
+    return await ctx.rip.img(f"music/jacket/{asset_name}_rip/{asset_name}.png", use_img_cache=True, img_cache_max_res=80*80)
 
 # 获取曲目翻译名 lang in ['cn', 'en']
 async def get_music_trans_title(mid: int, lang: str, default: str=None) -> str:
@@ -2350,7 +2350,7 @@ async def new_music_notify():
     notified_musics = file_db.get("notified_new_musics", {})
     updated = False
 
-    for region in ALL_SERVER_REGIONS:
+    for region in get_regions(RegionAttributes.ENABLE):
         region_name = region.name
         ctx = SekaiHandlerContext.from_region(region)
         musics = await ctx.md.musics.get()
@@ -2437,7 +2437,7 @@ async def new_apd_notify():
     SEND_LIMIT = 5
     total_send = 0
 
-    for region in ALL_SERVER_REGIONS:
+    for region in get_regions(RegionAttributes.ENABLE):
         region_name = region.name
         ctx = SekaiHandlerContext.from_region(region)
         musics = await ctx.md.musics.get()
