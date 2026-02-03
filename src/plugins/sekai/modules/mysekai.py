@@ -28,11 +28,8 @@ from src.api.game.user import get_mysekai,get_mysekai_photo,get_mysekai_upload_t
 from src.api.subscribe.pjsk import set_msr_sub
 from ...imgtool import shrink_image
 
-MYSEKAI_REGIONS = get_regions(RegionAttributes.MYSEKAI)
-BD_MYSEKAI_REGIONS = get_regions(RegionAttributes.MYSEKAI, RegionAttributes.BD_MYSEKAI)
-
-bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", BD_MYSEKAI_REGIONS)
-msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", MYSEKAI_REGIONS, only_one_group=True)
+bd_msr_sub = SekaiGroupSubHelper("msr", "msr指令权限", RegionAttributes.BD_MYSEKAI)
+msr_sub = SekaiUserSubHelper("msr", "烤森资源查询自动推送", RegionAttributes.MYSEKAI, only_one_group=True)
 
 class MsrIdNotMatchException(ReplyException):
     pass
@@ -192,7 +189,7 @@ async def get_mysekai_info_card(ctx: SekaiHandlerContext, mysekai_info: dict, ba
                 with VSplit().set_content_align('c').set_item_align('l').set_sep(5):
                     game_data = basic_profile['user']
                     mysekai_game_data = mysekai_info['updatedResources']['userMysekaiGamedata']
-                    if ctx.region in BD_MYSEKAI_REGIONS:
+                    if ctx.region.bd_mysekai:
                         process_sensitive_cmd_source(mysekai_info)
                     source = mysekai_info.get('source', '?')
                     if local_source := mysekai_info.get('local_source'):
@@ -241,7 +238,7 @@ async def get_mysekai_and_detail_profile_card(ctx: SekaiHandlerContext, mysekai_
                     user_id = process_hide_uid(ctx, game_data['userId'], keep=6)
 
                     mysekai_game_data = mysekai_info['updatedResources']['userMysekaiGamedata']
-                    if ctx.region in BD_MYSEKAI_REGIONS:
+                    if ctx.region.bd_mysekai:
                         process_sensitive_cmd_source(mysekai_info)
                     ms_source = mysekai_info.get('source', '?')
                     if ms_local_source := mysekai_info.get('local_source'):
@@ -866,7 +863,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
         bg = SEKAI_BLUE_BG
 
     def draw_watermark(size):
-        if ctx.region in BD_MYSEKAI_REGIONS:
+        if ctx.region.bd_mysekai:
             TextBox("禁止将该图片转发到其他群聊或社交平台", 
                     TextStyle(
                         font=DEFAULT_BOLD_FONT, size=size, color=(255, 255, 255, 150), 
@@ -954,7 +951,7 @@ async def compose_mysekai_res_image(ctx: SekaiHandlerContext, qid: int, show_har
                 ImageBox(img)
         draw_watermark(60)
     
-    if ctx.region not in BD_MYSEKAI_REGIONS:
+    if not ctx.region.bd_mysekai:
         add_watermark(canvas)
         add_watermark(canvas2, text=DEFAULT_WATERMARK_CFG.get() + ", map view from MiddleRed")
 
@@ -1953,7 +1950,7 @@ async def compose_mysekai_talk_list_image(
 
 # 获取字节服msr限制uid，不限制则返回None
 def get_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str | None:
-    if ctx.region not in BD_MYSEKAI_REGIONS or int(qid) in SUPERUSER_CFG.get():
+    if not ctx.region.bd_mysekai or int(qid) in SUPERUSER_CFG.get():
         return None
     qid = str(qid)
     msr_binds: dict[str, str] = bd_msr_bind_db.get(f"{ctx.region}_bind", {})
@@ -1963,7 +1960,7 @@ def get_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int) -> str | None:
 
 # 切换字节服msr限制uid为当前绑定的ID，返回绑定的ID
 async def update_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int, force: bool = False):
-    assert_and_reply(ctx.region in BD_MYSEKAI_REGIONS, "指令对此区服无效")
+    assert_and_reply(ctx.region.bd_mysekai, "指令对此区服无效")
     assert_and_reply(bd_msr_sub.is_subbed(ctx.region, ctx.group_id), "指令在此群无效")
     qid = str(ctx.user_id)
     next_time = bd_msr_bind_db.get(f"{ctx.region}_next_time.{qid}", 0)
@@ -1995,7 +1992,7 @@ async def update_bd_msr_limit_uid(ctx: SekaiHandlerContext, qid: int, force: boo
 pjsk_mysekai_res = SekaiCmdHandler([
     "/pjsk mysekai res", "/msr", "/msmap", "/msa",
     "/mysekai 资源", 
-], regions=MYSEKAI_REGIONS, priority=1)
+], regions=get_regions(RegionAttributes.MYSEKAI), priority=1)
 pjsk_mysekai_res.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_res.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -2014,7 +2011,7 @@ async def _(ctx: SekaiHandlerContext):
 pjsk_mysekai_blueprint = SekaiCmdHandler([
     "/pjsk mysekai blueprint", "/mysekai blueprint",
     "/msb", "/mysekai 蓝图",
-], regions=MYSEKAI_REGIONS)
+], regions=get_regions(RegionAttributes.MYSEKAI))
 pjsk_mysekai_blueprint.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_blueprint.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -2055,7 +2052,7 @@ async def _(ctx: SekaiHandlerContext):
 pjsk_mysekai_furniture = SekaiCmdHandler([
     "/pjsk mysekai furniture", "/pjsk mysekai fixture", 
     "/msf", "/mysekai 家具", "/家具列表",
-], regions=MYSEKAI_REGIONS)
+], regions=get_regions(RegionAttributes.MYSEKAI))
 pjsk_mysekai_furniture.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_furniture.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -2102,7 +2099,7 @@ async def _(ctx: SekaiHandlerContext):
 pjsk_mysekai_photo = SekaiCmdHandler([
     "/pjsk mysekai photo", "/pjsk mysekai picture", 
     "/msp", "/mysekai 照片" ,
-], regions=MYSEKAI_REGIONS)
+], regions=get_regions(RegionAttributes.MYSEKAI))
 pjsk_mysekai_photo.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_photo.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -2121,7 +2118,7 @@ pjsk_check_mysekai_data = SekaiCmdHandler([
     "/pjsk check mysekai data",
     "/pjsk烤森抓包数据", "/pjsk烤森抓包", "/烤森抓包", "/烤森抓包数据",
     "/msd",
-], regions=MYSEKAI_REGIONS)
+], regions=get_regions(RegionAttributes.MYSEKAI))
 pjsk_check_mysekai_data.check_cdrate(cd).check_wblist(gbl)
 @pjsk_check_mysekai_data.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -2152,7 +2149,7 @@ async def _(ctx: SekaiHandlerContext):
 # 查询烤森门升级数据
 pjsk_mysekai_gate = SekaiCmdHandler([
     "/pjsk mysekai gate",  "/msg", "/msgate",
-], regions=MYSEKAI_REGIONS)
+], regions=get_regions(RegionAttributes.MYSEKAI))
 pjsk_mysekai_gate.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_gate.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -2178,7 +2175,7 @@ async def _(ctx: SekaiHandlerContext):
 # 查询烤森唱片数据
 pjsk_mysekai_musicrecord = SekaiCmdHandler([
     "/pjsk mysekai musicrecord", "/msm", "/mss", "/mssong", 
-], regions=MYSEKAI_REGIONS)
+], regions=get_regions(RegionAttributes.MYSEKAI))
 pjsk_mysekai_musicrecord.check_cdrate(cd).check_wblist(gbl)
 @pjsk_mysekai_musicrecord.handle()
 async def _(ctx: SekaiHandlerContext):
@@ -2201,7 +2198,7 @@ async def _(ctx: SekaiHandlerContext):
 # msr换绑
 msr_change_bind = SekaiCmdHandler([
     "/msr换绑",
-], regions=BD_MYSEKAI_REGIONS)
+], regions=get_regions(RegionAttributes.BD_MYSEKAI))
 msr_change_bind.check_cdrate(cd).check_wblist(gbl)
 @msr_change_bind.handle()
 async def _(ctx: SekaiHandlerContext):

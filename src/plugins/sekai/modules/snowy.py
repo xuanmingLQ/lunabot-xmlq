@@ -1,4 +1,5 @@
 from src.utils import *
+from src.utils.request import ApiError
 from ..common import *
 from ..handler import *
 from matplotlib import pyplot as plt
@@ -296,9 +297,7 @@ async def get_cnskp_msg(ctx: SekaiHandlerContext, args: str) -> str:
 #     msg += "数据来源：SnowyBot"
 #     return await ctx.asend_msg(msg)
 
-SNOWY_ALLOW_REGIONS = [
-    'cn', 'jp'
-]
+SNOWY_ALLOW_REGIONS = get_regions(RegionAttributes.SNOWY)
 
 # 获取个人信息截图
 async def get_sekaiprofile_image(region: str, uid: str) -> Image.Image:

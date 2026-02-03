@@ -25,7 +25,6 @@ from .music import (
     get_music_diff_info,
     musicmetas_json,
 )
-from .mysekai import MYSEKAI_REGIONS
 from sekai_deck_recommend_cpp import (
     DeckRecommendOptions, 
     DeckRecommendCardConfig, 
@@ -2225,7 +2224,7 @@ DECKREC_DATA_UPDATE_INTERVAL_CFG = config.item('deck.data_update_interval_second
 
 @repeat_with_interval(DECKREC_DATA_UPDATE_INTERVAL_CFG, "组卡数据更新", logger)
 async def deckrec_update_data():
-    for region in REGIONS:
+    for region in get_regions(RegionAttributes.ENABLE):
         try:
             ctx = SekaiHandlerContext.from_region(region)
 
@@ -2272,7 +2271,7 @@ async def deckrec_update_data():
                         ctx.md.world_blooms.get_path(),
                         ctx.md.world_bloom_support_deck_bonuses.get_path(),
                     ]
-                    if ctx.region in MYSEKAI_REGIONS:
+                    if ctx.region.mysekai:
                         mds += [
                             ctx.md.card_mysekai_canvas_bonuses.get_path(),
                             ctx.md.mysekai_fixture_game_character_groups.get_path(),

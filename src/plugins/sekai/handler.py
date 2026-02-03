@@ -58,7 +58,7 @@ class SekaiHandlerContext(HandlerContext):
         if not self.create_from_region:
             return self.block(f"{self.region}_{key}", timeout=timeout, err_msg=err_msg)
 # 默认的ctx，主要用于 get static imgs
-DEFAULT_SK_CTX = SekaiHandlerContext.from_region('jp')
+DEFAULT_SK_CTX = SekaiHandlerContext.from_region(DEFAULT_REGION)
 
 
 class SekaiCmdHandler(CmdHandler):
@@ -177,7 +177,7 @@ async def _(ctx: HandlerContext):
 
     SET_HELP = f"""
 ---
-使用\"{ctx.trigger_cmd} 区服英文缩写\"设置默认区服，可用的区服有: {', '.join(REGIONS)}
+使用\"{ctx.trigger_cmd} 区服英文缩写\"设置默认区服，可用的区服有: {', '.join(get_regions(RegionAttributes.ENABLE))}
 """.strip()
 
     if not args:
@@ -195,7 +195,7 @@ async def _(ctx: HandlerContext):
 {SET_HELP}
 """.strip())
         
-    assert_and_reply(args in REGIONS, f"""
+    assert_and_reply(args in get_regions(RegionAttributes.ENABLE), f"""
 无效的区服参数: {args}
 {SET_HELP}
 """.strip())

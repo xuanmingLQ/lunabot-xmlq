@@ -159,14 +159,14 @@ class MasterDataManager:
         if isinstance(index_keys, str):
             index_keys = [index_keys]
         if isinstance(index_keys, list):
-            index_keys = {region: index_keys for region in REGIONS}
+            index_keys = {region: index_keys for region in get_regions(RegionAttributes.MASTERDATA)}
         self.index_keys = index_keys
 
     def _set_sort_keys(self, sort_keys: Union[str, List[str], Dict[str, List[str]]]):
         if isinstance(sort_keys, str):
             sort_keys = [sort_keys]
         if isinstance(sort_keys, list):
-            sort_keys = {region: sort_keys for region in REGIONS}
+            sort_keys = {region: sort_keys for region in get_regions(RegionAttributes.MASTERDATA)}
         self.sort_keys = sort_keys
 
     def get_cache_path(self, region: str) -> str:
@@ -620,8 +620,6 @@ MasterDataManager.set_sort_keys('events', ['startAt'])
 
 # ================================ MasterData自定义下载 ================================ #
 
-COMPACT_DATA_REGIONS = get_regions(RegionAttributes.COMPACT_DATA)
-
 def convert_compact_data(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     enums = data.get('__ENUM__', {})
     ret = []
@@ -637,7 +635,7 @@ def convert_compact_data(data: Dict[str, Any]) -> List[Dict[str, Any]]:
                 item[key] = x
     return ret
             
-@MasterDataManager.download_function("resourceBoxes", regions=COMPACT_DATA_REGIONS)
+@MasterDataManager.download_function("resourceBoxes", regions=get_regions(RegionAttributes.COMPACT_DATA))
 async def resource_boxes_download_fn(region:str, source:str):
     resbox_and_detail = await download_masterdata(region, source, "resourceBoxes", "resourceBoxDetails")
     def convert(resbox, resbox_detail):
