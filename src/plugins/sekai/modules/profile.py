@@ -739,6 +739,7 @@ async def compose_profile_image(ctx: SekaiHandlerContext, basic_profile: dict, v
     detail_profile, _ = await get_detailed_profile(
         ctx, ctx.user_id, raise_exc=False, ignore_hide=True, 
         filter=['upload_time', 'userPlayerFrames'],
+        strict=False,
     )
     uid = str(basic_profile['user']['userId'])
 
