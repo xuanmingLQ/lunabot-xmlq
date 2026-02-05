@@ -667,7 +667,10 @@ async def get_detailed_profile(
     if strict and filter:
         missing_keys = [k for k in filter if k not in profile]
         if missing_keys:
-            raise ReplyException(f"Suite抓包数据中缺少必要的字段: {', '.join(missing_keys)}  (数据来源: {profile.get('source', '?')})")
+            source = profile.get('source', '?')
+            update_time = datetime.fromtimestamp(profile['upload_time'] / 1000).strftime('%m-%d %H:%M:%S')
+            raise ReplyException(f"你的{get_region_name(ctx.region)}Suite抓包数据中缺少必要的字段: {', '.join(missing_keys)}"
+                                 f" (数据来源: {source} 更新时间: {update_time})")
         
     return profile, ""
 
