@@ -27,6 +27,7 @@ class PlayerAvatarInfo:
     img: Image.Image
 
 DEFAULT_DATA_MODE = 'latest'
+VALID_DATA_MODES = ['latest', 'default', 'local', 'haruki']
 
 
 @dataclass
@@ -561,6 +562,9 @@ async def get_player_avatar_info_by_basic_profile(ctx: SekaiHandlerContext, basi
 
 # 查询抓包数据获取模式
 def get_user_data_mode(ctx: SekaiHandlerContext, qid: int) -> str:
+    if ctx.data_mode_arg:
+        assert_and_reply(ctx.data_mode_arg in VALID_DATA_MODES, f"错误的抓包数据获取模式: {ctx.data_mode_arg}")
+        return ctx.data_mode_arg
     data_modes = profile_db.get("data_modes", {})
     return data_modes.get(ctx.region, {}).get(str(qid), DEFAULT_DATA_MODE)
 
@@ -590,6 +594,7 @@ async def get_detailed_profile(
     mode=None, 
     ignore_hide=False, 
     filter: list[str] | set[str] | None=None,
+    strict: bool=True,
 ) -> Tuple[dict, str]:
     cache_path = None
     uid = None
@@ -658,6 +663,11 @@ async def get_detailed_profile(
             raise e
         else:
             return None, get_exc_desc(e)
+
+    if strict and filter:
+        missing_keys = [k for k in filter if k not in profile]
+        if missing_keys:
+            raise ReplyException(f"Suite抓包数据中缺少必要的字段: {', '.join(missing_keys)}  (数据来源: {profile.get('source', '?')})")
         
     return profile, ""
 
@@ -1507,7 +1517,7 @@ async def _(ctx: SekaiHandlerContext):
         qid = ctx.user_id
     
     args = ctx.get_args().strip().lower()
-    assert_and_reply(args in ["default", "latest", "local", "haruki"], help_text)
+    assert_and_reply(args in VALID_DATA_MODES, help_text)
 
     if ctx.region not in data_modes:
         data_modes[ctx.region] = {}
