@@ -51,6 +51,7 @@ class SekaiRegion(str):
         self.timezone = kwargs.get("timezone", None)
         if not self.timezone:
             raise SekaiRegionError(f"{self.id}没有设置时区")
+        self.timezone = ZoneInfo(self.timezone)
         if kwargs.get("enable", False):
             self.enable = True
         options = kwargs.get("options", [])
