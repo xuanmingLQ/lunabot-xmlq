@@ -34,7 +34,7 @@ class RankForecastData:
 @dataclass
 class ForecastData:
     source: str
-    region: str
+    region: SekaiRegion
     event_id: int
     mtime: int = None
     forecast_ts: int = None
@@ -165,10 +165,10 @@ class GetForecastException(Exception):
     pass
 
 
-async def get_local_forecast_data(region: str, event_id: int, chapter_id: int) -> ForecastData:
+async def get_local_forecast_data(region: SekaiRegion, event_id: int, chapter_id: int) -> ForecastData:
     return await run_local_forecast(region, event_id)
 
-async def get_33kit_forecast_data(region: str, event_id: int, chapter_id: int) -> ForecastData | None:
+async def get_33kit_forecast_data(region: SekaiRegion, event_id: int, chapter_id: int) -> ForecastData | None:
     cfg = config.get('sk.forecast.33kit')
     data = ForecastData(
         source='33kit',
@@ -185,7 +185,7 @@ async def get_33kit_forecast_data(region: str, event_id: int, chapter_id: int) -
             data.rank_data[int(rank)] = RankForecastData(final_score=score)
     return data
 
-async def get_snowy_forecast_data(region: str, event_id: int, chapter_id: int | None = None) -> ForecastData | None:
+async def get_snowy_forecast_data(region: SekaiRegion, event_id: int, chapter_id: int | None = None) -> ForecastData | None:
     data = ForecastData(
         source='snowy',
         region=region,
@@ -199,25 +199,45 @@ async def get_snowy_forecast_data(region: str, event_id: int, chapter_id: int | 
     async with TempBotOrInternetFilePath('html', cfg['url']) as html_path:
         with open(html_path, 'r', encoding='utf-8') as f:
             html = f.read()
+    # 从网页爬取
+    # async with TempBotOrInternetFilePath('html', cfg['url']) as html_path:
+    #     with open(html_path, 'r', encoding='utf-8') as f:
+    #         html = f.read()
 
-        if f'event_{event_id}' not in html:
-            raise GetForecastException("最新活动预测未更新")
+    #     if f'event_{event_id}' not in html:
+    #         raise GetForecastException("最新活动预测未更新")
 
-        rank_preds = {}
+    #     rank_preds = {}
 
-        pattern = re.compile(r'"Rank":(\d+),"CurrentScore":\d+,"PredictedScore":(\d+),')
-        for match in pattern.finditer(html):
-            rank = int(match.group(1))
-            pred_score = int(match.group(2))
-            rank_preds[rank] = pred_score
+    #     pattern = re.compile(r'"Rank":(\d+),"CurrentScore":\d+,"PredictedScore":(\d+),')
+    #     for match in pattern.finditer(html):
+    #         rank = int(match.group(1))
+    #         pred_score = int(match.group(2))
+    #         rank_preds[rank] = pred_score
         
         data.forecast_ts = int(time.time())
         for rank, pred in rank_preds.items():
             data.rank_data[rank] = RankForecastData(final_score=pred)
     '''
+    #     data.forecast_ts = int(time.time())
+    #     for rank, pred in rank_preds.items():
+    #         data.rank_data[rank] = RankForecastData(final_score=pred)
+
+    # 从公开API获取
+    # resp = await download_json(cfg['url'].format(region=region + '/' if region != 'cn' else '', event_id=event_id))
+    # for item in resp.get('data', {}).get('charts', []):
+    #     rank = int(item['Rank'])
+    #     if rank not in cfg['ranks']:
+    #         continue
+    #     pred_score = int(item['PredictedScore'])
+    #     data.rank_data[rank] = RankForecastData(final_score=pred_score)
+    # if not data.rank_data:
+    #     raise GetForecastException("最新活动预测未更新")
+    # data.forecast_ts = int(resp['timestamp'] / 1000)
+
     return data
 
-async def get_sekarun_forecast_data(region: str, event_id: int, chapter_id: int | None = None) -> ForecastData | None:
+async def get_sekarun_forecast_data(region: SekaiRegion, event_id: int, chapter_id: int | None = None) -> ForecastData | None:
     cfg = config.get('sk.forecast.sekarun')
     data = ForecastData(
         source='sekarun',
@@ -272,11 +292,11 @@ _forecast_locks: dict[str, asyncio.Lock] = {
 _forecast_last_error_time: dict[str, datetime] = {}
 
     
-async def get_forecast_data(region: str, event_id: int, chapter_id: int | None = None) -> list[ForecastData]:
+async def get_forecast_data(region: SekaiRegion, event_id: int, chapter_id: int | None = None) -> list[ForecastData]:
     """
     获取指定活动的预测数据
     """
-    async def task(region: str, source: str):
+    async def task(region: SekaiRegion, source: str):
         sr = source + region
         async with _forecast_locks[sr]:
             try:
@@ -361,13 +381,13 @@ async def _update_forecast_data():
 
 # ============================= 本地预测 ============================= #
 
-def get_local_forecast_history_csv_path(region: str, event_id: int) -> str:
+def get_local_forecast_history_csv_path(region: SekaiRegion, event_id: int) -> str:
     """
     获取指定活动的历史排名数据 CSV 文件路径
     """
     return f"{FORECAST_DATA_DIR}/local/{region}/history/{event_id}.csv"
 
-async def save_rankings_to_csv(region: str, event_id: int, save_path: str):
+async def save_rankings_to_csv(region: SekaiRegion, event_id: int, save_path: str):
     """
     将指定活动的历史排名数据保存为 CSV 文件用于本地预测
     """
@@ -400,7 +420,7 @@ async def save_rankings_to_csv(region: str, event_id: int, save_path: str):
     os.replace(tmp_path, save_path)
     logger.info(f"已保存活动 {event_id} 的历史排名数据到 {save_path}")
 
-async def run_local_forecast(region: str, event_id: int) -> ForecastData | None:
+async def run_local_forecast(region: SekaiRegion, event_id: int) -> ForecastData | None:
     """
     运行本地预测
     """
