@@ -297,10 +297,18 @@ async def get_cnskp_msg(ctx: SekaiHandlerContext, args: str) -> str:
 #     msg += "数据来源：SnowyBot"
 #     return await ctx.asend_msg(msg)
 
+UNIT_NAMES_TO_TAB_ID = {
+    'light_sound': 'tab-L/n',
+    'idol': 'tab-MMJ',
+    'street': 'tab-VBS',
+    'theme_park': 'tab-WxS',
+    'school_refusal': 'tab-25时',
+    'piapro': 'tab-VS',
+}
 SNOWY_ALLOW_REGIONS = get_regions(RegionAttributes.SNOWY)
 
 # 获取个人信息截图
-async def get_sekaiprofile_image(region: SekaiRegion, uid: str) -> Image.Image:
+async def get_sekaiprofile_image(region: SekaiRegion, uid: str, unit: str) -> Image.Image:
     assert_and_reply(region.snowy, f"不支持的服务器 {region}，当前支持的服务器：{SNOWY_ALLOW_REGIONS}")
     base_url:str = snowy_config.get("sekaiprofile.base_url")
     assert_and_reply(base_url, "缺少sekaiprofile.base_url")
@@ -310,14 +318,13 @@ async def get_sekaiprofile_image(region: SekaiRegion, uid: str) -> Image.Image:
     async with PlaywrightPage() as page:
         try:
             await page.goto(url, wait_until='networkidle', timeout=60000)
-            # 等待加载遮罩消失
-            await page.wait_for_selector(
-                "#loadingOverlay.hidden",
-                state="attached",  
-                timeout=60000 
-            )
             await page.set_viewport_size({"width": 1000, "height": 1000})
-            main_container_locator = page.locator("#mainContainer")
+            main_container_locator = page.locator(".pjsk-container").nth(0)
+            if unit and (tab_id := UNIT_NAMES_TO_TAB_ID.get(unit)):
+                # 点击对应标签
+                await page.locator(f"#{tab_id}").click()
+                # 等待动画播放
+                await page.wait_for_timeout(500)
             with TempFilePath('png') as path:
                 await main_container_locator.screenshot(path=path)
                 return open_image(path)

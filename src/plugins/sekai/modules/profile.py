@@ -1420,8 +1420,9 @@ async def _(ctx: SekaiHandlerContext):
     args = ctx.get_args().strip()
     uid = get_player_bind_id(ctx)
     if 'snowy' in args:
+        unit, args = extract_unit(args)
         return await ctx.asend_reply_msg(await get_image_cq(
-            await get_sekaiprofile_image(ctx.region, uid),
+            await get_sekaiprofile_image(ctx.region, uid, unit),
             low_quality=True, quality=95,
         ))
     vertical = None
