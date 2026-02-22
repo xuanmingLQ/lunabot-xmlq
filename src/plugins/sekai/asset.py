@@ -17,8 +17,8 @@ DEFAULT_SORT_KEYS = []
 
 def get_multi_keys(data: dict, keys: List[Any]):
     for key in keys:
-        if key in data:
-            return data[key]
+        if (val:= data.get(key, None)):
+            return val
     raise KeyError(f"None of the keys {keys} found in dict")
 
 def get_version_order(version: str) -> tuple:
