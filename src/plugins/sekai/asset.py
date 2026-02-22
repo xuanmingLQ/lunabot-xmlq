@@ -17,8 +17,8 @@ DEFAULT_SORT_KEYS = []
 
 def get_multi_keys(data: dict, keys: List[Any]):
     for key in keys:
-        if key in data:
-            return data[key]
+        if (val:= data.get(key, None)):
+            return val
     raise KeyError(f"None of the keys {keys} found in dict")
 
 def get_version_order(version: str) -> tuple:
@@ -32,22 +32,6 @@ class RegionMasterDbSource:
     name: str
     version: str = DEFAULT_VERSION
     asset_version: str = DEFAULT_VERSION
-
-    async def update_version(self):
-        version = DEFAULT_VERSION
-        try:
-            timeout = asset_config.get('default_masterdata_update_check_timeout')
-            version_data = await asyncio.wait_for(download_json(self.version_url), timeout)
-            version = version_data.get('cdnVersion', 0)
-            if not version:
-                version = get_multi_keys(version_data, ['data_version', 'dataVersion'])
-            self.version = str(version)
-            self.asset_version = get_multi_keys(version_data, ['asset_version', 'assetVersion'])
-            # logger.info(f"MasterDB [{self.name}] 的版本为 {version}")
-        except asyncio.TimeoutError:
-            logger.error(f"获取 MasterDB [{self.name}] 的版本信息超时")
-        except Exception as e:
-            logger.print_exc(f"获取 MasterDB [{self.name}] 的版本信息失败")
 
 class RegionMasterDbManager:
     """
